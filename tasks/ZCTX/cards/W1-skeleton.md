@@ -37,3 +37,5 @@
 - 不实现任何折叠逻辑（W2-W4 的活）。
 - 不引入 react/client 面。
 - Config schema 字段按 plan §3（enabled/nudgeThresholds/keepRecentTokens/maxFoldFraction/minFoldableTokens/protectionFloorTokens/summaryFloorChars/netShrinkTolerance，全 primitive，默认值照 plan）。
+
+> 修订注记（W1-F1 闭合，2026-11-12）：卡面 item 6 原草稿类名 `Zcontext` 与 W3-W4 卡及实现的 `ZcontextPlugin` 不一致——以实现为准（src/index.ts:192），loader 消费 default export 故不承重；评审 99 分通过，本注记即 disposition=fixed。
