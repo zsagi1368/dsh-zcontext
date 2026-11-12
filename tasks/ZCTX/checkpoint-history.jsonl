@@ -1,0 +1,5 @@
+{"step":"s0","name":"lock+checkpoint-init","ts":"2026-11-12T09:50:00+08:00"}
+{"step":"s1","name":"package+patch+tsconfig+install","ts":"2026-11-12T09:56:00+08:00","commit":"dedfe2f"}
+{"step":"s2","name":"tsdown+vitest configs","ts":"2026-11-12T09:58:00+08:00"}
+{"step":"s3","name":"src skeleton + lib artifacts","ts":"2026-11-12T10:04:00+08:00","commit":"d4b6a7c"}
+{"step":"s6","name":"final-verify+assertions","ts":"2026-11-12T10:10:00+08:00","result":"three-green,12-assertions,5-probe"}

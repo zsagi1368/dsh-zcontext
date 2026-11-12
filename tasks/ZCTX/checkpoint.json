@@ -1,0 +1,54 @@
+{
+  "task": "ZCTX-W1",
+  "updatedAt": "2026-11-12T10:10:00+08:00",
+  "steps": [
+    {
+      "id": "s0",
+      "name": "lock + checkpoint init",
+      "status": "done",
+      "artifacts": ["tasks/ZCTX/.lock", "tasks/ZCTX/checkpoint.json"]
+    },
+    {
+      "id": "s1",
+      "name": "package.json + cordis.patch.yml + tsconfig.json + pnpm install",
+      "status": "done",
+      "commit": "dedfe2f",
+      "artifacts": ["package.json", "cordis.patch.yml", "tsconfig.json", "pnpm-lock.yaml"]
+    },
+    {
+      "id": "s2",
+      "name": "tsdown.config.ts + vitest.config.ts",
+      "status": "done",
+      "commit": "f47a15d",
+      "artifacts": ["tsdown.config.ts", "vitest.config.ts"]
+    },
+    {
+      "id": "s3",
+      "name": "src/index.ts skeleton + lib artifacts committed",
+      "status": "done",
+      "commit": "d4b6a7c",
+      "artifacts": ["src/index.ts", "lib/index.js", "lib/index.js.map", "lib/index.d.ts"]
+    },
+    {
+      "id": "s4",
+      "name": "tests/smoke.spec.ts + tsdown deps.neverBundle fix",
+      "status": "done",
+      "commit": "a271341",
+      "artifacts": ["tests/smoke.spec.ts"]
+    },
+    {
+      "id": "s5",
+      "name": "AGENTS.md + LICENSE + CHANGELOG.md",
+      "status": "done",
+      "commit": "36cfee1",
+      "artifacts": ["AGENTS.md", "LICENSE", "CHANGELOG.md"]
+    },
+    {
+      "id": "s6",
+      "name": "final three-green + package.json assertions (12/12) + standalone lib probe (5/5)",
+      "status": "done",
+      "artifacts": []
+    }
+  ],
+  "next": "reviewer-score-gate"
+}
