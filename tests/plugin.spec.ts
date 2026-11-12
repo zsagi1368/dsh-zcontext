@@ -195,6 +195,33 @@ describe('plugin: nudge context (B2 required + threshold crossing)', () => {
     await flushAsync()
     expect(context.text()).toBe('')
   })
+
+  it('attributes the assembly to the AssembleContext session, not the globally latest one (W4-4)', async () => {
+    const ctx = mockCtx()
+    new ZcontextPlugin(ctx)
+    const context = ctx.registeredContexts[0] as { text: (assembly?: unknown) => string }
+    // A: a seeded, routed session (window 200000, foldable spans 2..6).
+    const sessionA = routed(seedConversation().session)
+    // B: an empty, routed session created LAST — the "globally latest" pick.
+    const sessionB = routed(new MockSession())
+    ctx.emit('session/created', sessionA)
+    ctx.emit('session/created', sessionB)
+    await flushAsync()
+    // Without a reachable context the documented fallback applies (most
+    // recently created session → B, the empty one): B's FIRST crossing
+    // renders B's own empty span table.
+    expect(context.text()).toContain('(no foldable spans reported)')
+    // Official AssembleContext (assembleContextFor passes the Agent as both
+    // agent and scope; Agent.session — agent-loop/src/agent.ts:127): the
+    // assembly attributed to A must evaluate A's own spans, even though B is
+    // the globally most recent session. A's first crossing renders A's spans.
+    const forA = context.text({ agent: { session: sessionA }, scope: { session: sessionA } })
+    expect(forA).toContain('[context pressure: 50.0% — gentle reminder]')
+    expect(forA).toContain('seq 0..8')
+    // The assembly attributed to B again: B's crossing was already paid
+    // (跨越计次 cache model) → suppressed.
+    expect(context.text({ agent: { session: sessionB } })).toBe('')
+  })
 })
 
 describe('plugin: session feed maintains stores', () => {

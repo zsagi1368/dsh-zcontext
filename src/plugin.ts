@@ -21,8 +21,11 @@
  *
  * The nudge context provider is a PURE function of (pressure, budget,
  * ranges): it contributes '' (nothing on the wire) unless a threshold was
- * crossed since the last evaluation — the 跨越计次重付 cache model. The
- * context window is resolved asynchronously from the routed model info and
+ * crossed since the last evaluation — the 跨越计次重付 cache model. It
+ * consumes the official AssembleContext (W4-4): when the assembly carries the
+ * agent's session the evaluation is attributed to that session (per-session
+ * pressure), falling back to the most recently created session otherwise.
+ * The context window is resolved asynchronously from the routed model info and
  * cached per session; without it the provider contributes nothing honestly.
  * Below the CCM legal domain (W < 32768) the whole automatic face stays off
  * (engine-layer gate; tools remain usable).
@@ -64,6 +67,24 @@ export const NUDGE_CONTEXT_NAME = 'zctx-nudge'
 
 /** Nudge context join order (after core layers, before the guidance section). */
 export const NUDGE_CONTEXT_ORDER = 800
+
+/**
+ * Structural subset of the official `AssembleContext` the PromptContext.text
+ * provider receives (system-prompt/src/index.ts:42-50 and :85 —
+ * `text: string | ((context: AssembleContext) => string)`). The official
+ * host builds it through `assembleContextFor` (agent/src/dispatch.ts:174)
+ * as `{ agent, scope: agent, signal }`, and the Agent exposes its Session
+ * (agent-loop/src/agent.ts:127) — so the nudge provider can attribute the
+ * assembly to ITS session when the context is reachable.
+ */
+export interface AssembleContextLike {
+  /** The agent the assembly is for (official scope === agent). */
+  readonly agent?: { readonly session?: unknown }
+  /** Scope key of the assembly (officially the same Agent object). */
+  readonly scope?: { readonly session?: unknown }
+  /** Turn control signal (present but unused by this provider). */
+  readonly signal?: unknown
+}
 
 // ---------------------------------------------------------------------------
 // Structural host context + Service base (cordis peer, lazy require).
@@ -252,7 +273,9 @@ export class ZcontextPlugin extends ServiceBase {
       order: NUDGE_CONTEXT_ORDER,
       interpolate: false,
       required: true,
-      text: () => this.nudgeProvider(),
+      // Official PromptContext.text contract: the provider receives the
+      // assembly's AssembleContext (system-prompt/src/index.ts:85).
+      text: (assembly: AssembleContextLike) => this.nudgeProvider(assembly),
     })
   }
 
@@ -321,7 +344,7 @@ export class ZcontextPlugin extends ServiceBase {
     }
   }
 
-  /** The most recently created live session (single-session assumption, honest). @internal */
+  /** The most recently created live session. @internal */
   private currentSession(): SessionLike | undefined {
     let last: object | undefined
     for (const session of this.liveSessions) last = session
@@ -332,10 +355,27 @@ export class ZcontextPlugin extends ServiceBase {
    * The nudge context provider: '' unless a threshold was crossed since the
    * last evaluation (pure function of its inputs; suppressed = no-op on the
    * wire, B2). Below the CCM legal domain the automatic face stays off.
+   *
+   * Session attribution (W4-4): when the official AssembleContext carries a
+   * session (`assembleContextFor` passes the Agent as both `agent` and
+   * `scope`, and `Agent.session` is the session — agent-loop/src/agent.ts:127),
+   * the evaluation is attributed to THAT session, so multi-session hosts get
+   * per-session pressure instead of cross-assembly contamination. The
+   * globally-most-recent-session fallback remains for hosts that invoke the
+   * provider without a reachable context — a documented limitation there, not
+   * a correctness claim.
    */
-  private nudgeProvider(): string {
+  private nudgeProvider(assembly?: AssembleContextLike): string {
     try {
-      const session = this.currentSession()
+      const fromAgent = assembly?.agent?.session
+      const fromScope = assembly?.scope?.session
+      const attributed =
+        fromAgent !== null && typeof fromAgent === 'object'
+          ? (fromAgent as SessionLike)
+          : fromScope !== null && typeof fromScope === 'object'
+            ? (fromScope as SessionLike)
+            : undefined
+      const session = attributed ?? this.currentSession()
       if (session === undefined) return ''
       const window = this.windowCache.get(session as object)
       // Unknown window: cannot judge pressure honestly → no contribution.
