@@ -159,6 +159,13 @@ export const NUDGE_EMERGENCY_CLOSING =
   'Fold the largest unprotected spans immediately; keep only summaries and the protected tail.'
 
 // ---------------------------------------------------------------------------
+// Recall excerpt.
+// ---------------------------------------------------------------------------
+
+/** Ellipsis marking a cut excerpt boundary. */
+export const RECALL_EXCERPT_ELLIPSIS = '…'
+
+// ---------------------------------------------------------------------------
 // Validator reason templates ({{x}} placeholders; reach the model through the
 // zctx_fold tool result — kept here so all model-facing text has one home).
 // ---------------------------------------------------------------------------
