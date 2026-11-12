@@ -76,8 +76,7 @@ import type {
 
 /** Render a number without float dust (0.6×100 → "60"). @internal */
 function fmtNum(value: number): string {
-  const rounded = Math.round(value * 1000) / 1000
-  return Number.isInteger(rounded) ? String(rounded) : String(rounded)
+  return String(Math.round(value * 1000) / 1000)
 }
 
 /** Structural sanity of one surface node. @internal */
