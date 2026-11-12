@@ -92,3 +92,48 @@ W2 基线 100/100 未受波及（本波未触碰 W2 文件，唯 validator 语�
 - 探针脚本（probe-a/probe-b2）保存在 `C:\Users\ZS\AppData\Local\Temp\zctx-review-probe\`，可供 coder 复现阻断证据；建议随 W4-3 一并固化为正式探针。
 
 CHECKPOINT: 本评审落盘于 tasks/ZCTX/scorecards/W3.json、W4.json 与本文件；无业务代码改动（全程只读 + 仓外探针）。
+
+---
+
+# 复审节（rework round 1 · 2026-11-12）
+
+FROM: reviewer-R2 (同人对照复审)
+MODE: verify (复审通过, 放行 W5)
+RANGE: 4293a58..a3058eb（6 提交：4293a58 W3-1 / b6f359c W3-2 / ec8eb12 W4-1 / c1b6c2f W4-2 / 338e3ae W4-3 / 3c15e7c W4-4 / 8992208 ledger / 8408453 评审产物入库 / a3058eb lib regen）
+
+## 复审结论
+
+| 波 | 返工后总分 | 判定 | 剩余项 |
+|---|---:|---|---|
+| W3 | **99** | 通过（≥98） | 无 OPEN（一致性 -1 = mock assistant/tool 夹具 turn/step 注记，零功能面，已记录） |
+| W4 | **100** | 通过（≥98） | 无 OPEN |
+
+初评 [阻断] 1 + [建议] 5（含继承）全部 closed（fixed/verified/block，closure.json W3-R1/R2 + W4-R1..R4，8992208 入库）；第 2 轮无需启用。
+
+## 逐条闭合核验（reviewer 亲验）
+
+- **W3-1[阻断] → closed**（4293a58）：去信封裸 UserMessage `{id:randomUUID(), role, content, source}`；真实模式 fold+unfold 两例 `deriveEventMessage` 投影钉**测试先行**（与修复同提交）；mock `msg.user` 改裸形态、system/tool 夹具补 `{turn,step,message}`。reviewer 探针复跑：bare shape（role=user / content array / id 在位 / 无 message 键）、投影 fold 1 块 unfold 3 块均 role=user；`node scripts/probe-artifact.mjs` P4 checkpointBareUserMessage=true、P5 foldProjection/unfoldProjection=true。
+- **W3-2 → closed**（b6f359c）：按选项 (a) 文档化路线——validator 模块头/规则 d/守卫注释三处写明可达域（[checkpoint,checkpoint] 边界对齐），REASON_RANGE_DISCONTIGUOUS 扩展文案实测渲染生效（措辞探针：window [4,8] 端点俱在 → 新文案含 "must boundary-align with the checkpoint"）；双域扫描测试（pristine+post-fold 全窗口）钉死 numeric≡positional 不变式；[checkpoint,checkpoint] 吸收端到端 ok（absorbed:['f8']）。
+- **W4-1 → closed**（ec8eb12）：latest 参数删除 + 参数集精确钉 `{foldId}`。
+- **W4-2 → closed**（c1b6c2f）：自证循环删除，直接断言 required===true + 官方行号注记（667/:682 引用准确）。
+- **W4-3 → closed**（338e3ae）：scripts/probe-artifact.mjs 入库（5 组探针），reviewer 亲跑 **5/5 PASS, 0 SKIP, 0 FAIL**，可复现。
+- **W4-4 → closed**（3c15e7c）：provider 签名接收 AssembleContext，归属 agent.session → scope.session，回退文档化；官方引用逐条亲核**精确属实**（agent/src/dispatch.ts:174-176 `assembleContextFor(agent, signal)` 返回 `{agent, scope: agent, signal}`；Agent 公开 readonly session；system-prompt/src/index.ts:85 契约）；双会话归属判别测试在测（A 渲染 A 跨度、B 走跨越计次抑制）。
+
+## 两点 coder 披露判定
+
+**(a) `id: randomUUID()` 补充 — 成立，保留。** 官方 UserMessage 完整成员集恰为 `{id, content, source, role: 'user'}`：`llm/src/message.ts:139-141` MessageBase.id readonly 必填、`:162-165` UserMessage extends MessageBase、`:226` createMessage 盖 `randomUUID()`、`:246-249` createUserMessage 返回 `T & Pick<UserMessage,'id'|'role'>`。评审原修法"可选 id"表述不完整，coder 的完整镜像比评审字面更正确；探针实证 id 在位且投影不受影响（deriveEventMessage 逐字返回 data）。
+
+**(b) 评审产物入库 8408453 — 合规。** adds-only 提交（312 insertions / 0 deletions / 0 修改，`git show --stat` 亲核），三个文件与评审落盘版逐字一致；先例 b601804（R1 产物）与 8b943c2 同模式；符合 §0.6/§2.2 全员增量落盘与卡面指定产物路径（scorecards/handoffs）。范围外无文件触碰。
+
+## 复审亲验证据
+
+- `npm run build` → ✔；`npm run lint` → 零错；`npx vitest run` → **193/193, 0 skipped**（189 基线 + W3-2 扫描 2 + W4-1 钉 1 + W4-4 钉 1 = 193 ✓）。
+- `node scripts/probe-artifact.mjs` → 5/5 PASS（P1 30 导出 / P2 接线 / P3 S8 / P4 端到端裸 UserMessage / P5 真实 session 投影+W3-2 拒收钉）。
+- reviewer 探针（仓外 `C:\Users\ZS\AppData\Local\Temp\zctx-review-probe\probe-c-rereview.mjs` + 措辞探针）：W3-1 裸形态与投影全过；W3-2 跨 checkpoint 窗诚实拒收、[checkpoint,checkpoint] 吸收可达。
+- 入库 lib 与重建字节一致（重建后 `git status` 干净）；返工备份 `del/20261112-w3w4-rework-prechange/` 在位。
+
+## 备注（零功能面观察，已记录不静默）
+
+mock `msg.assistant`/`msg.tool` 信封仍无 `turn/step`（官方 types.ts:341/375 含）——插件从不写 assistant/tool/system 事件、store 不读 turn/step，纯夹具保真度注记（W3.json 一致性 19 的 -1 依据），不构成任何卡面缺口，无处置要求。
+
+CHECKPOINT: 复审产物 = 本节 + 刷新后 scorecards/W3.json（99）/W4.json（100）；两卡 ≥98 → **放行 W5**。

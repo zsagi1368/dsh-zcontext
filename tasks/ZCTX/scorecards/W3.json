@@ -1,97 +1,98 @@
 {
   "block": "W3",
-  "task": "ZCTX-R2 (CARD-R2-review-W3W4) — W3 引擎波独立对抗评审",
-  "range": "f2fe630..9ee6619 (feat(ZCTX): W3 engine — FoldStore + fold/unfold commit orchestration)",
-  "reviewer": "reviewer-R2 (independent subagent; reviewer ≠ W3/W4 coder)",
+  "task": "ZCTX-R2 (CARD-R2-review-W3W4) → 返工复审 round 1",
+  "range": "f2fe630..9ee6619 (初评) + 返工 4293a58 (W3-1) / b6f359c (W3-2) / 8992208 (ledger) / 8408453 (评审产物入库) / a3058eb (lib regen)",
+  "reviewer": "reviewer-R2 (independent subagent; reviewer ≠ W3/W4 coder; 初评与复审同人对照)",
   "date": "2026-11-12",
-  "verdict": "打回 (返工第 1 轮/上限 2): 总分 77 < 98, [阻断] 1 项 (checkpoint 载荷形态偏离官方 user/message 契约)",
-  "total": 77,
+  "verdict": "通过 (返工第 1 轮闭合 W3-1/W3-2; 总分 99 ≥ 98) → 放行 W5",
+  "total": 99,
   "threshold": 98,
-  "self_check_rounds_used_by_coder": 0,
-  "rework_budget": "≤2 轮 (§1.4)",
-  "verification_trio": {
-    "build": "npm run build → tsdown ✔ lib/index.js 116.63 kB (reviewer 亲跑 2026-11-12)",
-    "lint": "npm run lint → tsc --noEmit 零错 (reviewer 亲跑)",
-    "test": "npx vitest run → 11 files, 189/189 passed, 0 skipped (reviewer 亲跑; 与 coder 自报一致)",
-    "real_mode": "npx vitest run tests/fold-engine.spec.ts --reporter=verbose → 4 例 real @deepseek-ai/dsh-session 全部 executed 非 skipped (S5 双模式属实)"
+  "initial_review": {
+    "total": 77,
+    "verdict": "打回 (返工第 1 轮/上限 2)",
+    "blocking_findings": 1,
+    "suggestions": 1,
+    "note": "初评详情保留于本文件 git 历史 (8408453 提交版) 与 handoffs/REVIEW-W3W4.md §[阻断]/§[建议]"
+  },
+  "verification_trio_reviewer_run": {
+    "build": "npm run build → tsdown ✔ (lib/index.js 394.22 kB total; git status 干净 = 入库 lib 与重建字节一致)",
+    "lint": "npm run lint → tsc --noEmit 零错",
+    "test": "npx vitest run → 11 files, 193/193 passed, 0 skipped (189 基线 + W3-2 双域扫描 2 例 + W4-1 参数集钉 1 例 + W4-4 双会话归属钉 1 例)"
+  },
+  "rework_verification": {
+    "W3-1_block": {
+      "commit": "4293a58",
+      "closure": "closure.json W3-R1 fixed/verified/block",
+      "adjudication": "闭合且优于评审字面。评审原修法为 {role,content,source}（'可选 id'）；coder 在披露 (a) 中补 id:randomUUID() 并主张 dsh-llm MessageBase.id 必填——复核成立并保留：官方 UserMessage 完整成员集恰为 {id, content, source, role}（llm/src/message.ts:139-141 MessageBase.id readonly 必填 / :162-165 UserMessage / :226 createMessage 盖 randomUUID / :246-249 createUserMessage 返回 T & Pick<UserMessage,'id'|'role'>），代码注释与模块头同步引用官方行。",
+      "tests_first": "真实模式 fold+unfold 两例新增 mod.deriveEventMessage 钉（fold-engine.spec.ts:605-617, :654-668 区）：projected.role==='user' 且 content 为数组——评审要求的'测试断言为准绳'落法属实，且在修复提交内先行。",
+      "reviewer_probe": "probe-c-rereview.mjs（官方 lib + 插件自身 fold/unfold）：bare shape? role:user / content array:true / id:true / envelope present:false；投影 fold role=user 1 块、unfold role=user 3 块。scripts/probe-artifact.mjs P4 checkpointBareUserMessage=true、P5 foldProjection/unfoldProjection=true（真实 session）。",
+      "fixtures": "mock-session.ts msg.user 改裸 UserMessage（:180-182）+ 模块头形态契约注记；真实模式夹具 user 裸、system/tool 补 {turn,step,message}（types.ts:330/373-380 亲核一致）"
+    },
+    "W3-2_suggestion": {
+      "commit": "b6f359c",
+      "closure": "closure.json W3-R2 fixed/verified/block",
+      "adjudication": "按评审选项 (a) 文档化路线闭合，三处落点：validator.ts 模块头 check a 'REACHABLE-DOMAIN note' + 规则 d 处可达域注记 + contiguity 守卫处'load-bearing'注释（数字过滤≡位置切片的跨模块不变式就近钉在定义与消费两端）；texts.ts REASON_RANGE_DISCONTIGUOUS 扩展提示句。",
+      "reviewer_probe": "措辞探针实测新文案生效：window [4,8]（端点俱在）→ 'not contiguous on the surface: after a fold the surface is no longer numerically ordered … must boundary-align with the checkpoint (window [checkpoint, checkpoint])'；probe-c [checkpoint,checkpoint] 吸收端到端 ok:true absorbed:['f8']（真实 lib 官方 session）。",
+      "invariant_pin": "fold-engine.spec.ts 'dual-regime sweeps'：pristine 单调面与 post-fold 非单调面全窗口扫，凡 validator 受理窗断言 numericFilter≡positionalSlice——防守未来放宽守卫导致静默账本漂移（官方 sourceEventSeqs 仅超集校验）。"
+    }
+  },
+  "disclosures": {
+    "a_id_randomUUID": "成立, 保留（证据见 rework_verification.W3-1_block.adjudication；官方 UserMessage 四成员集亲核, 探针 id 在位且投影不受影响）",
+    "b_artifacts_commit_8408453": "合规：adds-only 提交（312 insertions / 0 deletions / 0 修改, git show --stat 亲核）, 先例 b601804（R1）/8b943c2 同模式, 与 §0.6/§2.2 落盘纪律及卡面指定产物路径一致"
   },
   "dimensions": {
     "correctness": {
-      "score": 16,
-      "hard_gate_hit": true,
+      "score": 25,
       "evidence": [
-        "引擎表面机制本身正确且独立复现: 官方 lib 实测 fold#1 ok:true, surface [0,8,4,5,6,7] 形态与代数计数正确 (reviewer 探针 C:/Users/ZS/AppData/Local/Temp/zctx-review-probe/probe-b2-engine.mjs 输出 'fold#1 ok: true surface: [ 0, 8, 4, 5, 6, 7 ]')",
-        "mock 四条硬校验真实现 (读代码验证非看注释): tests/helpers/mock-session.ts:105-117 精确 shadowed 集合 / :94-103 replace 端点存在 / :118-126 node-0 system head / :128-136 tool-result 单节点护栏",
-        "[阻断 W3-1] checkpoint 载荷形态: src/fold-engine.ts:287-297 (fold) 与 :432-442 (unfold) 以 { message: {...} } 信封提交 user/message; 官方契约 'user/message': UserMessage = 裸消息 (zDSH-main packages/core/session/src/types.ts:309), deriveEventMessage 对 user/message 逐字返回 event.data (surface.ts:132-134), 官方生产者直接提交消息对象 (compaction-basic/src/region.ts:506-508 — 恰为卡面引用行; core/agent-loop/src/agent.ts:435)",
-        "探针 A 实证 (官方 lib, probe-a-shape.mjs): 插件形态节点 deriveEventMessage 输出 {\"message\":{...}} — top-level role=false, content=false; 官方形态节点输出正常 UserMessage。真实宿主上折叠摘要将作为无 role/content 的畸形消息投影 → 摘要永远无法以可用形态到达模型",
-        "测试未拦截的原因: 真实模式用例只断言表面机制并回读自己写入的信封 (fold-engine.spec.ts:597-600 读 event.data.message.source), 从未断言 deriveEventMessage 投影 — 官方 session.append 对宽松载荷不校验 (validateSessionEventData surface.ts:164-217 对该形态无 throw), 故 4 例真跑全绿",
-        "副证: options.md:88,90 自引 region.ts:506-508 冻结官方同位最小形态 — 实现与自订契约相悖"
-      ],
-      "fix_directive": "先加测试断言 (修法以测试为准绳): 真实模式新增 `const m = session.deriveEventMessage(session.eventAt(checkpointSeq)); expect(m.role).toBe('user'); expect(Array.isArray(m.content)).toBe(true)` (fold-engine.spec.ts 两例 fold+unfold); 再改 src/fold-engine.ts:287-297/432-442 去掉信封直接提交 { role:'user', content, source } (镜像 createUserMessage 输出, region.ts:410-413); 同步 mock-session.ts msg.user/system 构造器与 fold-engine.spec.ts:565-580 真实模式夹具为官方形态; store.ts:131-139 extractMessage 双形态兼容已就绪, store 无需改"
+        "W3-1 闭合复验：信封已除（fold-engine.ts fold/unfold 提交 {id:randomUUID(), role:'user', content, source} = 官方 UserMessage 四成员全对齐）; 官方 lib 投影探针 fold/unfold 均 role=user 且 content 数组、无 message 键（probe-c 输出在案）",
+        "真实模式投影钉两例 executed 非 skip（193/193 含 real 4 例）; probe-artifact P5 真实 session foldProjection/unfoldProjection=true",
+        "表面机制维持初评已证状态：mock 四条硬校验（mock-session.ts:105-136）、真实 4 例、代数计数、互斥、absorbed/dead/unfolded 判定全部保持绿",
+        "不变式扫描双域钉：pristine+post-fold 全窗口 numeric≡positional（fold-engine.spec.ts W3-2 describe），杜绝静默账本漂移路径",
+        "无错误输出：193/193 + build/lint 零错 + git status 干净（lib 产物字节一致）"
+      ]
     },
     "completeness": {
-      "score": 17,
+      "score": 20,
       "evidence": [
-        "卡面 W3 全项交付: store (attach 扫描+feed 增量+保留缓存+互斥跟踪+usage 账本, store.ts) / 引擎 (validator→子区间对闭合→互斥→代数快照→逐 entry→fail-soft 校验) / S5 双模式 / CCM 32768 引擎门 (fold-engine.ts:72,89-99) / B1 unfold 单节点形态断言在测 (fold-engine.spec.ts:333-334 'exactly ONE surface node replaces the checkpoint')",
-        "absorbed/dead/unfolded 判定语义有测试钉: 外来源 replace→dead (store.spec.ts:62), zctx 折叠遮蔽→absorbed (fold-engine.spec.ts:296-316), unfold→unfolded (fold-engine.spec.ts:352-355)",
-        "[建议 W3-2] 嵌套吸收事实上收窄: validator 连续+单调守卫 (validator.ts:144-150) 拒收任何'含活动 checkpoint 且其后再有后补节点'的窗口 (probe-b2 S1 实测: 'fold window [0, 7] is not contiguous on the surface') → validator 规则 d (validator.ts:255-281 'summary covers the checkpoint 即允许') 事实上只剩 [checkpoint,checkpoint] 单节点窗可达; fail-closed 拒收诚实、无静默腐败, 但承诺语义窄于文档",
-        "src 无 TODO/FIXME/占位符 (grep 零命中); README 占位为 plan v2 分配给 W5/A7 (ZCTX-plan.md:28,78), 非 W3 遗留"
-      ],
-      "fix_directive": "W3-2 二选一: (a) 在 validator 规则 d 文档处写明 '覆盖式吸收仅当窗口在数值上单调连续时可达, 后补节点存在时须改用 [checkpoint,checkpoint] 单窗'; (b) 或改为位置切片语义放宽 monotonic 并补跨 checkpoint 吸收测试; 以测试断言为准绳"
+        "W3-2 三处文档落点 + 拒收文案扩展 + [checkpoint,checkpoint] 端到端可达钉（评审措辞探针实测新文案渲染）",
+        "初评卡面全项维持：store/引擎/S5 双模式/CCM 门/B1 断言/usage 钩子; closure W3-R1/R2 均 fixed/verified/block（8992208）",
+        "src 无 TODO/FIXME/占位符; README 占位仍属 plan W5/A7 分配（非 W3 遗留）",
+        "备注（零功能面观察, 不构成缺口）：mock msg.assistant/msg.tool 信封仍无 turn/step（types.ts:341/375 官方含）——插件从不写 assistant/tool/system 事件、store 不读 turn/step, 纯夹具保真度注记, 已如实记录不静默"
+      ]
     },
     "consistency": {
-      "score": 14,
+      "score": 19,
       "evidence": [
-        "[同 W3-1] 提交形态与 options.md §6 自引官方行 (options.md:88,90) 相悖 — 卡面明确按 region.ts:506-508 形态对拍, 实现偏离",
-        "mock msg 构造器 (mock-session.ts:166-193) 对 user/system/assistant/tool 全用 {message:...} 信封 — assistant/tool 官方确为信封 (types.ts:341,375), user/message 官方为裸消息, system/message 官方为 {turn,step,message}; 夹具形态混杂放大漂移",
-        "其余一致性良好: 命名/结构与 W2 纯核心一致; texts.ts 集中模型面文案; store extractMessage 双形态兼容 (store.ts:131-139) 使内部读路径自洽"
-      ],
-      "fix_directive": "随 W3-1 一并统一夹具形态; system/message 夹具补 turn/step 字段对齐 types.ts:330"
+        "提交形态现与 options.md §6 自引官方行 (options.md:88,90) 完全一致（含 id）",
+        "真实模式夹具形态对齐官方 (user 裸 / system+tool {turn,step,message}); mock 头新增形态契约注记",
+        "-1：mock msg.assistant/msg.tool 信封 turn/step 缺席（同 completeness 备注, 纯夹具保真度, 零功能影响）——记为观察项, 不阻断"
+      ]
     },
     "verifiability": {
-      "score": 12,
+      "score": 15,
       "evidence": [
-        "三绿亲跑复现: build ✔ / lint 零错 / 189/189 (reviewer 命令输出在 verification_trio)",
-        "真实模式确为真跑: --reporter=verbose 显示 4 例 real S5 用例 executed 非 skip; 绝对路径导入属实 (fold-engine.spec.ts:54 file:///G:/.../core/session/lib/index.js)",
-        "reviewer 独立探针两件 (probe-a-shape.mjs / probe-b2-engine.mjs) 钉死阻断与建议证据",
-        "扣分点: 载荷形态缺陷对现有全部断言不可见 (正确性条目) — 卡面最重项缺乏断言覆盖; W3 自报'产物探针'仅存在于 progress 记录, 探针脚本未入库 (scripts/ 为空)"
-      ],
-      "fix_directive": "随 W3-1 修复补 deriveEventMessage 投影断言; 探针脚本建议随 W4-3 一并入库"
+        "三绿亲跑复现（193/193; build/lint 零错）",
+        "探针三件亲跑：probe-c（W3-1 裸形态+投影、W3-2 可达域）、措辞探针（新文案渲染）、scripts/probe-artifact.mjs 5/5 PASS 0 SKIP 0 FAIL（入库可复现, P4/P5 直接钉 W3-1/W3-2）",
+        "入库 lib 与重建字节一致（重建后 git status 干净）",
+        "closure 台账 W3-R1/R2 证据指向具体提交与测试; ledger 8992208 入库"
+      ]
     },
     "safety_rollback": {
-      "score": 9,
+      "score": 10,
       "evidence": [
-        "del/20261112-w3-texts-index-prechange/ 在位 (ls 验证), progress.md [11:58] 记录 SHA-256 与 HEAD blob 核对一致",
-        "引擎零宿主导入 (fold-engine.ts 模块头), 全语义失败 fail-soft 回 {ok:false,reasons} 不抛; append 失败记 anomaly (fold-engine.ts:311-321)",
-        "无凭证/注入/越权面: 无 eval/网络/路径拼接; 唯一外输为 session.append 结构化载荷 (本波阻断项本身)"
-      ],
-      "fix_directive": "无需动作"
+        "del/20261112-w3w4-rework-prechange/ 在位（返工改前备份, ls 验证）",
+        "fail-soft 纪律不变; 官方 UserMessage 幂等字段 id 随机不重复; 无新增凭证/网络/路径面",
+        "评审产物 8408453 adds-only 入库, 零覆盖零删除"
+      ]
     },
     "maintainability": {
-      "score": 9,
+      "score": 10,
       "evidence": [
-        "applyEvent 单一转移函数 (store.ts:429-478) 扫描/增量共用, 视图一致性由构造保证; 账本均有界 (usage 64 / anomaly 256)",
-        "引擎/纯核心/文案分层延续 W2 模式; 模块头文档完整 (fold-engine.ts:1-33, store.ts:1-41)",
-        "[随 W3-2] 数字区间过滤 (fold-engine.ts:271-273) 依赖 W2 validator 跨模块不变式 (consecutive+monotonic) 才与官方位置切片等价 — 不变式应就近由引擎自身保证 (位置切片) 或显式文档化该依赖"
-      ],
-      "fix_directive": "与 W3-2 合并处理"
+        "载重不变式（consecutive+monotonic ⇒ 数字过滤≡位置切片）现于定义处（validator guard 注释）与消费处（fold-engine 数字过滤注释）双端文档化, 并由双域扫描测试机械化守护",
+        "可达域语义写入模块头/规则 d/拒收文案三处, 模型面自解释",
+        "测试命名直接引用探针来源（'probe B2 S1/S2 shape'）, 评审↔实现证据链可追溯"
+      ]
     }
   },
-  "findings": [
-    {
-      "id": "W3-1",
-      "severity": "阻断",
-      "location": "src/fold-engine.ts:287-297 (fold), :432-442 (unfold); tests/helpers/mock-session.ts:166-193; tests/fold-engine.spec.ts:565-600",
-      "problem": "user/message checkpoint 以 { message: {...} } 信封提交; 官方契约 data=裸 UserMessage (core/session/src/types.ts:309, surface.ts:132-134, region.ts:506-508, agent.ts:435)。官方 session 探针实证: deriveEventMessage 返回信封本身, top-level 无 role 无 content → 真实宿主上折叠摘要投影为畸形消息, 主产物不可用。测试绿因仅断言表面机制+回读自身信封。",
-      "fix": "测试先行: 真实模式断言 deriveEventMessage(event).role==='user' 且 content 为数组; 引擎去掉信封直接提交消息对象; mock 与真实夹具统一官方形态; store 已双形态兼容无需改。"
-    },
-    {
-      "id": "W3-2",
-      "severity": "建议",
-      "location": "src/validator.ts:144-150, :255-281; src/fold-engine.ts:271-273",
-      "problem": "consecutive+monotonic 守卫使跨 checkpoint 吸收窗 (含后补节点) 一律拒收 — 规则 d 承诺的覆盖式吸收事实上仅 [checkpoint,checkpoint] 可达; 引擎 shadowed 集合为数字区间过滤, 其与官方位置切片的等价性完全依赖该 W2 不变式 (probe-b2 S2 实证官方接受超集, 不变式一旦破坏即静默账本腐败)。",
-      "fix": "(a) 文档化规则 d 的可达域 + 测试钉 [checkpoint,checkpoint] 吸收为唯一合法形态; 或 (b) 引擎/validator 改位置切片并放宽 monotonic, 补跨 checkpoint 吸收端到端测试。"
-    }
-  ],
-  "scoring_note": "正确性 16 触发硬阻断 (<23, §12.3); 总分 77 < 98 → 打回返工第 1 轮。无伪造迹象: 真实模式 4 例经 verbose 运行确认真执行, 三绿复现一致, RSI Z15/Z16 落盘经核属实 (ZDSH-LESSONS.md:93-103 与 mock-session.ts:25/plugin.ts:134 代码事实相符; ~/.agents/rsi/INDEX.md:139 捕获日志在案)。"
+  "scoring_note": "复审独立重跑全部证据（三绿+探针三件+官方引用行亲核），未采信任何未复现声明；初评 1 阻断 1 建议全部 closed（fixed/verified/block），无 OPEN 遗留。总分 99 ≥ 98 → 放行 W5。"
 }
