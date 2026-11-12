@@ -1,0 +1,13 @@
+{
+  "id": "ZCTX-20261112",
+  "title": "dsh-zcontext v0.1.0 官方插件交付",
+  "type": "DEV",
+  "status": "in-progress",
+  "pipeline": "planner(mainline) -> researcher x2 -> verifier -> architect -> coder W1-W5 -> reviewer/tester -> score-gate -> synthesizer(closure)",
+  "createdAt": "2026-11-12T08:20:00+08:00",
+  "research": {
+    "res-plugin-api": "G:/000Github/zDSH/zDSH-docs/R&D/zctx-20261112/RES-plugin-api.md",
+    "res-billion-context": "G:/000Github/zDSH/zDSH-docs/R&D/zctx-20261112/RES-billion-context.md",
+    "verify-c": "G:/000Github/zDSH/zDSH-docs/R&D/zctx-20261112/VERIFY-C.md"
+  }
+}
