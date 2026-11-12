@@ -621,7 +621,6 @@ export function buildZctxTools(
       + 'the most recent active fold is unfolded. Use when the folded content is needed again in full.',
     parameters: {
       foldId: { type: 'string', description: 'Fold id to unfold (from zctx_status); omit to unfold the latest active fold.' },
-      latest: { type: 'boolean', description: 'Unfold the most recent active fold.' },
     },
     output: textOutput,
     async execute(args, exec) {

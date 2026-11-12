@@ -156,6 +156,19 @@ describe('tools: the four zctx tools (shim-defined)', () => {
     }
   })
 
+  it('declares the zctx_unfold parameter set exactly { foldId } (W4-1: no dead params)', () => {
+    const [, unfoldTool] = buildZctxTools(resolveDefineTool(), testRuntime())
+    expect(unfoldTool.parameters).toEqual({
+      type: 'object',
+      properties: {
+        foldId: {
+          type: 'string',
+          description: 'Fold id to unfold (from zctx_status); omit to unfold the latest active fold.',
+        },
+      },
+    })
+  })
+
   it('renders tool results as text blocks through output.render', async () => {
     const [foldTool] = buildZctxTools(resolveDefineTool(), testRuntime())
     const reply = await foldTool.execute({ content: FOLD_CONTENT }, execWith(seedConversation().session))
