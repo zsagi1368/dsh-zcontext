@@ -1,68 +1,75 @@
 {
   "block": "W2",
-  "task": "ZCTX-R1 (CARD-R1 联审)",
-  "range": "0701f1d..0c89d0a (8 提交: 0701f1d types+texts / 6183f5a+ac29076 budget / be0ae07 validator / 2be3bea materialize / 080bfc9 search / 7b69b82 guidance+nudge / 0c89d0a pure cores 收口)",
+  "task": "ZCTX-R1 (CARD-R1 联审) → 返工复审 round 1",
+  "range": "0701f1d..0c89d0a (8 提交初评) + 返工 ecb5857/abfacf0/1c87952/5a86cc4/e2565b1 (+台账 211ef34 / 评审产物与卡面修订 8b943c2)",
   "reviewer": "reviewer-R1 (independent subagent; reviewer ≠ W2 coder)",
   "date": "2026-11-12",
-  "verdict": "打回 (总分 95 < 98; 返工第 1 轮/上限 2 轮; 0 阻断, 5 建议)",
-  "total": 95,
+  "verdict": "通过 (返工第 1 轮闭合 F1-F5; 总分 100 ≥ 98) → 放行 W3",
+  "total": 100,
   "threshold": 98,
+  "initial_review": {
+    "total": 95,
+    "verdict": "打回 (返工第 1 轮/上限 2)",
+    "blocking_findings": 0,
+    "suggestions": 5,
+    "note": "初评详情保留于本文件 git 历史 (0c89d0a 处 scorecards/W2.json 提交版) 与 handoffs/REVIEW-W1W2.md §二/§五"
+  },
+  "rework_verification": {
+    "commits": ["ecb5857 (F1)", "abfacf0 (F2)", "1c87952 (F3)", "5a86cc4 (F4)", "e2565b1 (F5)", "211ef34 (ledger F1-F5 closures)", "8b943c2 (评审产物入库+卡面 204800 修订注记)"],
+    "f1_adjudication": "coder 按退化窗口守卫 (triggerLine<0 || keepRecent<0 || rMin 非有限 → TypeError) 实现而非评审字面 '≥1'。判定: 闭合且优于字面修法。理由: (a) F1 本意=声明域必须等于可观测行为、不再对受理输入产出负值/非有限垃圾 — 守卫恰好拦掉全部病态输入 (任何 R_pess>W 的窗口), 而评审原字面 '≥1' 反而会放过 W=4096 这类 trigger=-2507 的垃圾输出; (b) coder 裁决依据成立: W=1 时 R_pess=6144>W 结构性退化, 两条具名测试钉 W=0 与 W=1 都抛错, 16k 锁表行 (trigger 8398/keepRecent 4915/rMin 0.7626) 不受影响; (c) 评审独立二分复算退化线: 最小可受理 W=6922 (triggerLine=0), W=6921 抛错; 全部 7 行锁表 W≥16384 安全通过; (d) JSDoc 按真实域重写 ('integer ≥ 1, and large enough to sustain the CCM reserve structure'), 模块头明示退化域语义。声明域=可观测行为 ✓",
+    "closure_ledger": "tasks/ZCTX/closures/closure.json 五条 W2-F1..F5 全部 disposition=fixed / status=verified / phase=block, owner=coder-w2-rework, 证据指向对应提交"
+  },
   "dimensions": {
     "correctness": {
-      "score": 23,
+      "score": 25,
       "evidence": [
-        "锁表 7 案例独立复算 (评审本人用独立重实现 node 脚本, 非复用 src 代码): 16k/32k/64k/128k/200k/1M cap64k/1M cap128k 全部 'OK — all 9 int fields + rMin' 与 CCM v2.3 §1.3 表一致 (容差内), 输出原文: OK 16k rMin 76.2573% vs 76.3% / OK 32k 82.5073% vs 82.5% / OK 64k 85.6277% vs 85.6% / OK 128k 87.1880% vs 87.2% / OK 200k 87.7500% vs 87.8% / OK 1M cap64k 92.7734% vs 92.8% / OK 1M cap128k 88.5549% vs 88.6%",
-        "取整方向与 CCM §1.2 逐式对拍 (budget.ts:105-122): maxTokens=floor(W×0.10) ✓ reserve=ceil(×1.25)+4096 ✓ toolCap=max(1024,floor(0.25Δ)) ✓ R_pess=+2·toolCap+4096 ✓ keepRecent=min(max(⌊0.12W⌋,min(20000,⌊0.30W⌋)),⌊0.8·trigger⌋) ✓ summaryOut=min(C,maxTokens,⌊0.8·reserve⌋,max(8192,⌊0.01W⌋)) ✓ replyCap/rMin ✓ — floor/ceil 无一反向",
-        "breakeven 与 VERIFY-C #15 逐式一致 (budget.ts:193-197 vs kernel/src/cache-report.ts:266-276): oneTimeCost=(w−r)·T+q·σ−r·S ✓ perTurnSaving=(S−σ)·r ✓ breakevenTurns=max(0,·)/perTurnSaving ✓ 默认价 w=1.0/r=0.1/q=4.0 (budget.ts:142-146) ✓; 除零显式消解 (budget.ts:196-197) 且有测试 (budget.spec.ts:274-303: Infinity/0/负值三态)",
-        "validator a-g 逻辑审读通过: node-0 预检 (validator.ts:159-165) / 保护区三件+首 user 钉死 (:168-214) / tool 配对双向闭合且未知配对 fail-closed (:217-266) / 嵌套吸收 covered∨aligned (:269-289) / 净缩门容差边界含等号拒绝 (:377-390, 测试 1890 chars 精确压线) / 原子拒收全 reasons 收集 (:393) — 每分支均有对应断言 (validator.spec.ts 32 用例)",
-        "fill() 模板键一致性机械核查: 21 处 fill 调用 × 26 个含键模板, 0 真实缺键 (脚本初报 2 例经核实为 shorthand 属性误报: callId/foldId 以简写提供, 且 validator.spec.ts:224/:312 断言渲染结果含 'call-b'/'f1' 证实键已填充)",
-        "materialize B1 单节点多块形态+一层展开正确 (materialize.ts:100-127); 活跃 checkpoint 标记/stale checkpoint 按普通 user 渲染/不可读 seq 显式占位不静默丢数据, 均有测试",
-        "-2: computeBudget 退化窗口病态 (见 findings W2-F1): JSDoc 声明 contextWindow 'integer ≥ 0' (budget.ts:93) 且 assertAmount 放行 0 (:85), 但 W=0 → rMin=-Infinity (除零), W=1 → keepRecent=-4915 (负值) — 声明域与输出质量不一致且无测试钉边界。评审实测输出: W=0 → {trigger:-6144, keepRecent:-4916, rMin:-Infinity}; W=1 → {trigger:-6143, keepRecent:-4915, rMin:-2047}"
+        "F1 闭合验证: src/budget.ts:132-143 守卫 'triggerLine < 0 || keepRecent < 0 || !Number.isFinite(rMin)' → TypeError 含病态值回显; JSDoc(:99-102) 与模块头(:22-28) 同步真实域",
+        "评审独立守卫边界探针 (同式二分): 'smallest W with triggerLine>=0 = 6922' , 'guard rows: 16k trigger 8398 / 32k 22940 / 200k 175616 / 1M 924469 — all >=0, lock rows pass guard' — 16k 参考行与全部权威行不受守卫影响",
+        "新增边界测试亲验通过: budget.spec.ts:195-213 W=0 抛 TypeError / W=1 抛 TypeError (注释含评审实测 keepRecent=-4915) / 32k 精确 CCM 值钉守卫上界侧",
+        "锁表 7 案例独立复算维持 7/7 OK (评审独立重实现, 与初评相同输出; 测试 27/27 绿)",
+        "breakeven 与 VERIFY-C #15 公式/默认价/除零消解维持不变 (budget.ts:193-197 未被返工触碰), 8 测试全绿",
+        "fill 键一致性: 21 处 fill 调用 × 26 含键模板零缺键 (初评已机械核验, 返工仅移动实现无语义变化)"
       ]
     },
     "completeness": {
-      "score": 19,
+      "score": 20,
       "evidence": [
-        "卡面产物 0-6 全部交付: message-source.d.ts (S4) / budget+锁表测试 (含 fixedWireOverhead 行, spec :197-229) / validator / materialize / search / guidance+nudge / types.ts 全结构类型带官方锚点注释",
-        "TODO/FIXME/TBD/占位符扫描: grep src tests 仅命中 texts.ts:169 注释词 'placeholders' (描述模板机制本身), 零真实占位",
-        "guidance 硬约束三件齐: 无时间戳/计数器正则断言 (guidance.spec.ts:28-35) / 无 complete:true 结构断言 (:46-57, Object.keys 精确等于 4 键) / PTC 一句提示在位 (texts.ts:63-65 + spec :82-85)",
-        "-1: validator.ts:182 分支 `if (idx < 0) idx = 0` (整个 surface 都在保护 floor 之下 → 全保护) 无直接测试; 卡验收明文 'validator 全分支覆盖' — 其余全部分支均有测试映射"
+        "F2 闭合验证: tests/validator.spec.ts:193-213 新增 'protects the whole surface when it fits entirely under protectionFloorTokens' — floor=30000 > Σ23200 (评审复算基面 12 节点估 token 和确为 23200), keepRecentMessages/Tokens=0, 断言恰好 1 条 reason 且含 'protected recent tail' 与 'last 0 messages / 30000 tokens' → validator.ts:182 idx<0→0 分支被钉",
+        "validator 分支覆盖复查: a-g 全部分支含原子拒收现均有测试映射 (33/33 绿)",
+        "TODO/FIXME/占位符扫描维持零命中; 卡面产物 0-6 全部交付不变"
       ]
     },
     "consistency": {
-      "score": 19,
+      "score": 20,
       "evidence": [
-        "零宿主运行时 import: grep src 全部 import 仅 './' 相对导入 + node:module (index.ts:18 createRequire); message-source.d.ts 的 declare module 是纯类型增补非运行时依赖",
-        "无 isConcurrencySafe: grep src tests lib 零命中 (S8 保持 exclusive barrier)",
-        "guidance 无 complete:true; interpolate:false 是官方真实字段 (zDSH-main system-prompt/src/index.ts:67-68 'Whether to interpolate prompt variables. Defaults to true; false preserves literal text') — 'structural mirror' 主张成立; official complete 字段语义核对 (:70-75) 证实 S10 省略 complete:true 正确",
-        "MessageSourceMap 增补目标真实存在: packages/llm/llm/src/message.ts:110 'export interface MessageSourceMap' 且注释 'each producer declares its own kind in its own module' — d.ts 引用锚点行号吻合",
-        "source payload 冻结形态双位一致: types.ts ZcontextCheckpointSource 与 message-source.d.ts 增补均为 {kind:'zctx-fold'|'zctx-unfold', foldId, tokensBefore?, tokensAfter?} (plan §3 S4)",
-        "文本单家园: 全部模型可见文本常量在 texts.ts; validator/nudge/guidance/materialize/search 均从其导入",
-        "-1: fill() (模板渲染器) 放在 validator.ts:76-81 由 nudge.ts:19 跨模块导入 — 模型可见文本的渲染器不在声明的文本单家园内 (见 W2-F3)"
+        "F3 闭合验证: fill() 移入 src/texts.ts:14-31 (含独立小节头注 'model-facing rendering stays in the single text home'); validator.ts 与 nudge.ts 均改从 './texts.ts' 导入 (validator.ts:66, nudge.ts:36); 依赖图无环 (validator→texts, nudge→texts, texts 零导入)",
+        "卡面笔误修订注记诚实: W2-cores.md 锁表行改为 'W=204800（即权威表 200k 行；原稿 200704 系笔误，评审已验证 204800 全行复现）' — 非静默改写",
+        "其余契约面维持初评全绿: 零宿主 import / 无 isConcurrencySafe / 无 complete:true / source payload 双位一致 / interpolate:false 官方字段 / MessageSourceMap 官方锚点 / patch yml 官方形态"
       ]
     },
     "verifiability": {
       "score": 15,
       "evidence": [
-        "三绿亲验: pnpm build ✔ (重建后 git status --short -- lib 为空, 与入库产物字节一致) / pnpm lint exit 0 / pnpm test 107/107 exit 0 (budget 24 + validator 32 + nudge 16 + search 8 + materialize 9 + guidance 12 + smoke 6)",
-        "checkpoint.json 哈希抽验 7/16 (≥10% 抽查要求): src/types.ts a9a435fa… / src/texts.ts e2a03f60… / src/budget.ts 751c0d32… / src/validator.ts 186fd493… / src/nudge.ts 890a91e7… / tests/budget.spec.ts 948ece78… / tests/validator.spec.ts 5daf9a05… 全部一致",
-        "净室机械验证: src/texts.ts (guidance+nudge+materialize+reasons 全部文本) vs bctx-work kernel/src/compression-rules.ts + nudge-text.ts — 6 词与 8 词 n-gram 重叠均为 0 (评审本人脚本输出 'total 8-word overlaps: 0 / total 6-word overlaps (unique): 0'); 人工对读确认机制语义对齐 (open objectives 活指令/批次单调用/PROTECTED 标注/两档 voice) 但措辞全原创",
-        "200k 卡面笔误处置独立验证: 评审本人探针输出 'W=200704 C>=20070 -> maxTok 20070 trigger 171982 (table wants 20480/175616)' 与 'maxTok cap = floor(200704*0.1)=20070 < 20480 for ANY C -> row unreproducible from W=200704; W=204800 required' — W2 coder 的 W=204800 处置正确, 已按台账登记 (checkpoint.json notes.200k-case)"
+        "三绿返工后亲跑: pnpm build ✔ (tsdown '✔ Build complete in 380ms'; lib/index.js+.map+.d.ts 与入库 blob 一致, git status --short -- lib 为空 — W2 纯核心未接 index.ts 故 lib 不变, 符合预期) / pnpm lint (tsc --noEmit) exit 0 / pnpm test 111/111 exit 0 (budget 27 + validator 33 + nudge 16 + search 8 + materialize 9 + guidance 12 + smoke 6)",
+        "closure 台账五条逐条与提交对读: ecb5857/abfacf0/1c87952/5a86cc4/e2565b1 的 diff 内容与 closure.json evidence 逐条吻合",
+        "checkpoint notes.w2-rework-f1 如实登记 F1 裁决依据 (含引用评审实测值), next= rework re-review — 落盘纪律完整",
+        "初评全链证据 (锁表独立复算/哈希抽验/n-gram 净室) 继续有效: 返工未触碰 texts.ts 文本常量与公式实现"
       ]
     },
     "safety_rollback": {
       "score": 10,
       "evidence": [
-        "零删除 (diffstat 2600 insertions / 28 deletions 均为台账文件改写); 零凭证面; 零网络零 fs (卡面约束, import 面核实)",
-        "tsconfig 变更按 §5 备份: del/20261112-1030-w2-tsconfig-allowImportingTsExtensions/ 在盘, 含 RESTORE.md (还原命令+备份原因) 与原 tsconfig.json (sha256 4cf34a2f…)",
-        "fail-soft 加载 (schemastery 不可解析→内置校验器, index.ts:123-129) 保证宿主缺失不炸模块加载"
+        "返工零删除 (diffstat: 514 insertions / 35 deletions, 源码侧均为移动/收窄/注释; 无业务文件删除)",
+        "lib 产物不受返工影响 (纯核心未接线), 重建字节一致",
+        "closure.json 按 §11 格式登记 (id/source/type/disposition/evidence/owner/status/phase), 无 OPEN 遗留于本块"
       ]
     },
     "maintainability": {
-      "score": 9,
+      "score": 10,
       "evidence": [
-        "模块头注释均载明契约出处 (plan §3/CCM §1.2/VERIFY-C #15/官方锚点) 与硬约束清单",
-        "-1 三处小疵: (a) validator.ts:84-87 fmtNum 死分支 (三目两侧同表达式); (b) types.ts SurfaceNode.isUser 为必填派生字段 (与 role==='user' 冗余, W3 store 扫描有漂移风险); (c) budget.ts:55-57 estimateTokens 注释 'ceiling — never under-count on the wire' 超出 CCM L0 自身的 'ASCII 密集' 适用域 (CJK 可超 chars/3)"
+        "F4 闭合验证: src/validator.ts fmtNum 收窄为 'return String(Math.round(value * 1000) / 1000)' — 死分支移除, 输出字节不变 (reasons 渲染测试全绿)",
+        "F5 闭合验证: types.ts SurfaceNode.isUser 注释固化为派生不变式 ('always derived as role === user ... must never set it on its own'); budget.ts estimateTokens 注释按 CCM L0 校准域重写 ('conservative ceiling only within the calibrated ASCII-dense domain; it is NOT a universal wire bound — CJK ... can exceed')",
+        "守卫代码自带出处注释 (W2 rework F1 + 退化语义 + 引擎层 32768 拒绝位置说明)"
       ]
     }
   },
@@ -70,43 +77,44 @@
   "findings": [
     {
       "id": "W2-F1",
-      "severity": "建议",
-      "location": "src/budget.ts:85,93-94,122",
-      "issue": "computeBudget 声明域 'integer ≥ 0' 与实际输出质量不一致: W=0 时 rMin=-Infinity (2048/0 除零), W=1 时 keepRecent=-4915 负值; 无测试钉该边界。CCM 合法域 W≥32768 的拒绝是引擎层策略 (W3), 但纯核不该对自声明合法输入产出病态数。",
-      "fix": "二选一: (a) 推荐 — 把 contextWindow 契约收紧为 integer ≥ 1 (改 JSDoc budget.ts:93 + computeBudget 入口加 w<1 抛 TypeError), 并加一条边界测试 (W=1 抛 TypeError; W=32768 邻域值复算对拍); (b) 保留 ≥0 但显式文档化 W=0/退化输出并加钉边界行为的测试。任一方案都须使声明域=可观测行为。",
-      "disposition": "OPEN"
+      "severity": "建议(初评) → 已闭合",
+      "location": "src/budget.ts:132-143 (返工后)",
+      "issue": "初评: computeBudget 声明域 'integer ≥ 0' 与病态输出 (W=0→rMin=-Infinity, W=1→keepRecent=-4915) 不一致且无边界测试。",
+      "fix_applied": "ecb5857 退化窗口守卫 (triggerLine<0 || keepRecent<0 || rMin 非有限 → TypeError) + JSDoc 真实域重写 + 3 条边界测试 (W=0 抛错/W=1 抛错/32k 精确钉)。",
+      "reviewer_verdict": "闭合, 且优于评审原字面 '≥1' 修法 (守卫同时拦掉 W=4096 等一切 R_pess>W 病态窗口; 声明域=可观测行为; 16k 参考行与全部锁表行经评审独立边界探针确认不受影响)。",
+      "disposition": "fixed"
     },
     {
       "id": "W2-F2",
-      "severity": "建议",
-      "location": "src/validator.ts:182",
-      "issue": "保护区 token 循环的兜底分支 `if (idx < 0) idx = 0` (surface 总 token < 保护 floor → 全表面保护) 无测试; 卡验收 'validator 全分支覆盖' 差此一支。",
-      "fix": "tests/validator.spec.ts 增一例: baseSurface 估 token 总和 19200, 配置 protectionFloorTokens=20000 (> 总和), 任意合法窗口 → 期望 ok:false 且 reasons 含 'protected recent tail'。",
-      "disposition": "OPEN"
+      "severity": "建议(初评) → 已闭合",
+      "location": "tests/validator.spec.ts:193-213",
+      "issue": "初评: validator.ts:182 整面受保护兜底分支无测试。",
+      "fix_applied": "abfacf0 新增 floor=30000>Σ23200 用例, 断言恰好 1 条 reason 且含模板渲染值。",
+      "disposition": "fixed"
     },
     {
       "id": "W2-F3",
-      "severity": "建议",
-      "location": "src/validator.ts:76-81 + src/nudge.ts:19",
-      "issue": "fill() 是模型可见文本 (REASON_*/NUDGE_* 模板) 的唯一渲染器, 却住在 validator.ts 并被 nudge.ts 跨模块导入; 与 texts.ts 头注 'Single home of every model-facing text constant' 的单家园原则不一致。",
-      "fix": "把 fill() 移入 src/texts.ts (模板与渲染器同家园), validator.ts/nudge.ts 改导入点; 3 行级改动, 顺带消除 validator→nudge 的反向依赖观感。可在本波返工或 W3 触碰时执行, 但须在本卡登记 disposition。",
-      "disposition": "OPEN"
+      "severity": "建议(初评) → 已闭合",
+      "location": "src/texts.ts:14-31",
+      "issue": "初评: fill() 住在 validator.ts, 违反文本单家园原则。",
+      "fix_applied": "1c87952 fill() 移入 texts.ts, validator/nudge 导入点更新, 无环。",
+      "disposition": "fixed"
     },
     {
       "id": "W2-F4",
-      "severity": "建议",
-      "location": "src/validator.ts:84-87",
-      "issue": "fmtNum 三目两分支同表达式 (`Number.isInteger(rounded) ? String(rounded) : String(rounded)`) — 死分支, 误导读者以为有格式差异。",
-      "fix": "简化为 `return String(Math.round(value * 1000) / 1000)`; 现有输出字节不变 (测试无需改)。",
-      "disposition": "OPEN"
+      "severity": "建议(初评) → 已闭合",
+      "location": "src/validator.ts fmtNum",
+      "issue": "初评: 死三目分支。",
+      "fix_applied": "5a86cc4 收窄为单 return, 输出字节不变。",
+      "disposition": "fixed"
     },
     {
       "id": "W2-F5",
-      "severity": "建议",
-      "location": "src/types.ts (SurfaceNode.isUser) + src/budget.ts:55-57",
-      "issue": "(a) SurfaceNode.isUser 必填但恒等于 role==='user', 双真源有漂移风险 (W3 store 扫描是生产方); (b) estimateTokens 注释 'ceiling — never under-count on the wire' 超出 CCM L0 'chars/3 (ASCII 密集)' 适用域, CJK 密集文本可低估。",
-      "fix": "(a) 在 isUser 字段注释固化不变式 'MUST equal (role === \"user\")' 或降级为可选派生字段由消费方自算; (b) 注释补 '(ASCII-dense per CCM L0; CJK-dense text can exceed chars/3)' 对齐权威口径。",
-      "disposition": "OPEN"
+      "severity": "建议(初评) → 已闭合",
+      "location": "src/types.ts SurfaceNode.isUser + src/budget.ts estimateTokens",
+      "issue": "初评: isUser 双真源漂移风险 + estimateTokens 注释越域。",
+      "fix_applied": "e2565b1 isUser 派生不变式注释 + estimateTokens 注释按 CCM L0 ASCII-dense 域重写。",
+      "disposition": "fixed"
     }
   ],
   "closed_items": [
@@ -114,8 +122,8 @@
       "id": "W2-C1",
       "source": "CARD-R1 补充输入: W2 coder 披露卡面 200704 系笔误按 W=204800 处置",
       "verdict": "处置正确, 已独立验证关闭 (not_applicable — 卡面笔误, 权威表几何为准)",
-      "evidence": "评审探针: W=200704 下 maxTokens 被 floor(200704×0.1)=20070 封顶, 任何 C 都到不了权威行 maxTok=20480/trigger=175616; W=204800 复现全行 (评审独立重实现 7/7 OK, 200k 行 rMin 87.75% vs 表 87.8%); 卡面原文 tasks/ZCTX/cards/W2-cores.md:11 'W=200704: 175616/24576/0.878' 确为笔误; coder 登记于 checkpoint.json notes.200k-case, 与卡面指示 '对拍 CCM v2.3 权威表' 的意图一致"
+      "evidence": "初评探针 + 8b943c2 卡面已修订为 204800 并附诚实注记 (非静默改写)"
     }
   ],
-  "forgery_check": "未发现测试造假/伪造证据: 锁表数值非转录自测试文件而是评审独立重实现复算; 107 测试亲跑全绿; guidance/nudge 的字节稳定断言真实执行; checkpoint 哈希抽验 7/16 全对; 净室 n-gram 零重叠由本评审独立机械验证。"
+  "forgery_check": "返工复审未发现测试造假/伪造证据: 111/111 测试亲跑全绿; 五条 closure 证据与提交 diff 逐条对读吻合; 新测试断言值 (23200 面和/32k 精确值/守卫抛错) 均经评审独立复算核对。"
 }

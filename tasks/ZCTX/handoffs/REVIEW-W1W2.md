@@ -56,8 +56,55 @@ ATTACHMENTS: tasks/ZCTX/scorecards/W1.json, tasks/ZCTX/scorecards/W2.json (本�
 - 本评审踩坑复发一次：含反引号的 node 内联脚本走 bash 单行被截断（坑册 A14/A25 同族）——已按既定纪律改用无反引号写法完成，无新增固化需求（既有检查项有效）。
 - 无新机制性教训；坑册无条目覆盖"评审用机械 n-gram 验净室"这一做法，供主线考虑是否登记为评审 SOP 检查项（不强制）。
 
-## 七、CHECKPOINT
+## 七、CHECKPOINT（初评）
 
 - reviewer 产物三件已落盘：scorecards/W1.json、scorecards/W2.json、handoffs/REVIEW-W1W2.md（本文件）。
-- 仓状态：`git status` 干净（HEAD=0c89d0a），评审过程零残留（重建 lib 与 HEAD blob 字节一致）。
+- 仓状态：`git status` 干净（初评时 HEAD=0c89d0a），评审过程零残留（重建 lib 与 HEAD blob 字节一致）。
 - 下一步：主线派 W2 返工（F1-F5，≤2 轮）→ 重审 → W3。
+
+---
+
+## 八、返工复审（第 1 轮 · 2026-11-12）
+
+```
+FROM: reviewer-R1
+TO: 主线
+MODE: normal (W2 返工复审通过, 放行 W3)
+PAYLOAD: 见下
+```
+
+### 8.1 结论
+
+| 项 | 结果 |
+|---|---|
+| 返工提交 | ecb5857 (F1) / abfacf0 (F2) / 1c87952 (F3) / 5a86cc4 (F4) / e2565b1 (F5) + 211ef34 (closure 台账) + 8b943c2 (评审产物入库+卡面 204800 修订注记) |
+| W2 返工后总分 | **100**（25/20/20/15/10/10）≥ 98 → **放行 W3** |
+| F1-F5 处置 | 五条全部 fixed/verified（closure.json 逐条与提交 diff 对读吻合，本评审亲自复核） |
+| [阻断] | 0 |
+| 伪造检查 | 未发现：111/111 亲跑；新测试断言值（面和 23200/32k 精确值/守卫抛错）均独立复算核对 |
+
+### 8.2 逐条闭合核验
+
+- **F1（budget 退化窗口）— 闭合，且优于评审原字面修法。** coder 实现 `triggerLine<0 || keepRecent<0 || rMin 非有限 → TypeError`（budget.ts:132-143），JSDoc/模块头同步真实域。评审判定该守卫闭合 F1 本意（声明域=可观测行为、病态输入零受理），理由：(a) 守卫精确拦掉**全部**产生垃圾的输入——任何 R_pess>W 的窗口；评审原字面 "≥1" 反而会放过 W=4096（trigger=-2507）这类垃圾输出，coder 裁决更完备；(b) 评审独立二分复算退化线：最小可受理 W=6922（triggerLine=0），W=6921 抛错；16k 参考行 trigger 8398 / 32k 22940 / 200k 175616 / 1M 924469 全部安全通过守卫——"16k 锁表行不受影响"的 coder 主张属实；(c) 两条具名边界测试（W=0 抛错、W=1 抛错）+ 32k 精确值钉（budget.spec.ts:195-213）把操作性准绳钉进测试。
+- **F2 — 闭合。** validator.spec.ts:193-213 新增整面受保护用例（floor=30000 > Σ23200，评审复算确认面和），断言恰好 1 条 reason 且含模板渲染值 'last 0 messages / 30000 tokens'，:182 分支被钉。
+- **F3 — 闭合。** fill() 移入 texts.ts:14-31（含小节头注），validator.ts/nudge.ts 导入点改 texts.ts；依赖图无环（validator→texts、nudge→texts、texts 零导入）。
+- **F4 — 闭合。** fmtNum 收窄单 return，输出字节不变（reasons 渲染测试全绿）。
+- **F5 — 闭合。** isUser 派生不变式注释（"must never set it on its own"）+ estimateTokens 注释按 CCM L0 ASCII-dense 域重写（显式 "NOT a universal wire bound — CJK can exceed"）。
+
+### 8.3 三绿亲验（返工后）
+
+- `pnpm build` ✔（tsdown "✔ Build complete"；lib/index.js+.map+.d.ts 与入库 blob 一致——W2 纯核心未接线 index.ts，lib 不变符合预期）
+- `pnpm lint`（tsc --noEmit）exit 0
+- `pnpm test` **111/111** exit 0（budget 27 + validator 33 + nudge 16 + search 8 + materialize 9 + guidance 12 + smoke 6；较初评 +4 = F1 三条 + F2 一条）
+
+### 8.4 附带核验
+
+- 卡面 204800 修订注记为诚实修订（非静默改写），采纳了初评 §四建议。
+- closure.json 五条 W2-F1..F5 全部 disposition=fixed / status=verified / phase=block；本块零 OPEN。
+- W1-F1（类名注记）仍为 OPEN——属 W1 卡面事务，不阻塞 W3，最终验收前须 disposition。
+- `git status` 干净（复审时 HEAD=8b943c2），评审零残留。
+
+### 8.5 CHECKPOINT（返工复审）
+
+- 已更新：scorecards/W2.json（返工后总分 100 + 逐维证据 + F1-F5 处置记录）、本文件 §八。
+- 下一步：主线放行 W3（引擎两件：store 扫描重建+usage 账本 / fold-engine 提交编排）。W3 需实现 CCM §1.1 的 W<32768 引擎层拒绝（F1 守卫只拦结构性退化线 W<6922，两者层次不同、互不替代）。
