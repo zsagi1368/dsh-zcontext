@@ -49,6 +49,67 @@
       "owner": "coder-w2-rework",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "W3-S1",
+      "source": "cards/W3-W4-engine-wiring.md W3 §1",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 9ee6619: src/store.ts (attach scan rebuild + session/event incremental + S6 usage ledger + surfaceNodes view + compaction mutex state + anomaly ledger); tests/store.spec.ts 16/16",
+      "owner": "coder-w3w4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W3-S2",
+      "source": "cards/W3-W4-engine-wiring.md W3 §2",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 9ee6619: src/fold-engine.ts (validator -> subrange pair closure -> compaction mutex -> generation snapshot -> per-entry commits -> fail-soft verify; unfold B1 single-node; CCM 32768 engine gate distinct from budget F1); tests/fold-engine.spec.ts 29/29 incl. S5 real session 4 tests + official foldSurface replay cross-check",
+      "owner": "coder-w3w4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W4-S1",
+      "source": "cards/W3-W4-engine-wiring.md W4 §1",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 1486df4: src/tools.ts 4 tools all defineTool-wrapped (lazy host require + fail-soft shim), zctx_fold args={content:string required} + lenient parser aligned to parseCompressInput semantics, no isConcurrencySafe (S8); tests/tools.spec.ts 21/21",
+      "owner": "coder-w3w4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W4-S2",
+      "source": "cards/W3-W4-engine-wiring.md W4 §2-3",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 1486df4: src/plugin.ts ZcontextPlugin extends cordis Service (lazy require + structural shim), capability-probed 5 faces, nudge required:true (B2 suppression test), /zctx command; tests/plugin.spec.ts 12/12; smoke.spec adapted (backup del/20261112-w4-index-smoke-prechange/)",
+      "owner": "coder-w3w4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W4-S3",
+      "source": "cards/W3-W4-engine-wiring.md 验收 probe + 协调指令 5",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 1486df4: artifact probe on lib/index.js — 14 exports + face wiring (4 tools/1 section/1 required context/1 command/3 listeners) + end-to-end fold+status through built artifact + no-isConcurrencySafe; vitest 189/189, tsc zero errors, build green",
+      "owner": "coder-w3w4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W3W4-RSI",
+      "source": "AGENTS.md §17/§2.3 RSI 收口",
+      "type": "lesson",
+      "disposition": "fixed",
+      "evidence": "ZDSH-LESSONS.md Z15 (nested helper import depth: vitest green != type-closed) + Z16 (super() throw TDZ: probe before extends + shim); capture log in ~/.agents/rsi/INDEX.md; backup del/20261112-w4-rsi-lessons-prechange/",
+      "owner": "coder-w3w4",
+      "status": "verified",
+      "phase": "block"
     }
-  ]
+  ],
+  "updatedAt": "2026-11-12T12:20:00+08:00"
 }
