@@ -20,5 +20,9 @@ export default defineConfig({
   // `.mjs`; this package declares `type: module`, so emit plain `.js`/`.d.ts`
   // to match the frozen `main`/`types` contract (lib/index.js(.d.ts)).
   fixedExtension: false,
-  neverBundle: [/^@deepseek-ai\//],
+  // Host packages are supplied by the host at runtime — never bundled.
+  // (In tsdown 0.22.x the `neverBundle` option lives under `deps`.)
+  deps: {
+    neverBundle: [/^@deepseek-ai\//],
+  },
 })
