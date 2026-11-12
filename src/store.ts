@@ -339,6 +339,12 @@ export class FoldStore {
     return this.eventsBySeq.get(seq)
   }
 
+  /** The joined text of the retained event at one seq ('' when unreadable). */
+  eventText(seq: number): string {
+    const event = this.eventsBySeq.get(seq)
+    return event === undefined ? '' : extractMessageText(event.data)
+  }
+
   /**
    * Ordered SurfaceNode view of the CURRENT surface. The live
    * `session.surface.nodes` is authoritative when present; otherwise the

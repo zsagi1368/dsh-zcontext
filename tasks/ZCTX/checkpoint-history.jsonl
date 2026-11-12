@@ -20,3 +20,8 @@
 {"step":"w3s2","name":"fold-engine.ts + fold-engine.spec (29, S5 real 4)","ts":"2026-11-12T11:58:10+08:00"}
 {"step":"w3s3","name":"texts additions + index wiring + mock helper","ts":"2026-11-12T11:58:20+08:00"}
 {"step":"w3s4","name":"three-green 156/156 + lib probe 12 exports","ts":"2026-11-12T11:58:30+08:00"}
+{"step":"w4s0","name":"config.ts split + del backup index/smoke","ts":"2026-11-12T12:16:00+08:00"}
+{"step":"w4s1","name":"tools.ts + tools.spec (21)","ts":"2026-11-12T12:16:10+08:00"}
+{"step":"w4s2","name":"plugin.ts + plugin.spec (12)","ts":"2026-11-12T12:16:20+08:00"}
+{"step":"w4s3","name":"command.ts + index rewrite + smoke adaptation","ts":"2026-11-12T12:16:30+08:00"}
+{"step":"w4s4","name":"three-green 189/189 + artifact probe 5 groups","ts":"2026-11-12T12:16:40+08:00"}

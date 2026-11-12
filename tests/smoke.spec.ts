@@ -3,11 +3,24 @@ import { describe, expect, it } from 'vitest'
 import ZcontextPlugin, { configDefaults, configSchema, name } from '../lib/index.js'
 
 /**
- * W1 smoke probe (early form of the Z7 artifact probe): import the BUILT
- * lib/ output, not the sources, so the committed artifact itself is what
- * gets exercised (Z3: git installs never run builds — the pinned tree must
- * work as-is).
+ * W1 smoke probe (the Z7 artifact probe): import the BUILT lib/ output, not
+ * the sources, so the committed artifact itself is what gets exercised (Z3:
+ * git installs never run builds — the pinned tree must work as-is).
+ *
+ * W4 note: the plugin class extends the cordis Service base (structural
+ * peer, resolved lazily). Construction therefore needs a minimal
+ * cordis-compatible context (reflect.provide); the assertions on identity,
+ * Config, defaults, and config storage are unchanged.
  */
+
+/** Minimal cordis-compatible host context (real Service base registers here). */
+function minimalCtx(): {
+  reflect: { provide: (name: string, value: unknown) => unknown }
+  logger?: { info(message: string): void; warn(message: string): void }
+} {
+  return { reflect: { provide: () => undefined } }
+}
+
 describe('dsh-zcontext skeleton smoke', () => {
   it('exposes the frozen identity exports', () => {
     expect(name).toBe('dsh-zcontext')
@@ -55,14 +68,14 @@ describe('dsh-zcontext skeleton smoke', () => {
   })
 
   it('stores the constructor config with defaults applied for absent fields', () => {
-    const plugin = new ZcontextPlugin({})
+    const plugin = new ZcontextPlugin(minimalCtx())
     expect(plugin.config).toEqual(configDefaults)
     expect(Object.isFrozen(plugin.config)).toBe(true)
 
-    const overridden = new ZcontextPlugin({}, { enabled: false, maxFoldFraction: 0.5 })
+    const overridden = new ZcontextPlugin(minimalCtx(), { enabled: false, maxFoldFraction: 0.5 })
     expect(overridden.config.enabled).toBe(false)
     expect(overridden.config.maxFoldFraction).toBe(0.5)
     expect(overridden.config.nudgeThresholds).toBe(configDefaults.nudgeThresholds)
-    expect(overridden.ctx).toEqual({})
+    expect(typeof (overridden.ctx as { reflect?: { provide?: unknown } }).reflect?.provide).toBe('function')
   })
 })
