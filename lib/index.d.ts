@@ -927,12 +927,21 @@ declare class ZcontextPlugin extends ServiceBase {
    * failures degrade honestly — one warn per plugin, never per request).
    */
   private warmWindow;
-  /** The most recently created live session (single-session assumption, honest). @internal */
+  /** The most recently created live session. @internal */
   private currentSession;
   /**
    * The nudge context provider: '' unless a threshold was crossed since the
    * last evaluation (pure function of its inputs; suppressed = no-op on the
    * wire, B2). Below the CCM legal domain the automatic face stays off.
+   *
+   * Session attribution (W4-4): when the official AssembleContext carries a
+   * session (`assembleContextFor` passes the Agent as both `agent` and
+   * `scope`, and `Agent.session` is the session — agent-loop/src/agent.ts:127),
+   * the evaluation is attributed to THAT session, so multi-session hosts get
+   * per-session pressure instead of cross-assembly contamination. The
+   * globally-most-recent-session fallback remains for hosts that invoke the
+   * provider without a reachable context — a documented limitation there, not
+   * a correctness claim.
    */
   private nudgeProvider;
 }
