@@ -1,0 +1,121 @@
+{
+  "block": "W4",
+  "task": "ZCTX-R2 (CARD-R2-review-W3W4) — W4 接线波独立对抗评审",
+  "range": "9ee6619..4bf02e9 (1486df4 wiring + 4bf02e9 closure ledger)",
+  "reviewer": "reviewer-R2 (independent subagent; reviewer ≠ W3/W4 coder)",
+  "date": "2026-11-12",
+  "verdict": "打回 (返工第 1 轮/上限 2): 总分 86 < 98; [阻断] 0 项自有 + 1 项继承自 W3 (W4 工具经引擎提交, W3-1 修复必须与 W4 返工同波闭环); [建议] 4 项须当波闭合",
+  "total": 86,
+  "threshold": 98,
+  "rework_budget": "≤2 轮 (§1.4)",
+  "verification_trio": {
+    "build": "npm run build → tsdown ✔ lib/index.js 116.63 kB (reviewer 亲跑 2026-11-12)",
+    "lint": "npm run lint → tsc --noEmit 零错 (reviewer 亲跑)",
+    "test": "npx vitest run → 11 files, 189/189 passed, 0 skipped (reviewer 亲跑)",
+    "official_semantics": "required:true 官方过滤语义亲核: zDSH-main packages/core/system-prompt/src/index.ts:89 (PromptContext.required) + :667/:682 (抑制时仅保留 required===true 贡献) — plugin.ts:250-256 注册参数与语义一致"
+  },
+  "dimensions": {
+    "correctness": {
+      "score": 23,
+      "hard_gate_hit": false,
+      "evidence": [
+        "四工具 defineTool 全套且 S8 无 isConcurrencySafe: tools.ts:588-705 四个 defineTool; tools.ts:114-115 显式无 isConcurrencySafe; tools.spec.ts:151-157 与 plugin.spec.ts:108-111 双面断言 isConcurrencySafe===undefined",
+        "args 校验生效: shim 在 execute 前校验 required/type 并按官方 ToolArgsError 措辞抛错 (tools.ts:166-187); tools.spec.ts:142-147 钉 'invalid arguments: content: required/expected string'; zctx_fold content required:true 编译进 schema required 数组 (tools.spec.ts:128-140)",
+        "宽容解析拒收路径诚实: parseFoldContent 零区间诊断 (tools.ts:286-324 FOLD_PARSE_EMPTY 'parsed 0 valid fold ranges'), tools.spec.ts:110-119 钉 5 种拒收形态含 JSON.stringify(42) 与 'fold abc..def'",
+        "能力探测降级 5 面齐全: plugin.ts:197-267 session feed/tools/guidance/nudge/command 各自 typeof 探测+warn 跳过; plugin.spec.ts:134-144 断言 5 条 warn 全含 'skipped' 且零注册; tokenMeter/llm 缺失走 renderStatus 降级行 (tools.spec.ts:229-239)",
+        "官方事件名核实: session/created / session/disposed / session/event 与官方 cordis Events 一致 (core/session/src/index.ts:54,63; 回调参数 (session,event) 与 plugin.ts:210 匹配)",
+        "CCM 两层窗口拒绝各就位: 引擎层 ccmWindowGate W<32768 (fold-engine.ts:72,89-99) 关自动折叠面 (plugin.ts:343 nudge 静默; tools.ts:455-458 status 注记) 而手动工具可用 (tools.spec.ts:264-281); budget F1 结构守卫独立成层 (fold-engine.spec.ts:541-548 '16384 triggerLine>0 且 gate illegal')",
+        "工具回执=原生 tool result: output.render → [{type:'text',text}] (tools.ts:583-586), tools.spec.ts:159-163 钉; 无跨宿主注入路径",
+        "扣分: zctx_unfold 声明 latest 布尔参数但 execute 不读 (tools.ts:623-624 vs :627-644) — 行为与缺省相同未越权, 但为模型面死参数; nudge provider 忽略官方 AssembleContext 参数"
+      ],
+      "fix_directive": "W4-1: 删除 latest 参数或显式消费; W4-4 见完整性条"
+    },
+    "completeness": {
+      "score": 18,
+      "evidence": [
+        "W4 卡面全项: 4 工具+宽容解析+Service 插件 (cordis 结构 peer lazy require+shim, plugin.ts:112-134)+/zctx 命令 (command.ts status|fold|unfold 全分支)+config 拆分破环 (config.ts)+index.ts 纯再导出+smoke 适配 cordis 最小 ctx",
+        "/zctx 命令结构对齐官方 CommandResult union (interaction/commands/src/types.ts:34-41 亲核: kind success/error + text); plugin.spec.ts:226-281 全分支含 error 文本与无会话路径",
+        "B2 required:true 真实注册 (plugin.ts:250-256); PTC 提示进指导段 (texts.ts:81 run_code PTC note → guidance S10)",
+        "README 占位为 plan 分配 (ZCTX-plan.md:28 A7/W5), 非 W4 遗留",
+        "[建议 W4-3] closure W4-S3 自报 'artifact probe 5 组: 14 导出+face wiring+端到端 fold+status 走 lib 产物' (progress.md [12:16], checkpoint.json:33) — scripts/ 为空、smoke.spec.ts 仅 6 例身份/Config 断言、无任何入库测试走 BUILT lib 注册工具面: 该探针不可从仓复现"
+      ],
+      "fix_directive": "W4-3: 将产物探针固化为 scripts/probe-artifact.mjs 或扩展 smoke.spec.ts 走 lib/index.js 注册四工具并端到端 fold+status"
+    },
+    "consistency": {
+      "score": 16,
+      "evidence": [
+        "PromptContext 子集一致: name/order/text/interpolate/required 与官方 interface (system-prompt/src/index.ts:77-92) 逐字段对齐; order=800 与 guidance 900 分层",
+        "[建议 W4-2] plugin.spec.ts:156-160 '官方过滤' 测试自证循环: officialFilterKeeps 为本地重述断言的参考实现, 未执行真实 system-prompt 抑制过滤 (index.ts:667/682) — 注册值本身正确但该测试无证明力",
+        "[同 W4-1] latest 参数与unfold 描述文案一致性冗余",
+        "nudge 阈值解析/跨越计次与 W2 语义一致 (plugin.ts:137-144, 336-368; plugin.spec.ts:147-195)"
+      ],
+      "fix_directive": "W4-2: 删除自证循环, 改为直接断言 context.required===true (现值) 并在真实宿主集成波用真实过滤验证; 或 import 官方过滤逻辑构造真实抑制场景"
+    },
+    "verifiability": {
+      "score": 11,
+      "evidence": [
+        "三绿亲跑复现一致; 测试计数与 coder 自报完全一致 (189/189, W2 基线 111 → +78)",
+        "mock 四条硬校验为读代码验证非看注释 (W3.json correctness 条目 2 证据)",
+        "扣分点 1: closure W4-S3 核心证据 (artifact probe 5 组) 无入库载体 — 不可复现 (completeness 条目)",
+        "扣分点 2: B2 唯一'官方语义'测试为自证循环 (consistency 条目) — required:true 的官方过滤行为无独立证据",
+        "正面: reviewer 独立探针确认 W4 未引入额外官方契约偏差 (W3-1 为 W3 波文件)"
+      ],
+      "fix_directive": "随 W4-2/W4-3 补齐; 补后该维度应达 14+"
+    },
+    "safety_rollback": {
+      "score": 9,
+      "evidence": [
+        "del/20261112-w4-index-smoke-prechange/ 与 del/20261112-w4-rsi-lessons-prechange/ 在位 (ls 验证), progress.md [12:16] 记录改前原件=HEAD blob 且 SHA-256 核对一致",
+        "全部注册面 fail-soft (缺服务 warn+跳过不炸 boot); config Object.freeze; 无凭证/网络/路径拼接面; nodeRequire 惰性解析 catch 兜底 (tools.ts:141-148, plugin.ts:124-131, config.ts:121-127)"
+      ],
+      "fix_directive": "无需动作"
+    },
+    "maintainability": {
+      "score": 9,
+      "evidence": [
+        "模块拆分合理: config 自 index 拆出破 plugin→Config 循环 (config.ts:1-14 文档说明), command/tools/plugin 单一职责, runtime 单对象注入 (ZctxToolRuntime)",
+        "fail-soft shim 与宿主实现共享同一 author prop-map 契约 (DefineToolFn 类型, tools.ts:119-128) — 双路径零漂移设计",
+        "[同 W4-4] nudgeProvider 全局会话假设 (currentSession 取最近创建会话, plugin.ts:324-329) 已诚实文档化但未在 section 文案或 AssembleContext 侧消解"
+      ],
+      "fix_directive": "W4-4: nudge text() 接收官方 AssembleContext (system-prompt/src/index.ts:84 契约) 并按其 scope 键会话, 或在 guidance 文案写明单会话假设; 最小修法=文档+注释声明, 真实多会话宿主出现前合法"
+    }
+  },
+  "findings": [
+    {
+      "id": "W4-0",
+      "severity": "阻断 (继承)",
+      "location": "W3 波 src/fold-engine.ts (经 W4 tools.ts:604-614 / command.ts:68-91 调用)",
+      "problem": "W3-1 checkpoint 信封形态缺陷: W4 四工具与 /zctx fold/unfold 全部经该引擎提交, W4 无法独立放行。",
+      "fix": "与 W3 返工同波闭环; W4 自身无独立阻断项。"
+    },
+    {
+      "id": "W4-1",
+      "severity": "建议",
+      "location": "src/tools.ts:623-624 (latest 参数) vs :627-644 (execute)",
+      "problem": "zctx_unfold 声明 latest 布尔参数, execute 从不读取 — 行为与缺省一致但为模型可见死参数, 误导模型以为存在差异化行为。",
+      "fix": "删除该参数 (描述已写明 'Without arguments, the most recent active fold is unfolded'), 同步 spec 断言参数集。"
+    },
+    {
+      "id": "W4-2",
+      "severity": "建议",
+      "location": "tests/plugin.spec.ts:156-160",
+      "problem": "'officialFilterKeeps' 本地参考实现重述被测断言 — 自证循环, 对官方 system-prompt 抑制过滤 (index.ts:667/682) 零证明力; 注册值本身正确 (plugin.ts:254)。",
+      "fix": "改为直接断言 required===true 并注明官方行号依据; 官方过滤行为留待真机集成波用真实 systemPrompt 服务验证。"
+    },
+    {
+      "id": "W4-3",
+      "severity": "建议",
+      "location": "closure W4-S3 证据 (tasks/ZCTX/closures/closure.json W4-S3; progress.md [12:16]); scripts/ 空; smoke.spec.ts 6 例",
+      "problem": "自报 '产物探针 5 组 (14 导出+face wiring+端到端 fold+status 走 lib)' 无入库载体 — 不可从仓复现, 违反评分可验证性证据要求 (§12.2)。",
+      "fix": "固化探针: scripts/probe-artifact.mjs (node 直跑 lib/index.js: 断言 14 导出 + mock ctx 注册面 4/1/1/1/3 + fold+status 端到端) 或并入 smoke.spec.ts; 证据路径回写 closure。"
+    },
+    {
+      "id": "W4-4",
+      "severity": "建议",
+      "location": "src/plugin.ts:324-329 (currentSession), :255 (text provider 无参)",
+      "problem": "nudge provider 忽略官方 AssembleContext 参数且以'最近创建会话'全局取值 — 多会话宿主会把 A 会话压力注入 B 会话装配; 单会话假设已文档化但未在契约面消解。",
+      "fix": "最小修法: text provider 签名接收 AssembleContext 并在其 scope 可用时按键取会话 (官方契约 system-prompt/src/index.ts:84); 或 guidance 文案显式声明单会话假设。"
+    }
+  ],
+  "scoring_note": "无伪造迹象: 三绿与计数复现一致; RSI Z15/Z16 侧写复核属实且合理 (ZDSH-LESSONS.md:93-103 与 mock-session.ts:25 '../../src/types.ts' / plugin.ts:134 'loadCordisService() ?? StructuralServiceShim' 代码事实一一对应; ~/.agents/rsi/INDEX.md:139 捕获日志在案; del/20261112-w4-rsi-lessons-prechange/ 备份在位)。继承阻断 W4-0 归属 W3 卡计分 (正确性 16, W3.json); W4 自有正确性 23 恰在硬门槛上。总分 86 < 98 → 打回返工第 1 轮, 4 条建议按 §0.1 当波 fixed/verified 或按 §11 记账。"
+}
