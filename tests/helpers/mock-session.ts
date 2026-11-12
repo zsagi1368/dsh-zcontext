@@ -20,6 +20,10 @@
  * The mock is NOT a re-implementation of the official session: real-mode
  * tests (S5) exercise the genuine @deepseek-ai/dsh-session — this mock only
  * guarantees the mock-mode tests cannot drift past the official guards.
+ *
+ * Payload shapes follow the official event contract exactly: user/message is
+ * the BARE UserMessage (types.ts:309); system/assistant/tool keep their
+ * {turn, step, message}-family envelopes (types.ts:330-375).
  */
 
 import type { SessionEventLike, SurfaceOpLike } from '../../src/types.ts'
@@ -163,11 +167,13 @@ export class MockSession {
 
 /** Convenience message builders matching the official payload shapes. */
 export const msg = {
-  system(text: string): { message: MockMessage } {
-    return { message: { role: 'system', content: [{ type: 'text', text }], source: { kind: 'system-prompt' } } }
+  /** Official system/message envelope: {turn, step, message} (types.ts:330). */
+  system(text: string): { turn: number; step: number; message: MockMessage } {
+    return { turn: 0, step: 0, message: { role: 'system', content: [{ type: 'text', text }], source: { kind: 'system-prompt' } } }
   },
-  user(text: string): { message: MockMessage } {
-    return { message: { role: 'user', content: [{ type: 'text', text }], source: { kind: 'user' } } }
+  /** Official user/message is the BARE UserMessage (types.ts:309, surface.ts:132-134). */
+  user(text: string): MockMessage {
+    return { role: 'user', content: [{ type: 'text', text }], source: { kind: 'user' } }
   },
   assistant(text: string, toolCallIds: string[] = [], usage?: Record<string, number>): Record<string, unknown> {
     const content: unknown[] = [{ type: 'text', text }]

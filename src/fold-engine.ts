@@ -8,7 +8,11 @@
  * `user/message` checkpoint with `surfaceOp: replace` over its subrange
  * (disjoint subranges keep every shadowed set exactly the live surface set),
  * and verifies the generation counters afterwards — a mismatch is recorded
- * as an anomaly and reported, never thrown (fail-soft contract).
+ * as an anomaly and reported, never thrown (fail-soft contract). Checkpoint
+ * payloads are the official BARE UserMessage (`'user/message': UserMessage`,
+ * session/src/types.ts:309; `deriveEventMessage` returns the data verbatim,
+ * surface.ts:132-134; official producers commit bare messages —
+ * compaction region.ts:506-508, agent-loop agent.ts:435) — no envelope.
  *
  * `unfold()` re-materializes one active fold in the B1 single-node form
  * (plan §3): the checkpoint node is replaced by ONE user message whose
@@ -31,6 +35,8 @@
  *
  * @module fold-engine
  */
+
+import { randomUUID } from 'node:crypto'
 
 import { estimateTokens } from './budget.ts'
 import { materializeRange } from './materialize.ts'
@@ -284,16 +290,21 @@ export function fold(
     }
     const foldId = `f${nextSeq}`
     try {
+      // Official user/message contract (session/src/types.ts:309): the event
+      // data IS the UserMessage — no envelope. Official producers append the
+      // bare message (compaction region.ts:506-508 via createUserMessage at
+      // :410-413; agent-loop agent.ts:435); deriveEventMessage then returns
+      // it verbatim (surface.ts:132-134). Mirroring createUserMessage output:
+      // fresh id + role + content + source.
       const event = sessionLike.append('user/message', {
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: entry.summaryText }],
-          source: {
-            kind: 'zctx-fold',
-            foldId,
-            tokensBefore,
-            tokensAfter,
-          },
+        id: randomUUID(),
+        role: 'user',
+        content: [{ type: 'text', text: entry.summaryText }],
+        source: {
+          kind: 'zctx-fold',
+          foldId,
+          tokensBefore,
+          tokensAfter,
         },
       }, {
         surfaceOp: { op: 'replace', startSeq: entry.startSeq, endSeq: entry.endSeq },
@@ -429,16 +440,17 @@ export function unfold(
   const tokensAfter = blocks.reduce((sum, block) => sum + estimateTokens(block.text), 0)
 
   try {
+    // Official user/message contract: bare UserMessage (see the fold commit
+    // comment — types.ts:309, surface.ts:132-134, region.ts:506-508).
     const event = sessionLike.append('user/message', {
-      message: {
-        role: 'user',
-        content: blocks,
-        source: {
-          kind: 'zctx-unfold',
-          foldId,
-          tokensBefore,
-          tokensAfter,
-        },
+      id: randomUUID(),
+      role: 'user',
+      content: blocks,
+      source: {
+        kind: 'zctx-unfold',
+        foldId,
+        tokensBefore,
+        tokensAfter,
       },
     }, {
       surfaceOp: { op: 'replace', startSeq: entry.checkpointSeq, endSeq: entry.checkpointSeq },

@@ -27,6 +27,8 @@ interface RealSessionModule {
     create(id: unknown): RealSessionLike
   }
   SessionId: (id: string) => unknown
+  /** Official projection (session/src/surface.ts:132-134): user/message → event.data verbatim. */
+  deriveEventMessage: (event: SessionEventLike) => { role?: string; content?: unknown } | null
   foldSurface: (
     events: readonly SessionEventLike[],
     projections?: readonly never[],
@@ -132,9 +134,14 @@ describe('fold-engine: successful fold (mock mode)', () => {
     expect(session.surface.nodes).toEqual([0, 1, 2, 9, 6, 7, 8])
     expect(session.surface.replaceGeneration).toBe(1)
     expect(session.surface.contentGeneration).toBe(1)
-    // Checkpoint payload shape (S4 minimal form).
+    // Checkpoint payload shape (S4 minimal form): the bare official
+    // UserMessage — role/content at top level, zctx source inside
+    // (official user/message contract, session/src/types.ts:309).
     const event = session.log[9]
-    const source = (event.data as { message: { source: Record<string, unknown> } }).message.source
+    const data = event.data as { role: string; content: unknown[]; source: Record<string, unknown> }
+    expect(data.role).toBe('user')
+    expect(Array.isArray(data.content)).toBe(true)
+    const source = data.source
     expect(source).toEqual({
       kind: 'zctx-fold',
       foldId: 'f9',
@@ -335,18 +342,21 @@ describe('fold-engine: unfold single-node form (B1, mock mode)', () => {
     expect(session.surface.replaceGeneration).toBe(2)
     const event = session.log[commit.checkpointSeq]
     const data = event.data as {
-      message: { content: { type: string; text: string }[]; source: Record<string, unknown> }
+      role: string
+      content: { type: string; text: string }[]
+      source: Record<string, unknown>
     }
-    expect(data.message.source).toEqual({
+    expect(data.role).toBe('user')
+    expect(data.source).toEqual({
       kind: 'zctx-unfold',
       foldId: 'f9',
       tokensBefore: expect.any(Number),
       tokensAfter: expect.any(Number),
     })
     // The re-materialized blocks cover the original span in order.
-    expect(data.message.content.every((b) => b.type === 'text')).toBe(true)
-    expect(data.message.content.map((b) => b.text).join('\n')).toContain('list the files')
-    expect(data.message.content.map((b) => b.text).join('\n')).toContain(
+    expect(data.content.every((b) => b.type === 'text')).toBe(true)
+    expect(data.content.map((b) => b.text).join('\n')).toContain('list the files')
+    expect(data.content.map((b) => b.text).join('\n')).toContain(
       '(tool result quoted verbatim from the session log)',
     )
     // The ledger marks the fold unfolded; foldMap is empty.
@@ -562,8 +572,10 @@ describe('fold-engine: real @deepseek-ai/dsh-session (S5)', async () => {
     const session = Session.create(SessionId('zctx-w3-real-fold'))
     const store = new FoldStore()
     store.attach(session)
-    session.append('system/message', { message: { id: 's0', role: 'system', content: [{ type: 'text', text: 'You are helpful.' }], source: { kind: 'system-prompt' } } }, { surfaceOp: 'append' })
-    session.append('user/message', { message: { id: 'u1', role: 'user', content: [{ type: 'text', text: 'List the files.' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    // Official payload shapes (session/src/types.ts:309-375): user/message is
+    // the BARE UserMessage; system/assistant/tool keep their envelopes.
+    session.append('system/message', { turn: 0, step: 0, message: { id: 's0', role: 'system', content: [{ type: 'text', text: 'You are helpful.' }], source: { kind: 'system-prompt' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u1', role: 'user', content: [{ type: 'text', text: 'List the files.' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     session.append('assistant/message', {
       message: {
         id: 'a1',
@@ -573,11 +585,11 @@ describe('fold-engine: real @deepseek-ai/dsh-session (S5)', async () => {
       },
       usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 800, cacheWriteTokens: 100 },
     }, { surfaceOp: 'append' })
-    session.append('tool/result', { message: { id: 't1', role: 'tool', toolName: 'ls', toolCallId: 'call-x', content: [{ type: 'text', text: 'a.sql\nb.ts' }], source: { kind: 'tool', callId: 'call-x' } } }, { surfaceOp: 'append' })
+    session.append('tool/result', { turn: 0, step: 0, message: { id: 't1', role: 'tool', toolName: 'ls', toolCallId: 'call-x', content: [{ type: 'text', text: 'a.sql\nb.ts' }], source: { kind: 'tool', callId: 'call-x' } } }, { surfaceOp: 'append' })
     session.append('assistant/message', {
       message: { id: 'a2', role: 'assistant', content: [{ type: 'text', text: 'Two files found.' }], source: { kind: 'model', provider: 'deepseek', model: 'test-model' } },
     }, { surfaceOp: 'append' })
-    session.append('user/message', { message: { id: 'u2', role: 'user', content: [{ type: 'text', text: 'Now summarize the schema.' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u2', role: 'user', content: [{ type: 'text', text: 'Now summarize the schema.' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     store.resync()
     expect(store.surfaceNodes().map((n) => n.seq)).toEqual([0, 1, 2, 3, 4, 5])
     expect(store.usageSnapshot().measured).toBe(true)
@@ -593,11 +605,19 @@ describe('fold-engine: real @deepseek-ai/dsh-session (S5)', async () => {
     expect(session.surface.replaceGeneration).toBe(1)
     expect(session.surface.contentGeneration).toBe(1)
     expect([...store.foldMap.keys()]).toEqual([result.committed[0].foldId])
-    // The official session froze the exact source payload.
+    // The official session froze the exact source payload (bare UserMessage).
     const event = session.eventAt(result.committed[0].checkpointSeq)
-    const source = (event!.data as { message: { source: Record<string, unknown> } }).message.source
+    const source = (event!.data as { source: Record<string, unknown> }).source
     expect(source.kind).toBe('zctx-fold')
     expect(source.foldId).toBe(result.committed[0].foldId)
+    // W3-1 pin: the official projection contract returns event.data VERBATIM
+    // for user/message (session/src/surface.ts:132-134), so the committed
+    // checkpoint MUST project as a usable UserMessage on the derived history
+    // (official producers commit bare messages: compaction region.ts:506-508,
+    // agent-loop agent.ts:435).
+    const projected = mod!.deriveEventMessage(event!)
+    expect(projected?.role).toBe('user')
+    expect(Array.isArray(projected?.content)).toBe(true)
   })
 
   it.skipIf(mod === null)('unfolds in the single-node form through the official channel', async () => {
@@ -606,15 +626,15 @@ describe('fold-engine: real @deepseek-ai/dsh-session (S5)', async () => {
     const store = new FoldStore()
     store.attach(session)
     // Surface: 0 user, 1 assistant, 2 user, 3 assistant, 4 user, 5 assistant.
-    session.append('user/message', { message: { id: 'u1', role: 'user', content: [{ type: 'text', text: 'Plan the migration for me.' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u1', role: 'user', content: [{ type: 'text', text: 'Plan the migration for me.' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     session.append('assistant/message', {
       message: { id: 'a1', role: 'assistant', content: [{ type: 'text', text: 'Here is the plan: inventory, migrate, verify.' }], source: { kind: 'model', provider: 'deepseek', model: 'test-model' } },
     }, { surfaceOp: 'append' })
-    session.append('user/message', { message: { id: 'u2', role: 'user', content: [{ type: 'text', text: 'Go ahead.' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u2', role: 'user', content: [{ type: 'text', text: 'Go ahead.' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     session.append('assistant/message', {
       message: { id: 'a2', role: 'assistant', content: [{ type: 'text', text: 'Working on it now.' }], source: { kind: 'model', provider: 'deepseek', model: 'test-model' } },
     }, { surfaceOp: 'append' })
-    session.append('user/message', { message: { id: 'u3', role: 'user', content: [{ type: 'text', text: 'How far along are we?' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u3', role: 'user', content: [{ type: 'text', text: 'How far along are we?' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     session.append('assistant/message', {
       message: { id: 'a3', role: 'assistant', content: [{ type: 'text', text: 'Inventory finished.' }], source: { kind: 'model', provider: 'deepseek', model: 'test-model' } },
     }, { surfaceOp: 'append' })
@@ -634,11 +654,17 @@ describe('fold-engine: real @deepseek-ai/dsh-session (S5)', async () => {
     if (!unfolded.ok) return
     expect(session.surface.nodes).toEqual([0, unfolded.committed[0].checkpointSeq, 4, 5])
     const event = session.eventAt(unfolded.committed[0].checkpointSeq)!
-    const data = event.data as { message: { content: { type: string; text: string }[]; source: Record<string, unknown> } }
-    expect(data.message.source.kind).toBe('zctx-unfold')
+    const data = event.data as { content: { type: string; text: string }[]; source: Record<string, unknown> }
+    expect(data.source.kind).toBe('zctx-unfold')
     // Three original events (assistant, user, assistant) → three text blocks.
-    expect(data.message.content.length).toBe(3)
-    expect(data.message.content.every((b) => b.type === 'text')).toBe(true)
+    expect(data.content.length).toBe(3)
+    expect(data.content.every((b) => b.type === 'text')).toBe(true)
+    // W3-1 pin: the re-materialized node must project as a usable UserMessage
+    // (official deriveEventMessage contract, surface.ts:132-134).
+    const projectedUnfold = mod!.deriveEventMessage(event)
+    expect(projectedUnfold?.role).toBe('user')
+    expect(Array.isArray(projectedUnfold?.content)).toBe(true)
+    expect((projectedUnfold?.content as { type: string }[]).every((b) => b.type === 'text')).toBe(true)
   })
 
   it.skipIf(mod === null)('enforces the compaction mutex against the official markers', async () => {
@@ -646,15 +672,15 @@ describe('fold-engine: real @deepseek-ai/dsh-session (S5)', async () => {
     const session = Session.create(SessionId('zctx-w3-real-mutex'))
     const store = new FoldStore()
     store.attach(session)
-    session.append('user/message', { message: { id: 'u1', role: 'user', content: [{ type: 'text', text: 'Question one for the mutex probe.' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u1', role: 'user', content: [{ type: 'text', text: 'Question one for the mutex probe.' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     session.append('assistant/message', {
       message: { id: 'a1', role: 'assistant', content: [{ type: 'text', text: 'Answer one, reasonably long enough to fold later.' }], source: { kind: 'model', provider: 'deepseek', model: 'test-model' } },
     }, { surfaceOp: 'append' })
-    session.append('user/message', { message: { id: 'u2', role: 'user', content: [{ type: 'text', text: 'Question two for the mutex probe.' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u2', role: 'user', content: [{ type: 'text', text: 'Question two for the mutex probe.' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     session.append('assistant/message', {
       message: { id: 'a2', role: 'assistant', content: [{ type: 'text', text: 'Answer two for the mutex probe.' }], source: { kind: 'model', provider: 'deepseek', model: 'test-model' } },
     }, { surfaceOp: 'append' })
-    session.append('user/message', { message: { id: 'u3', role: 'user', content: [{ type: 'text', text: 'Question three wraps the probe up.' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u3', role: 'user', content: [{ type: 'text', text: 'Question three wraps the probe up.' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     store.resync()
     session.append('compaction/start', { compactionId: 'c1' })
     store.resync()
@@ -679,12 +705,12 @@ describe('fold-engine: real @deepseek-ai/dsh-session (S5)', async () => {
     const session = Session.create(SessionId('zctx-w3-real-foldsurface'))
     const store = new FoldStore()
     store.attach(session)
-    session.append('system/message', { message: { id: 's0', role: 'system', content: [{ type: 'text', text: 'You are helpful.' }], source: { kind: 'system-prompt' } } }, { surfaceOp: 'append' })
-    session.append('user/message', { message: { id: 'u1', role: 'user', content: [{ type: 'text', text: 'Question one for the replay probe.' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    session.append('system/message', { turn: 0, step: 0, message: { id: 's0', role: 'system', content: [{ type: 'text', text: 'You are helpful.' }], source: { kind: 'system-prompt' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u1', role: 'user', content: [{ type: 'text', text: 'Question one for the replay probe.' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     session.append('assistant/message', {
       message: { id: 'a1', role: 'assistant', content: [{ type: 'text', text: 'Answer one for the replay probe with a reasonably long explanation of the schema.' }], source: { kind: 'model', provider: 'deepseek', model: 'test-model' } },
     }, { surfaceOp: 'append' })
-    session.append('user/message', { message: { id: 'u2', role: 'user', content: [{ type: 'text', text: 'Question two for the replay probe.' }], source: { kind: 'user' } } }, { surfaceOp: 'append' })
+    session.append('user/message', { id: 'u2', role: 'user', content: [{ type: 'text', text: 'Question two for the replay probe.' }], source: { kind: 'user' } }, { surfaceOp: 'append' })
     store.resync()
     const folded = fold(session, store, {
       range: { startSeq: 2, endSeq: 2 },
