@@ -8,3 +8,6 @@
 - [10:40] W2 自测三绿：build ✓（lib 与入库产物字节一致）lint ✓（tsc --noEmit 零错）test ✓（107/107，7 文件）；budget 锁表 7 案例对拍 PASS（±2/±0.002，200k 行按权威表 W=204800）；validator a-g 全分支含原子拒收；materialize B1 单节点形态+嵌套一层；nudge 同输入同输出+抑制态；guidance S10 字节稳定+无 complete:true
 - [10:40] W2 零遗留；附注：tsconfig 加 allowImportingTsExtensions（del/ 有备份）；卡面 200k 案例笔误按权威表推（详见 checkpoint.notes）
 - [pending] R1 reviewer 联审（CARD-R1）-> W3-W5 -> 收口
+- [11:06] W2 返工第 1 轮（REVIEW-W1W2 F1-F5）：5 小步提交（ecb5857/abfacf0/1c87952/5a86cc4/e2565b1）——F1 budget 退化窗守卫（W=0/无法自持悲观储备抛 TypeError）+3 边界测试 → F2 全表面保护兜底分支测试 → F3 fill() 移居 texts.ts（nudge→validator 依赖消除）→ F4 fmtNum 死三目清理 → F5 isUser 派生不变式注释 + estimateTokens 注释对齐 CCM L0 ASCII-dense 口径
+- [11:06] 返工自测三绿：build ✓（lib 重建与入库 blob 字节一致 78154ca7…，W2 纯核心未入 W1 骨架 bundle 属预期）lint ✓（tsc --noEmit 零错）test ✓（111/111，7 文件，+4）；closure F1-F5 全 fixed/verified；del/ 备份 del/20261112-w2-rework-f1-f5/（哈希与 checkpoint 前像一致）
+- [pending] 返工重审（W2 scorecard 刷新）-> W3-W5 -> 收口

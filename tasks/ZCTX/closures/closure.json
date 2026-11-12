@@ -1,1 +1,54 @@
-{ "items": [] }
+{
+  "items": [
+    {
+      "id": "W2-F1",
+      "source": "REVIEW-W1W2.md §二 (W2-F2-F1)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit ecb5857: src/budget.ts degenerate-window guard + tests/budget.spec.ts W=0/W=1 throw + 32k exact pin; budget 27/27, nudge 16/16",
+      "owner": "coder-w2-rework",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W2-F2",
+      "source": "REVIEW-W1W2.md §二 (W2-F2-F2)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit abfacf0: tests/validator.spec.ts whole-surface-under-floor case (floor 30000 > Σ23200, exactly 1 reason, last 0 messages / 30000 tokens); validator 33/33",
+      "owner": "coder-w2-rework",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W2-F3",
+      "source": "REVIEW-W1W2.md §二 (W2-F2-F3)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 1c87952: fill() defined in src/texts.ts; validator.ts/nudge.ts import from texts; lint 0, 61/61 affected suites",
+      "owner": "coder-w2-rework",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W2-F4",
+      "source": "REVIEW-W1W2.md §二 (W2-F2-F4)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 5a86cc4: fmtNum single return String(Math.round(x*1000)/1000); validator 33/33, output byte-identical",
+      "owner": "coder-w2-rework",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W2-F5",
+      "source": "REVIEW-W1W2.md §二 (W2-F2-F5)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit e2565b1: types.ts isUser derived-invariant comment; budget.ts estimateTokens comment aligned to CCM L0 ASCII-dense domain; lint 0",
+      "owner": "coder-w2-rework",
+      "status": "verified",
+      "phase": "block"
+    }
+  ]
+}
