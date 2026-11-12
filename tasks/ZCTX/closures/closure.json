@@ -169,7 +169,79 @@
       "owner": "coder-w3w4-rework",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "W5-S1",
+      "source": "cards/W5-docs-verify.md 产物 1 + plan §2 A4/A5",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit d72ec36: scripts/verify-activation-surface.mjs 8 组断言(A1 Z3 lib 在盘+git ls-tree / A2 package.json 安装门含无 prepare/install 钩子+无 dsh.client+peerDeps cordis>=4+engines / A3 Z7 import lib 身份+Config+四工具名 / A4 patch yml 逐行解析 insert id/name / A5 checkpoint 特征串 zctx-fold/zctx-unfold/required / A6 S8 剥注释扫代码+运行期 offenders=0 / A7 B2 required:true / A8 probe-artifact 子断言复用), node 直读全程无 grep; 实测 8 PASS 0 FAIL exit 0",
+      "owner": "coder-w5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W5-S2",
+      "source": "cards/W5-docs-verify.md 产物 2 + plan §2 A7",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit ec0d3ac: README.md + README.zh.md 双语原创非机翻镜像(独立成文), 12 个显式 HTML 锚点 en/zh 完全一致(TOC 链接零悬坠机械核对), H2 12/12 节对齐, 设置表 9/9 行, 四工具名/required:true/UNKNOWN_TOOL/32768/isConcurrencySafe/billion-context 致谢等关键事实逐项双语核对通过; 内容覆盖是什么/为什么/净室声明与致谢/安装/四工具真实参数形态/与官方 compaction 共存硬底/设置项表/行为三件(PTC 直呼受限/nudge required:true 含义/unfold 单节点重物化线缆代价)/限制/安全/开发",
+      "owner": "coder-w5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W5-S3",
+      "source": "cards/W5-docs-verify.md 产物 3+4 + plan §2 A7",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 4584526: SECURITY.md(威胁模型: 资产表/零网络/零遥测/会话数据本地/模型伪造防御六层=原生回执+服务端验证器+官方通道+compaction 互斥+exclusive barrier+宽容解析严格提交/fail-soft) + CHANGELOG.md 0.1.0 完整条目(Added 十项=四工具/指导段/nudge/命令/设置页/验证器/零独立存储/缓存记账/安装面/三个验证脚本; Behavior 三件; Limitations 四件; Security); 改前原件备份 del/20261112-w5-docs-prechange/(SHA-256 与 HEAD blob 一致)",
+      "owner": "coder-w5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W5-S5",
+      "source": "cards/W5-docs-verify.md 产物 5 + plan §2 A6 (真机冒烟-已执行部分)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit c12911e: scripts/smoke-real-loader.mjs 真机探针实测 2 PASS 0 SKIP 0 FAIL — R1 真 app-boot loader(packages/boot/app-boot/lib) loadOverlayPatches 解析本仓 cordis.patch.yml + composeEntries 组合出 {id:dsh-zcontext,name:dsh-zcontext}; R2 真 CLI(apps/cli/lib/bin.js v0.2.1-alpha.2) --dump-config --patch 组合树 1237 行含我们的 dsh-zcontext 行为最后一层 + 无 --patch 负对照(1234 行无 dsh-zcontext); 另 probe-artifact.mjs P5 已是真实官方 session lib 挂载探针(5/5 PASS)。临时 DSH_HOME 用后即删(mkdtemp+前缀校验删除)",
+      "owner": "coder-w5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W5-A6-INSTALL",
+      "source": "plan §2 A6 (真机冒烟-安装与完整启动挂载部分)",
+      "type": "deferred-step",
+      "disposition": "user_approved_deferred",
+      "evidence": "隔离环境真实安装(dsh plugin add 经 pnpm 装入活跃 profile)+完整 harness 启动挂载本插件模块: 需 registry 安装 workspace 发布的 bundle 与 LLM 运行时, 本环境不可跑; 方案门 plan §2 A6 行预授权此 fallback(owner=主线、触发条件=用户桌面环境可用、复核日期=发布后一周、证据=本计划行); 已执行的真件探针见 W5-S5(真 loader 组合+真 CLI dump-config+真 session lib 挂载投影), 激活面断言见 W5-S1",
+      "owner": "mainline",
+      "status": "open",
+      "phase": "post-merge",
+      "trigger": "用户桌面环境可跑完整 harness + 插件已发布后一周",
+      "reviewDate": "2026-11-19"
+    },
+    {
+      "id": "W5-RSI",
+      "source": "AGENTS.md §17/§2.3 RSI 收口",
+      "type": "lesson",
+      "disposition": "fixed",
+      "evidence": "ZDSH-LESSONS.md Z17(打包产物保留注释——「产物内不含 X」全文断言必须先剥注释再扫, 运行期构造断言才是权威口径; W5 A6 组首轮假红实证, 剥注释后 codeTextClean=true); ~/.agents/rsi/INDEX.md 捕获日志新增 zctx W5 行; 开工查册命中 Z13/Z14/A14/A25 未复燃(全程 Write/Edit 无 heredoc、node 直读无 grep); 备份 del/20261112-w5-rsi-lessons-prechange/(两册改前件 SHA-256 核对一致)",
+      "owner": "coder-w5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W5-GOV",
+      "source": "cards/W5-docs-verify.md 产物 6 (governance 收尾)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "closure.json 全量核对 24 条: 23 条 block 全 closed(fixed+verified, 实测 phase=block 计数 23), 1 条 post-merge user_approved_deferred(W5-A6-INSTALL, owner=主线/触发=用户桌面环境/复核日期=2026-11-19), 0 条 OPEN-阻塞; R2 复审产物(REVIEW-W3W4 复审节+W3=99/W4=100 scorecards)入库 commit d5c5ceb; progress.md/checkpoint.json/checkpoint-history.jsonl W5 终态更新",
+      "owner": "coder-w5",
+      "status": "verified",
+      "phase": "block"
     }
   ],
-  "updatedAt": "2026-11-12T12:20:00+08:00"
+  "updatedAt": "2026-11-12T13:40:00+08:00"
 }
