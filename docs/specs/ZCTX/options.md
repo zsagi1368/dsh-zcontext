@@ -13,7 +13,7 @@
 | 官方 API | 语义 | 锚点（zDSH-main @ zdsh-latest / 073927c7f8） |
 |---|---|---|
 | `ctx.tools.register(ToolDefinition)` | 工具注册，仅 `run_code` 保留名 | packages/core/tools/src/index.ts:1069-1094 |
-| `execute(args, exec)` | `exec.agent?.agent/session` 可达 Agent/Session；`exec.deferContext(UserMessage)` 可附插件指令 | packages/core/tools/src/index.ts:327-353, 419-436 |
+| `execute(args, exec)` | `exec.agent?.session` 可达 Session（tools/src/index.ts:340 + :960 实证消费）；`exec.deferContext(UserMessage)` 可附插件指令 | packages/core/tools/src/index.ts:327-353, 419-436 |
 | `Session.append(type, data, {surfaceOp})` | `{op:'replace',startSeq,endSeq}` + sourceEventSeqs=官方唯一历史折叠通道；类型注释明示 "Used by compaction; any surface-replacing producer may use it" | packages/core/session/src/types.ts:449-464；packages/compaction/compaction-basic/src/region.ts:506-508 |
 | `ctx.systemPrompt.section()/context()` | section=有序稳定段；context=动态运行时快照（变化才追加，不变时 no-op） | packages/core/system-prompt/src/index.ts:474-566；packages/core/agent-loop/src/runtime-context.ts:113-164 |
 | `ctx.tokenMeter.measure(session)` | 官方权威计量（compaction-basic 同款） | packages/compaction/compaction-basic/src/index.ts:278 |
