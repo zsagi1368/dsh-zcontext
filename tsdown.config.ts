@@ -16,5 +16,9 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
+  // tsdown defaults to `fixedExtension` on the node platform, which emits
+  // `.mjs`; this package declares `type: module`, so emit plain `.js`/`.d.ts`
+  // to match the frozen `main`/`types` contract (lib/index.js(.d.ts)).
+  fixedExtension: false,
   neverBundle: [/^@deepseek-ai\//],
 })
