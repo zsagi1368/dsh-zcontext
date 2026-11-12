@@ -2,9 +2,9 @@
  * dsh-zcontext — model-driven incremental context folding for the DeepSeek
  * Harness (official surface replace channel).
  *
- * W1 minimal skeleton: identity exports, the plugin class with static
- * `inject` / `Config`, and a constructor that stores the resolved config.
- * No folding logic lives here yet (W2-W4 waves).
+ * Public surface: the frozen identity exports (name / plugin class / Config
+ * schema), the W2 pure cores, and the W3 engine (FoldStore + fold/unfold
+ * orchestrator). W4 completes the wiring (tools / plugin / command).
  *
  * Host-face types are structural (duck-typed): neither `@deepseek-ai/cordis`
  * nor `@deepseek-ai/schemastery` is imported statically, so the package has
@@ -180,6 +180,37 @@ export const configSchema: ConfigSchemaLike = (() => {
 
 /** Plugin identity exported for loader probes. */
 export const name = 'dsh-zcontext'
+
+// ---------------------------------------------------------------------------
+// W3 engine exports (store + fold orchestrator).
+// ---------------------------------------------------------------------------
+
+export { FoldStore } from './store.ts'
+export type {
+  FoldLedgerEntry,
+  FoldLedgerStatus,
+  StoreAnomaly,
+  UsageSample,
+  UsageSnapshot,
+} from './store.ts'
+export {
+  CCM_MIN_CONTEXT_WINDOW,
+  ccmWindowGate,
+  fold,
+  foldableRanges,
+  renderFoldReply,
+  renderUnfoldReply,
+  unfold,
+} from './fold-engine.ts'
+export type {
+  CcmWindowGate,
+  CommittedFold,
+  EngineAnomaly,
+  FoldSessionLike,
+  FoldSubmission,
+  FoldCommitResult,
+  FoldSurfaceIntent,
+} from './fold-engine.ts'
 
 /**
  * W1 minimal plugin class.

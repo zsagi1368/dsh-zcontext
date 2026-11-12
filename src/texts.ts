@@ -248,3 +248,120 @@ export const REASON_WINDOW_TOO_LARGE =
 
 export const REASON_NO_NET_SHRINK =
   'fold window [{{start}}, {{end}}] would grow the window: {{folded}} folded tokens x {{tolerance}} tolerance must exceed {{summary}} summary tokens'
+
+// ---------------------------------------------------------------------------
+// W3 engine reasons (compaction mutex, fold identity, unreadable surface).
+// ---------------------------------------------------------------------------
+
+export const REASON_COMPACTION_ACTIVE =
+  'a compaction transaction is active on this session (unclosed compaction/start); folding must wait until the bracket closes'
+
+export const REASON_UNREADABLE_SURFACE =
+  'surface node seqs {{seqs}} are not readable from the log; folding refuses while any surface node is unreadable'
+
+export const REASON_SESSION_SEQ_MISSING =
+  'the session does not expose its next seq; a fold id cannot be minted safely'
+
+export const REASON_COMMIT_REJECTED =
+  'the session rejected the fold commit for [{{start}}, {{end}}]: {{detail}}'
+
+export const REASON_SUBRANGE_TOOL_SPLIT =
+  'summary subrange [{{start}}, {{end}}] would split a tool-call/result pair (call {{callId}} answered at seq {{otherSeq}}); each committed subrange must keep tool calls and their results together'
+
+// ---------------------------------------------------------------------------
+// W3/W4 fold/unfold tool replies and fold-engine annotations.
+// ---------------------------------------------------------------------------
+
+export const FOLD_REPLY_OK =
+  'Folded seqs {{start}}–{{end}}, ~{{tokens}} tokens reclaimed ({{count}} checkpoint{{plural}}, {{absorbed}} earlier fold{{absorbedPlural}} absorbed)'
+
+export const FOLD_REPLY_PARTIAL =
+  'fold committed partially: {{committed}} of {{total}} checkpoints landed before rejection'
+
+export const FOLD_REPLY_COMMIT_FAILED = 'the fold commit failed before any checkpoint landed'
+
+export const FOLD_REPLY_REJECTED = 'fold rejected ({{count}} reason{{plural}}):'
+
+export const FOLD_REPLY_REASON_ROW = '  - {{reason}}'
+
+export const FOLD_REPLY_ANOMALY_PREFIX = 'fold committed with anomalies:'
+
+export const UNFOLD_REPLY_OK =
+  'Unfolded fold {{foldId}}: checkpoint seq {{seq}} replaced by one node re-materializing {{blocks}} block{{plural}} (seqs {{start}}–{{end}})'
+
+export const UNFOLD_REPLY_REJECTED = 'unfold rejected ({{count}} reason{{plural}}):'
+
+export const REASON_FOLD_NOT_FOUND = 'no active fold with id {{foldId}}'
+
+export const REASON_FOLD_NOT_ACTIVE =
+  'fold {{foldId}} is not active (status: {{status}}); only active folds can be unfolded'
+
+export const REASON_CHECKPOINT_GONE =
+  'fold {{foldId}} checkpoint (seq {{seq}}) is no longer on the surface'
+
+export const REASON_NO_ACTIVE_FOLDS = 'no active folds to unfold'
+
+export const REASON_UNFOLD_REJECTED =
+  'the session rejected the unfold commit for fold {{foldId}}: {{detail}}'
+
+// ---------------------------------------------------------------------------
+// W4 status display lines (zctx_status + /zctx status).
+// ---------------------------------------------------------------------------
+
+export const STATUS_WINDOW_LINE =
+  'window: ~{{tokens}} tokens ({{pct}}% of {{window}}); trigger line {{trigger}} ({{triggerPct}}%)'
+
+export const STATUS_WINDOW_UNKNOWN =
+  'window: context window unknown (llm model info unavailable); budget table and pressure percent need it'
+
+export const STATUS_CCM_BELOW_DOMAIN =
+  'context window {{window}} is below the CCM legal domain (W ≥ 32768): the automatic folding face is disabled; tools remain usable'
+
+export const STATUS_METER_UNAVAILABLE =
+  'token meter unavailable: window estimate is a rough chars/3 figure, not a measurement'
+
+export const STATUS_BUDGET_HEADER = 'Budget (CCM v2.3):'
+
+export const STATUS_BUDGET_ROW = '  - {{label}}: {{tokens}} tokens'
+
+export const STATUS_FIXED_WIRE_ROW =
+  '  - fixed wire overhead (4 zctx tool schemas + guidance): {{tokens}} tokens'
+
+export const STATUS_RANGES_HEADER = 'Foldable ranges (seq spans, estimated tokens):'
+
+export const STATUS_FOLDS_HEADER = 'Folds ({{count}} active):'
+
+export const STATUS_FOLD_ROW =
+  '  - {{foldId}}: seqs {{start}}–{{end}} → checkpoint {{seq}} (~{{before}} → ~{{after}} tokens)'
+
+export const STATUS_FOLDS_EMPTY = '  (no active folds)'
+
+export const STATUS_ANOMALIES_HEADER = 'Anomalies ({{count}}):'
+
+export const STATUS_ANOMALY_ROW = '  - [{{kind}}] {{detail}}'
+
+export const STATUS_ANOMALIES_EMPTY = '  (no anomalies recorded)'
+
+export const STATUS_USAGE_MEASURED =
+  'cache usage: measured from {{samples}} provider usage sample{{plural}} (latest: cache read {{read}} / cache write {{write}} tokens)'
+
+export const STATUS_USAGE_ESTIMATED =
+  'cache usage: ESTIMATED — no provider usage data available ({{samples}} sample{{plural}} without usage); token figures are chars/3 estimates'
+
+export const STATUS_USAGE_NONE = 'cache usage: no assistant requests observed yet'
+
+export const STATUS_NO_SESSION = 'zctx: no live session is reachable from this call site'
+
+export const STATUS_PARTIAL_PREFIX = 'status rendered in degraded mode:'
+
+export const STATUS_DEGRADED_ROW = '  - {{detail}}'
+
+export const RECALL_REPLY_HEADER = 'Recall hits for "{{query}}" ({{count}} of {{total}}):'
+
+export const RECALL_REPLY_ROW =
+  '  - [{{kind}}] fold {{foldId}} (seqs {{start}}–{{end}}, score {{score}}): {{excerpt}}'
+
+export const RECALL_REPLY_EMPTY = 'No recall hits for "{{query}}".'
+
+export const FOLD_PARSE_EMPTY =
+  'parsed 0 valid fold ranges from content; expected blocks like "fold <startSeq>..<endSeq>" followed by a summary line, or a JSON array of {startRef, endRef, summary}'

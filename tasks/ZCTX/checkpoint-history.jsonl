@@ -16,3 +16,7 @@
 {"step":"w2r4","name":"F4 fmtNum dead branch","ts":"2026-11-12T11:05:25+08:00","commit":"5a86cc4"}
 {"step":"w2r5","name":"F5 isUser invariant + estimator domain comments","ts":"2026-11-12T11:05:40+08:00","commit":"e2565b1"}
 {"step":"w2r6","name":"three-green 111/111 + lib byte-identical + clean status (own changes)","ts":"2026-11-12T11:06:00+08:00"}
+{"step":"w3s1","name":"store.ts + store.spec (16)","ts":"2026-11-12T11:58:00+08:00"}
+{"step":"w3s2","name":"fold-engine.ts + fold-engine.spec (29, S5 real 4)","ts":"2026-11-12T11:58:10+08:00"}
+{"step":"w3s3","name":"texts additions + index wiring + mock helper","ts":"2026-11-12T11:58:20+08:00"}
+{"step":"w3s4","name":"three-green 156/156 + lib probe 12 exports","ts":"2026-11-12T11:58:30+08:00"}
