@@ -99,6 +99,9 @@ export const MATERIALIZED_MISSING_EVENT_PREFIX = '[unavailable event at seq '
 
 export const MATERIALIZED_MISSING_EVENT_SUFFIX = ']'
 
+/** Marker for a message event that carries no text blocks at all. */
+export const MATERIALIZED_NO_TEXT_CONTENT = '(no text content)'
+
 // ---------------------------------------------------------------------------
 // Nudge fragments (systemPrompt.context; rendered output must stay a pure
 // function of its inputs — all fixed wording lives here).
