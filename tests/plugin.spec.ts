@@ -153,11 +153,13 @@ describe('plugin: nudge context (B2 required + threshold crossing)', () => {
       required?: boolean
       text: () => string
     }
-    // Reference implementation of the official filter (system-prompt
-    // src/index.ts:627-628): suppression drops non-required contributions only.
-    const officialFilterKeeps = (spec: { required?: boolean }): boolean =>
-      spec.required === true
-    expect(officialFilterKeeps(context)).toBe(true)
+    // Direct registration assertion (W4-2: no local reference-implementation
+    // loop). The official suppression filter keeps a contribution exactly when
+    // `required === true` (system-prompt/src/index.ts:667 and :682 —
+    // `.filter(entry => entry.required === true)` / `requiredContexts`), so
+    // this flag is the one property that must hold; executing the real filter
+    // belongs to the real-host integration wave.
+    expect(context.required).toBe(true)
 
     // Warm the window cache through session/created + mock llm.
     const session = routed(seedConversation().session)
