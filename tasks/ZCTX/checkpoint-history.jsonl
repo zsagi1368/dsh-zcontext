@@ -3,3 +3,10 @@
 {"step":"s2","name":"tsdown+vitest configs","ts":"2026-11-12T09:58:00+08:00"}
 {"step":"s3","name":"src skeleton + lib artifacts","ts":"2026-11-12T10:04:00+08:00","commit":"d4b6a7c"}
 {"step":"s6","name":"final-verify+assertions","ts":"2026-11-12T10:10:00+08:00","result":"three-green,12-assertions,5-probe"}
+{"step":"w2s1","name":"types+message-source.d.ts+texts","ts":"2026-11-12T10:14:00+08:00","commit":"0701f1d"}
+{"step":"w2s2","name":"budget lock-table+breakeven","ts":"2026-11-12T10:19:00+08:00","commits":["6183f5a","ac29076"]}
+{"step":"w2s3","name":"validator a-g","ts":"2026-11-12T10:26:00+08:00","commit":"be0ae07"}
+{"step":"w2s4","name":"materialize B1","ts":"2026-11-12T10:31:00+08:00","commit":"2be3bea"}
+{"step":"w2s5","name":"search recall","ts":"2026-11-12T10:32:00+08:00","commit":"080bfc9"}
+{"step":"w2s6","name":"guidance+nudge S10/B2","ts":"2026-11-12T10:35:00+08:00","commit":"7b69b82"}
+{"step":"w2s7","name":"three-green 107/107 + clean status","ts":"2026-11-12T10:40:00+08:00"}

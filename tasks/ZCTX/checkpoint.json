@@ -1,54 +1,77 @@
 {
-  "task": "ZCTX-W1",
-  "updatedAt": "2026-11-12T10:10:00+08:00",
+  "task": "ZCTX-W2",
+  "updatedAt": "2026-11-12T10:40:00+08:00",
   "steps": [
     {
-      "id": "s0",
-      "name": "lock + checkpoint init",
+      "id": "w2s1",
+      "name": "types.ts + message-source.d.ts (S4 augmentation) + texts.ts (single text home)",
       "status": "done",
-      "artifacts": ["tasks/ZCTX/.lock", "tasks/ZCTX/checkpoint.json"]
+      "commit": "0701f1d",
+      "artifacts": ["src/types.ts", "src/types/message-source.d.ts", "src/texts.ts"]
     },
     {
-      "id": "s1",
-      "name": "package.json + cordis.patch.yml + tsconfig.json + pnpm install",
+      "id": "w2s2",
+      "name": "budget.ts: CCM v2.3 formulas + lock table 7 cases (24 tests) + S1 fixed wire overhead + S6 breakeven (VERIFY-C #15)",
       "status": "done",
-      "commit": "dedfe2f",
-      "artifacts": ["package.json", "cordis.patch.yml", "tsconfig.json", "pnpm-lock.yaml"]
+      "commits": ["6183f5a", "ac29076"],
+      "artifacts": ["src/budget.ts", "tests/budget.spec.ts"]
     },
     {
-      "id": "s2",
-      "name": "tsdown.config.ts + vitest.config.ts",
+      "id": "w2s3",
+      "name": "validator.ts: a-g checks (node-0 precheck S5 / protected zones / pair closure fail-closed / absorption / net-shrink / size gates) + atomic reject",
       "status": "done",
-      "commit": "f47a15d",
-      "artifacts": ["tsdown.config.ts", "vitest.config.ts"]
+      "commit": "be0ae07",
+      "artifacts": ["src/validator.ts", "tests/validator.spec.ts"]
     },
     {
-      "id": "s3",
-      "name": "src/index.ts skeleton + lib artifacts committed",
+      "id": "w2s4",
+      "name": "materialize.ts: B1 single-node multi-block unfold + one-layer checkpoint expansion + honest gap markers",
       "status": "done",
-      "commit": "d4b6a7c",
-      "artifacts": ["src/index.ts", "lib/index.js", "lib/index.js.map", "lib/index.d.ts"]
+      "commit": "2be3bea",
+      "artifacts": ["src/materialize.ts", "tests/materialize.spec.ts"]
     },
     {
-      "id": "s4",
-      "name": "tests/smoke.spec.ts + tsdown deps.neverBundle fix",
+      "id": "w2s5",
+      "name": "search.ts: keyword recall (case-insensitive, AND>OR scoring, ±120 excerpt, deterministic)",
       "status": "done",
-      "commit": "a271341",
-      "artifacts": ["tests/smoke.spec.ts"]
+      "commit": "080bfc9",
+      "artifacts": ["src/search.ts", "tests/search.spec.ts"]
     },
     {
-      "id": "s5",
-      "name": "AGENTS.md + LICENSE + CHANGELOG.md",
+      "id": "w2s6",
+      "name": "guidance.ts + nudge.ts: S10 byte-stable section (no complete:true) + B2 suppression (empty=no-op) + PTC note",
       "status": "done",
-      "commit": "36cfee1",
-      "artifacts": ["AGENTS.md", "LICENSE", "CHANGELOG.md"]
+      "commit": "7b69b82",
+      "artifacts": ["src/guidance.ts", "src/nudge.ts", "tests/guidance.spec.ts", "tests/nudge.spec.ts"]
     },
     {
-      "id": "s6",
-      "name": "final three-green + package.json assertions (12/12) + standalone lib probe (5/5)",
+      "id": "w2s7",
+      "name": "three-green: build (lib byte-stable) + lint zero errors + 107/107 tests; git status clean",
       "status": "done",
       "artifacts": []
     }
   ],
-  "next": "reviewer-score-gate"
+  "next": "reviewer-score-gate (W2 scorecard per CARD-R1)",
+  "hashes": {
+    "src/types.ts": "a9a435faeb0b2bf9f5f775ff1d56648de4f57338ad833c4db19b5d6bcbeb4bf6",
+    "src/types/message-source.d.ts": "b397183eebbf74997fa019cd34e0f1cbe76ef161d14fa911fb3deb205b42a649",
+    "src/texts.ts": "e2a03f60d8ea52595903fe15f9900c23c4563eb66a7483d1e63bd9c836f09129",
+    "src/budget.ts": "751c0d32331ee9b428c084c50dfc924bb3ba1c290276a54951de4e9f9cd8712e",
+    "src/validator.ts": "186fd493283cb786131981a120c100cb1a3d9f99626e6fed95766a71f6b1b515",
+    "src/materialize.ts": "0563380584c1425634bfebe5b54c9a90f94be077b1b1202c40509797a4fbac43",
+    "src/search.ts": "fb15b7f5f41e5d36fa747ab7174db79394da857c181c85135d56205440686643",
+    "src/guidance.ts": "d6f407f5388aad65c706ce2242c7511af0cfeb1ccd02a54c2eb86f2a4ddf52d9",
+    "src/nudge.ts": "890a91e7e27fac3ddd40fc622f6b589a0b5929f6bfe22fc848b9efb5cedd858e",
+    "tests/budget.spec.ts": "948ece78c5ad3d341178e753b6dd57ad965f99934ad03c010013dfd1d7bb7581",
+    "tests/validator.spec.ts": "5daf9a05dafb05d120f4c2ecbb2528966cce642cc6ad2a366aa3dd8971dfd915",
+    "tests/materialize.spec.ts": "0d24b33ff678412d57544895b6f0d8889be10359b44e0f4101a28e034f4ebd63",
+    "tests/search.spec.ts": "8ba6b42f5f7e172d088296a5035eb69f699432981fed7c9536d72e5df9ce66ed",
+    "tests/guidance.spec.ts": "4828e6093e191ab8188689e586c15571fdda2a69f78c4a2c64e495a6d04699e7",
+    "tests/nudge.spec.ts": "c4931af96c1a82e0d3e79c277b192fb0efd545bbb49079cb26b325f8df5d14d8"
+  },
+  "notes": {
+    "200k-case": "锁表 200k 行按权威表几何取 W=204800（triggerLine 175616 = 204800−29184 仅在 W=204800 下可复现；卡面 W=200704 为笔误，按卡面指示“从权威表推”）",
+    "eventAt": "官方 eventAt 标记 deprecated（session/src/index.ts:711）；W2 纯核心只消费注入 accessor，W3 引擎可 backing 到非 deprecated 读取路径",
+    "tsconfig": "新增 allowImportingTsExtensions（W2 模块互导用官方风格 .ts 扩展；noEmit 已设；del/ 备份在 del/20261112-1030-w2-tsconfig-allowImportingTsExtensions/）"
+  }
 }
