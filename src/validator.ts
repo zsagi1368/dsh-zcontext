@@ -14,7 +14,15 @@
  * Checks implemented:
  *   a. window exists, is contiguous on the surface, endpoints are surface
  *      nodes; node 0 (system head) may never enter the window (S5 precheck —
- *      the official assertSystemHeadRewrite throws, surface.ts:493-505);
+ *      the official assertSystemHeadRewrite throws, surface.ts:493-505).
+ *      REACHABLE-DOMAIN note (W3-2): the consecutive+monotonic guard is
+ *      load-bearing beyond unsorted-scan defense — after any fold the surface
+ *      is numerically non-monotonic (the checkpoint seq sits ahead of later
+ *      nodes), so a window spanning a checkpoint PLUS later nodes is always
+ *      rejected here; the reachable absorption domain is the boundary-aligned
+ *      single-checkpoint window [checkpoint, checkpoint] (pinned by
+ *      fold-engine.spec.ts "numeric shadowed filtering ≡ official positional
+ *      slicing");
  *   b. protected zones: recent tail (last keepRecentMessages messages and
  *      the last max(keepRecentTokens, protectionFloorTokens) estimated
  *      tokens), the last user message, and the permanently pinned first
@@ -24,7 +32,10 @@
  *      unknown pairing fails closed;
  *   d. nested absorption: a window containing an active fold's checkpoint is
  *      allowed when a submitted summary covers the checkpoint or the window
- *      boundary aligns with it;
+ *      boundary aligns with it. Reachable domain (W3-2): only when check a's
+ *      consecutive+monotonic guard passes — in practice the boundary-aligned
+ *      [checkpoint, checkpoint] window; a coverage-style window over a
+ *      checkpoint plus later nodes is rejected as not contiguous first;
  *   e. net-shrink gate: Σ(folded node estimates) × tolerance > Σ(summary
  *      estimates), tolerance default 1.05; summary length window enforced;
  *   f. window qualification: estimated window tokens ≥ minFoldableTokens and
@@ -136,7 +147,14 @@ export function validateFold(input: ValidateFoldInput): FoldValidationResult {
   // The window shadows every surface node whose seq falls inside the span
   // (numeric span semantics of the official replace op). Contiguity is then
   // verified on positions: the shadowed set must be consecutive in the
-  // ordered surface array — a defensive guard against unsorted engine scans.
+  // ordered surface array AND numerically monotonic. This guard is
+  // load-bearing (W3-2): it is exactly what makes the engine's numeric
+  // shadowed filter coincide with the official positional slice of the
+  // replace op on a post-fold (non-monotonic) surface — without it a window
+  // like [laterNode, checkpoint] would pass while shadowing a different set
+  // than the session splices out. It also defines the reachable absorption
+  // domain: cross-checkpoint coverage windows are rejected here; absorption
+  // folds must boundary-align ([checkpoint, checkpoint]).
   const inRange = surfaceNodes.filter((n) => n.seq >= startSeq && n.seq <= endSeq)
   if (inRange.length === 0) {
     reasons.push(fill(REASON_RANGE_EMPTY, { start: startSeq, end: endSeq }))
@@ -259,6 +277,13 @@ export function validateFold(input: ValidateFoldInput): FoldValidationResult {
   }
 
   // ---- d. nested absorption of active fold checkpoints ---------------------
+  // Reachable domain (W3-2, documented): this rule only ever sees windows
+  // that passed check a — i.e. numerically monotonic contiguous spans. On a
+  // post-fold surface the checkpoint seq sits AHEAD of later nodes, so a
+  // coverage-style window over "checkpoint + later nodes" is already rejected
+  // as not contiguous; the reachable absorption form is the boundary-aligned
+  // single-checkpoint window [checkpoint, checkpoint] (or a window whose
+  // numeric span happens to stay contiguous around the checkpoint).
   const absorbed: { foldId: string; checkpointSeq: number; covered: boolean; aligned: boolean }[] =
     []
   for (const [foldId, record] of input.foldMap) {

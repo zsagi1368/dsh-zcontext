@@ -194,7 +194,10 @@ export const REASON_RANGE_INVERTED =
   'fold window [{{start}}, {{end}}] is inverted: startSeq must not exceed endSeq'
 
 export const REASON_RANGE_DISCONTIGUOUS =
-  'fold window [{{start}}, {{end}}] is not contiguous on the surface'
+  'fold window [{{start}}, {{end}}] is not contiguous on the surface: after a fold the surface is no longer '
+  + 'numerically ordered (the checkpoint seq sits ahead of later nodes), so a window that spans a checkpoint plus '
+  + 'later nodes is unreachable — an absorption-style fold must boundary-align with the checkpoint (window '
+  + '[checkpoint, checkpoint])'
 
 export const REASON_RANGE_EMPTY =
   'fold window [{{start}}, {{end}}] contains no surface nodes'

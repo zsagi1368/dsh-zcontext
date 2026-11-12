@@ -12,7 +12,8 @@ import {
 import { computeBudget, estimateTokens } from '../src/budget.ts'
 import { FoldStore } from '../src/store.ts'
 import { REASON_NODE0, fill } from '../src/texts.ts'
-import type { SessionEventLike, ValidatorConfig } from '../src/types.ts'
+import { validateFold } from '../src/validator.ts'
+import type { FoldMap, FoldRecord, SessionEventLike, ValidatorConfig } from '../src/types.ts'
 import { MockSession, msg, seedConversation } from './helpers/mock-session.ts'
 
 /**
@@ -320,6 +321,118 @@ describe('fold-engine: nested absorption (mock mode)', () => {
     const f9 = store.ledgerEntries().find((e) => e.foldId === 'f9')
     expect(f9?.status).toBe('absorbed')
     expect([...store.foldMap.keys()]).toEqual(['f10'])
+  })
+})
+
+describe('fold-engine: W3-2 reachable domain + slice-equivalence invariant', () => {
+  /**
+   * Post-fold surface [0,1,2,9,6,7,8] — numerically NON-monotonic (the
+   * checkpoint seq 9 sits ahead of later nodes 6,7,8), the steady state
+   * after every fold.
+   */
+  function foldedFixture(): {
+    session: MockSession
+    store: FoldStore
+    surface: ReturnType<FoldStore['surfaceNodes']>
+  } {
+    const { session } = seedConversation()
+    const store = wiredStore(session)
+    expect(fold(session, store, midWindowSubmission(), engineConfig()).ok).toBe(true)
+    return { session, store, surface: store.surfaceNodes() }
+  }
+
+  it('rejects cross-checkpoint absorption windows as not contiguous (probe B2 S1/S2 shape)', () => {
+    const { store, surface } = foldedFixture()
+    const seqs = surface.map((n) => n.seq)
+    // [2, 6]: numeric set {2,9,6} occupies consecutive positions but is not
+    // monotonic — the boundary-aligned domain is documented, not reachable.
+    // [6, 9]: same in the other direction. [0, 7]: full-span coverage (also
+    // trips protected-zone reasons).
+    for (const [s, e] of [[2, 6], [6, 9], [0, 7]] as const) {
+      const result = validateFold({
+        foldMap: store.foldMap,
+        surfaceNodes: surface,
+        range: { startSeq: s, endSeq: e },
+        summaries: [{ startSeq: s, endSeq: e, text: 'Cross-checkpoint coverage summary text.' }],
+        config: engineConfig(),
+      })
+      expect(result.ok).toBe(false)
+      if (result.ok) return
+      expect(
+        result.reasons.some((r) => r.includes('not contiguous on the surface')),
+        `window [${s}, ${e}] must be rejected as not contiguous`,
+      ).toBe(true)
+    }
+    // The [checkpoint, checkpoint] boundary-aligned absorption stays reachable
+    // end-to-end (rule d domain): pinned by the nested-absorption describe
+    // above; asserted here at the validator level against the REAL foldMap.
+    const absorb = validateFold({
+      foldMap: store.foldMap,
+      surfaceNodes: surface,
+      range: { startSeq: 9, endSeq: 9 },
+      summaries: [{ startSeq: 9, endSeq: 9, text: 'The listing turn condensed once more.' }],
+      config: engineConfig(),
+    })
+    expect(absorb.ok).toBe(true)
+    if (!absorb.ok) return
+    expect(absorb.plan.folds[0].absorbedFoldIds).toEqual(['f9'])
+    expect(seqs).toContain(9)
+  })
+
+  it('pins: every validator-accepted window keeps numeric shadowed filtering ≡ official positional slicing', () => {
+    // The engine's numeric shadowed filter (fold-engine.ts) and the official
+    // replace op's positional slice (surface.ts indexOf + slice) must select
+    // exactly the same nodes for any window the validator accepts — otherwise
+    // the ledger's absorbed/shadowed bookkeeping would silently drift from
+    // the session's splice set (the official sourceEventSeqs check is only a
+    // SUPERSET check, probe B2: it would accept the divergence). The
+    // consecutive+monotonic guard (validator check a) is the load-bearing
+    // invariant; this sweep fails if anyone relaxes it.
+    const sweep = (
+      surface: ReturnType<FoldStore['surfaceNodes']>,
+      foldMap: FoldMap,
+    ): number => {
+      const numericFilter = (s: number, e: number): number[] =>
+        surface.filter((n) => n.seq >= s && n.seq <= e).map((n) => n.seq)
+      const positionalSlice = (s: number, e: number): number[] => {
+        const si = surface.findIndex((n) => n.seq === s)
+        const ei = surface.findIndex((n) => n.seq === e)
+        if (si < 0 || ei < 0 || si > ei) return []
+        return surface.slice(si, ei + 1).map((n) => n.seq)
+      }
+      let accepted = 0
+      for (const s of surface.map((n) => n.seq)) {
+        for (const e of surface.map((n) => n.seq)) {
+          const result = validateFold({
+            foldMap,
+            surfaceNodes: surface,
+            range: { startSeq: s, endSeq: e },
+            summaries: [{ startSeq: s, endSeq: e, text: 'x'.repeat(40) }],
+            config: engineConfig(),
+          })
+          if (!result.ok) continue
+          accepted += 1
+          expect(
+            numericFilter(s, e),
+            `window [${s}, ${e}] accepted but numeric filter diverges from the official positional slice`,
+          ).toEqual(positionalSlice(s, e))
+        }
+      }
+      return accepted
+    }
+    // Sweep BOTH regimes: the pristine monotonic seed surface and the
+    // post-fold non-monotonic surface (checkpoint ahead of later nodes) with
+    // the live foldMap — the invariant must hold in both.
+    const pristine = new Map<string, FoldRecord>()
+    const seedSurface = seedConversation().session
+    const pristineStore = new FoldStore()
+    pristineStore.attach(seedSurface)
+    const acceptedPristine = sweep(pristineStore.surfaceNodes(), pristine)
+    const { store } = foldedFixture()
+    const acceptedFolded = sweep(store.surfaceNodes(), store.foldMap)
+    // The sweep must exercise real acceptances — a vacuous sweep pins nothing.
+    expect(acceptedPristine).toBeGreaterThanOrEqual(6)
+    expect(acceptedFolded).toBeGreaterThanOrEqual(2)
   })
 })
 

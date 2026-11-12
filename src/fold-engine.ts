@@ -274,6 +274,15 @@ export function fold(
   const committed: CommittedFold[] = []
   let rejected: string | undefined
   for (const entry of plan.folds) {
+    // Numeric shadowed filter. INVARIANT (W3-2, pinned by
+    // fold-engine.spec.ts): because the validator's check a required the
+    // in-range set to occupy consecutive positions AND be numerically
+    // monotonic, this numeric filter is IDENTICAL to the official positional
+    // slice the session splices out for the replace op — the ledger's
+    // absorbed/shadowed bookkeeping cannot drift from the session's splice
+    // set for any accepted window (the official sourceEventSeqs check is a
+    // superset check, so this equality is our own guarantee, not the
+    // session's).
     const shadowed = surfaceNodes
       .filter((n) => n.seq >= entry.startSeq && n.seq <= entry.endSeq)
       .map((n) => n.seq)
