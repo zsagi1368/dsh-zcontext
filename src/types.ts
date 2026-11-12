@@ -123,7 +123,11 @@ export interface SurfaceNode {
   readonly role: 'user' | 'assistant' | 'tool' | 'system' | 'developer' | 'unknown'
   /** Estimated token cost of the node (engine-side estimate). */
   readonly estimatedTokens: number
-  /** Convenience flag: role === 'user'. */
+  /**
+   * Convenience flag: always derived as `role === 'user'` (fixed invariant —
+   * a derived view of `role`, not an independent second source of truth; the
+   * W3 store scan derives it from the role and must never set it on its own).
+   */
   readonly isUser: boolean
   /** Total text length of the node's message content, in characters. */
   readonly textLength: number

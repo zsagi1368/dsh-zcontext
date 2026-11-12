@@ -55,8 +55,11 @@ export const PER_TOOL_SCHEMA_ESTIMATE_TOKENS = 512
 export const ZCTX_TOOL_COUNT = 4
 
 /**
- * Estimate the token cost of a text with the CCM L0 chars/3 conservative
- * estimator (ceiling — never under-count on the wire).
+ * Estimate the token cost of a text with the CCM L0 chars/3 estimator. It is
+ * a conservative ceiling only within the estimator's calibrated ASCII-dense
+ * domain; it is NOT a universal wire bound — scripts denser than ASCII (e.g.
+ * CJK) cost more tokens per character than the 3-chars-per-token ratio
+ * assumes, so their true wire cost can exceed this estimate.
  */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN)
