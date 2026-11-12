@@ -1,7 +1,8 @@
-# ZCTX 方案对比（docs/specs/ZCTX/options.md · v1）
+# ZCTX 方案对比（docs/specs/ZCTX/options.md · v2 · 方案门后修订版）
 
 > 任务：独立插件 **dsh-zcontext**——把「模型驱动增量上下文折叠」装进官方 deepseek harness，不改底座。
-> 研究输入：RES-plugin-api.md（Agent B，SHA-256 bec57072…，247 行）+ RES-billion-context.md（Agent A，增量落盘中）+ 主线亲验（pre-step 语义 / SurfaceOp replace 契约 / RuntimeContextProjection / ToolExecution.agent / region.ts 提交形态）+ 我方 CCM v2.3 预算数学（budget_table.py v3）+ ctx-cmp/ctx-opt 资产盘点。
+> 研究输入：RES-plugin-api.md（Agent B，SHA-256 bec57072…，247 行）+ RES-billion-context.md（Agent A，SHA-256 8679466b…，411 行）+ VERIFY-C.md（verifier 三值复核 15/15 ✅，SHA-256 324d87e8…）+ REVIEW-options-plan.md（architect 方案门，2 阻断 10 建议已全处置）。
+> 官方锚点基准：zDSH-main @ zdsh-latest / HEAD **073792c7f8**（实测；下游引用一律用本哈希，rebase 后重跑抽查）。
 > 事实纪律：每条关键主张标【事实·锚点】/【推断·置信度】/【未解决】。
 
 ## 0. 问题定义
@@ -10,7 +11,7 @@
 
 ## 1. 能力面结论（主线亲验 + Agent B 双源互证，全部【事实】）
 
-| 官方 API | 语义 | 锚点（zDSH-main @ zdsh-latest / 073927c7f8） |
+| 官方 API | 语义 | 锚点（zDSH-main @ zdsh-latest / 073792c7f8） |
 |---|---|---|
 | `ctx.tools.register(ToolDefinition)` | 工具注册，仅 `run_code` 保留名 | packages/core/tools/src/index.ts:1069-1094 |
 | `execute(args, exec)` | `exec.agent?.session` 可达 Session（tools/src/index.ts:340 + :960 实证消费）；`exec.deferContext(UserMessage)` 可附插件指令 | packages/core/tools/src/index.ts:327-353, 419-436 |
@@ -33,11 +34,11 @@
 
 1. **四个工具**（zctx_ 前缀防撞，避 run_code）：
    - `zctx_fold`：一次调用可带多区间+摘要，原子提交（任一区间非法→整批拒收）；
-   - `zctx_unfold`：按 foldId/最近折叠还原（one-for-one 重物化节点，原始内容取自 session 存储 eventAt）；
+   - `zctx_unfold`：按 foldId/最近折叠还原 = **单节点重物化**（checkpoint 节点被 replace 为单个多 text-block user message：原文经 session.eventAt 逐 seq 取回按序嵌入，tool/result 原文作带来源标注文本块；官方 replace 语义=单节点换整段，原 N 节点不回 surface——wire 形态语义代价如实文档化）；
    - `zctx_recall`：关键词检索折叠摘要与折叠走原文（session 存储里 shadowed 事件永久留存）；
    - `zctx_status`：预算表（CCM v2.3 公式）+压力%+可折叠区间图（含保护区/危险标注）+折叠台账+缓存对账（breakeven 公式）。
 2. **静态指导段**（systemPrompt.section，order 靠后、逐字节稳定）：折叠哲学、KEEP/DROP 清单、批次纪律、摘要=元数据非指令（Open objectives 例外）。
-3. **阈值跨越 nudge**（systemPrompt.context()，默认 25/50/75/90% 触发线）：内容只在跨越时变化→缓存安全；含可压缩区间表（PROTECTED 标注）。
+3. **阈值跨越 nudge**（systemPrompt.context()，默认 25/50/75/90% 触发线，**注册必须带 `required: true`**——官方在 includeRuntimeContext=false 或 suppress 时会过滤非 required 贡献，system-prompt/src/index.ts:627-628）：内容只在跨越时变化→**跨越计次缓存重付**（每次跨越=一次从快照锚点起的前缀重建，非零代价——如实表述，非"零成本"）；含可压缩区间表（PROTECTED 标注）。
 4. **预算引擎**：CCM v2.3 权威公式（触发线=W−R_pess，keepRecent，r_min）驱动 nudge 时机与 fold 目标。
 5. **折叠验证器**（保守集）：保护区（最近 N 消息+最近 N token+最后 user 消息）、tool 配对闭合、第一条 user 消息钉死、净缩门（NET_SHRINK_TOLERANCE）、原子批拒收、活跃 compaction 互斥、DEAD 范围跟踪（外来源 surface replace 遮蔽即登记）。
 6. **自描述台账**：折叠以 `zctx-fold` source kind 的 checkpoint 节点入 session 日志（含 foldId/区间/被遮蔽 seqs/统计），重启/分叉后由 session 扫描重建内存态——**零独立存储文件**。
@@ -74,7 +75,7 @@
 ## 5. 开放问题（主线已全部亲手闭合）
 
 - ~~Q1 锁面~~ → 已闭：折叠提交走 compaction 同款纪律（region.ts:180-276）——zctx 折叠用 `user/message` checkpoint 一次性提交（无摘要等待窗，提交即原子）；提交前扫 session 日志检测未闭合 `compaction/start`（compaction 活跃→拒收）并校验 `session.surface` 稳定性（contentGeneration/replaceGeneration 比对）；与并行工具调用互斥靠「同区间重复折叠检测 + surface 稳定性断言」。
-- ~~Q2 自定义事件类型~~ → 已闭：**零自定义事件类型**。折叠元数据全走 checkpoint 节点的 `message.source`（自定义 kind `'zctx-fold'`/`'zctx-unfold'`，MessageSourceMap 数据面开放）；全部事件=已知类型 `user/message`，老版本 harness 读路径零风险。`appendPluginRecord` 路线（types.ts:523-544，ignorable 自动+plugin: 语法）确认存在但带仓内源门（verify-plugin-record-callers 只管宿主仓源码），v1 不用——避开灰色地带。
+- ~~Q2 自定义事件类型~~ → 已闭：**零自定义事件类型**。折叠元数据走 checkpoint 节点的 `message.source`（kind `'zctx-fold'`/`'zctx-unfold'` + 最小字段，区间/被遮蔽 seqs 由事件信封的 surfaceOp/sourceEventSeqs 承载——官方 compaction checkpoint 同位形态，compaction/src/checkpoint.ts:19-31 官方只放 kind+id）；全部事件=已知类型 `user/message`，老版本 harness 读路径零风险。`appendPluginRecord` 路线（types.ts:523-544）确认存在但官方 README 明文 "Plugins outside this repository **must not** call it"（session/README.md:70）——**v1 禁用**，无灰色地带。
 - ~~Q3 设置面~~ → 已闭：static Config 全 primitive 字段（boolean/number/string），schemastery 每字段自动生成 settings UI；配置落 profile cordis.patch.yml 插件行 config（settings/src/index.ts:347）。
 
 ## 6. 折叠提交的官方参考形态（region.ts 亲读结论）
@@ -86,6 +87,7 @@ session.append('user/message',
   { surfaceOp:{ op:'replace', startSeq, endSeq },
     sourceEventSeqs:[...shadowedSeqs] })
 ```
-- sourceEventSeqs 必须含全部被遮蔽 surface 节点（types.ts:455-464）；
-- unfold = checkpoint 节点 →（replace 1:1）→ 重物化节点（原文经 session.eventAt 逐 seq 取回、嵌套折叠 checkpoint 展开一层）；
+- sourceEventSeqs 必须含全部被遮蔽 surface 节点（types.ts:455-464）；source payload 只放 `{kind:'zctx-fold', foldId, tokensBefore, tokensAfter}`（区间=事件信封 surfaceOp、被遮蔽=sourceEventSeqs——官方 checkpoint 同位最小形态）；
+- **unfold = 单节点重物化**（B1 修订）：checkpoint 节点 →（replace 单节点）→ 单个多 text-block user message；原文经 session.eventAt 逐 seq 取回按序嵌入；原始 N 节点不回 surface（官方 replace=单节点换整段，surface.ts:637-646 splice 实证）；wire 形态语义代价（assistant/tool 消息对→单条 user 消息）如实文档化；
+- 预检补「surface node 0（system head）不可入折叠区间」（官方 assertSystemHeadRewrite 会 throw，surface.ts 后段——预检给可读错误）；
 - 外来源 surface replace（含官方 compaction）遮蔽我方 checkpoint → 该 fold 转 absorbed/dead（session/event firehose 监听 + ledger 扫描重建时判定）。

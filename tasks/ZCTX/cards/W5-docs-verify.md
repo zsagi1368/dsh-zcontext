@@ -10,6 +10,8 @@
    - Z7 探针：node import lib/index.js → 断言 default 类、name==='dsh-zcontext'、静态 Config 存在
    - cordis.patch.yml 断言：- insert 行含 id/name=dsh-zcontext（yml 逐行解析）
    - checkpoint 形态断言：lib/index.js 内含 'zctx-fold' 与 'zctx-unfold' 特征串
+   - **isConcurrencySafe 断言（S8）**：4 工具注册代码内不含 isConcurrencySafe 声明
+   - **required:true 断言（B2）**：context 注册含 required 特征
    - 全绿 exit 0，任一失败 exit 1+明细
 2. `README.md` + `README.zh.md`（双语非机翻镜像；en/zh 锚点统一；内容：是什么/为什么/安装（dsh plugin add github:zsagi1368/dsh-zcontext）/四工具用法/与官方 compaction 关系（共存，不关停）/设置项表/限制（模型采用率依赖、无 wire 级兜底——官方 compaction 是硬底）/致谢段：机制灵感致谢 billion-context（MIT）+ 我方 CCM 研究，净室声明）
 3. `CHANGELOG.md` 0.1.0 完整条目（features/limitations/security）
