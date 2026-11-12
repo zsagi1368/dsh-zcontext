@@ -8,7 +8,7 @@
 0. `src/types/message-source.d.ts`（S4）：`declare module '@deepseek-ai/dsh-llm' { interface MessageSourceMap { 'zctx-fold': {...}; 'zctx-unfold': {...} } }`——source payload 冻结 `{kind, foldId, tokensBefore?, tokensAfter?}`；A2 类型闭合靠它。
 1. `src/budget.ts` + `tests/budget.spec.ts`
    - 输入 {contextWindow, maxOutput?} → 预算对象：maxTokens=min(C,⌊0.1W⌋)、reserve=⌈1.25·maxTokens⌉+4096、toolCap=max(1024,⌊0.25(reserve−maxTokens)⌋)、R_pess=maxTokens+2·toolCap+4096、triggerLine=W−R_pess、keepRecent=min(max(⌊0.12W⌋,min(20000,⌊0.30W⌋)),⌊0.8·triggerLine⌋)、summaryInputCap=triggerLine−keepRecent、summaryOutputCap=min(C,maxTokens,⌊0.8·reserve⌋,max(8192,⌊0.01W⌋))、rMin=1−(maxTokens+2·toolCap)/W、**fixedWireOverhead=4 工具 schema+指导段估算 token 数（常量+估算函数）**（S1）
-   - **锁表测试**：对拍 CCM v2.3 权威表 7 案例（W=65536: triggerLine 52021/keepRecent 19660/rMin 0.856；W=131072: 110183/20000/0.872；W=200704: 175616/24576/0.878 等——允许 ±2 取整容差；W=16384 案例断言 trigger%≈51.3% 仅作参考不拒绝小窗）
+   - **锁表测试**：对拍 CCM v2.3 权威表 7 案例（W=65536: triggerLine 52021/keepRecent 19660/rMin 0.856；W=131072: 110183/20000/0.872；W=204800（即权威表 200k 行；原稿 200704 系笔误，评审已验证 204800 全行复现）: 175616/24576/0.878 等——允许 ±2 取整容差；W=16384 案例断言 trigger%≈51.3% 仅作参考不拒绝小窗）
    - **breakeven 报表函数（S6）**：输入 {S 折叠移除 tokens, σ 摘要 tokens, T 折后首请求缓存重付, w/r/q 价格默认 1.0/0.1/4.0} → {oneTimeCost, perTurnSaving, breakevenTurns, netTokens}（VERIFY-C #15 公式）；区分实测/估算两态的输入标记
    - 全部整数运算+取整方向显式（floor/ceil 与表一致）
 2. `src/validator.ts` + `tests/validator.spec.ts`
