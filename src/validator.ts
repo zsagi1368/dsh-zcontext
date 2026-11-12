@@ -63,6 +63,7 @@ import {
   REASON_TOOL_UNANSWERED_CALL,
   REASON_WINDOW_TOO_LARGE,
   REASON_WINDOW_TOO_SMALL,
+  fill,
 } from './texts.ts'
 import type {
   FoldMap,
@@ -72,13 +73,6 @@ import type {
   SurfaceNode,
   ValidateFoldInput,
 } from './types.ts'
-
-/** Fill a `{{key}}` template from the given variables. @internal (shared with nudge.ts) */
-export function fill(template: string, vars: Record<string, string | number>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) =>
-    key in vars ? String(vars[key]) : match,
-  )
-}
 
 /** Render a number without float dust (0.6×100 → "60"). @internal */
 function fmtNum(value: number): string {

@@ -16,7 +16,6 @@
  * @module nudge
  */
 
-import { fill } from './validator.ts'
 import {
   NUDGE_BREAKDOWN_FIXED,
   NUDGE_BREAKDOWN_HEADER,
@@ -34,6 +33,7 @@ import {
   NUDGE_RANGES_EMPTY,
   NUDGE_RANGES_HEADER,
   NUDGE_TRIGGER_LINE,
+  fill,
 } from './texts.ts'
 import type { Budget, NudgeRange, NudgeVoice } from './types.ts'
 

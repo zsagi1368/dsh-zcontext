@@ -12,6 +12,23 @@
  */
 
 // ---------------------------------------------------------------------------
+// Template renderer — the single `{{x}}` renderer for every placeholder-
+// bearing fragment in this file (validator reason templates and nudge
+// fragments); model-facing rendering stays in the single text home.
+// ---------------------------------------------------------------------------
+
+/**
+ * Fill a `{{key}}` template from the given variables: every `{{key}}` with a
+ * matching entry in `vars` is replaced by its stringified value; unknown
+ * placeholders are left verbatim.
+ */
+export function fill(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) =>
+    key in vars ? String(vars[key]) : match,
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Static guidance section (systemPrompt.section; English skeleton, original
 // wording; explicit bilingual-preservation rule; PTC mode note per S2).
 // ---------------------------------------------------------------------------
