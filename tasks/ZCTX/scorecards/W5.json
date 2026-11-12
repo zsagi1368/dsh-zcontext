@@ -1,0 +1,114 @@
+{
+  "block": "W5",
+  "task": "ZCTX W5 收尾波验收（CARD W5-docs-verify.md）— 文档+验证+发布准备",
+  "range": "d5c5ceb..e5a5b58 (d72ec36 A4 / c12911e A6 / ec0d3ac 双语README / 4584526 SECURITY+CHANGELOG / 8992208→289741a ledger 终态 / e5a5b58 checkpoint terminal)",
+  "reviewer": "reviewer-R2 (independent subagent; reviewer ≠ coder)",
+  "date": "2026-11-12",
+  "verdict": "通过 (总分 100 ≥ 98) → 交 synthesizer 收口 (merge/tag/台账 per §15)",
+  "total": 100,
+  "threshold": 98,
+  "verification_trio_reviewer_run": {
+    "build": "npm run build → tsdown ✔ (git status 干净 = 入库 lib 与重建字节一致)",
+    "lint": "npm run lint → tsc --noEmit 零错",
+    "test": "npx vitest run → 11 files, 193/193 passed, 0 skipped",
+    "activation_surface": "node scripts/verify-activation-surface.mjs → 8 PASS, 0 FAIL, EXIT=0",
+    "real_smoke": "node scripts/smoke-real-loader.mjs → 2 PASS, 0 SKIP, 0 FAIL, EXIT=0",
+    "artifact_probe": "node scripts/probe-artifact.mjs → 5 PASS 0 SKIP 0 FAIL (A8 子断言亦独立复跑 exit 0)"
+  },
+  "a4_assertion_groups": {
+    "A1_Z3": "lib/index.js=118986B + lib/index.d.ts=43323B 在盘且 git ls-tree 含 [lib/index.d.ts, lib/index.js, lib/index.js.map] — PASS（产物在盘=入库, git 形安装不触发构建）",
+    "A2_install_gate": "dsh.bundle.patch=./cordis.patch.yml + manifestVersion 1 + 无 prepare/preinstall/postinstall/install 生命周期脚本 + 无 dsh.client 字段 + peerDeps cordis>=4 + engines node 下限 + main/types 钉 lib — PASS（7 子项全过）",
+    "A3_Z7": "import lib/index.js → default===ZcontextPlugin、name==='dsh-zcontext'、静态 Config['~standard'].validate 在、四工具名经 defineTool 面构建 [zctx_fold,zctx_unfold,zctx_recall,zctx_status] — PASS",
+    "A4_patch": "cordis.patch.yml 逐行解析: - insert: → - id: dsh-zcontext → name: dsh-zcontext（insert@line5 id@line6）— PASS；与官方 packages/bundle/base/cordis.patch.yml 的 '- insert:' 行语法亲核一致（无内联 config, 默认值在 static Config — 插件头注释声明与官方'patch replaces whole config'语义相容）",
+    "A5_markers": "lib/index.js 含 'zctx-fold' / 'zctx-unfold' / 'required' 特征串 — PASS",
+    "A6_S8": "剥注释后 codeTextClean=true（RSI Z17 修法）+ 运行期构造四工具 offenders=0 双口径 — PASS",
+    "A7_B2": "真实构建插件构造（能力探测 ctx）→ contexts=1, required=true, name=zctx-nudge, text 为函数 — PASS",
+    "A8_probe": "probe-artifact.mjs 子断言复用（非重实现）exit 0 — PASS"
+  },
+  "a6_real_machine": {
+    "R1_loader": "真 app-boot loader（packages/boot/app-boot/lib/index.js, 在盘亲核, loadOverlayPatches/composeEntries 导出在）解析本仓 cordis.patch.yml → composed=[{id:dsh-zcontext,name:dsh-zcontext}] — PASS",
+    "R2_cli": "真 CLI（apps/cli/lib/bin.js --dump-config 支持, bin 内 dump-config 出现 8 处亲核）--profile web --patch 本仓 yml：组合树含我行且为最后一层 composedLayer=true lastLayer=true; 无 patch 负对照不含 dsh-zcontext negativeControl=true; 行数 1237/1234（+3=我方层）— PASS",
+    "negative_control_significance": "负对照证明 dsh-zcontext 行确实来自本仓 patch 而非宿主预存 — 该断言设计正确",
+    "cleanup_safety": "一次性 DSH_HOME 为 mkdtempSync 建、删除前双条件守护（startsWith(tmpdir) && includes('zctx-smoke-home-')）自建自收不变式以代码固化 — 符合 §5.1 精神"
+  },
+  "bilingual_readout": {
+    "anchors": "en/zh 各 12 个显式锚点完全一致（clean-room/how-it-works/install/the-four-tools/the-zctx-command/relation-to-official-compaction/settings/behavior-notes/limitations/security/acknowledgments/development），TOC 链接与锚点一一对应零悬坠",
+    "settings": "9/9 行 × 双语，默认值与 src/config.ts configDefaults 逐字段一致（enabled=true/nudgeThresholds=\"25,50,75,90\"/keepRecentTokens=0/maxFoldFraction=0.6/minFoldableTokens=5000/protectionFloorTokens=5000/summaryFloorChars=50/summaryCeilingChars=20000/netShrinkTolerance=1.05）",
+    "tools": "四工具名双语在位且参数形态真实（content:string required / foldId / query+limit / 无参）",
+    "behavior_notes": "三条行为说明双语实质正确并经官方源亲核：(1) PTC 直呼受限=UNKNOWN_TOOL（core/tools/src/index.ts:345-348 'mode ptc 下无 parent 的模型直调在策略管线前被拒为 UNKNOWN_TOOL' + :504-522 ToolNotFoundError）——README 措辞与官方机制精确相符；(2) required:true 存活语义+跨越计次诚实边界；(3) unfold 单节点语义代价（原始轮次不以独立消息回到表面, 日志永久保留+recall 可搜, '测试里有断言钉住它'属实=fold-engine.spec.ts B1 断言）",
+    "clean_room_ack": "净室声明+billion-context(MIT) 致谢+CCM 研究归属双语在位, '未复制代码/提示词/压缩规则措辞'声明明确; zh 为原创中文非机翻镜像（措辞独立, 行数同 178 巧合于内容密度）",
+    "limitations": "模型采用率依赖/无线缆级兜底（官方 compaction 硬底）/跨 checkpoint 吸收边界对齐（已同步 W3-2 修订）/单会话范围——与实现现状一致"
+  },
+  "security_changelog": {
+    "security_md": "威胁模型（本地离线/三信任边界/资产表）、零网络零遥测承诺经代码扫描佐证（src/+lib/index.js 无 node:http/https/net/dns/tls/fetch/WebSocket 命中）、模型伪造防御六层逐条与实现对应（原生回执=tools.ts output.render; 服务端验证=validator a-g; 官方通道=Session.append; compaction 互斥=store.compactionActive; exclusive barrier=A6 实证; 宽容解析严格提交=parseFoldContent 拒收路径测试）",
+    "changelog": "0.1.0 完整条目: Added 十项（四工具/指导段/nudge required/命令/九字段设置/验证器/零独立存储/缓存记账/安装面/三探针脚本）+ Behavior 三条 + Limitations 四条 + Security 一条——逐条与实现/closure 证据对得上; 'message.source kinds'措辞指消息的 source 成员, 与裸 UserMessage 形态一致"
+  },
+  "closure_ledger": {
+    "machine_count": "24 条（node 计数亲核）: phase block=23 全部 disposition=fixed+status=verified; post-merge=1",
+    "post_merge_item": "W5-A6-INSTALL: disposition=user_approved_deferred / status=open / phase=post-merge / owner=mainline / trigger=用户桌面环境可跑完整 harness+插件发布后一周 / reviewDate=2026-11-19（今 11-12, 一周窗口成立）/ evidence 引用方案门 plan §2 A6 行预授权（ZCTX-plan.md:27 原文含同款四要素）——字段齐全, phase=post-merge 用于验证步骤而非实现块缺陷（§11 允许）, 授权基础=方案门预授权+主线 owner, 合规",
+    "ledger_scope_note": "台账自 W2 起建立（W1 波先于台账纪律, R1 scorecard 已覆盖其验收）; 24 条计数与卡面验收口径一致"
+  },
+  "rsi_z17": {
+    "quality": "高质量新坑: 现象真实（A6 组首轮假红——tsdown 保留源注释致全文 includes 命中）、根因准确（'源文件有注释提到 X ≠ 产物代码声明了 X', 断言口径=文本面 vs 约束语义=代码面错位）、修法已实现（verify-activation-surface.mjs:160-181 剥块/行注释再扫 + 运行期 offenders=0 双口径同组明细）、防复发两项具体可执行（先问 X 是否合法出现于注释/字符串; 文本断言辅助+运行期断言权威）",
+    "capture_log": "~/.agents/rsi/INDEX.md:140 W5 行完整（探针组数/真机结果/双语核对/Z17/开工查册命中 Z13/Z14/A14/A25 未复燃/del 备份 2 处）, 与 reviewer 亲跑输出一致"
+  },
+  "dimensions": {
+    "correctness": {
+      "score": 25,
+      "evidence": [
+        "verify-activation-surface 8/8 PASS EXIT=0; smoke-real-loader 2/2 PASS EXIT=0; probe-artifact 5/5; 三绿 193/193 — 全部 reviewer 亲跑",
+        "README 行为声明经官方源逐条亲核（UNKNOWN_TOOL=tools/src/index.ts:345-348; compaction 硬底; 32768 门）",
+        "SECURITY 零网络承诺经 src/+lib 全文网络 API 扫描零命中佐证",
+        "patch yml 语法与官方 base patch 行形态一致; R2 负对照设计正确（排除宿主预存行）",
+        "无错误输出: 全部探针 exit 0, 测试全绿, build/lint 零错"
+      ]
+    },
+    "completeness": {
+      "score": 20,
+      "evidence": [
+        "卡面 6 项产物全交付: ①A4 断言集 8 组（含卡面点名的 isConcurrencySafe+required:true 两组）②双语 README ③CHANGELOG 0.1.0 完整条目 ④SECURITY.md ⑤真机冒烟（条件执行+SKIP 明示路径实现在脚本）⑥governance 终态",
+        "LICENSE 在盘; 安装命令与卡面一致（dsh plugin add github:zsagi1368/dsh-zcontext）",
+        "Z17 收口+捕获日志行在位; checkpoint 终态 ZCTX-W5, next=reviewer scorecard（本评分即其指向）"
+      ]
+    },
+    "consistency": {
+      "score": 20,
+      "evidence": [
+        "锚点 12/12 en/zh 一致, TOC 链接全通; 设置表 9/9 与 configDefaults 逐字段一致; 四工具名与注册面一致",
+        "文档声明与实现零漂移: PTC/required/unfold 三说明与 texts.ts 指导段/S2、B2 注册、B1 断言一一对应; limitations 已同步 W3-2 边界对齐修订",
+        "CHANGELOG 条目与 closure 证据/实现逐条对应; patch yml 与官方语法一致"
+      ]
+    },
+    "verifiability": {
+      "score": 15,
+      "evidence": [
+        "每个声明都有可复现命令: verify/probe/smoke/trio 四件 reviewer 全部亲跑并记录输出",
+        "探针脚本无 grep 全 node 直读（ugrep 假阴性坑规避属实, A4 逐行解析、A6 剥注释扫描）",
+        "Z17 现象-根因-修法-防复发四段齐全且修法在脚本中可指认（:160-181）",
+        "closure 计数/字段机器核对; RSI 日志行与亲跑输出交叉一致"
+      ]
+    },
+    "safety_rollback": {
+      "score": 10,
+      "evidence": [
+        "del/20261112-w5-docs-prechange/ + del/20261112-w5-rsi-lessons-prechange/ 在位（docs+RSI 台账改前备份）",
+        "smoke 一次性 DSH_HOME 自建自收守护以代码固化（前缀双条件）, 无越权清理",
+        "无凭证/网络面; SECURITY.md 与实际威胁面相符（离线插件, 无 embargo 面）"
+      ]
+    },
+    "maintainability": {
+      "score": 10,
+      "evidence": [
+        "三个探针脚本成为常驻回归资产（A4 8 组/A6 2 组/probe 5 组互相复用不重实现）",
+        "README/SECURITY/CHANGELOG 结构清晰, 限制/行为节与代码演进同步（W3-2 修订已反映）",
+        "ledger/checkpoint 终态连贯: next 指向 reviewer scorecard → synthesizer 收口路径明确"
+      ]
+    }
+  },
+  "findings": [],
+  "observations_not_requirements": [
+    "closure 台账无 W1 波条目（台账自 W2 起; W1 验收由 R1 scorecard 覆盖, 无 OPEN 项被声明）— 台账范围注记, 非 W5 缺口",
+    "smoke-real-loader R2 负对照行数差 +3 行恰为插入层块大小, 明细自洽 — 无需动作"
+  ],
+  "scoring_note": "六维全部亲验: 四件探针/三绿/closure 机器计数/官方源引用（UNKNOWN_TOOL、patch 语法、bundle 语义）逐条复现, 未采信任何未复现声明。无 [阻断]/[建议]; 总分 100 ≥ 98 → 通过, 交 synthesizer 收口（merge/tag/台账 per §15; 发布后一周复核 W5-A6-INSTALL）。"
+}
