@@ -22,7 +22,10 @@
  *
  * Small windows are computed, never rejected here: the W<32768 rejection of
  * CCM §1.1 is an engine-layer policy (the 16k reference case in the lock
- * table pins the formula output instead).
+ * table pins the formula output instead). Degenerate windows, however, are
+ * outside the formula domain and throw TypeError: a window that cannot
+ * sustain its own pessimistic reserve drives triggerLine (and with it
+ * keepRecent) negative, and W = 0 drives rMin to -Infinity (division by W).
  *
  * Zero host imports; pure functions only.
  *
@@ -90,8 +93,10 @@ function assertAmount(value: number, name: string): void {
 /**
  * Compute the full budget report for one context window.
  *
- * @param input - `contextWindow` W (integer ≥ 0) and optional output cap C
- *   (finite integer ≥ 0; defaults to the CCM default tier 32768).
+ * @param input - `contextWindow` W (integer ≥ 1, and large enough to sustain
+ *   the CCM reserve structure: windows below the degeneracy line — W = 0 or
+ *   triggerLine < 0 — throw TypeError) and optional output cap C (finite
+ *   integer ≥ 0; defaults to the CCM default tier 32768).
  */
 export function computeBudget(input: {
   contextWindow: number
@@ -120,6 +125,19 @@ export function computeBudget(input: {
   )
   const replyCap = Math.max(2048, Math.floor(0.25 * (reserve - maxTokens)))
   const rMin = 1 - (maxTokens + BATCH_CAP * toolCap) / w
+
+  // Degenerate-window guard (W2 rework F1): a window smaller than its own
+  // pessimistic reserve drives triggerLine (and with it keepRecent) negative,
+  // and W = 0 drives rMin to -Infinity — both outside the meaningful domain
+  // of the CCM §1.2 formulas. The engine-layer W<32768 rejection (CCM §1.1)
+  // sits far above this line; every authoritative lock-table row (16k and
+  // up) passes it.
+  if (triggerLine < 0 || keepRecent < 0 || !Number.isFinite(rMin)) {
+    throw new TypeError(
+      `contextWindow ${w} cannot sustain the CCM reserve structure ` +
+        `(triggerLine ${triggerLine}, keepRecent ${keepRecent}, rMin ${rMin})`,
+    )
+  }
 
   return {
     contextWindow: w,

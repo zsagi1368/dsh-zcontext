@@ -192,6 +192,27 @@ describe('budget: CCM v2.3 lock table (7 cases)', () => {
       TypeError,
     )
   })
+
+  it('rejects the zero window (rMin would divide by zero to -Infinity)', () => {
+    expect(() => computeBudget({ contextWindow: 0 })).toThrow(TypeError)
+  })
+
+  it('rejects windows that cannot sustain their own pessimistic reserve (W=1)', () => {
+    // W=1 with the default cap degenerates: maxTokens 0 → toolCap 1024 →
+    // R_pess 6144 → triggerLine -6143 → keepRecent -4915 (reviewer-measured
+    // pre-rework). The degenerate-window guard rejects it instead.
+    expect(() => computeBudget({ contextWindow: 1 })).toThrow(TypeError)
+  })
+
+  it('keeps the 32k window computable with exact CCM values (just above the degeneracy line)', () => {
+    const b = computeBudget({ contextWindow: 32768 })
+    expect(b.triggerLine).toBe(22940)
+    expect(b.keepRecent).toBe(9830)
+    expect(b.summaryInputCap).toBe(13110)
+    expect(Number.isFinite(b.rMin)).toBe(true)
+    expect(b.rMin).toBeGreaterThan(0)
+    expect(b.keepRecent).toBeGreaterThanOrEqual(0)
+  })
 })
 
 describe('budget: fixed wire overhead (S1)', () => {
