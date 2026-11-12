@@ -44,12 +44,12 @@
 7. **命令与设置**：`/zctx` 斜杠命令（status/fold/unfold）；static Config 自动生成设置页。
 8. **与官方 compaction 关系**：前置主动折叠让 compaction-basic 尽量不触发；它始终是硬底。零拦截。
 
-### 方案乙：甲 + 代理式深度集成
+### 方案乙：甲 + 代理式深度集成（fetch 层路线）
 
-= 甲 + ①bundled sidecar 本地代理（MITM 重写流量，billion-context 原教旨形态）或 ②patch 层换 compaction-basic 行（gate/disable 官方压缩）。
-- 增益：wire 级控制（ephermeral nudge、preflight 硬兜底）。
-- 代价：sidecar 进程生命周期/端口/更新面；patch 换行与官方升级冲突；安装复杂度暴涨；破坏「装完即用」。
-- **淘汰理由**：官方 surface-replace 通道已覆盖折叠主链路；wire 级增量控制属边际收益，不抵 sidecar 复杂度。【推断·中】wire 级 ephemeral nudge 相对快照 nudge 的增益≈每轮省一条小消息，而快照 nudge 已是缓存安全的。
+= 甲的 guidance/status 面不变，折叠引擎改走 billion-context 同款：插件内嵌折叠内核 + patch `globalThis.fetch`（宿主唯一模型出口）把模型流量引到内置代理，在 wire body 上做折叠/标注/ephemeral nudge，并把官方 compaction-basic 关停（host-plane patch 行 auto:false + preset-plane internal/config 中间件标 disabled——billion-context 两平面都做了）。
+- 增益（billion-context 实证）：wire 级控制（ephemeral nudge 不污染历史、preflight 硬兜底、宿主历史保持全量、UI 不变）。
+- 代价（billion-context 自己的证据）：需要 patch globalThis.fetch（非官方 API，运行时 hack）；必须关停官方 compaction（两个平面的关停接线 + 降级告警 + 兜底拒收守卫）；会话/线缆/宿主三方失同步是常态（靠内核协调）；身份/亲和/存储/预检/紧急摘要/CCR 全栈自研（他们的 kernel 是独立仓库规模）。【事实·RES-billion-context.md Q4】
+- **淘汰理由**：官方 surface-replace 通道被官方明文授权（types.ts:455-464）且有 compaction-basic 参考实现；fetch patch 路线 = 重建代理内核栈 + 关停官方能力 + 双真源同步负担，复杂度不抵增益。差异化优势反而成立：**dsh-zcontext 与官方 compaction 共存（compaction=硬底不关停）、会话/线缆/宿主三方一致、零 hack。**
 
 ### 方案丙：纯观察建议器（零写入面）
 
@@ -71,8 +71,21 @@
 - 不做跨会话检索（zctx_recall 仅限当前会话——v2）。
 - 不做 wire 级 preflight 硬兜底（不可行，官方无通道；compaction-basic 的 overflow 恢复就是硬底）。
 
-## 5. 开放问题（进入实现前须闭合）
+## 5. 开放问题（主线已全部亲手闭合）
 
-- Q1 工具 execute 内做 surface replace 的并发/锁面：compaction 有 assertNoActiveCompaction 互斥；我们折叠时如何与活跃 compaction 互斥、与并形工具调用互斥？（→ 实现期以 region.ts 同款形态处理：replaceGeneration 重试+compaction 互斥检查）
-- Q2 `session.append` 对 log-only 事件（zctx/fold 元数据）的类型约束——log-only 事件类型是否需在 SessionEventMap 声明？（→ 实现期以 compaction 的 'compaction/start' 同款形态处理，实现期核实 declare module 扩展点）
-- Q3 插件行 config 落 profile patch 的形态（static Config 的 schemastery schema 边界——v1 全部用 primitive 字段，禁嵌套对象数组以保 settings UI 兼容）。
+- ~~Q1 锁面~~ → 已闭：折叠提交走 compaction 同款纪律（region.ts:180-276）——zctx 折叠用 `user/message` checkpoint 一次性提交（无摘要等待窗，提交即原子）；提交前扫 session 日志检测未闭合 `compaction/start`（compaction 活跃→拒收）并校验 `session.surface` 稳定性（contentGeneration/replaceGeneration 比对）；与并行工具调用互斥靠「同区间重复折叠检测 + surface 稳定性断言」。
+- ~~Q2 自定义事件类型~~ → 已闭：**零自定义事件类型**。折叠元数据全走 checkpoint 节点的 `message.source`（自定义 kind `'zctx-fold'`/`'zctx-unfold'`，MessageSourceMap 数据面开放）；全部事件=已知类型 `user/message`，老版本 harness 读路径零风险。`appendPluginRecord` 路线（types.ts:523-544，ignorable 自动+plugin: 语法）确认存在但带仓内源门（verify-plugin-record-callers 只管宿主仓源码），v1 不用——避开灰色地带。
+- ~~Q3 设置面~~ → 已闭：static Config 全 primitive 字段（boolean/number/string），schemastery 每字段自动生成 settings UI；配置落 profile cordis.patch.yml 插件行 config（settings/src/index.ts:347）。
+
+## 6. 折叠提交的官方参考形态（region.ts 亲读结论）
+
+```
+session.append('user/message',
+  { turn, message: createUserMessage({ content:[{type:'text', text:summary}],
+      source:{ kind:'zctx-fold', foldId, startSeq, endSeq, shadowedSeqs, stats } }) },
+  { surfaceOp:{ op:'replace', startSeq, endSeq },
+    sourceEventSeqs:[...shadowedSeqs] })
+```
+- sourceEventSeqs 必须含全部被遮蔽 surface 节点（types.ts:455-464）；
+- unfold = checkpoint 节点 →（replace 1:1）→ 重物化节点（原文经 session.eventAt 逐 seq 取回、嵌套折叠 checkpoint 展开一层）；
+- 外来源 surface replace（含官方 compaction）遮蔽我方 checkpoint → 该 fold 转 absorbed/dead（session/event firehose 监听 + ledger 扫描重建时判定）。
