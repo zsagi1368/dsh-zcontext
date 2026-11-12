@@ -109,6 +109,66 @@
       "owner": "coder-w3w4",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "W3-R1",
+      "source": "REVIEW-W3W4.md [阻断] W3-1 (checkpoint 载荷偏离官方 user/message 契约)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 4293a58: tests-first deriveEventMessage pins (real-mode fold+unfold assert projected role==='user' + content array, 4 例真跑 executed); src/fold-engine.ts fold(:287 区)/unfold(:432 区) 去信封提交裸 UserMessage {id,role,content,source} 镜像 createUserMessage(region.ts:410-413); mock-session msg.user 裸消息化+msg.system 补 turn/step; 真实模式夹具官方形态统一; store 双形态提取器零改动。修复前 4 例形态断言先红(4293a58 前 vitest 4 failed)修复后全绿。产物级探针 P5 经官方 deriveEventMessage 投影 fold/unfold 均 role=user content=array (scripts/probe-artifact.mjs 5/5 PASS)",
+      "owner": "coder-w3w4-rework",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W3-R2",
+      "source": "REVIEW-W3W4.md [建议] W3-2 (跨 checkpoint 吸收不可达 + shadowed 过滤不变式依赖)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit b6f359c (文档化路线, 最小改面): validator.ts 模块头 check a/d + 规则 d 处 + contiguity 守卫注释写明可达域(吸收需边界对齐 [checkpoint,checkpoint]); texts.ts REASON_RANGE_DISCONTIGUOUS 扩展提示句(评审探针 B2 复跑实证新文案生效); fold-engine.ts 数字过滤处就近钉不变式依赖注释; fold-engine.spec.ts 新增 2 测试: 跨 checkpoint 窗拒收钉(B2 S1/S2 形态)+双域扫描不变式钉(validator 接受窗 numericFilter ≡ positionalSlice, 单调面 6+ / 折叠后非单调面 2+)",
+      "owner": "coder-w3w4-rework",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W4-R1",
+      "source": "REVIEW-W3W4.md [建议] W4-1 (zctx_unfold 死参数 latest)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit ec8eb12: 删除 tools.ts latest 参数声明(描述文案已含缺省语义); tools.spec.ts 新增 unfold 参数集精确断言 {foldId}(无 required 键, shim 空集省略语义)",
+      "owner": "coder-w3w4-rework",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W4-R2",
+      "source": "REVIEW-W3W4.md [建议] W4-2 (B2 官方过滤测试自证循环)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit c1b6c2f: 删除 officialFilterKeeps 循环自证; 改直接断言 context.required===true + 官方行号注记(system-prompt/src/index.ts:667/:682 filter entry.required===true); 抑制态 '' no-op 真实行为测试保留",
+      "owner": "coder-w3w4-rework",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W4-R3",
+      "source": "REVIEW-W3W4.md [建议] W4-3 (closure 自报产物探针无入库载体)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 338e3ae: scripts/probe-artifact.mjs 入库, node 直跑可复现, 5 组探针: P1 30 导出+身份 / P2 接线 4/1/1/1/3(required=true) / P3 S8 无 isConcurrencySafe / P4 lib 工具面端到端 fold(裸 UserMessage checkpoint)+status / P5 真实官方 session W3-1 投影钉+W3-2 拒收钉(ZCTX_OFFICIAL_SESSION 可覆盖, 缺席显式 SKIP)。终验输出: 5 PASS, 0 SKIP, 0 FAIL",
+      "owner": "coder-w3w4-rework",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "W4-R4",
+      "source": "REVIEW-W3W4.md [建议] W4-4 (nudge provider 忽略 AssembleContext + 全局最近会话假设)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 3c15e7c: plugin.ts text provider 按官方 PromptContext.text 契约接收 AssembleContext(system-prompt/src/index.ts:42-50/:85); 会话归属优先 assembly.agent.session / scope.session(官方 assembleContextFor agent/src/dispatch.ts:174 传 agent+scope=agent; Agent.session agent-loop/src/agent.ts:127), 不可达时回退最近创建会话(注释声明局限); plugin.spec.ts 双会话判别测试(A 归属渲染 A 的 span, B 空表, fallback 声明路径)",
+      "owner": "coder-w3w4-rework",
+      "status": "verified",
+      "phase": "block"
     }
   ],
   "updatedAt": "2026-11-12T12:20:00+08:00"

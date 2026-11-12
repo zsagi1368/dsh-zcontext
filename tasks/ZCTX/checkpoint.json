@@ -6,39 +6,75 @@
       "id": "w4s0",
       "name": "config.ts split out of index.ts (breaks the plugin->Config cycle; public surface unchanged) + del backup of pre-W4 index.ts/smoke.spec.ts (HEAD blobs 9ee6619)",
       "status": "done",
-      "artifacts": ["src/config.ts", "del/20261112-w4-index-smoke-prechange/"]
+      "artifacts": [
+        "src/config.ts",
+        "del/20261112-w4-index-smoke-prechange/"
+      ]
     },
     {
       "id": "w4s1",
       "name": "tools.ts: resolveDefineTool (lazy host require + fail-soft shim with ToolArgsError semantics) + parseFoldContent (parseCompressInput-aligned lenient parser, self-implemented) + buildZctxTools (4 tools, no isConcurrencySafe S8) + renderStatus (budget/ranges/folds/anomalies/S6 usage split/CCM below-domain note)",
       "status": "done",
-      "artifacts": ["src/tools.ts", "tests/tools.spec.ts"],
+      "artifacts": [
+        "src/tools.ts",
+        "tests/tools.spec.ts"
+      ],
       "tests": 21
     },
     {
       "id": "w4s2",
       "name": "plugin.ts: ZcontextPlugin extends cordis Service (lazy require + structural shim) + capability-probed faces (session feed / tools / guidance / nudge required:true B2 / command) + per-session store registry + async window cache warmup + threshold-crossing nudge provider (suppressed='' no-op)",
       "status": "done",
-      "artifacts": ["src/plugin.ts", "tests/plugin.spec.ts"],
+      "artifacts": [
+        "src/plugin.ts",
+        "tests/plugin.spec.ts"
+      ],
       "tests": 12
     },
     {
       "id": "w4s3",
       "name": "command.ts /zctx (status|fold|unfold, fail-soft error texts) + index.ts pure re-export rewrite + smoke.spec adapted to cordis-compatible minimal ctx + store.eventText public accessor",
       "status": "done",
-      "artifacts": ["src/command.ts", "src/index.ts", "tests/smoke.spec.ts", "src/store.ts"]
+      "artifacts": [
+        "src/command.ts",
+        "src/index.ts",
+        "tests/smoke.spec.ts",
+        "src/store.ts"
+      ]
     },
     {
       "id": "w4s4",
       "name": "three-green + artifact probe: build (lib 116.63 kB) + tsc zero errors + 189/189 (11 files); node probe on lib/index.js: 14 exports + face wiring (4 tools/1 section/1 required context/1 command/3 listeners) + end-to-end fold+status through the built artifact + no isConcurrencySafe",
       "status": "done",
-      "artifacts": ["lib/index.js", "lib/index.d.ts", "lib/index.js.map"]
+      "artifacts": [
+        "lib/index.js",
+        "lib/index.d.ts",
+        "lib/index.js.map"
+      ]
+    },
+    {
+      "id": "w3w4-rework-r1",
+      "name": "REVIEW-W3W4 rework round 1: W3-1 bare-UserMessage commits (tests-first pins) + W3-2 reachable-domain docs + slice-equivalence pin + W4-1 latest removal + W4-2 loop removal + W4-3 scripts/probe-artifact.mjs (5 groups) + W4-4 AssembleContext attribution",
+      "status": "done",
+      "artifacts": [
+        "src/fold-engine.ts",
+        "src/validator.ts",
+        "src/texts.ts",
+        "src/tools.ts",
+        "src/plugin.ts",
+        "tests/fold-engine.spec.ts",
+        "tests/helpers/mock-session.ts",
+        "tests/plugin.spec.ts",
+        "tests/tools.spec.ts",
+        "scripts/probe-artifact.mjs"
+      ]
     }
   ],
-  "next": "W4 commit + reviewer gate -> W5 (docs + verify-activation-surface script + install gate)",
+  "next": "reviewer re-score W3/W4 (both >= 98 to pass, round 1/2) -> W5 (docs + verify-activation-surface script + install gate)",
   "notes": [
     "defineTool resolved from @deepseek-ai/dsh-tools when the host provides it; shim compiles the same author prop-map to the enforced JSON-Schema subset",
     "nudge provider contributes '' unless a threshold was crossed (cache model) and is gated below CCM 32768 and without a cached window",
-    "smoke.spec construction now uses a cordis-compatible minimal ctx (real Service base needs reflect.provide); pre-change copies in del/"
+    "smoke.spec construction now uses a cordis-compatible minimal ctx (real Service base needs reflect.provide); pre-change copies in del/",
+    "rework r1: checkpoint payloads are the official bare UserMessage (types.ts:309, surface.ts:132-134, region.ts:506-508); absorption reachable domain documented as boundary-aligned [checkpoint,checkpoint]; numeric shadowed filter == positional slice pinned by dual-regime sweeps; nudge provider consumes AssembleContext (agent.session attribution, most-recent fallback)"
   ]
 }
