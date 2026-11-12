@@ -190,6 +190,28 @@ describe('validator: b. protected zones', () => {
     expect(result.reasons.some((r) => r.includes('protected recent tail'))).toBe(true)
   })
 
+  it('protects the whole surface when it fits entirely under protectionFloorTokens', () => {
+    // Σ(baseSurface().estimatedTokens) = 23200 < 30000 → the backward token
+    // walk runs past node 0 (idx < 0) and the floor branch clamps protection
+    // to the whole surface: window [3..9] is rejected as protected tail, and
+    // nothing else (exactly one reason).
+    const result = validateFold(
+      baseInput({
+        config: {
+          ...baseConfig,
+          keepRecentMessages: 0,
+          keepRecentTokens: 0,
+          protectionFloorTokens: 30000,
+        },
+      }),
+    )
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.reasons).toHaveLength(1)
+    expect(result.reasons[0]).toContain('protected recent tail')
+    expect(result.reasons[0]).toContain('last 0 messages / 30000 tokens')
+  })
+
   it('protects the last user message even inside the foldable band', () => {
     const surface = baseSurface()
     // Drop the trailing assistant so seq 11 (last user) sits in the protected
