@@ -73,8 +73,8 @@ import type {
   ValidateFoldInput,
 } from './types.ts'
 
-/** Fill a `{{key}}` template from the given variables. @internal */
-function fill(template: string, vars: Record<string, string | number>): string {
+/** Fill a `{{key}}` template from the given variables. @internal (shared with nudge.ts) */
+export function fill(template: string, vars: Record<string, string | number>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) =>
     key in vars ? String(vars[key]) : match,
   )
