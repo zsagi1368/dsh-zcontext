@@ -561,7 +561,57 @@
       "owner": "coder-v5",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "V6-A",
+      "source": "REVIEW-V5.md §4 [建议] V5-1 (store.ts:1297 resetBetween cap-guard 无专钉; 连带闭合 V3-1 测试分支, REVIEW-V5 §6.2)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit dec0bcc: store-attribution.spec new describe (2 boundary pins) — at cap (64) the interpolation walk stops conservatively (estimated stays estimated, semiKind absent) even though NO retained reset sits between candidate and anchor; at cap-1 (63) the same shape upgrades to semi/interpolated with the anchor input carried over. Deleting the guard line turns test 1 red (walk would upgrade). 424/424 + tsc zero",
+      "owner": "coder-v6",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V6-B",
+      "source": "REVIEW-V5.md §4 [建议] V5-2 (zctx-adapter.ts:201 maxTokens 缺省静默发明 32768; 修法二选一, 选 a 官方对齐 fail-loud)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit dec0bcc: providers.ts maxTokens now REQUIRED positive integer at the construction gate (official catalog.ts:934-936 semantics — missing value = construction violation with the complete list, never an invented default); zctx-adapter.ts materializePiModel rides the declaration verbatim (?? 32768 removed); new dedicated test (missing maxTokens = violation, violating model never reaches the resolved route, assertZctxProvidersResolvable throws); fixtures updated to declare maxTokens; 424/424 + tsc zero",
+      "owner": "coder-v6",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V6-C",
+      "source": "REVIEW-V5.md §4 [建议] V5-3 (config.ts:175 注释与 configDefaults.providers=[] 与 smoke 契约钉三方矛盾)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit dec0bcc: config.ts CONFIG_FIELD_SPECS providers comment rewritten as ONE unified statement — schema default/configDefaults/smoke pin all carry the EMPTY declaration list; \"optional\" applies only to user input; zero routes = legal keep-alive",
+      "owner": "coder-v6",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V6-D",
+      "source": "REVIEW-V5.md §4 [建议] V5-4 (plugin.ts wireAdapterFace 违规检查在可达性门之后 — 校验不依赖宿主)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit dec0bcc: plugin.ts wireAdapterFace reorders gates — loadSupportedProtocols + assertZctxProvidersResolvable now run BEFORE loadAdapterFaces (pure resolution, builtin fallback), so a misconfigured section reports the COMPLETE violation list even on host-absent installs; new pin test (unreachable faces + bad config => warn carries family/model violations, reachability info NOT logged); doc comment gate order updated; 424/424 + tsc zero",
+      "owner": "coder-v6",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V6-E",
+      "source": "V1-A (callConfigEquals 非有限值理论差异; 终验前处置 — coordinator 卡面: 最简处置=测试钉死当前语义+JSDoc 声明边界, 或修齐)",
+      "type": "card-ambiguity",
+      "disposition": "fixed",
+      "evidence": "commit dec0bcc: pinned-not-fixed path chosen (unreachable on the official wire — host normalizes controls before dispatch, a header snapshot never carries NaN). store.ts callConfigEquals JSDoc declares the boundary (official raw === says NaN-carrying configs differ; local extraction drops non-finite -> both (absent) -> equal); store-observe.spec new pin: two NaN-carrier change headers produce zero resets, chain of 2",
+      "owner": "coder-v6",
+      "status": "verified",
+      "phase": "block"
     }
   ],
-  "updatedAt": "2026-11-13T22:45:00+08:00"
+  "updatedAt": "2026-11-13"
 }
