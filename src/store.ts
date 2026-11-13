@@ -33,9 +33,21 @@
  *   bracket, tracked incrementally with the official session/end-seed
  *   lifecycle boundary (compaction-basic/src/region.ts
  *   inspectCompactionEntryState semantics).
+ * - observability ledgers (v0.2.0 route-two, V1; RES-observe-route a.1):
+ *   the request/header chain (RouteHeader), the cache-reset ledger
+ *   (ResetEvent — 7 of the 8 guardian whitelist classes mapped onto
+ *   session/event signals per §Q6; `oneShotExempt` belongs to the V2
+ *   llm/stream listener), and the usage records with full token fields
+ *   (UsageRecord). Rebuild and incremental maintenance share ONE
+ *   transition (`applyEvent`), so attach scans, live feeds, and `resync()`
+ *   gaps stay consistent by construction. `attribution` stays undefined
+ *   until the V3 attribution engine fills it; `state: 'semi'` is likewise
+ *   reserved for V3 interpolation — the V1 store emits 'measured'/'estimated'
+ *   only.
  *
  * Zero host imports; the session is consumed through the structural
- * SessionLike contract only.
+ * SessionLike contract only. Header field comparison is a local twin of the
+ * official `callConfigEquals` (see the local function's doc below).
  *
  * @module store
  */
@@ -44,9 +56,14 @@ import { estimateTokens } from './budget.ts'
 import type {
   FoldMap,
   FoldRecord,
+  LlmCallConfigLike,
+  ResetEvent,
+  ResetEventKind,
+  RouteHeader,
   SessionEventLike,
   SessionLike,
   SurfaceNode,
+  UsageRecord,
   UsageSample,
 } from './types.ts'
 
@@ -215,26 +232,210 @@ function extractCheckpointSource(
 }
 
 /**
- * Extract one usage sample from an assistant/message payload (S6). The
- * official event data carries `usage?: TokenUsage` with optional
- * cacheReadTokens/cacheWriteTokens (llm/src/types.ts:166-189).
+ * Extract one usage record from an assistant/message payload (S6 upgraded to
+ * the V1 route-two UsageRecord: full token fields + three-state grade). The
+ * official event data carries `usage?: TokenUsage` with inputTokens/
+ * outputTokens/totalTokens?/cacheReadTokens/cacheWriteTokens, DISJOINT
+ * accounting (input = un-cached only; llm/src/types.ts:166-189). Field
+ * absence is honest absence — a missing field is NOT rewritten to 0
+ * (RES-observe-route §Q2.3: 0 值与缺席同形，不得反推).
  */
-function extractUsageSample(data: unknown, seq: number): UsageSample {
+function extractUsageRecord(data: unknown, seq: number): UsageRecord {
   if (data !== null && typeof data === 'object') {
     const usage = (data as Record<string, unknown>).usage
     if (usage !== null && typeof usage === 'object') {
       const record = usage as Record<string, unknown>
       const read = record.cacheReadTokens
       const write = record.cacheWriteTokens
+      const input = record.inputTokens
+      const output = record.outputTokens
+      const total = record.totalTokens
       return {
         seq,
         measured: true,
+        state: 'measured',
+        ...(typeof input === 'number' && Number.isFinite(input) ? { inputTokens: input } : {}),
+        ...(typeof output === 'number' && Number.isFinite(output) ? { outputTokens: output } : {}),
+        ...(typeof total === 'number' && Number.isFinite(total) ? { totalTokens: total } : {}),
         ...(typeof read === 'number' && Number.isFinite(read) ? { cacheReadTokens: read } : {}),
         ...(typeof write === 'number' && Number.isFinite(write) ? { cacheWriteTokens: write } : {}),
       }
     }
   }
-  return { seq, measured: false }
+  return { seq, measured: false, state: 'estimated' }
+}
+
+/**
+ * Element-wise `stop` list equality (the tail of the official callConfigEquals,
+ * call-config.ts:75-77): undefined equals only undefined, otherwise length +
+ * every element.
+ */
+function stopEquals(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b
+  return a.length === b.length && a.every((s, i) => s === b[i])
+}
+
+/**
+ * Local field-wise equality over LlmCallConfigLike — the same semantics as
+ * the official `callConfigEquals` (call-config.ts:67-77, a `@deepseek-ai/dsh-llm`
+ * public export): provider/model/reasoningEffort/temperature/maxTokens by
+ * identity, `stop` element-wise with length. Kept LOCAL because the store is
+ * duck-typed with zero host runtime imports (V1 constraint: 探针是脚本级，
+ * src 内宿主类型仍 duck-typing); scripts/probe-host-imports.mjs G4 pins the
+ * official export's live semantics so the twins stay aligned. If the host
+ * contract ever drifts, the probe's import face changes and the pin breaks.
+ */
+function callConfigEquals(a: LlmCallConfigLike, b: LlmCallConfigLike): boolean {
+  return (
+    a.provider === b.provider
+    && a.model === b.model
+    && a.reasoningEffort === b.reasoningEffort
+    && a.temperature === b.temperature
+    && a.maxTokens === b.maxTokens
+    && stopEquals(a.stop, b.stop)
+  )
+}
+
+/** Render one optional config scalar for evidence text ('' when absent). */
+function configScalarText(value: string | number | undefined): string {
+  return value === undefined ? '(absent)' : String(value)
+}
+
+/** Key-sorted structural clone for deterministic JSON comparison (the V1
+ * local twin of the stableStringify the V2 hash件 builds; compare-only). */
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((entry) => stableValue(entry))
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    const out: Record<string, unknown> = {}
+    for (const key of Object.keys(record).sort()) out[key] = stableValue(record[key])
+    return out
+  }
+  return value
+}
+
+/** Deterministic structural comparison of two tool-schema arrays. */
+function toolsEquals(a: readonly unknown[] | undefined, b: readonly unknown[] | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b
+  if (a.length !== b.length) return false
+  return JSON.stringify(stableValue(a)) === JSON.stringify(stableValue(b))
+}
+
+/** Extract the call config of a request/header payload (LlmCallConfig shape,
+ * call-config.ts:36-41). provider/model are required strings; everything
+ * else degrades to absent when malformed. */
+function extractCallConfig(value: unknown): LlmCallConfigLike | undefined {
+  if (value === null || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  if (typeof record.provider !== 'string' || typeof record.model !== 'string') return undefined
+  return {
+    provider: record.provider,
+    model: record.model,
+    ...(typeof record.reasoningEffort === 'string' ? { reasoningEffort: record.reasoningEffort } : {}),
+    ...(typeof record.temperature === 'number' && Number.isFinite(record.temperature)
+      ? { temperature: record.temperature }
+      : {}),
+    ...(typeof record.maxTokens === 'number' && Number.isFinite(record.maxTokens)
+      ? { maxTokens: record.maxTokens }
+      : {}),
+    ...(Array.isArray(record.stop) && record.stop.every((s) => typeof s === 'string')
+      ? { stop: record.stop as string[] }
+      : {}),
+  }
+}
+
+/** Extract the adapter-defaults marker object (call-config.ts:55-60). */
+function extractAdapterDefaults(value: unknown): { reasoningEffort?: true; maxTokens?: true } | undefined {
+  if (value === null || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  const reasoningEffort = record.reasoningEffort === true ? true : undefined
+  const maxTokens = record.maxTokens === true ? true : undefined
+  if (reasoningEffort === undefined && maxTokens === undefined) return undefined
+  return {
+    ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
+    ...(maxTokens !== undefined ? { maxTokens } : {}),
+  }
+}
+
+/**
+ * Extract one RouteHeader from a request/header payload (official
+ * session/src/types.ts:388-395 + EpochHeader :270-281). Returns undefined
+ * when the structural minimum (config with provider/model + a known reason)
+ * is not met — the caller records an anomaly instead of guessing.
+ */
+function extractRequestHeader(data: unknown, seq: number): RouteHeader | undefined {
+  if (data === null || typeof data !== 'object') return undefined
+  const record = data as Record<string, unknown>
+  const header = record.header
+  if (header === null || typeof header !== 'object') return undefined
+  const headerRecord = header as Record<string, unknown>
+  const config = extractCallConfig(headerRecord.config)
+  if (config === undefined) return undefined
+  const reason = record.reason
+  if (reason !== 'initial' && reason !== 'resume' && reason !== 'change' && reason !== 'series') {
+    return undefined
+  }
+  const adapterDefaults = extractAdapterDefaults(headerRecord.adapterDefaults)
+  const tools = Array.isArray(headerRecord.tools) ? headerRecord.tools : undefined
+  const startsSeries = record.startsSeries === true ? true : undefined
+  return {
+    config,
+    ...(adapterDefaults !== undefined ? { adapterDefaults } : {}),
+    ...(tools !== undefined ? { tools } : {}),
+    reason,
+    ...(startsSeries !== undefined ? { startsSeries } : {}),
+    seq,
+  }
+}
+
+/**
+ * Field-level comparison of a 'change' header against its predecessor — the
+ * V1 reset classification the card freezes (a.2 item 1: callConfigEquals
+ * 字段级对比 → modelChange/toolsetChange/采样变更类 ResetEvent). One entry per
+ * DIFFERING CATEGORY (routing / toolset / sampling), evidence names the
+ * changed fields. The tools comparison is structural (sorted-key JSON), the
+ * config comparison is the local callConfigEquals twin.
+ */
+function headerChangeResets(
+  prev: RouteHeader,
+  next: RouteHeader,
+): readonly { kind: ResetEventKind; evidence: string }[] {
+  const resets: { kind: ResetEventKind; evidence: string }[] = []
+  if (!callConfigEquals(prev.config, next.config)) {
+    const routing: string[] = []
+    const sampling: string[] = []
+    const a = prev.config
+    const b = next.config
+    if (a.provider !== b.provider) routing.push(`provider ${a.provider}→${b.provider}`)
+    if (a.model !== b.model) routing.push(`model ${a.model}→${b.model}`)
+    if (a.reasoningEffort !== b.reasoningEffort) {
+      routing.push(`reasoningEffort ${configScalarText(a.reasoningEffort)}→${configScalarText(b.reasoningEffort)}`)
+    }
+    if (a.temperature !== b.temperature) {
+      sampling.push(`temperature ${configScalarText(a.temperature)}→${configScalarText(b.temperature)}`)
+    }
+    if (a.maxTokens !== b.maxTokens) {
+      sampling.push(`maxTokens ${configScalarText(a.maxTokens)}→${configScalarText(b.maxTokens)}`)
+    }
+    if (!stopEquals(a.stop, b.stop)) {
+      sampling.push(`stop ${JSON.stringify(a.stop ?? null)}→${JSON.stringify(b.stop ?? null)}`)
+    }
+    if (routing.length > 0) {
+      resets.push({ kind: 'model-change', evidence: `request/header change: ${routing.join('; ')}` })
+    }
+    if (sampling.length > 0) {
+      resets.push({ kind: 'sampling-change', evidence: `request/header change: ${sampling.join('; ')}` })
+    }
+  }
+  if (!toolsEquals(prev.tools, next.tools)) {
+    const prevCount = prev.tools === undefined ? 'none' : String(prev.tools.length)
+    const nextCount = next.tools === undefined ? 'none' : String(next.tools.length)
+    resets.push({
+      kind: 'toolset-change',
+      evidence: `request/header change: tools schema diff (${prevCount}→${nextCount} schemas)`,
+    })
+  }
+  return resets
 }
 
 /**
@@ -249,9 +450,14 @@ export class FoldStore {
   private session: SessionLike | undefined
   private readonly eventsBySeq = new Map<number, SessionEventLike>()
   private readonly ledger = new Map<string, FoldLedgerEntry>()
-  private readonly usageSamples: UsageSample[] = []
+  /** Bounded usage-record ledger (V1 UsageRecord; oldest dropped at cap). */
+  private readonly usageLedger: UsageRecord[] = []
   private measuredSamples = 0
   private unmeasuredSamples = 0
+  /** Append-only request/header chain (oldest first). */
+  private readonly routeHeaders: RouteHeader[] = []
+  /** Append-only cache-reset ledger (oldest first). */
+  private readonly resetLog: ResetEvent[] = []
   private readonly anomaliesLog: StoreAnomaly[] = []
   private compactionStartSeq: number | undefined
   private endSeedSeq: number | undefined
@@ -275,9 +481,11 @@ export class FoldStore {
     this.session = session
     this.eventsBySeq.clear()
     this.ledger.clear()
-    this.usageSamples.length = 0
+    this.usageLedger.length = 0
     this.measuredSamples = 0
     this.unmeasuredSamples = 0
+    this.routeHeaders.length = 0
+    this.resetLog.length = 0
     this.anomaliesLog.length = 0
     this.compactionStartSeq = undefined
     this.endSeedSeq = undefined
@@ -369,14 +577,38 @@ export class FoldStore {
 
   /** Aggregate usage state (S6). */
   usageSnapshot(): UsageSnapshot {
-    const latest = this.usageSamples[this.usageSamples.length - 1]
+    const latest = this.usageLedger[this.usageLedger.length - 1]
     return {
-      samples: this.usageSamples.length,
+      samples: this.usageLedger.length,
       measuredSamples: this.measuredSamples,
       unmeasuredSamples: this.unmeasuredSamples,
       measured: this.measuredSamples > 0,
       ...(latest !== undefined ? { latest } : {}),
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // observability ledgers (v0.2.0 V1; RES-observe-route a.1)
+  // -------------------------------------------------------------------------
+
+  /** The request/header chain, oldest first (V1 observability). */
+  routeHeaderChain(): readonly RouteHeader[] {
+    return [...this.routeHeaders]
+  }
+
+  /** The most recent cached header, when any (the compare base for 'change'). */
+  lastRouteHeader(): RouteHeader | undefined {
+    return this.routeHeaders[this.routeHeaders.length - 1]
+  }
+
+  /** The cache-reset ledger, oldest first (V1 observability). */
+  resetEvents(): readonly ResetEvent[] {
+    return [...this.resetLog]
+  }
+
+  /** The bounded usage-record ledger, oldest first (V1 observability). */
+  usageRecords(): readonly UsageRecord[] {
+    return [...this.usageLedger]
   }
 
   /** True while a `compaction/start` bracket is durably open (mutex). */
@@ -417,30 +649,45 @@ export class FoldStore {
 
   /**
    * Apply one event to every derived view (scan and incremental paths share
-   * this single transition, so attach and live feeds stay consistent).
+   * this single transition, so attach scans, live feeds, and resync gaps
+   * stay consistent by construction).
    * @internal
    */
   private applyEvent(event: SessionEventLike): void {
     this.eventsBySeq.set(event.seq, event)
     this.lastSeq = event.seq
 
-    // -- usage ledger (assistant/message only) --------------------------------
-    if (event.type === 'assistant/message') {
-      const sample = extractUsageSample(event.data, event.seq)
-      if (this.usageSamples.length >= USAGE_LEDGER_CAP) this.usageSamples.shift()
-      this.usageSamples.push(sample)
-      if (sample.measured) this.measuredSamples += 1
-      else this.unmeasuredSamples += 1
+    // -- request/header chain + header-driven resets (a.2 item 1) -------------
+    if (event.type === 'request/header') {
+      this.applyRequestHeader(event)
+    }
+    // -- compaction mutex state + bracket reset (a.2 item 1) ------------------
+    else if (event.type === 'compaction/start') {
+      this.compactionStartSeq = event.seq
+      this.recordReset('compaction', event.seq, 'compaction/start bracket opened', event.time)
+    } else if (event.type === 'compaction/end') {
+      this.compactionStartSeq = undefined
+    } else if (event.type === 'session/end-seed') {
+      this.endSeedSeq = event.seq
+      this.recordReset('session-recovery', event.seq, 'session/end-seed generation boundary', event.time)
     }
 
-    // -- compaction mutex state (durable bracket markers) ---------------------
-    if (event.type === 'compaction/start') this.compactionStartSeq = event.seq
-    else if (event.type === 'compaction/end') this.compactionStartSeq = undefined
-    else if (event.type === 'session/end-seed') this.endSeedSeq = event.seq
+    // -- usage ledger (assistant/message only) --------------------------------
+    if (event.type === 'assistant/message') {
+      const record = extractUsageRecord(event.data, event.seq)
+      if (this.usageLedger.length >= USAGE_LEDGER_CAP) this.usageLedger.shift()
+      this.usageLedger.push(record)
+      if (record.measured) this.measuredSamples += 1
+      else this.unmeasuredSamples += 1
+    }
 
     // -- fold ledger ----------------------------------------------------------
     const op = event.surfaceOp
     if (op === undefined || op === 'append') return
+    // Replace-driven reset classification (a.2 item 1: mergeRewrite /
+    // microPrune / unknown-replace / systemSectionChange). Runs before the
+    // fold-ledger transition so both views see every replace.
+    this.classifyReplaceReset(event, op)
     const checkpoint = extractCheckpointSource(event.data)
     if (checkpoint === undefined) {
       // A foreign replace producer (official compaction, …): any active fold
@@ -469,6 +716,93 @@ export class FoldStore {
       tokensAfter: checkpoint.tokensAfter ?? 0,
       status: 'active',
     })
+  }
+
+  /**
+   * Consume one request/header event: cache the RouteHeader, then classify
+   * resets — `reason:'resume'` is the sessionRecovery half-class signal
+   * (RES-observe-route §Q6: restart/fork-seed boundary); `reason:'change'`
+   * field-compares against the previous header (a.2 item 1). @internal
+   */
+  private applyRequestHeader(event: SessionEventLike): void {
+    const header = extractRequestHeader(event.data, event.seq)
+    if (header === undefined) {
+      this.recordAnomaly('unreadable-header', `request/header at seq ${event.seq} failed structural parse`, event.seq)
+      return
+    }
+    if (header.reason === 'resume') {
+      this.recordReset(
+        'session-recovery',
+        event.seq,
+        "request/header reason='resume' (process restart / fork-seed boundary)",
+        event.time,
+      )
+    } else if (header.reason === 'change' && this.lastRouteHeader() !== undefined) {
+      for (const reset of headerChangeResets(this.lastRouteHeader() as RouteHeader, header)) {
+        this.recordReset(reset.kind, event.seq, reset.evidence, event.time)
+      }
+    }
+    this.routeHeaders.push(header)
+  }
+
+  /**
+   * Classify ONE replace event into the reset ledger (card: surfaceOp
+   * replace → microPrune / unknown-replace / mergeRewrite / systemSectionChange).
+   * Order: our own checkpoints first (merge-rewrite regardless of any open
+   * compaction bracket), then replaces inside an open official compaction
+   * bracket are skipped (the compaction start already recorded the reset —
+   * card qualifier 非 compaction 括号内), then system/message rewrites, then
+   * the single-tool-result pruner shape, then the unknown-replace catch-all
+   * (surfaceOp carries no producer identity, RES-observe-route §Q6 unresolved ①).
+   * @internal
+   */
+  private classifyReplaceReset(event: SessionEventLike, op: { startSeq: number; endSeq: number }): void {
+    const checkpoint = extractCheckpointSource(event.data)
+    if (checkpoint !== undefined) {
+      this.recordReset(
+        'merge-rewrite',
+        event.seq,
+        `own checkpoint replace (${checkpoint.kind} ${checkpoint.foldId}, span ${op.startSeq}..${op.endSeq})`,
+        event.time,
+      )
+      return
+    }
+    if (this.compactionActive()) return
+    if (event.type === 'system/message') {
+      this.recordReset(
+        'system-section-change',
+        event.seq,
+        `system/message rewrite over span ${op.startSeq}..${op.endSeq}`,
+        event.time,
+      )
+      return
+    }
+    const startEvent = this.eventsBySeq.get(op.startSeq)
+    if (
+      event.sourceEventSeqs !== undefined
+      && event.sourceEventSeqs.length === 1
+      && startEvent !== undefined
+      && startEvent.type === 'tool/result'
+    ) {
+      this.recordReset(
+        'micro-prune',
+        event.seq,
+        `tool/result node ${op.startSeq} rewritten in place (pruner shape; producer unattributable)`,
+        event.time,
+      )
+      return
+    }
+    this.recordReset(
+      'unknown-replace',
+      event.seq,
+      `foreign replace producer (${event.type}) over span ${op.startSeq}..${op.endSeq}`,
+      event.time,
+    )
+  }
+
+  /** Append one reset ledger entry (evidence text is caller-owned). @internal */
+  private recordReset(kind: ResetEventKind, seq: number, evidence: string, time?: number): void {
+    this.resetLog.push({ kind, seq, ...(time !== undefined ? { time } : {}), evidence })
   }
 
   /** Demote active folds whose checkpoint is shadowed by this replace. @internal */

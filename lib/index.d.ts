@@ -32,6 +32,20 @@ interface ZcontextConfig {
   summaryCeilingChars: number;
   /** Multiplier gate: a fold must shrink the ledger by at least 1/netShrinkTolerance. */
   netShrinkTolerance: number;
+  /**
+   * Attribution time-window fallback in ms (V1): when seq reads are
+   * interrupted (store resync gap), fold→message association degrades to
+   * `messageTime − foldCommitTime ≤ attributionTimeWindowMs` (RES-observe-route
+   * §Q4.2 rule 4). Default 90000 — 待真机标定 (calibration pending, plan §3).
+   */
+  attributionTimeWindowMs: number;
+  /**
+   * Clean-sample floor in [0,1] (V1): below this ratio of cleanly attributed
+   * samples zctx_status reports "attribution confidence insufficient" instead
+   * of a breakeven conclusion (RES-observe-route §Q7.3 honest degradation).
+   * Default 0.6 — 待真机标定 (calibration pending, plan §3).
+   */
+  cleanSampleFloor: number;
 }
 /** Contractual defaults for every Config field (plan §3). */
 declare const configDefaults: Readonly<ZcontextConfig>;
@@ -62,7 +76,9 @@ type SurfaceOpLike = 'append' | {
   readonly startSeq: number;
   readonly endSeq: number;
 };
-/** One event of the session log, structurally reduced for plugin use. */
+/**
+ * One event of the session log, structurally reduced for plugin use.
+ */
 interface SessionEventLike {
   /** Log sequence number (equal to the event's index in the append-only log). */
   readonly seq: number;
@@ -70,6 +86,12 @@ interface SessionEventLike {
   readonly type: string;
   /** Event payload (official: `{ turn, message }` for message events). */
   readonly data: unknown;
+  /**
+   * Unix epoch milliseconds of the event commit (official SessionEvent.time,
+   * session/src/types.ts:499). Optional: the structural contract tolerates
+   * events that carry no time (mock feeds), and consumers degrade.
+   */
+  readonly time?: number;
   /** Surface placement — 'append' or a replace op (session/src/types.ts:449-464). */
   readonly surfaceOp?: SurfaceOpLike;
   /**
@@ -377,6 +399,185 @@ interface BreakevenReport {
   readonly estimatedInputs: readonly ('folded' | 'summary' | 'repay')[];
 }
 /**
+ * One provider usage sample taken from an assistant/message event (S6).
+ * Moved here from store.ts in V1 so {@link UsageRecord} can extend it without
+ * a types→store cycle; store.ts re-exports it, keeping the W3 public surface
+ * (index.ts `export type { UsageSample } from './store.ts'`) unchanged.
+ */
+interface UsageSample {
+  /** Seq of the assistant/message event. */
+  readonly seq: number;
+  /** True when the event carried a usable usage object. */
+  readonly measured: boolean;
+  /** Optional provider cache-read tokens. */
+  readonly cacheReadTokens?: number;
+  /** Optional provider cache-write tokens. */
+  readonly cacheWriteTokens?: number;
+}
+/**
+ * Structural view of the call config carried by a logged request header
+ * (official LlmCallConfig, llm/llm/src/call-config.ts:36-41 — provider/model
+ * plus the LlmCallControls scalars of :27-32). `reasoningEffort` is
+ * duck-typed as string (the official type is a branded string id).
+ */
+interface LlmCallConfigLike {
+  readonly provider: string;
+  readonly model: string;
+  readonly reasoningEffort?: string;
+  readonly temperature?: number;
+  readonly maxTokens?: number;
+  readonly stop?: readonly string[];
+}
+/**
+ * Effective config fields supplied by exact-model adapter resolution
+ * (official LlmCallConfigAdapterDefaults, call-config.ts:55-60).
+ */
+interface LlmCallConfigAdapterDefaultsLike {
+  readonly reasoningEffort?: true;
+  readonly maxTokens?: true;
+}
+/**
+ * One logged request/header snapshot, cached by the store (RES-observe-route
+ * a.1 row 3: config/adapterDefaults/tools/reason/startsSeries/seq). Official
+ * payload shape: session/src/types.ts:388-395 (`EpochHeader` at :270-281,
+ * `RequestHeaderReason` at :381-387).
+ */
+interface RouteHeader {
+  /** The header's call config (provider/model/effort/sampling scalars). */
+  readonly config: LlmCallConfigLike;
+  /** Effective config fields materialized from the exact adapter. */
+  readonly adapterDefaults?: LlmCallConfigAdapterDefaultsLike;
+  /** Assembled tool schemas; absent for a tool-less request. */
+  readonly tools?: readonly unknown[];
+  /** Why the snapshot was appended (official request/header reason). */
+  readonly reason: 'initial' | 'resume' | 'change' | 'series';
+  /** This request begins a distinct model-message series, independently of reason. */
+  readonly startsSeries?: true;
+  /** Log seq of the producing request/header event. */
+  readonly seq: number;
+}
+/**
+ * Cache-reset ledger classes the session/event face can identify (V1 store).
+ * Mapping of the zDSH-Go guardian 8-class whitelist
+ * (cache-guardian.ts:520-531) onto plugin-visible signals per
+ * RES-observe-route.md §Q6: 7 of 8 classes are identifiable here, the
+ * `sessionRecovery` restart form is half-visible (end-seed + resume header
+ * only), and `oneShotExempt` belongs to the llm/stream listener (V2), not to
+ * this ledger. `sampling-change` covers the call-config scalars that
+ * `callConfigEquals` compares but the guardian whitelist folds elsewhere —
+ * they break the wire prefix all the same (call-config.ts:1-6 rationale).
+ */
+type ResetEventKind =
+/** Provider/model/reasoningEffort changed (request/header reason 'change'). */
+'model-change' |
+/** temperature/maxTokens/stop changed (request/header reason 'change'). */
+'sampling-change' |
+/** Tool schemas changed (request/header tools diff vs the previous header). */
+'toolset-change' |
+/** Official compaction bracket opened (compaction/start … compaction/end). */
+'compaction' |
+/** Our own fold/unfold checkpoint replaced a surface span. */
+'merge-rewrite' |
+/** A foreign single tool/result node was rewritten in place (pruner shape). */
+'micro-prune' |
+/** Any other foreign replace producer (unattributable, Q6 unresolved ①). */
+'unknown-replace' |
+/** A system/message node was rewritten on the surface (normalization). */
+'system-section-change' |
+/** Session generation boundary (session/end-seed; sessionRecovery half-class). */
+'session-recovery';
+/** One cache-reset ledger entry (RES-observe-route a.1 row 4: kind/seq/time/evidence). */
+interface ResetEvent {
+  /** The identified reset class. */
+  readonly kind: ResetEventKind;
+  /** Log seq of the event that produced the reset. */
+  readonly seq: number;
+  /** Unix epoch ms of the producing event, when the event carried a time. */
+  readonly time?: number;
+  /** Human-readable evidence (which fields differed / which nodes were replaced). */
+  readonly evidence: string;
+}
+/**
+ * Attribution of one usage sample to one committed fold (RES-observe-route
+ * a.1 row 2, §Q4.2 rules). Produced by the V3 attribution engine; the V1
+ * store freezes the shape only.
+ */
+interface FoldUsageAttribution {
+  /** FoldRecord.foldId of the attributed fold. */
+  readonly foldId: string;
+  /** Seq of the fold's checkpoint (surfaceOp replace) event. */
+  readonly foldCommitSeq: number;
+  /** Seq of the attributed assistant/message event. */
+  readonly messageSeq: number;
+  /** Turn of the attributed message. */
+  readonly turn: number;
+  /** Step of the attributed message. */
+  readonly step: number;
+  /** Association strength (§Q4.2: strong = clean; retry = retried; weak = degraded to estimate). */
+  readonly quality: 'strong' | 'retry' | 'weak';
+  /** llm/retry events counted between fold commit and the attributed message. */
+  readonly retryCount: number;
+  /** The attributed assistant/message was an interrupted prefix (§Q4.3 noise 7). */
+  readonly interrupted?: true;
+}
+/** Three-state accounting grade of a usage record (§Q7.2). */
+type UsageRecordState = 'measured' | 'semi' | 'estimated';
+/**
+ * One request's three-state usage ledger entry (RES-observe-route a.1 row 1:
+ * UsageSample + inputTokens/outputTokens/totalTokens/state/attribution).
+ * `state: 'semi'` is reserved for the V3 interpolation/meter-anchor paths;
+ * the V1 store emits only 'measured' (usage object present) and 'estimated'
+ * (absent). `attribution` stays undefined until the V3 attribution engine
+ * fills it.
+ */
+interface UsageRecord extends UsageSample {
+  /** Un-cached input tokens (official TokenUsage disjoint accounting, llm/src/types.ts:167-173). */
+  readonly inputTokens?: number;
+  /** Output tokens. */
+  readonly outputTokens?: number;
+  /** Total tokens, when the provider reported one. */
+  readonly totalTokens?: number;
+  /** The three-state grade of this record. */
+  readonly state: UsageRecordState;
+  /** Fold attribution, when the V3 engine bound this sample to a fold. */
+  readonly attribution?: FoldUsageAttribution;
+}
+/** Three-state sample counts (§Q7.2 grades). */
+interface ThreeStateCounts {
+  readonly measured: number;
+  readonly semi: number;
+  readonly estimated: number;
+}
+/** One fold's row of the repay table (§Q7.3 回本表). */
+interface BreakevenTableRow {
+  /** The attributed fold. */
+  readonly foldId: string;
+  /** Turns until the fold pays off (breakeven model output). */
+  readonly breakevenTurns: number;
+  /** Attribution quality of the row's best sample. */
+  readonly quality: 'strong' | 'retry' | 'weak';
+}
+/** The reset-ledger digest row: one kind with its entry count. */
+interface ResetSummaryRow {
+  readonly kind: ResetEventKind;
+  readonly count: number;
+}
+/**
+ * Aggregated observability view consumed by zctx_status (RES-observe-route
+ * a.1 row 6: threeState 计数 / 纯净样本占比 / 回本表 / 重置台账摘要).
+ * Built by the V3 aggregation; the V1 store freezes the shape only.
+ */
+interface ObservabilitySnapshot {
+  /** Sample counts per three-state grade. */
+  readonly threeState: ThreeStateCounts;
+  /** Clean-sample ratio in [0,1] (§Q4.3 noise剔除后纯净占比; honest-degradation threshold input). */
+  readonly cleanSampleRatio: number;
+  /** One row per attributed fold (repay table). */
+  readonly breakevenTable: readonly BreakevenTableRow[];
+  /** Reset ledger digest, one row per observed kind (order: first-seen). */
+  readonly resetSummary: readonly ResetSummaryRow[];
+}
+/**
  * Estimate the token cost of a text with the CCM L0 chars/3 estimator. It is
  * a conservative ceiling only within the estimator's calibrated ASCII-dense
  * domain; it is NOT a universal wire bound — scripts denser than ASCII (e.g.
@@ -508,17 +709,6 @@ interface FoldLedgerEntry extends FoldRecord {
   /** For absorbed/dead entries: the producing source kind that shadowed the checkpoint. */
   readonly shadowedByKind?: string;
 }
-/** One provider usage sample taken from an assistant/message event (S6). */
-interface UsageSample {
-  /** Seq of the assistant/message event. */
-  readonly seq: number;
-  /** True when the event carried a usable usage object. */
-  readonly measured: boolean;
-  /** Optional provider cache-read tokens. */
-  readonly cacheReadTokens?: number;
-  /** Optional provider cache-write tokens. */
-  readonly cacheWriteTokens?: number;
-}
 /** Aggregate usage state of the session (S6; consumed by zctx_status). */
 interface UsageSnapshot {
   /** Samples kept in the bounded ledger. */
@@ -553,9 +743,14 @@ declare class FoldStore {
   private session;
   private readonly eventsBySeq;
   private readonly ledger;
-  private readonly usageSamples;
+  /** Bounded usage-record ledger (V1 UsageRecord; oldest dropped at cap). */
+  private readonly usageLedger;
   private measuredSamples;
   private unmeasuredSamples;
+  /** Append-only request/header chain (oldest first). */
+  private readonly routeHeaders;
+  /** Append-only cache-reset ledger (oldest first). */
+  private readonly resetLog;
   private readonly anomaliesLog;
   private compactionStartSeq;
   private endSeedSeq;
@@ -598,6 +793,14 @@ declare class FoldStore {
   unreadableSurfaceSeqs(): number[];
   /** Aggregate usage state (S6). */
   usageSnapshot(): UsageSnapshot;
+  /** The request/header chain, oldest first (V1 observability). */
+  routeHeaderChain(): readonly RouteHeader[];
+  /** The most recent cached header, when any (the compare base for 'change'). */
+  lastRouteHeader(): RouteHeader | undefined;
+  /** The cache-reset ledger, oldest first (V1 observability). */
+  resetEvents(): readonly ResetEvent[];
+  /** The bounded usage-record ledger, oldest first (V1 observability). */
+  usageRecords(): readonly UsageRecord[];
   /** True while a `compaction/start` bracket is durably open (mutex). */
   compactionActive(): boolean;
   /** Record one anomaly in the bounded ledger (honest, never throws). */
@@ -608,10 +811,32 @@ declare class FoldStore {
   private scanUpTo;
   /**
    * Apply one event to every derived view (scan and incremental paths share
-   * this single transition, so attach and live feeds stay consistent).
+   * this single transition, so attach scans, live feeds, and resync gaps
+   * stay consistent by construction).
    * @internal
    */
   private applyEvent;
+  /**
+   * Consume one request/header event: cache the RouteHeader, then classify
+   * resets — `reason:'resume'` is the sessionRecovery half-class signal
+   * (RES-observe-route §Q6: restart/fork-seed boundary); `reason:'change'`
+   * field-compares against the previous header (a.2 item 1). @internal
+   */
+  private applyRequestHeader;
+  /**
+   * Classify ONE replace event into the reset ledger (card: surfaceOp
+   * replace → microPrune / unknown-replace / mergeRewrite / systemSectionChange).
+   * Order: our own checkpoints first (merge-rewrite regardless of any open
+   * compaction bracket), then replaces inside an open official compaction
+   * bracket are skipped (the compaction start already recorded the reset —
+   * card qualifier 非 compaction 括号内), then system/message rewrites, then
+   * the single-tool-result pruner shape, then the unknown-replace catch-all
+   * (surfaceOp carries no producer identity, RES-observe-route §Q6 unresolved ①).
+   * @internal
+   */
+  private classifyReplaceReset;
+  /** Append one reset ledger entry (evidence text is caller-owned). @internal */
+  private recordReset;
   /** Demote active folds whose checkpoint is shadowed by this replace. @internal */
   private shadowActiveCheckpoints;
   /** Local surface replay from the retained log (fallback when no live surface). @internal */
@@ -983,5 +1208,5 @@ declare function buildZctxCommand(runtime: ZctxToolRuntime): ZctxCommandDefiniti
  */
 /** Plugin identity exported for loader probes. */
 declare const name = "dsh-zcontext";
-export { CCM_MIN_CONTEXT_WINDOW, type CcmWindowGate, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type HostContextLike, type LlmRuntimeLike, type LoggerLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ParamSpec, type StoreAnomaly, type TokenMeterLike, type UsageSample, type UsageSnapshot, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, buildGuidanceSection, buildZctxCommand, buildZctxTools, ccmWindowGate, computeBreakevenReport, computeBudget, configDefaults, configSchema, crossedThresholds, estimateTokens, fold, foldableRanges, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, resolveDefineTool, unfold, validateFold };
+export { type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CcmWindowGate, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, type ParamSpec, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type RouteHeader, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordState, type UsageSample, type UsageSnapshot, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, buildGuidanceSection, buildZctxCommand, buildZctxTools, ccmWindowGate, computeBreakevenReport, computeBudget, configDefaults, configSchema, crossedThresholds, estimateTokens, fold, foldableRanges, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, resolveDefineTool, unfold, validateFold };
 //# sourceMappingURL=index.d.ts.map

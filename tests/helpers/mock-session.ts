@@ -50,6 +50,21 @@ export interface MockSurfaceOpts {
   readonly sourceEventSeqs?: readonly number[]
 }
 
+/**
+ * Surface event types (official session/src/types.ts:439-444). Official
+ * discipline: "Non-surface events (boundary markers, attempts, errors) never
+ * carry surface metadata" (session/src/types.ts:486-490) — the mock mirrors
+ * that by keeping non-surface appends (request/header, compaction/*,
+ * session/end-seed, …) OUT of the surface node list.
+ */
+const SURFACE_EVENT_TYPES: ReadonlySet<string> = new Set([
+  'system/message',
+  'developer/message',
+  'user/message',
+  'assistant/message',
+  'tool/result',
+])
+
 export class MockSession {
   readonly log: MockEvent[] = []
   readonly nodes: number[] = []
@@ -151,7 +166,9 @@ export class MockSession {
     this.log.push(event)
 
     if (op === undefined || op === 'append') {
-      this.nodes.push(seq)
+      // Only surface events land on the surface (official discipline,
+      // session/src/types.ts:486-490; see SURFACE_EVENT_TYPES above).
+      if (SURFACE_EVENT_TYPES.has(type)) this.nodes.push(seq)
     } else {
       const startIdx = this.nodes.indexOf(op.startSeq)
       const endIdx = this.nodes.indexOf(op.endSeq)
