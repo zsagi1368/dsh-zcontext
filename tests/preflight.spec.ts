@@ -17,6 +17,8 @@
  * error.ts:25 (CONTEXT_WINDOW_EXCEEDED_CODE spelling).
  */
 
+import { existsSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
 import { computeBudget } from '../src/budget.ts'
@@ -607,20 +609,23 @@ describe('store calibration port + estimator error statistics (zctx_status segme
       time: 1,
       ...overrides,
     })
-    // estimate 110 vs billed 120 → error −8.33%; estimate 121 vs 110 → +10%;
-    // the fallback-labeled row is comparable too (110 vs 120 → −8.33%).
+    // estimate 110 vs billed 120 → error −8.33%; estimate 121 vs 110 → +10%.
+    // V4-1 closure: the local-fallback row is EXCLUDED from the math (its
+    // estimate measures a non-official projection, not the wire surface) and
+    // counted in the basis line instead of being mixed into the distribution.
     const stats = preflightCalibrationStats([
       mk({}),
       mk({ estimate: 121, usage: { inputTokens: 110, outputTokens: 1 } }),
       mk({ outcome: 'no-usage', usage: undefined }), // settled without a usable usage chunk
       mk({ outcome: 'short-circuited', hit: true }), // counted, not comparable
-      mk({ projector: 'local-fallback' }), // comparable AND a basis marker
+      mk({ projector: 'local-fallback' }), // excluded as uncalibrated; basis marker
     ])
-    expect(stats.comparable).toBe(3)
+    expect(stats.comparable).toBe(2)
     expect(stats.shortCircuits).toBe(1)
-    expect(stats.meanErrorPct).toBeCloseTo((-100 / 12 + 10 - 100 / 12) / 3, 5)
+    expect(stats.meanErrorPct).toBeCloseTo((-100 / 12 + 10) / 2, 5)
     expect(stats.worstErrorPct).toBeCloseTo(10, 5) // |+10| > |−8.33|
     expect(stats.basis).toContain('local-fallback')
+    expect(stats.basis).toContain('excluded 1')
   })
 
   it('zctx_status renders the preflight segment: mode, stats, and honest empty shapes', async () => {
@@ -671,3 +676,67 @@ describe('store calibration port + estimator error statistics (zctx_status segme
     expect(enforce).toContain('mode enforce')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Official projector path (V4-2 closure — R4: the official-projector estimate
+// path previously had no execution pin; this describe re-runs the listener
+// through the OFFICIAL projection exports with the observe.spec official-path
+// convention: host build on disk, honest skip when absent).
+// ---------------------------------------------------------------------------
+
+describe('preflight listener: official projector path (host build on disk)', () => {
+  it('calibration record carries projector=official and an estimate over the OFFICIAL file projection', async () => {
+    const hostLib = 'G:/000Github/zDSH/zDSH-main/packages/llm/llm/lib/index.js'
+    if (!existsSyncAny(hostLib)) {
+      delete process.env.ZCTX_DSH_LLM
+      resetHostProjectorCacheForTest()
+      return // honest skip: no host build on this machine (probe convention)
+    }
+    process.env.ZCTX_DSH_LLM = pathToFileURLAny(hostLib)
+    resetHostProjectorCacheForTest()
+    const host = (await import(pathToFileURLAny(hostLib))) as {
+      markAgentLoopRequest: <T>(request: T) => T
+    }
+    const sink = new CalibrationSink()
+    const listener = new PreflightListener(makeDeps(sink, {
+      resolveModelInfo: async () => WINDOWED_MODEL_INFO,
+    }))
+    // A file block: the official projection and the fallback twin render
+    // DIFFERENT deterministic handle text for it, so the estimates diverge.
+    const fileOptions = host.markAgentLoopRequest(loopOptions({
+      messages: [{ role: 'user', content: [{ type: 'file', attachment: { attachmentId: 'att-1', name: 'a.sql', bytes: 64 } }] }],
+    }) as never)
+    const { consumed } = await runStream(listener, fileOptions, [FINISH_OK])
+    expect(consumed).toEqual([FINISH_OK])
+    expect(sink.records).toHaveLength(1)
+    const officialRecord = sink.records[0] as PreflightCalibrationRecord
+    expect(officialRecord.projector).toBe('official')
+    expect(officialRecord.estimate).toBeGreaterThan(0)
+
+    // Same request through the labeled fallback twins (env cleared): the
+    // estimate must differ — both paths honest, never silently fused.
+    delete process.env.ZCTX_DSH_LLM
+    resetHostProjectorCacheForTest()
+    const fallbackSink = new CalibrationSink()
+    const fallbackListener = new PreflightListener(makeDeps(fallbackSink, {
+      resolveModelInfo: async () => WINDOWED_MODEL_INFO,
+    }))
+    await runStream(fallbackListener, loopOptions({
+      messages: [{ role: 'user', content: [{ type: 'file', attachment: { attachmentId: 'att-1', name: 'a.sql', bytes: 64 } }] }],
+    }), [FINISH_OK])
+    expect(fallbackSink.records[0]?.projector).toBe('local-fallback')
+    expect(fallbackSink.records[0]?.estimate).not.toBe(officialRecord.estimate)
+  }, 20000)
+})
+
+/** Local fs/url helpers (spec-local; mirrors the observe.spec convention). */
+function existsSyncAny(pathname: string): boolean {
+  try {
+    return existsSync(pathname)
+  } catch {
+    return false
+  }
+}
+function pathToFileURLAny(pathname: string): string {
+  return pathToFileURL(pathname).href
+}

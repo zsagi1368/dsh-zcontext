@@ -1,64 +1,19 @@
 {
-  "task": "ZCTX-V4",
-  "updatedAt": "2026-11-13T20:00:00+08:00",
-  "baseCommit": "62d6889 (V3 governance terminal)",
+  "task": "ZCTX-V5",
+  "updatedAt": "2026-11-13T21:30:00+08:00",
+  "baseCommit": "2952692 (R4 joint-review terminal, V3=99/V4=98)",
   "steps": [
     {
-      "id": "v4s0",
-      "name": "design freeze (no code yet): ledger check done (Z15 tsc-first / heredoc-truncation redline carried, heredoc encoding failure on CJK content re-verified in-process and avoided via Write tool; no other registry hits for this domain); official protocol read DIRECTLY from source (llm/src/types.ts:41-62 LlmFailure fields, :156-163 FinishReasonMap error={kind,failure}, :452-464 StreamChunk 7-shape + 'usage before terminal finish and nothing afterward' doc, error.ts:25 CONTEXT_WINDOW_EXCEEDED_CODE, llm/src/index.ts:66-80 waterfall short-circuit doc 'yield your own chunks to short-circuit', compaction-basic/src/index.ts:190-236 overflow recovery consumes failure.code -> compactIfNeeded -> retry); DECISIONS: (1) preflight = SEPARATE listener in preflight.ts (observe.ts module contract pins 'never short-circuits' as the V2 listener's hard identity; card names preflight.ts as its own product), registered FIRST (outermost; cordis waterfall = outermost-first, vendor/cordis/src/events.ts:221-236) so an enforce short-circuit suppresses the whole downstream chain; (2) criteria reuse: matchesMainChain (criteria 1-3, pure) factored out of observe.prepare and exported; criterion 4 (exemption window) deliberately NOT applied to preflight — every main-chain request gets an overflow judgment (a post-reset request must still be judged; the exemption exists for SNAPSHOT semantics only, documented); (3) margin contract: hit iff estimate > triggerLine x marginRatio (card product-1 normative JSDoc wording; product-2's '+R_pess > W x margin' phrasing differs by 0.1xR_pess — resolved toward product-1 + F6.4 false-positive-cost bias (fewer false positives = higher threshold); flagged in handoff + closure V4-E); (4) R_pess/maxOutput from options.maxTokens ?? modelInfo.defaultMaxTokens ?? 32768; window from resolveModelInfo context.contextWindow; degenerate computeBudget window -> fail-soft hit=undefined (release, F6.4 degrade-to-observe); (5) images: official gating (project away only for KNOWN image-less models, mirroring observe.normalizeForHash) — projected-away images cost placeholder chars/3, KEPT images cost adapter imageRequestPricing (visualTokens + estimateTokens(text)) when injectable, else PER_IMAGE_FALLBACK_TOKENS=2048 constant reserve + honest label (calibration pending); (6) calibration record absorbed ONCE at stream settle (enforce hit absorbs immediately with outcome short-circuited); stats = estimate vs billedInputTokens over the DISJOINT input side; (7) config flat primitive keys per card (plan section-3 structured-settings relaxation applies to V5 providers, card overrides for V4); (8) V2-A warn-once lands in observe.handleStream catch with its own flag + test",
+      "id": "v5s0",
+      "name": "R4 three closures (card 顺手闭合): V3-1 store.resetBetween cap-guard (>=RESET_LEDGER_CAP returns true = stop-walk-unknown, evictions make 'no reset' unprovable) + JSDoc; V4-1 preflightCalibrationStats EXCLUDES local-fallback rows from the error math (fallbackRows counter; basis 'official only (excluded N uncalibrated local-fallback row(s))' — chosen disposition: exclusion, matching the stats' enforce-calibration purpose) + preflight.spec stats pin updated (comparable 2, mean (-100/12+10)/2); V4-2 preflight.spec NEW official-projector execution describe (host lib on disk, observe.spec SKIPPED convention, markAgentLoopRequest mark, projector=official pin + estimate>0 + SAME file-block request re-run on the fallback path asserts estimate DIVERGES — two-path never fused). Tests 333/333 (332 baseline +1), tsc --noEmit zero errors.",
       "status": "done",
       "artifacts": [
-        "tasks/ZCTX/checkpoint.json"
-      ]
-    },
-    {
-      "id": "v4s1",
-      "name": "config + types + observe factoring + store port (4b2b499): config preflightMode ('off'|'observe'|'enforce', default observe) + preflightMarginRatio (default 0.9, R2 JSDoc) as flat primitive keys with the field-spec table kept in satisfies-lockstep; types PreflightMode/PreflightImagePricing ('adapter'|'constant-reserve'|'not-exercised')/PreflightOutcome/PreflightCalibrationRecord; observe.ts factoring — matchesMainChain (criteria 1-3, MainChainRegistry minimal face) exported for reuse + V2-A closure (prepare catch warns once, stream unaffected); store S1 calibration receive port absorbPreflightCalibration + preflightCalibrations view (64-cap, cleared with the other receive ports)",
-      "status": "done",
-      "artifacts": [
-        "src/config.ts",
-        "src/types.ts",
-        "src/observe.ts",
-        "src/store.ts"
-      ]
-    },
-    {
-      "id": "v4s2",
-      "name": "preflight core + wiring + status segment (206e84d): preflight.ts (~600 lines incl. honest docstrings) — estimator (re-projection of PRE-projection messages through the shared HostProjector face with the injected official fileRequestText resolver, chars/3 over text/reasoning/raw-JSON blocks, official image gating mirror, adapter pricing vs constant reserve two-path, JSON-unrepresentable values count 0 — Z18 guard), judgeEstimate (hit iff estimate > triggerLine x margin; unresolvable window and degenerate computeBudget both release with hit undefined), resolveMarginRatio clamp (0,1] fallback 0.9 warn-once, PreflightListener (observe = record + pass-through with usage-chunk capture; enforce hit = exactly one terminal finish{kind:error,failure:{message,code:CONTEXT_WINDOW_EXCEEDED}} with next() never called; error/abort outcomes recorded and RETHROWN; estimator faults warn-once and release), deps narrow face carries no llm runtime (R3 structural); plugin wirePreflightFace (mode/capability gates, registered BEFORE observe = outermost, bound helper capture); tools.ts LlmRuntimeLike + fileRequestText/imageRequestPricing probes + ZctxToolRuntime.preflightMode + preflightCalibrationStats (comparable over billed input = input+cacheRead+cacheWrite) + renderStatus segment 5; index public surface",
-      "status": "done",
-      "artifacts": [
-        "src/preflight.ts",
-        "src/plugin.ts",
+        "src/store.ts",
         "src/tools.ts",
-        "src/texts.ts",
-        "src/index.ts"
-      ]
-    },
-    {
-      "id": "v4s3",
-      "name": "tests + lib rebuild (4023c7f): preflight.spec 27 cases (R2 config pin + validator roundtrip + official code spelling; estimator text/tools-JSON/adapter-pricing/constant-reserve/misaligned-pricing; judgeEstimate boundary estimate==threshold not a hit + degenerate release; margin clamp; observe hit-level never short-circuits + calibration completed; enforce hit = one chunk + innerStarted false + LlmFailure message+code only + record short-circuited; enforce no-hit pass-through; purpose one-shots never judged (recovery self-call guard); estimator fault warn-once release; no-usage + aborted-rethrow outcomes; fileRequestText two-path estimate difference; image-less gating kept-count=0; memoization; zero-mutation pin across observe+enforce; R3 deps key pin; main-chain parity; store 64-cap; stats over billed input + basis; zctx_status segment 5 three shapes) + observe.spec V2-A case + plugin.spec cordis-faithful dual-listener harness + preflightMode=off zero-listener pin + enforce opt-in wiring pin (outermost short-circuit suppresses the inner observe listener — no snapshot for the short-circuited request) + lib rebuilt tsdown 741.04 kB; plugin.spec regression fixed by composing BOTH listeners the way cordis does (the old harness fired only listener[0], which is now the preflight face)",
-      "status": "done",
-      "artifacts": [
-        "tests/preflight.spec.ts",
-        "tests/observe.spec.ts",
-        "tests/plugin.spec.ts",
-        "lib/index.js",
-        "lib/index.d.ts",
-        "lib/index.js.map"
-      ]
-    },
-    {
-      "id": "v4s4",
-      "name": "docs + governance terminal (d388d57 + this): CHANGELOG 0.2.0 draft with the observe-to-enforce migration conditions (no-go condition 4 discipline: calibrated error distribution, false-positive cost acceptance, short-circuit reconciliation); closure.json +V4-A..V4-F (46 items, 0 non-closed; V4-E = the margin-contract ambiguity resolution evidence, V4-F = the Z18 walkMessage guard); del/ backups 20261113-v4-preflight-prechange (11 pre-change files, SHA-256 vs 62d6889 blobs ALL-OK) + 20261113-v4-lessons-prechange (ZDSH-LESSONS/INDEX); RSI: Z18 into zDSH-LESSONS.md + INDEX capture row; final verification battery: tsc zero errors, vitest 332/332 (302 baseline + 30), build green 741.04 kB, probe-artifact 5/5, verify-activation-surface 8/8 exit 0, probe-host-imports 16/16 (U2 report restored to committed state per V3 precedent), git tree clean",
-      "status": "done",
-      "artifacts": [
-        "CHANGELOG.md",
-        "tasks/ZCTX/closures/closure.json",
-        "del/20261113-v4-preflight-prechange/RESTORE.md",
-        "G:/000Github/zDSH/ZDSH-LESSONS.md"
+        "tests/preflight.spec.ts"
       ]
     }
   ],
-  "next": "V4 reviewer joint scorecard (with V3) -> V5 S2 thin adapter wave",
-  "closure": "47 items (V4-G stale-artifact smoke-pin amendment): 6 new V4-A..V4-F fixed/verified (card products 1-3 + acceptance pins + V2-A handover closure + margin-contract ambiguity resolution + Z18 robustness guard); only OPEN=W5-A6-INSTALL (v0.1.0 post-merge user_approved_deferred legacy, not this wave); zero new OPEN"
+  "next": "v5s1 adapter skeleton + resolveModel (LlmAdapter optional import, fail-soft registration, A-ruling family=protocol union)",
+  "notes": "Ledger check FIRST ACTION done: INDEX hits Z15/Z18/Z19/heredoc-length/Z13/Z14/Z17/Z12 carried as check items. Anchor reads (R8): dsh-llm lib 68 exports incl. LlmAdapter/LlmError/isContextWindowExceededError/attributionHeaders; llm-pi-ai lib exports only PiAiAdapter/Config/apply/inject/name/recordKeyFor/supportedProtocols — toStreamChunks/mapUsage reachable via src/*.ts (node type-stripping probed OK), classifyPiAiError module-private (stream.ts:42) => self-replicate with honest label; pi-ai 1.0.2 dist types.d.ts pins onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144; api/anthropic-messages.js + api/openai-completions.js export stream/streamSimple directly (Models-collection skip, per coordinator note). COORDINATOR RULING (A): providers[].family = wire protocol name, values = official supportedProtocols union taken DYNAMICALLY from the host ('openai-completions'|'openai-responses'|'anthropic-messages'), route = zctx-<family>, zero mapping, unknown family construction-time fail-loud, displayName = 'zctx <family>'."
 }

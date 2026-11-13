@@ -487,7 +487,12 @@ export interface PreflightStats {
   readonly worstErrorPct: number
   /** Enforce short-circuits (no wire request, hence no comparison). */
   readonly shortCircuits: number
-  /** Projection honesty line: official only, or mixed with fallback estimates. */
+  /**
+   * Projection honesty line: the calibration math runs over OFFICIAL-projection
+   * rows only — local-fallback rows are excluded as uncalibrated (V4-1: their
+   * estimates come from non-official projection twins, so mixing them into the
+   * error distribution the enforce decision reads would corrupt the basis).
+   */
   readonly basis: string
 }
 
@@ -497,6 +502,11 @@ export interface PreflightStats {
  * DISJOINT-accounting input side (input + cacheRead + cacheWrite, §Q2.1) —
  * the estimate approximates the prompt, not the output. Pure function over
  * the store's calibration ledger; the renderer calls it at status time.
+ *
+ * V4-1 closure: records labeled `local-fallback` are EXCLUDED from the math
+ * (counted in the basis line) — the stats feed the enforce-mode calibration
+ * decision, and a fallback-twin estimate measures a different projection, not
+ * the official wire surface.
  */
 export function preflightCalibrationStats(
   records: readonly PreflightCalibrationRecord[],
@@ -505,9 +515,12 @@ export function preflightCalibrationStats(
   let errorSum = 0
   let worst = 0
   let shortCircuits = 0
-  let fallbackSeen = false
+  let fallbackRows = 0
   for (const record of records) {
-    if (record.projector === 'local-fallback') fallbackSeen = true
+    if (record.projector === 'local-fallback') {
+      fallbackRows += 1
+      continue
+    }
     if (record.outcome === 'short-circuited') {
       shortCircuits += 1
       continue
@@ -526,7 +539,9 @@ export function preflightCalibrationStats(
     meanErrorPct: comparable > 0 ? errorSum / comparable : 0,
     worstErrorPct: worst,
     shortCircuits,
-    basis: fallbackSeen ? 'official + local-fallback (fallback rows are not calibrated)' : 'official',
+    basis: fallbackRows > 0
+      ? `official only (excluded ${fallbackRows} uncalibrated local-fallback row(s))`
+      : 'official',
   }
 }
 

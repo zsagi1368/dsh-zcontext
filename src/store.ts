@@ -1271,8 +1271,15 @@ export class FoldStore {
     return finiteNumber(event.data.turn)
   }
 
-  /** True when a reset-ledger entry sits strictly between the two seqs. @internal */
+  /**
+   * True when a reset-ledger entry sits strictly between the two seqs — or
+   * when the ledger is at its cap (V3-1: `RESET_LEDGER_CAP` eviction via
+   * shift-and-push makes "no reset" unprovable, because an evicted entry may
+   * have sat between the seqs; the walk stops conservatively instead of
+   * upgrading across a possibly-evicted reset). @internal
+   */
   private resetBetween(from: number, to: number): boolean {
+    if (this.resetLog.length >= RESET_LEDGER_CAP) return true
     return this.resetLog.some((reset) => reset.seq > from && reset.seq < to)
   }
 
