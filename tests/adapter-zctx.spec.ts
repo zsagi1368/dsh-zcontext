@@ -382,6 +382,40 @@ describe('zctx adapter: stream pipeline (twins mapping over a fake pi-ai face)',
     expect(Object.keys((oneShot[0]?.options.headers as Record<string, string>) ?? {})).toContain('x-zctx-test')
   })
 
+  it('product 5 (F4.6): cacheRetention rides the stream options verbatim; cacheControlFormat materializes into the model compat', async () => {
+    const openaiResolved = resolveZctxProviders(
+      {
+        providers: [{
+          family: 'openai-completions',
+          baseURL: 'https://gateway.example/v1',
+          cacheRetention: 'long',
+          cacheControlFormat: 'anthropic',
+          models: [{ id: 'm1', contextWindow: 128000 }],
+        }],
+      },
+      ['openai-completions', 'openai-responses', 'anthropic-messages'],
+    ).providers
+    const capture: RecordedCall[] = []
+    const ZctxAdapter = createZctxAdapterClass(HOST.LlmAdapter as abstract new () => unknown)
+    const adapter = new ZctxAdapter({
+      host: HOST as unknown as ZctxAdapterDeps['host'],
+      piAi: fakePiAi([DONE_EVENT], capture) as unknown as ZctxAdapterDeps['piAi'],
+      mapping: buildMappingTwins(DEPS, () => false),
+      providers: openaiResolved,
+      logger: noopLogger,
+    })
+    await collect(adapter.stream({ provider: 'zctx-openai-completions', model: 'm1', messages: MESSAGES }))
+    expect(capture[0]?.options['cacheRetention']).toBe('long')
+    const model = capture[0]?.model as { compat?: { cacheControlFormat?: string } }
+    expect(model.compat).toEqual({ cacheControlFormat: 'anthropic' })
+    // No knobs → neither key appears (absent = pi-ai default applies).
+    const capture2: RecordedCall[] = []
+    const adapter2 = makeAdapter([DONE_EVENT], capture2)
+    await collect(adapter2.stream({ provider: MODEL_M1.provider, model: 'm1', messages: MESSAGES }))
+    expect('cacheRetention' in (capture2[0]?.options as object)).toBe(false)
+    expect('compat' in (capture2[0]?.model as object)).toBe(false)
+  })
+
   it('F2.3: an unsupported reasoning effort throws UNSUPPORTED_REASONING_EFFORT (runtime contract, adapter validates against the config levels)', async () => {
     const adapter = makeAdapter([DONE_EVENT], [])
     await expect(

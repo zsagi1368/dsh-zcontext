@@ -26,7 +26,7 @@
  * @module adapter/providers
  */
 
-/** One provider entry of the structured settings section (card product 8). */
+/** One provider entry of the structured settings section (card product 8 + 5). */
 export interface ZctxProviderConfig {
   /** The wire protocol family (A-ruling: member of the official protocol union). */
   readonly family: string
@@ -36,6 +36,21 @@ export interface ZctxProviderConfig {
   readonly apiKeyEnv?: string
   /** The declared models (at least one; card: 配置缺失模型 fail-loud). */
   readonly models: readonly ZctxProviderModelConfig[]
+  /**
+   * Prompt-cache retention knob (card product 5, F4.6): 'none' | 'short' |
+   * 'long', passed through to pi-ai StreamOptions.cacheRetention (pi-ai's
+   * resolveCacheRetention: explicit value > env > default 'short'). Absent =
+   * pi-ai's own default applies.
+   */
+  readonly cacheRetention?: 'none' | 'short' | 'long'
+  /**
+   * Cache-control marker format for OpenAI-compatible endpoints (card
+   * product 5, F4.6: only ONE legal value, 'anthropic' — the official GATE
+   * catalog.ts:146-151 union). ONLY meaningful on the openai-completions
+   * family; on any other family it is a construction violation (dead config
+   * is dishonest config).
+   */
+  readonly cacheControlFormat?: 'anthropic'
 }
 
 /** One model entry of a provider (card product 8 fields). */
@@ -61,6 +76,10 @@ export interface ResolvedZctxProvider {
   readonly baseURL?: string
   readonly apiKeyEnv?: string
   readonly models: readonly ResolvedZctxModel[]
+  /** Cache retention passthrough (F4.6); absent = pi-ai default applies. */
+  readonly cacheRetention?: 'none' | 'short' | 'long'
+  /** Cache-control marker format (F4.6); present only on openai-completions. */
+  readonly cacheControlFormat?: 'anthropic'
 }
 
 /** One resolved, validated model descriptor. */
@@ -188,6 +207,29 @@ export function resolveZctxProviders(
     if (provider.apiKeyEnv !== undefined && (typeof provider.apiKeyEnv !== 'string' || provider.apiKeyEnv === '')) {
       violations.push(`${label}: apiKeyEnv must be a non-empty environment variable NAME when present`)
     }
+    // Cache knobs (card product 5, F4.6): cacheRetention joins the pi-ai
+    // StreamOptions passthrough; cacheControlFormat has exactly ONE legal
+    // value (official GATE union) and is ONLY meaningful on the
+    // openai-completions family — anywhere else it would be dead config,
+    // which the construction gate refuses instead of carrying silently.
+    let cacheRetention: 'none' | 'short' | 'long' | undefined
+    if (provider.cacheRetention !== undefined) {
+      if (provider.cacheRetention === 'none' || provider.cacheRetention === 'short' || provider.cacheRetention === 'long') {
+        cacheRetention = provider.cacheRetention
+      } else {
+        violations.push(`${label}: cacheRetention "${String(provider.cacheRetention)}" is not one of 'none' | 'short' | 'long'`)
+      }
+    }
+    let cacheControlFormat: 'anthropic' | undefined
+    if (provider.cacheControlFormat !== undefined) {
+      if (provider.cacheControlFormat !== 'anthropic') {
+        violations.push(`${label}: cacheControlFormat "${String(provider.cacheControlFormat)}" is not 'anthropic' (the only legal value, official GATE union)`)
+      } else if (family !== 'openai-completions') {
+        violations.push(`${label}: cacheControlFormat is only meaningful on the openai-completions family (family "${family}" would carry dead config)`)
+      } else {
+        cacheControlFormat = 'anthropic'
+      }
+    }
     providers.push({
       route: zctxRouteOf(family),
       family,
@@ -196,6 +238,8 @@ export function resolveZctxProviders(
       ...(baseURL !== undefined ? { baseURL } : {}),
       ...(provider.apiKeyEnv !== undefined ? { apiKeyEnv: provider.apiKeyEnv } : {}),
       models,
+      ...(cacheRetention !== undefined ? { cacheRetention } : {}),
+      ...(cacheControlFormat !== undefined ? { cacheControlFormat } : {}),
     })
   })
   return { providers, violations }

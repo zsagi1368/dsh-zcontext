@@ -293,6 +293,8 @@ function buildConfigSchemaWith(z: SchemasteryStatic): ConfigSchemaLike {
         baseURL: z.string(),
         apiKeyEnv: z.string(),
         models: z.array(modelNode),
+        cacheRetention: z.string(),
+        cacheControlFormat: z.string(),
       })
       node = z.array(providerNode)
     } else {

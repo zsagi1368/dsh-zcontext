@@ -200,6 +200,10 @@ function materializePiModel(
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens ?? 32768,
     ...(thinkingLevelMap !== undefined ? { thinkingLevelMap } : {}),
+    // F4.6 compat knob (card product 5): the anthropic-style cache_control
+    // marker format for OpenAI-compatible endpoints — present only on the
+    // openai-completions family (the construction gate refuses it elsewhere).
+    ...(spec.cacheControlFormat !== undefined ? { compat: { cacheControlFormat: spec.cacheControlFormat } } : {}),
   }
 }
 
@@ -343,7 +347,13 @@ export function createZctxAdapterClass(Base: abstract new () => unknown): new (d
 
       // Product 6 (S2 text-only, honest boundary): any image block fails the
       // request BEFORE conversion — no attachment service exists to resolve
-      // image bytes through.
+      // image bytes through. The F5.7 three-knob image budget
+      // (maxRequestImageBytes/requestImagePixelBudget/requestImageMaxBytes)
+      // is therefore NOT accepted in the config: knobs with no consumer
+      // would be dead config, and the honest S2 surface is the refusal
+      // (UNSUPPORTED_CONTENT) — IMAGE_OFFLOAD_REQUIRED's offload-retry loop
+      // has nothing to offload on a text-only route. IMAGE_OFFLOAD_REQUIRED
+      // can never fire here by construction.
       if (options.messages.some((message) => {
         if (typeof message !== 'object' || message === null) return false
         return host.contentHasImage((message as { content?: unknown }).content)
@@ -422,6 +432,11 @@ export function createZctxAdapterClass(Base: abstract new () => unknown): new (d
         const events = api.streamSimple(piModel, context, {
           ...(apiKey === undefined ? {} : { apiKey }),
           ...(reasoning === undefined ? {} : { reasoning }),
+          // F4.6 cache knob (card product 5): the settings value passes
+          // through verbatim — pi-ai's resolveCacheRetention owns the
+          // precedence (explicit > env > default 'short'); 'none' disables
+          // the cache_control markers downstream.
+          ...(spec.cacheRetention === undefined ? {} : { cacheRetention: spec.cacheRetention }),
           ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
           ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
           ...(sessionId === undefined ? {} : { sessionId }),

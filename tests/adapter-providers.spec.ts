@@ -188,6 +188,36 @@ describe('adapter providers: resolution + construction fail-loud (A-ruling)', ()
       SUPPORTED,
     )).toThrowError(/2 violation\(s\)[\s\S]*family "nope" is not a supported[\s\S]*declares no models/)
   })
+
+  it('cache knobs (product 5, F4.6): retention passthrough; format only anthropic and ONLY on openai-completions', () => {
+    const ok = resolveZctxProviders(
+      section([provider({ family: 'openai-completions', cacheRetention: 'long', cacheControlFormat: 'anthropic' })]),
+      SUPPORTED,
+    )
+    expect(ok.violations).toEqual([])
+    expect(ok.providers[0]).toMatchObject({ cacheRetention: 'long', cacheControlFormat: 'anthropic' })
+
+    // 'none' is a legal retention value (disables the markers downstream).
+    const none = resolveZctxProviders(
+      section([provider({ cacheRetention: 'none' })]),
+      SUPPORTED,
+    )
+    expect(none.violations).toEqual([])
+    expect(none.providers[0]?.cacheRetention).toBe('none')
+
+    const bad = resolveZctxProviders(
+      section([
+        provider({ cacheRetention: 'infinite' }),
+        provider({ family: 'openai-completions', cacheControlFormat: 'openai' }),
+        provider({ family: 'openai-responses', cacheControlFormat: 'anthropic' }), // non-completions family → dead config
+      ]),
+      SUPPORTED,
+    )
+    expect(bad.violations).toHaveLength(3)
+    expect(bad.violations[0]).toContain("'none' | 'short' | 'long'")
+    expect(bad.violations[1]).toContain("is not 'anthropic'")
+    expect(bad.violations[2]).toContain('only meaningful on the openai-completions family')
+  })
 })
 
 // ---------------------------------------------------------------------------

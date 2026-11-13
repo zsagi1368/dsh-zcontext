@@ -1,6 +1,6 @@
 {
   "task": "ZCTX-V5",
-  "updatedAt": "2026-11-13T22:15:00+08:00",
+  "updatedAt": "2026-11-13T22:25:00+08:00",
   "baseCommit": "2952692 (R4 joint-review terminal, V3=99/V4=98)",
   "steps": [
     {
@@ -55,8 +55,20 @@
         "tests/adapter-wire.spec.ts",
         "tests/adapter-zctx.spec.ts"
       ]
+    },
+    {
+      "id": "v5s4",
+      "name": "cache knobs + image honest boundary (products 5/6, F4.6/F5.7): providers.ts config gains cacheRetention (none|short|long — construction-validated union violation otherwise) + cacheControlFormat (ONLY anthropic per the official GATE union catalog.ts:146-151, ONLY on the openai-completions family — anywhere else = dead config = construction violation, carried honestly instead); ResolvedZctxProvider carries both; zctx-adapter materializePiModel adds compat {cacheControlFormat} and streamSimple options add cacheRetention verbatim (pi-ai resolveCacheRetention owns precedence; none disables markers); IMAGE BUDGET: the three F5.7 knobs (maxRequestImageBytes/requestImagePixelBudget/requestImageMaxBytes) deliberately NOT in the config — a text-only route refuses images with UNSUPPORTED_CONTENT before conversion (v5s2 pin), so knobs with no consumer would be dead config; IMAGE_OFFLOAD_REQUIRED unreachable by construction (JSDoc honest boundary); transport knob deliberately never passed (R6: HTTP(SSE) only). config.ts schemastery node gains the two fields. Tests +2 (417/417: providers knob validation matrix; adapter passthrough pins — options.cacheRetention + model.compat on knobbed config, absent keys on plain config). tsc zero.",
+      "status": "done",
+      "artifacts": [
+        "src/adapter/providers.ts",
+        "src/adapter/zctx-adapter.ts",
+        "src/config.ts",
+        "tests/adapter-providers.spec.ts",
+        "tests/adapter-zctx.spec.ts"
+      ]
     }
   ],
-  "next": "v5s4 cache knobs (cacheRetention passthrough F4.6) + image budget honest boundary (product 5/6)",
+  "next": "v5s5 minimal directory (registerConfigurableProviders visibility-only, U1 SKIP honest notes) + index surface + README",
   "notes": "Ledger check FIRST ACTION done: INDEX hits Z15/Z18/Z19/heredoc-length/Z13/Z14/Z17/Z12 carried as check items. Anchor reads (R8): dsh-llm lib 68 exports incl. LlmAdapter/LlmError/isContextWindowExceededError/attributionHeaders; llm-pi-ai lib exports only PiAiAdapter/Config/apply/inject/name/recordKeyFor/supportedProtocols — toStreamChunks/mapUsage reachable via src/*.ts (node type-stripping probed OK), classifyPiAiError module-private (stream.ts:42) => self-replicate with honest label; pi-ai 1.0.2 dist types.d.ts pins onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144; api/anthropic-messages.js + api/openai-completions.js export stream/streamSimple directly (Models-collection skip, per coordinator note). COORDINATOR RULING (A): providers[].family = wire protocol name, values = official supportedProtocols union taken DYNAMICALLY from the host ('openai-completions'|'openai-responses'|'anthropic-messages'), route = zctx-<family>, zero mapping, unknown family construction-time fail-loud, displayName = 'zctx <family>'."
 }
