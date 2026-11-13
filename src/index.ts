@@ -30,6 +30,17 @@ export type { ConfigSchemaLike, ZcontextConfig } from './config.ts'
 // W2 pure cores.
 // ---------------------------------------------------------------------------
 
+export {
+  billedInputTokens,
+  buildObservabilitySnapshot,
+  classifyFoldAttribution,
+  cleanSampleRatio,
+} from './attribution.ts'
+export type {
+  AttributionFoldEntry,
+  ClassifyAttributionInput,
+  SnapshotAggregationInput,
+} from './attribution.ts'
 export { computeBudget, computeBreakevenReport, estimateTokens } from './budget.ts'
 export { materializeRange } from './materialize.ts'
 export { recall } from './search.ts'
@@ -66,7 +77,9 @@ export type {
   SnapshotProjector,
   ThreeStateCounts,
   UsageRecord,
+  UsageRecordSemiKind,
   UsageRecordState,
+  MeterAnchorLike,
 } from './types.ts'
 export {
   CCM_MIN_CONTEXT_WINDOW,

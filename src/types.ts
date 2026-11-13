@@ -538,18 +538,38 @@ export interface FoldUsageAttribution {
   readonly retryCount: number
   /** The attributed assistant/message was an interrupted prefix (§Q4.3 noise 7). */
   readonly interrupted?: true
+  /**
+   * §Q4.2 rule 4 time-window fallback marker (V3): the seq chain between the
+   * fold commit and the attributed message was BROKEN (store resync gap —
+   * retained events do not cover the whole span), so the association degraded
+   * to `T_M − T_F ≤ attributionTimeWindowMs 且同 turn`. Such associations are
+   * honesty-capped at quality 'weak' (purity is unverifiable on a broken
+   * chain) and therefore never enter the fold account (总账 only).
+   */
+  readonly timeWindow?: true
 }
 
 /** Three-state accounting grade of a usage record (§Q7.2). */
 export type UsageRecordState = 'measured' | 'semi' | 'estimated'
 
 /**
+ * Which semi path graded a usage record (V3; RES-observe-route §Q7.2 rule 2).
+ * `interpolated` = usage absent but a same-turn later measured sample exists
+ * with no route/system-section reset in between → input-side fields carried
+ * over from that anchor sample. `meterAnchored` = usage absent but the
+ * official tokenMeter (injected through {@link MeterAnchorLike}) projected
+ * the request's input side → inputTokens carries that anchor; cache fields
+ * stay ABSENT (the meter cannot know provider cache state — 缺席不反推).
+ */
+export type UsageRecordSemiKind = 'interpolated' | 'meterAnchored'
+
+/**
  * One request's three-state usage ledger entry (RES-observe-route a.1 row 1:
  * UsageSample + inputTokens/outputTokens/totalTokens/state/attribution).
- * `state: 'semi'` is reserved for the V3 interpolation/meter-anchor paths;
+ * `state: 'semi'` is filled by the V3 paths ({@link UsageRecordSemiKind});
  * the V1 store emits only 'measured' (usage object present) and 'estimated'
- * (absent). `attribution` stays undefined until the V3 attribution engine
- * fills it.
+ * (absent — absence is never reverse-inferred into cache support, §Q2.3).
+ * `attribution` is filled by the V3 attribution engine.
  */
 export interface UsageRecord extends UsageSample {
   /** Un-cached input tokens (official TokenUsage disjoint accounting, llm/src/types.ts:167-173). */
@@ -560,6 +580,8 @@ export interface UsageRecord extends UsageSample {
   readonly totalTokens?: number
   /** The three-state grade of this record. */
   readonly state: UsageRecordState
+  /** Which semi path graded this record; present exactly when state is 'semi'. */
+  readonly semiKind?: UsageRecordSemiKind
   /** Fold attribution, when the V3 engine bound this sample to a fold. */
   readonly attribution?: FoldUsageAttribution
 }
@@ -579,6 +601,15 @@ export interface BreakevenTableRow {
   readonly breakevenTurns: number
   /** Attribution quality of the row's best sample. */
   readonly quality: 'strong' | 'retry' | 'weak'
+  /**
+   * V3 repay-event detection (§Q7.3, price-weighted domain): true when the
+   * session has run at least max(1, ⌈breakevenTurns⌉) assistant/messages after
+   * the fold commit — the first such message is the repay event. Absent from
+   * a row means the detection input was unavailable (treated as not repaid).
+   */
+  readonly repaid?: boolean
+  /** Seq of the repay-event assistant/message; present exactly when repaid is true. */
+  readonly repayEventSeq?: number
 }
 
 /** The reset-ledger digest row: one kind with its entry count. */
@@ -662,6 +693,14 @@ export interface PrefixBreakResetRef {
  * blind spot (honest domain boundary, RES-observe-route §Q5.2): pi-ai wire
  * rewrites (bit reordering, system folding, effort synthesis, breakpoint
  * shifts) are invisible at the object level — `domain: 'harness'` pins that.
+ *
+ * Deliberate narrowing (V2-B closure, R3 review; spec a.3 as written): break
+ * detection compares the MESSAGE-LIST hashes only — the snapshot's
+ * `systemHash`/`toolsHash` are collected for audit but do NOT participate;
+ * system-section and toolset changes are the reset ledger's territory
+ * (`system-section-change` / `toolset-change` / `sampling-change` classes +
+ * the exemption window), so V3 aggregation must not read this record as a
+ * statement about the system or tools segments.
  */
 export interface PrefixBreakRecord {
   /** Always 'harness' — object-level hashes cover the harness domain only. */
@@ -717,4 +756,23 @@ export interface CapturedAttemptUsage {
   readonly nonDurable: true
   /** Unix epoch ms of the capture. */
   readonly time: number
+}
+
+/**
+ * Injected meter-anchor interface for the V3 `meterAnchored` semi path
+ * (RES-observe-route §Q7.2 rule 2b: usage absent but the official tokenMeter
+ * is injectable → its surface projection anchors the request's input side;
+ * the card freezes that this path goes through INJECTION, never a host
+ * import inside the pure core). Implemented by the plugin over the official
+ * TokenMeasurement surface nodes (token-meter/src/types.ts:31-56).
+ */
+export interface MeterAnchorLike {
+  /**
+   * Input-side token anchor for the request that produced the message at
+   * `seq`: the summed token price of the surface nodes positioned before the
+   * message's own node, per the meter's route-priced projection. Undefined
+   * when the meter cannot see the message's node (surface moved on, meter
+   * unavailable) — the record then stays honestly 'estimated'.
+   */
+  inputAnchor(seq: number): number | undefined
 }
