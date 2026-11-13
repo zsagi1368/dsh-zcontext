@@ -43,7 +43,15 @@
  *   gaps stay consistent by construction. `attribution` stays undefined
  *   until the V3 attribution engine fills it; `state: 'semi'` is likewise
  *   reserved for V3 interpolation — the V1 store emits 'measured'/'estimated'
- *   only.
+ *   only. V2 adds: `reason: 'series'` headers are accounted as their own
+ *   `series-restart` reset (V1 handoff ruling ①), and the PROCESS-MEMORY
+ *   receive ports the V2 observe listener sinks into — request snapshots
+ *   (RequestSnapshot), the harness-domain prefix-break ledger
+ *   (PrefixBreakRecord), and the non-durable captured-attempt-usage ledger
+ *   (CapturedAttemptUsage). Those three ledgers are never written to the
+ *   session log (CARD-F a.1 进程内不入账); they are the zctx_status data
+ *   plane the V3 aggregation consumes (routeHeaderChain/resetEvents/
+ *   usageRecords expose the durable half of that plane).
  *
  * Zero host imports; the session is consumed through the structural
  * SessionLike contract only. Header field comparison is a local twin of the
@@ -54,9 +62,12 @@
 
 import { estimateTokens } from './budget.ts'
 import type {
+  CapturedAttemptUsage,
   FoldMap,
   FoldRecord,
   LlmCallConfigLike,
+  PrefixBreakRecord,
+  RequestSnapshot,
   ResetEvent,
   ResetEventKind,
   RouteHeader,
@@ -132,6 +143,15 @@ const USAGE_LEDGER_CAP = 64
 
 /** Bounded cap for the anomaly ledger (oldest entries are dropped). */
 const ANOMALY_LEDGER_CAP = 256
+
+/** Bounded cap for the in-process snapshot ledger (V2 receive port). */
+const SNAPSHOT_LEDGER_CAP = 64
+
+/** Bounded cap for the in-process prefix-break ledger (V2 receive port). */
+const BREAK_LEDGER_CAP = 64
+
+/** Bounded cap for the non-durable captured-attempt-usage ledger (V2 receive port). */
+const CAPTURE_LEDGER_CAP = 64
 
 /**
  * Pull the message object out of an event's data payload. Structural twin of
@@ -458,6 +478,12 @@ export class FoldStore {
   private readonly routeHeaders: RouteHeader[] = []
   /** Append-only cache-reset ledger (oldest first). */
   private readonly resetLog: ResetEvent[] = []
+  /** Bounded process-memory snapshot ledger (V2 receive port; never session-logged). */
+  private readonly snapshotLog: RequestSnapshot[] = []
+  /** Bounded process-memory prefix-break ledger (V2 receive port; never session-logged). */
+  private readonly breakLog: PrefixBreakRecord[] = []
+  /** Bounded non-durable captured-attempt-usage ledger (V2 receive port; never session-logged). */
+  private readonly captureLog: CapturedAttemptUsage[] = []
   private readonly anomaliesLog: StoreAnomaly[] = []
   private compactionStartSeq: number | undefined
   private endSeedSeq: number | undefined
@@ -486,6 +512,9 @@ export class FoldStore {
     this.unmeasuredSamples = 0
     this.routeHeaders.length = 0
     this.resetLog.length = 0
+    this.snapshotLog.length = 0
+    this.breakLog.length = 0
+    this.captureLog.length = 0
     this.anomaliesLog.length = 0
     this.compactionStartSeq = undefined
     this.endSeedSeq = undefined
@@ -604,6 +633,55 @@ export class FoldStore {
   /** The cache-reset ledger, oldest first (V1 observability). */
   resetEvents(): readonly ResetEvent[] {
     return [...this.resetLog]
+  }
+
+  // -- V2 process-memory receive ports (observe listener sinks; never
+  //    session-logged — CARD-F a.1 进程内不入账; zctx_status data plane the
+  //    V3 aggregation consumes). -------------------------------------------
+
+  /** The in-process snapshot ledger, oldest first (bounded; oldest dropped). */
+  requestSnapshots(): readonly RequestSnapshot[] {
+    return [...this.snapshotLog]
+  }
+
+  /** The most recent request snapshot, when any (the listener's comparison baseline). */
+  lastRequestSnapshot(): RequestSnapshot | undefined {
+    return this.snapshotLog[this.snapshotLog.length - 1]
+  }
+
+  /** The harness-domain prefix-break ledger, oldest first (bounded; oldest dropped). */
+  prefixBreakEvents(): readonly PrefixBreakRecord[] {
+    return [...this.breakLog]
+  }
+
+  /** The non-durable captured-attempt-usage ledger, oldest first (bounded; oldest dropped). */
+  capturedAttemptUsage(): readonly CapturedAttemptUsage[] {
+    return [...this.captureLog]
+  }
+
+  /**
+   * Snapshot sink: append one request snapshot to the process-memory ledger
+   * and, when the listener detected a prefix break against the previous
+   * snapshot, the classified break record next to it. The listener computes
+   * the break (the hash件 lives in observe.ts); the store only receives.
+   */
+  absorbRequestSnapshot(snapshot: RequestSnapshot, breakRecord?: PrefixBreakRecord): void {
+    if (this.snapshotLog.length >= SNAPSHOT_LEDGER_CAP) this.snapshotLog.shift()
+    this.snapshotLog.push(snapshot)
+    if (breakRecord !== undefined) {
+      if (this.breakLog.length >= BREAK_LEDGER_CAP) this.breakLog.shift()
+      this.breakLog.push(breakRecord)
+    }
+  }
+
+  /**
+   * Non-durable capture sink: append one failed attempt's observed usage
+   * (observe.attemptCapture face). The record dies with the process by
+   * design; the ledger is only bounded memory.
+   */
+  absorbCapturedAttemptUsage(record: CapturedAttemptUsage): void {
+    if (this.captureLog.length >= CAPTURE_LEDGER_CAP) this.captureLog.shift()
+    this.captureLog.push(record)
   }
 
   /** The bounded usage-record ledger, oldest first (V1 observability). */
@@ -735,6 +813,18 @@ export class FoldStore {
         'session-recovery',
         event.seq,
         "request/header reason='resume' (process restart / fork-seed boundary)",
+        event.time,
+      )
+    } else if (header.reason === 'series') {
+      // V1 handoff ruling ①: an unchanged header that began an explicitly
+      // distinct message series, or followed a surface replacement
+      // (session/src/types.ts:265-273) — the producer's self-admitted prefix
+      // discontinuity, accounted as its own reset kind. May coincide with a
+      // replace-driven entry (per-signal ledger, not per-physical-reset).
+      this.recordReset(
+        'series-restart',
+        event.seq,
+        "request/header reason='series' (producer self-admitted message-series discontinuity)",
         event.time,
       )
     } else if (header.reason === 'change' && this.lastRouteHeader() !== undefined) {

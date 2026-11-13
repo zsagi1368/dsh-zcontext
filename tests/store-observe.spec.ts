@@ -14,7 +14,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FoldStore } from '../src/store.ts'
-import type { SessionEventLike } from '../src/types.ts'
+import type { RequestSnapshot, SessionEventLike } from '../src/types.ts'
 import { MockSession, msg, seedConversation } from './helpers/mock-session.ts'
 
 /** A request/header payload (official shape). */
@@ -374,13 +374,16 @@ describe('FoldStore observability: per-kind ResetEvent identification', () => {
     expect(store.routeHeaderChain()).toHaveLength(2)
   })
 
-  it('initial and series headers record no reset', () => {
+  it('initial records no reset; series accounts its own series-restart (V2 handoff ruling 1)', () => {
     const session = new MockSession()
     session.append('request/header', headerPayload(CHAT_CONFIG, 'initial'))
     session.append('request/header', headerPayload(CHAT_CONFIG, 'series', { startsSeries: true }))
     const store = new FoldStore()
     store.attach(session)
-    expect(store.resetEvents()).toHaveLength(0)
+    // V1 pinned "series records no reset"; the V1 handoff ruling ① (frozen on
+    // the V2 card) superseded it: the producer's self-admitted series
+    // discontinuity is observable and accounted as its own kind.
+    expect(store.resetEvents().map((reset) => reset.kind)).toEqual(['series-restart'])
     expect(store.routeHeaderChain()).toHaveLength(2)
   })
 
@@ -485,5 +488,152 @@ describe('FoldStore observability: incremental feed, gap repair, and event time'
     const second = store.resetEvents()[1]
     expect(second?.time).toBeUndefined()
     expect('time' in (second as unknown as Record<string, unknown>)).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// V2 additions (task card V2 product 3): series→reset accounting and the
+// process-memory receive ports the observe listener sinks into.
+// ---------------------------------------------------------------------------
+
+describe('FoldStore V2: reason=series headers account as their own reset kind', () => {
+  it("records a series-restart reset for reason='series' (V1 handoff ruling 1)", () => {
+    const store = new FoldStore()
+    const session = new MockSession()
+    session.append('request/header', headerPayload(CHAT_CONFIG, 'initial'))
+    session.append('request/header', headerPayload(CHAT_CONFIG, 'series'))
+    store.attach(session)
+    expect(store.resetEvents().map((reset) => reset.kind)).toEqual(['series-restart'])
+    expect(store.resetEvents()[0]?.evidence).toContain("reason='series'")
+    expect(store.resetEvents()[0]?.evidence).toContain('self-admitted')
+    expect(store.resetEvents()[0]?.seq).toBe(1)
+  })
+
+  it("a change-driven header switch does NOT double-record a series-restart", () => {
+    const store = new FoldStore()
+    const session = new MockSession()
+    session.append('request/header', headerPayload(CHAT_CONFIG, 'initial'))
+    session.append('request/header', headerPayload({ ...CHAT_CONFIG, temperature: 0.2 }, 'change', { startsSeries: true }))
+    store.attach(session)
+    // The 'change' header carries startsSeries (official: "other reasons
+    // carry startsSeries when a new series coincides") — the change
+    // comparison already accounts for it; no series-restart entry is added.
+    expect(store.resetEvents().map((reset) => reset.kind)).toEqual(['sampling-change'])
+  })
+
+  it('survives attach-scan rebuild and live feed identically (single-transition pin)', () => {
+    const scanned = new FoldStore()
+    const sessionA = new MockSession()
+    sessionA.append('request/header', headerPayload(CHAT_CONFIG, 'initial'))
+    sessionA.append('request/header', headerPayload(CHAT_CONFIG, 'series'))
+    scanned.attach(sessionA)
+    const fed = new FoldStore()
+    const sessionB = new MockSession()
+    fed.attach(sessionB)
+    fed.onEvent(sessionB, sessionA.log[0] as SessionEventLike)
+    fed.onEvent(sessionB, sessionA.log[1] as SessionEventLike)
+    expect(scanned.resetEvents()).toEqual(fed.resetEvents())
+    expect(fed.resetEvents().map((reset) => reset.kind)).toEqual(['series-restart'])
+  })
+})
+
+describe('FoldStore V2: process-memory receive ports (snapshot / break / capture)', () => {
+  function snapshot(sessionId: string, attemptSeq: number, hashes: string[]): RequestSnapshot {
+    return {
+      sessionId,
+      attemptSeq,
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      perMessageHashes: hashes,
+      isLoop: true,
+      projector: 'local-fallback',
+      time: 1731400000000 + attemptSeq,
+    }
+  }
+
+  it('absorbRequestSnapshot appends snapshots and classified breaks; lastRequestSnapshot is the baseline', () => {
+    const store = new FoldStore()
+    const session = new MockSession()
+    store.attach(session)
+    expect(store.lastRequestSnapshot()).toBeUndefined()
+    store.absorbRequestSnapshot(snapshot('s', 1, ['a', 'b']))
+    store.absorbRequestSnapshot(snapshot('s', 2, ['a']), {
+      domain: 'harness',
+      sessionId: 's',
+      attemptSeq: 2,
+      prevAttemptSeq: 1,
+      mode: 'length-shrink',
+      classification: 'unknown-break',
+      time: 1731400000002,
+    })
+    expect(store.requestSnapshots().map((snap) => snap.attemptSeq)).toEqual([1, 2])
+    expect(store.lastRequestSnapshot()?.attemptSeq).toBe(2)
+    expect(store.prefixBreakEvents()).toHaveLength(1)
+    expect(store.prefixBreakEvents()[0]?.mode).toBe('length-shrink')
+    // Bounded: the oldest snapshot drops at the cap.
+    for (let seq = 3; seq <= 66; seq += 1) store.absorbRequestSnapshot(snapshot('s', seq, ['x']))
+    expect(store.requestSnapshots()).toHaveLength(64)
+    expect(store.requestSnapshots()[0]?.attemptSeq).toBe(3)
+  })
+
+  it('absorbCapturedAttemptUsage keeps the non-durable ledger bounded', () => {
+    const store = new FoldStore()
+    const session = new MockSession()
+    store.attach(session)
+    for (let i = 1; i <= 66; i += 1) {
+      store.absorbCapturedAttemptUsage({
+        sessionId: 's',
+        attemptSeq: i,
+        provider: 'deepseek',
+        model: 'm',
+        usage: { inputTokens: i },
+        outcome: 'error',
+        nonDurable: true,
+        time: 1731400000000 + i,
+      })
+    }
+    expect(store.capturedAttemptUsage()).toHaveLength(64)
+    expect(store.capturedAttemptUsage()[0]?.attemptSeq).toBe(3)
+    expect(store.capturedAttemptUsage()[0]?.nonDurable).toBe(true)
+  })
+
+  it('attach clears the process-memory ledgers (zero independent storage discipline)', () => {
+    const store = new FoldStore()
+    const sessionA = new MockSession()
+    store.attach(sessionA)
+    store.absorbRequestSnapshot(snapshot('s', 1, ['a']))
+    store.absorbCapturedAttemptUsage({
+      sessionId: 's',
+      attemptSeq: 1,
+      provider: 'p',
+      model: 'm',
+      usage: { inputTokens: 1 },
+      outcome: 'aborted',
+      nonDurable: true,
+      time: 1,
+    })
+    expect(store.requestSnapshots()).toHaveLength(1)
+    expect(store.capturedAttemptUsage()).toHaveLength(1)
+    const sessionB = new MockSession()
+    store.attach(sessionB)
+    expect(store.requestSnapshots()).toHaveLength(0)
+    expect(store.prefixBreakEvents()).toHaveLength(0)
+    expect(store.capturedAttemptUsage()).toHaveLength(0)
+  })
+
+  it('exposes the zctx_status data plane the V3 aggregation consumes', () => {
+    const store = new FoldStore()
+    const session = new MockSession()
+    session.append('request/header', headerPayload(CHAT_CONFIG, 'initial'))
+    store.attach(session)
+    // Durable half: header chain + reset ledger + usage records (V1 face).
+    expect(store.routeHeaderChain()).toHaveLength(1)
+    expect(store.resetEvents()).toEqual([])
+    expect(store.usageRecords()).toEqual([])
+    // Process-memory half: snapshot/break/capture ports (V2 face).
+    store.absorbRequestSnapshot(snapshot('s', 1, ['a']))
+    expect(store.requestSnapshots()).toHaveLength(1)
+    expect(store.prefixBreakEvents()).toHaveLength(0)
+    expect(store.capturedAttemptUsage()).toHaveLength(0)
   })
 })
