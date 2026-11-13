@@ -436,7 +436,11 @@ export class ZcontextPlugin extends ServiceBase {
       return
     }
     const registerAdapter = ctx.llm.registerAdapter.bind(ctx.llm)
+    const registerDirectory = typeof ctx.llm.registerConfigurableProviders === 'function'
+      ? ctx.llm.registerConfigurableProviders.bind(ctx.llm)
+      : undefined
     const logger = ctx.logger
+    const settingsNs = SERVICE_NAME
     this.adapterRegistration = (async () => {
       try {
         const faces = await loadAdapterFaces()
@@ -479,6 +483,40 @@ export class ZcontextPlugin extends ServiceBase {
           `dsh-zcontext: adapter face registered ${routes.join(', ')} (mapping: ${faces.mapping.source})`,
         )
         void registration
+
+        // Minimal directory (product 7; U1 SKIP → VISIBILITY-ONLY): the
+        // Models page mounts our namespace (the volatile providers section is
+        // the load-bearing anchor) and shows each route's row + credential
+        // badge + error field, but PAGE EDITING IS NOT AVAILABLE for a third-
+        // party settingsNs (ProviderEditor.layoutOf gates unknown layouts,
+        // U1 §3) — the configuration authority is the profile overlay patch
+        // (handwritten config), which the README documents. settingsPath is
+        // POSITIONAL into the providers array (config order = declaration
+        // order; the S2 config is static per boot, so the binding cannot
+        // drift mid-boot).
+        if (registerDirectory === undefined) {
+          logger?.warn?.('dsh-zcontext: llm runtime without registerConfigurableProviders — directory face skipped (adapter registration stands)')
+          return
+        }
+        try {
+          const entries = resolved.map((provider, index) => ({
+            provider: provider.route,
+            displayName: provider.displayName,
+            settingsNs,
+            settingsPath: ['providers', String(index)],
+            declared: true,
+          }))
+          const directory = registerDirectory(entries)
+          logger?.info?.(`dsh-zcontext: directory face registered ${entries.length} configurable provider(s) (visibility-only — page editing unavailable per the U1 probe; config authority: profile overlay patch)`)
+          void directory
+        } catch (error: unknown) {
+          // DUPLICATE_DIRECTORY / INVALID_DIRECTORY refusal (all-or-nothing,
+          // F1.6): the official precedent keeps the current directory and
+          // logs — the adapter registration above STANDS.
+          logger?.warn?.(
+            `dsh-zcontext: directory registration refused (${error instanceof Error ? error.message : String(error)}); the adapter registration stands`,
+          )
+        }
       } catch (error: unknown) {
         logger?.warn?.(
           `dsh-zcontext: adapter face registration failed (${error instanceof Error ? error.message : String(error)}); boot continues without it`,

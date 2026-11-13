@@ -418,6 +418,14 @@ export interface LlmRuntimeLike {
    * effect owns. Optional: absent → the adapter face is not registrable.
    */
   registerAdapter?(providers: readonly string[], adapter: unknown): unknown
+  /**
+   * Official `ctx.llm.registerConfigurableProviders` (llm/src/index.ts:494-547,
+   * F1.6), probed by the V5 adapter face for the MINIMAL directory (product
+   * 7): entries are the LlmConfigurableProvider shape; all-or-nothing
+   * (DUPLICATE_DIRECTORY on any collision). Optional: absent → the directory
+   * face is skipped with a warn while the adapter registration stands.
+   */
+  registerConfigurableProviders?(entries: readonly unknown[]): unknown
 }
 
 /**

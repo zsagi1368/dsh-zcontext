@@ -147,5 +147,36 @@ export type {
 export { buildZctxCommand } from './command.ts'
 export type { ZctxCommandDefinition, ZctxCommandResult } from './command.ts'
 
+// ---------------------------------------------------------------------------
+// V5 S2 adapter face (v0.2.0; thin adapter over the fail-soft host faces).
+// ---------------------------------------------------------------------------
+
+export { KNOWN_PROTOCOLS, loadAdapterFaces, loadSupportedProtocols } from './adapter/host.ts'
+export type {
+  AdapterFaces,
+  HostLlmFace,
+  MappingFace,
+  MappingSource,
+  PiAiApiStreams,
+  PiAiFace,
+} from './adapter/host.ts'
+export {
+  assertZctxProvidersResolvable,
+  resolveZctxProviders,
+  zctxDisplayNameOf,
+  zctxRouteOf,
+} from './adapter/providers.ts'
+export type {
+  ResolvedZctxModel,
+  ResolvedZctxProvider,
+  ZctxProviderConfig,
+  ZctxProviderModelConfig,
+  ZctxProvidersSection,
+} from './adapter/providers.ts'
+export { createZctxAdapterClass } from './adapter/zctx-adapter.ts'
+export type { ZctxAdapterDeps, ZctxAdapterFace } from './adapter/zctx-adapter.ts'
+export { buildWireFaces, requestHeaders } from './adapter/wire.ts'
+export type { WireFaces, WireRequestIdentity, WireSink } from './adapter/wire.ts'
+
 // Default export = the plugin class (loader contract).
 export { ZcontextPlugin as default } from './plugin.ts'

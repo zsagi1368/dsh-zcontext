@@ -1,6 +1,6 @@
 {
   "task": "ZCTX-V5",
-  "updatedAt": "2026-11-13T22:25:00+08:00",
+  "updatedAt": "2026-11-13T22:35:00+08:00",
   "baseCommit": "2952692 (R4 joint-review terminal, V3=99/V4=98)",
   "steps": [
     {
@@ -67,8 +67,19 @@
         "tests/adapter-providers.spec.ts",
         "tests/adapter-zctx.spec.ts"
       ]
+    },
+    {
+      "id": "v5s5",
+      "name": "minimal directory (product 7; U1 SKIP → VISIBILITY-ONLY): plugin wireAdapterFace gains the registerConfigurableProviders block after a successful adapter registration — entries = official LlmConfigurableProvider shape {provider: route, displayName, settingsNs: dsh-zcontext (the SERVICE_NAME settings namespace), settingsPath: [providers, String(index)] (positional into the providers array — config order = declaration order, S2 config static per boot so the binding cannot drift), declared: true}; HONEST NOTES in the info log: visibility-only (page editing unavailable for a third-party settingsNs — U1 §3 ProviderEditor.layoutOf gate), config authority = profile overlay patch (README documents); missing method → warn with the adapter registration STANDING (separate try/catch from the adapter registration — a directory refusal DUPLICATE_DIRECTORY/INVALID_DIRECTORY logs and keeps the adapter, official keep-current-directory precedent F1.6); tools.ts LlmRuntimeLike gains the optional face; index.ts public surface gains the V5 adapter exports (host faces/providers resolution/class factory/wire faces + types). Tests +2 (419/419: directory entries shape pin incl. U1 honesty log lines; missing-face warn + DUPLICATE_DIRECTORY refusal keeping the adapter). tsc zero.",
+      "status": "done",
+      "artifacts": [
+        "src/plugin.ts",
+        "src/tools.ts",
+        "src/index.ts",
+        "tests/adapter-plugin.spec.ts"
+      ]
     }
   ],
-  "next": "v5s5 minimal directory (registerConfigurableProviders visibility-only, U1 SKIP honest notes) + index surface + README",
+  "next": "v5s6 terminal: lib rebuild (build BEFORE test — Z19), verify-activation-surface/probe-artifact extension, smoke probe, README/CHANGELOG, closure ledger, final battery",
   "notes": "Ledger check FIRST ACTION done: INDEX hits Z15/Z18/Z19/heredoc-length/Z13/Z14/Z17/Z12 carried as check items. Anchor reads (R8): dsh-llm lib 68 exports incl. LlmAdapter/LlmError/isContextWindowExceededError/attributionHeaders; llm-pi-ai lib exports only PiAiAdapter/Config/apply/inject/name/recordKeyFor/supportedProtocols — toStreamChunks/mapUsage reachable via src/*.ts (node type-stripping probed OK), classifyPiAiError module-private (stream.ts:42) => self-replicate with honest label; pi-ai 1.0.2 dist types.d.ts pins onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144; api/anthropic-messages.js + api/openai-completions.js export stream/streamSimple directly (Models-collection skip, per coordinator note). COORDINATOR RULING (A): providers[].family = wire protocol name, values = official supportedProtocols union taken DYNAMICALLY from the host ('openai-completions'|'openai-responses'|'anthropic-messages'), route = zctx-<family>, zero mapping, unknown family construction-time fail-loud, displayName = 'zctx <family>'."
 }

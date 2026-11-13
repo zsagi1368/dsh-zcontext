@@ -181,4 +181,76 @@ describe('plugin: adapter face wiring (V5 S2)', () => {
     expect(ctx.registeredAdapters).toHaveLength(0)
     expect(ctx.logLines.some((line) => line.level === 'info' && line.message.includes('not reachable from this install'))).toBe(true)
   })
+
+  it('directory face (product 7): visibility-only entries with settingsNs/settingsPath/declared', async () => {
+    if (!hostOnDisk()) return // honest skip
+    resetFaces()
+    setHostEnv()
+    const directories: unknown[][] = []
+    const ctx = mockCtx({
+      llm: {
+        registerAdapter: (routes: readonly string[], adapter: unknown) => {
+          ctx.registeredAdapters.push({ routes, adapter })
+          return {}
+        },
+        registerConfigurableProviders: (entries: readonly unknown[]) => {
+          directories.push([...entries])
+          return {}
+        },
+        resolveModelInfo: async () => ({ context: { contextWindow: 200000 } }),
+      } as never,
+    })
+    const plugin = new ZcontextPlugin(ctx as unknown as HostContextLike, {
+      providers: VALID_PROVIDERS,
+    } as never)
+    await plugin.adapterRegistration
+    expect(directories).toHaveLength(1)
+    const entries = directories[0] as Record<string, unknown>[]
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toEqual({
+      provider: 'zctx-anthropic-messages',
+      displayName: 'zctx anthropic-messages',
+      settingsNs: 'dsh-zcontext',
+      settingsPath: ['providers', '0'],
+      declared: true,
+    })
+    // The U1 SKIP honesty lands in the info log: visibility-only, page
+    // editing unavailable, config authority = profile overlay patch.
+    expect(ctx.logLines.some((line) => line.message.includes('visibility-only'))).toBe(true)
+    expect(ctx.logLines.some((line) => line.message.includes('profile overlay patch'))).toBe(true)
+  }, 20000)
+
+  it('directory face missing → warn but the adapter registration STANDS; DUPLICATE_DIRECTORY refusal logs and keeps the adapter', async () => {
+    if (!hostOnDisk()) return // honest skip
+    resetFaces()
+    setHostEnv()
+    // No registerConfigurableProviders at all.
+    const ctx = mockCtx()
+    const plugin = new ZcontextPlugin(ctx as unknown as HostContextLike, {
+      providers: VALID_PROVIDERS,
+    } as never)
+    await plugin.adapterRegistration
+    expect(ctx.registeredAdapters).toHaveLength(1)
+    expect(ctx.logLines.some((line) => line.level === 'warn' && line.message.includes('directory face skipped'))).toBe(true)
+
+    // The runtime refuses the directory (all-or-nothing F1.6): log + adapter stands.
+    const ctx2 = mockCtx({
+      llm: {
+        registerAdapter: (routes: readonly string[], adapter: unknown) => {
+          ctx2.registeredAdapters.push({ routes, adapter })
+          return {}
+        },
+        registerConfigurableProviders: () => {
+          throw new Error('a configurable provider "zctx-anthropic-messages" is already registered')
+        },
+        resolveModelInfo: async () => ({ context: { contextWindow: 200000 } }),
+      } as never,
+    })
+    const plugin2 = new ZcontextPlugin(ctx2 as unknown as HostContextLike, {
+      providers: VALID_PROVIDERS,
+    } as never)
+    await plugin2.adapterRegistration
+    expect(ctx2.registeredAdapters).toHaveLength(1)
+    expect(ctx2.logLines.some((line) => line.level === 'warn' && line.message.includes('directory registration refused'))).toBe(true)
+  }, 20000)
 })
