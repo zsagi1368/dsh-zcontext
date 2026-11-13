@@ -182,6 +182,32 @@ describe('plugin: adapter face wiring (V5 S2)', () => {
     expect(ctx.logLines.some((line) => line.level === 'info' && line.message.includes('not reachable from this install'))).toBe(true)
   })
 
+  it('R5 V5-4: config violations reach the warn log EVEN when the host faces are unreachable (validation is host-independent)', async () => {
+    if (!hostOnDisk()) return // honest skip
+    resetFaces()
+    // Host deliberately unreachable (broken override) + a misconfigured
+    // providers section: the gate order must still surface the COMPLETE
+    // violation list — the pure config check runs BEFORE the reachability
+    // gate, so a broken install cannot silently swallow config errors.
+    process.env.ZCTX_DSH_LLM = 'G:/000Github/zDSH/zDSH-main/packages/llm/llm/lib/MISSING.js'
+    delete process.env.ZCTX_PIAI
+    const ctx = mockCtx()
+    const plugin = new ZcontextPlugin(ctx as unknown as HostContextLike, {
+      providers: [
+        { family: 'not-a-protocol', models: [{ id: 'x', contextWindow: 1, maxTokens: 1 }] },
+        { family: 'openai-completions', models: [] },
+      ],
+    } as never)
+    await plugin.adapterRegistration
+    expect(ctx.registeredAdapters).toHaveLength(0)
+    const warn = ctx.logLines.find((line) => line.level === 'warn' && line.message.includes('not serviceable'))
+    expect(warn).toBeDefined()
+    expect(warn?.message).toContain('family "not-a-protocol" is not a supported wire protocol')
+    expect(warn?.message).toContain('declares no models')
+    // The reachability info is NOT logged: the violation gate short-circuits first.
+    expect(ctx.logLines.some((line) => line.message.includes('not reachable from this install'))).toBe(false)
+  })
+
   it('directory face (product 7): visibility-only entries with settingsNs/settingsPath/declared', async () => {
     if (!hostOnDisk()) return // honest skip
     resetFaces()

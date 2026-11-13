@@ -313,6 +313,45 @@ describe('FoldStore V3: three-state grading (§Q7.2; 字段缺席=estimated 不�
   })
 })
 
+describe('FoldStore V3: resetBetween cap-guard boundary (R5 V5-1 pin, closes V3-1)', () => {
+  // Boundary pin for store.ts resetBetween: when the reset ledger is AT its
+  // cap, eviction makes "no reset between" unprovable — an evicted entry may
+  // have sat between the seqs — so the interpolation walk stops
+  // conservatively (the guard line returns true). Deleting the guard line
+  // turns this test RED: the walk would find no retained reset between the
+  // candidate and the anchor and upgrade the record to semi.
+  it('at cap (64): interpolation stops conservatively even with no retained reset between (deleting the guard line goes red)', () => {
+    const session = new MockSession()
+    // 64 resets fill the ledger to its cap (RESET_LEDGER_CAP = 64), all
+    // strictly BEFORE the usage records below.
+    for (let i = 0; i < 64; i += 1) session.append('compaction/start', { turn: i })
+    session.append('assistant/message', assistantPayload(2, 0)) // estimated, seq 64
+    session.append('assistant/message', assistantPayload(2, 1, { inputTokens: 99 })) // measured anchor, seq 65
+    const store = new FoldStore()
+    store.attach(session)
+    expect(store.resetEvents()).toHaveLength(64) // exactly at cap
+    // All retained resets (seqs 0..63) sit OUTSIDE (64, 65): without the
+    // guard, resetBetween is false and the record upgrades to semi.
+    expect(store.usageRecords()[0]?.state).toBe('estimated')
+    expect(store.usageRecords()[0]?.semiKind).toBeUndefined()
+    expect(store.observabilitySnapshot().threeState).toEqual({ measured: 1, semi: 0, estimated: 1 })
+  })
+
+  it('below cap (63): the same shape upgrades normally (the guard fires exactly at cap, not before)', () => {
+    const session = new MockSession()
+    for (let i = 0; i < 63; i += 1) session.append('compaction/start', { turn: i })
+    session.append('assistant/message', assistantPayload(2, 0)) // estimated, seq 63
+    session.append('assistant/message', assistantPayload(2, 1, { inputTokens: 99 })) // measured anchor, seq 64
+    const store = new FoldStore()
+    store.attach(session)
+    expect(store.resetEvents()).toHaveLength(63) // one below cap
+    // Ledger not at cap → "no reset between" IS provable → interpolation
+    // carries the anchor's input side over.
+    expect(store.usageRecords()[0]).toMatchObject({ state: 'semi', semiKind: 'interpolated', inputTokens: 99 })
+    expect(store.observabilitySnapshot().threeState).toEqual({ measured: 1, semi: 1, estimated: 0 })
+  })
+})
+
 describe('FoldStore V3: V1-B bounded routeHeaders/resetLog (R3 mechanical closure)', () => {
   it('routeHeaders cap at 64 (oldest dropped)', () => {
     const session = new MockSession()

@@ -153,8 +153,8 @@ describe('adapter providers: resolution + construction fail-loud (A-ruling)', ()
     const { violations } = resolveZctxProviders(
       section([provider({
         models: [
-          { id: 'dup', contextWindow: 10 },
-          { id: 'dup', contextWindow: 10 },
+          { id: 'dup', contextWindow: 10, maxTokens: 8192 },
+          { id: 'dup', contextWindow: 10, maxTokens: 8192 },
           { id: 'bad-max', contextWindow: 10, maxTokens: 0 },
           { id: '', contextWindow: 10 },
         ],
@@ -165,6 +165,23 @@ describe('adapter providers: resolution + construction fail-loud (A-ruling)', ()
     expect(violations[0]).toContain('duplicate model id "dup"')
     expect(violations[1]).toContain('maxTokens must be a positive integer')
     expect(violations[2]).toContain('id is required')
+  })
+
+  it('maxTokens is REQUIRED (R5 V5-2: a missing value is a construction violation, never an invented default)', () => {
+    const { violations, providers } = resolveZctxProviders(
+      section([provider({ models: [{ id: 'no-max', contextWindow: 10 }] })]),
+      SUPPORTED,
+    )
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain('maxTokens must be a positive integer declared in config')
+    expect(violations[0]).toContain('never an invented default')
+    // The violating model never reaches the resolved route (nothing to
+    // silently default at stream time).
+    expect(providers[0]?.models).toHaveLength(0)
+    expect(() => assertZctxProvidersResolvable(
+      section([provider({ models: [{ id: 'no-max', contextWindow: 10 }] })]),
+      SUPPORTED,
+    )).toThrowError(/maxTokens must be a positive integer declared in config/)
   })
 
   it('R6: ws:// and non-http(s) baseURLs are violations — WebSocket is declared unsupported, never silently accepted', () => {

@@ -177,6 +177,23 @@ describe('FoldStore observability: per-kind ResetEvent identification', () => {
     expect(store3.routeHeaderChain()).toHaveLength(2)
   })
 
+  it('V1-A pin: non-finite numerics are dropped at extraction, so two NaN-carrier configs compare EQUAL (documented divergence from the official ===)', () => {
+    const session = new MockSession()
+    session.append('request/header', headerPayload({ ...CHAT_CONFIG, temperature: Number.NaN }, 'initial'))
+    session.append('request/header', headerPayload({ ...CHAT_CONFIG, temperature: Number.NaN }, 'change'))
+    const store = new FoldStore()
+    store.attach(session)
+    // The official callConfigEquals compares raw `===`, where NaN === NaN is
+    // false → it would log a sampling-change. The local twin's extraction
+    // (extractCallConfig) drops non-finite numerics at the door, so both
+    // headers carry (absent) → equal → no reset. The case is unreachable on
+    // the official wire (the host normalizes controls before dispatch, so a
+    // header snapshot never carries NaN) — pinned here as the documented
+    // twin boundary, not silently assumed (store.ts callConfigEquals JSDoc).
+    expect(store.resetEvents()).toHaveLength(0)
+    expect(store.routeHeaderChain()).toHaveLength(2)
+  })
+
   it('toolset-change: tools arrays differ structurally (sorted-key compare)', () => {
     const session = new MockSession()
     session.append('request/header', headerPayload(CHAT_CONFIG, 'initial', { tools: [TOOL_SCHEMA_A] }))

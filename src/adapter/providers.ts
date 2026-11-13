@@ -17,7 +17,9 @@
  *   - models: at least one per provider; ids non-empty and unique.
  *   - contextWindow: REQUIRED positive integer (INVALID_MODEL_CONTEXT
  *     semantics — F2.2 normalizeModelInfo index.ts:783-788).
- *   - maxTokens: positive integer when present (F2.2 :808-815 semantics).
+ *   - maxTokens: REQUIRED positive integer (official catalog.ts:934-936
+ *     semantics — a missing value is a CONSTRUCTION violation, never an
+ *     invented default; R5 V5-2 closure).
  *   - baseURL: absolute http(s) URL when present (redline R6 — HTTP(SSE)
  *     only; ws:// or other schemes are a violation, not a silent pass).
  *   - apiKeyEnv: non-empty string when present (a reference NAME — config
@@ -58,8 +60,11 @@ export interface ZctxProviderModelConfig {
   readonly id: string
   /** REQUIRED positive integer (INVALID_MODEL_CONTEXT semantics). */
   readonly contextWindow: number
-  /** Positive integer when present. */
-  readonly maxTokens?: number
+  /**
+   * REQUIRED positive integer (official catalog.ts:934-936 semantics — a
+   * missing value is a construction violation, never an invented default).
+   */
+  readonly maxTokens: number
   /** Wire-spelling reasoning efforts: wireValue → pi-ai level; false = none. */
   readonly reasoningEfforts?: Readonly<Record<string, string>> | false
 }
@@ -87,7 +92,8 @@ export interface ResolvedZctxModel {
   readonly id: string
   readonly name: string
   readonly contextWindow: number
-  readonly maxTokens?: number
+  /** REQUIRED (validated positive integer; V5-2 no-invented-defaults). */
+  readonly maxTokens: number
   readonly reasoningEfforts?: Readonly<Record<string, string>> | false
 }
 
@@ -171,15 +177,19 @@ export function resolveZctxProviders(
         )
         return
       }
-      if (model.maxTokens !== undefined && !isPositiveInt(model.maxTokens)) {
-        violations.push(`${modelLabel} ("${id}"): maxTokens must be a positive integer when present`)
+      if (!isPositiveInt(model.maxTokens)) {
+        violations.push(
+          `${modelLabel} ("${id}"): maxTokens must be a positive integer declared in config`
+          + ` (official catalog.ts:934-936 — a missing value is a construction violation,`
+          + ` never an invented default; got ${JSON.stringify(model.maxTokens)})`,
+        )
         return
       }
       models.push({
         id,
         name: id,
         contextWindow: model.contextWindow,
-        ...(model.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
+        maxTokens: model.maxTokens,
         ...(model.reasoningEfforts !== undefined ? { reasoningEfforts: model.reasoningEfforts } : {}),
       })
     })

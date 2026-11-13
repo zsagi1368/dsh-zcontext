@@ -409,15 +409,18 @@ export class ZcontextPlugin extends ServiceBase {
    * route collision → the OFFICIAL conflict precedent applies — keep the
    * old route + error log, llm-pi-ai:310-316 — boot unaffected).
    *
-   * Face gates, each honest and none boot-breaking (五面降级先例):
+   * Face gates, each honest and none boot-breaking (五面降级先例), in gate
+   * order:
    *   - no providers declared (absent/empty section) → info, zero routes
    *     (legal keep-alive, F1.4).
    *   - llm runtime without registerAdapter → warn, skipped.
-   *   - host lib / pi-ai unreachable (faces undefined) → info, skipped —
-   *     the card constraint "宿主不可达→adapter 面整体不注册（fail-soft）".
    *   - config violations → the CONSTRUCTION fail-loud error (complete
    *     violation list, providers.ts) lands in a warn log, skipped — the
-   *     adapter contract is fail-loud while boot stays fail-soft.
+   *     adapter contract is fail-loud while boot stays fail-soft. This gate
+   *     runs BEFORE the reachability gate (R5 V5-4): validation is pure, so
+   *     a misconfigured section reports even when the host lib is absent.
+   *   - host lib / pi-ai unreachable (faces undefined) → info, skipped —
+   *     the card constraint "宿主不可达→adapter 面整体不注册（fail-soft）".
    *
    * The host faces load asynchronously, so the registration completes as a
    * fire-and-forget continuation after the synchronous constructor returns
@@ -443,11 +446,11 @@ export class ZcontextPlugin extends ServiceBase {
     const settingsNs = SERVICE_NAME
     this.adapterRegistration = (async () => {
       try {
-        const faces = await loadAdapterFaces()
-        if (faces === undefined) {
-          logger?.info?.('dsh-zcontext: adapter face skipped — @deepseek-ai/dsh-llm or @earendil-works/pi-ai is not reachable from this install (fail-soft; boot unaffected)')
-          return
-        }
+        // R5 V5-4: config validation runs BEFORE the host reachability gate —
+        // the resolution is pure (the protocol union with a builtin fallback),
+        // so a misconfigured providers section reports its COMPLETE violation
+        // list even on installs where the host lib is absent. The violation
+        // log must not depend on whether the host happens to be loadable.
         const { protocols, source } = await loadSupportedProtocols()
         if (source === 'builtin') {
           logger?.info?.('dsh-zcontext: the official supportedProtocols() union is unreachable — validating families against the builtin protocol list')
@@ -459,6 +462,11 @@ export class ZcontextPlugin extends ServiceBase {
           // Fail-loud at the adapter contract: the COMPLETE violation list
           // reaches the log; boot continues without the face.
           logger?.warn?.(error instanceof Error ? error.message : String(error))
+          return
+        }
+        const faces = await loadAdapterFaces()
+        if (faces === undefined) {
+          logger?.info?.('dsh-zcontext: adapter face skipped — @deepseek-ai/dsh-llm or @earendil-works/pi-ai is not reachable from this install (fail-soft; boot unaffected)')
           return
         }
         const ZctxAdapter = createZctxAdapterClass(faces.host.LlmAdapter)

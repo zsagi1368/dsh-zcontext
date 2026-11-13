@@ -176,7 +176,9 @@ function resolveReasoningLevel(
  * Materialize the pi-ai Model descriptor for one config model (structural —
  * pi-ai's BaseModel/Model require id/name/api/provider/baseUrl/input/cost +
  * contextWindow/maxTokens/reasoning; cost zeros: self-hosted pricing is the
- * deployment's business, not the adapter's claim). The wire-spelling efforts
+ * deployment's business, not the adapter's claim). contextWindow/maxTokens
+ * are REQUIRED config declarations (construction-gated in providers.ts —
+ * missing values never reach this function). The wire-spelling efforts
  * dict materializes as `thinkingLevelMap` (pi-ai types.d.ts ThinkingLevelMap:
  * key = pi-ai level, value = wire spelling or null).
  */
@@ -198,7 +200,10 @@ function materializePiModel(
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     reasoning: thinkingLevelMap !== undefined,
     contextWindow: model.contextWindow,
-    maxTokens: model.maxTokens ?? 32768,
+    // R5 V5-2: maxTokens is a REQUIRED config declaration (providers.ts
+    // construction gate) — it rides verbatim, never an invented default
+    // (official catalog.ts:934-936 semantics).
+    maxTokens: model.maxTokens,
     ...(thinkingLevelMap !== undefined ? { thinkingLevelMap } : {}),
     // F4.6 compat knob (card product 5): the anthropic-style cache_control
     // marker format for OpenAI-compatible endpoints — present only on the

@@ -349,6 +349,16 @@ function stopEquals(a: readonly string[] | undefined, b: readonly string[] | und
  * src 内宿主类型仍 duck-typing); scripts/probe-host-imports.mjs G4 pins the
  * official export's live semantics so the twins stay aligned. If the host
  * contract ever drifts, the probe's import face changes and the pin breaks.
+ *
+ * Known theoretical boundary (V1-A closure: pinned, not "fixed"): the official
+ * comparison uses raw `===`, where `NaN === NaN` is false (two configs
+ * carrying NaN in the same field compare NOT-equal); the local extraction
+ * (`extractCallConfig`) drops non-finite numerics at the door, so two such
+ * configs both compare as `(absent)` here — EQUAL where the official twin
+ * would say DIFFERENT. The case is unreachable on the official wire (the
+ * host rejects/normalizes non-finite controls before dispatch — a header
+ * snapshot never carries NaN), so the twin keeps the honest fail-soft
+ * extraction and store-observe.spec pins the divergence explicitly.
  */
 function callConfigEquals(a: LlmCallConfigLike, b: LlmCallConfigLike): boolean {
   return (

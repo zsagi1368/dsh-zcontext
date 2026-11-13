@@ -171,8 +171,12 @@ const CONFIG_FIELD_SPECS = {
   'observe.attemptCapture': { type: 'boolean', default: configDefaults['observe.attemptCapture'] },
   preflightMode: { type: 'string', default: configDefaults.preflightMode },
   preflightMarginRatio: { type: 'number', default: configDefaults.preflightMarginRatio },
-  // The S2 structured section: schema default = an empty declaration list
-  // (zero routes = legal keep-alive). configDefaults omits it (optional).
+  // The S2 structured section (R5 V5-3: ONE unified statement of the
+  // default everywhere — schema default, configDefaults, and the smoke
+  // contract pin all say the same thing): an EMPTY declaration list.
+  // "Optional" applies only to user input (a config may omit the field and
+  // the default applies); the frozen configDefaults itself CARRIES the
+  // empty list. Zero routes = the adapter face stays a legal keep-alive.
   providers: { type: 'providers', default: [] as readonly ZctxProviderConfig[] },
 } as const satisfies { readonly [K in keyof ZcontextConfig]: ConfigFieldSpec }
 
