@@ -1,5 +1,6 @@
 /**
- * Structural type contract for the dsh-zcontext pure cores (W2).
+ * Structural type contract for the dsh-zcontext pure cores (W2) and the
+ * observability ledgers (v0.2.0 route-two, V1).
  *
  * Everything here is duck-typed: no host package is imported. The shapes
  * mirror the official DeepSeek Harness APIs at the anchors noted per type,
@@ -23,7 +24,9 @@ export type SurfaceOpLike =
   | 'append'
   | { readonly op: 'replace'; readonly startSeq: number; readonly endSeq: number }
 
-/** One event of the session log, structurally reduced for plugin use. */
+/**
+ * One event of the session log, structurally reduced for plugin use.
+ */
 export interface SessionEventLike {
   /** Log sequence number (equal to the event's index in the append-only log). */
   readonly seq: number
@@ -31,6 +34,12 @@ export interface SessionEventLike {
   readonly type: string
   /** Event payload (official: `{ turn, message }` for message events). */
   readonly data: unknown
+  /**
+   * Unix epoch milliseconds of the event commit (official SessionEvent.time,
+   * session/src/types.ts:499). Optional: the structural contract tolerates
+   * events that carry no time (mock feeds), and consumers degrade.
+   */
+  readonly time?: number
   /** Surface placement — 'append' or a replace op (session/src/types.ts:449-464). */
   readonly surfaceOp?: SurfaceOpLike
   /**
@@ -383,4 +392,202 @@ export interface BreakevenReport {
   readonly measured: boolean
   /** Which inputs are estimated: subset of ['folded','summary','repay']. */
   readonly estimatedInputs: readonly ('folded' | 'summary' | 'repay')[]
+}
+
+// ---------------------------------------------------------------------------
+// Observability ledgers (v0.2.0 route-two; RES-observe-route.md §(a) table
+// a.1 — the field set below is FROZEN per that table; V3 (attribution engine)
+// and V2 (llm/stream listener) consume the parts the V1 store does not fill).
+// ---------------------------------------------------------------------------
+
+/**
+ * One provider usage sample taken from an assistant/message event (S6).
+ * Moved here from store.ts in V1 so {@link UsageRecord} can extend it without
+ * a types→store cycle; store.ts re-exports it, keeping the W3 public surface
+ * (index.ts `export type { UsageSample } from './store.ts'`) unchanged.
+ */
+export interface UsageSample {
+  /** Seq of the assistant/message event. */
+  readonly seq: number
+  /** True when the event carried a usable usage object. */
+  readonly measured: boolean
+  /** Optional provider cache-read tokens. */
+  readonly cacheReadTokens?: number
+  /** Optional provider cache-write tokens. */
+  readonly cacheWriteTokens?: number
+}
+
+/**
+ * Structural view of the call config carried by a logged request header
+ * (official LlmCallConfig, llm/llm/src/call-config.ts:36-41 — provider/model
+ * plus the LlmCallControls scalars of :27-32). `reasoningEffort` is
+ * duck-typed as string (the official type is a branded string id).
+ */
+export interface LlmCallConfigLike {
+  readonly provider: string
+  readonly model: string
+  readonly reasoningEffort?: string
+  readonly temperature?: number
+  readonly maxTokens?: number
+  readonly stop?: readonly string[]
+}
+
+/**
+ * Effective config fields supplied by exact-model adapter resolution
+ * (official LlmCallConfigAdapterDefaults, call-config.ts:55-60).
+ */
+export interface LlmCallConfigAdapterDefaultsLike {
+  readonly reasoningEffort?: true
+  readonly maxTokens?: true
+}
+
+/**
+ * One logged request/header snapshot, cached by the store (RES-observe-route
+ * a.1 row 3: config/adapterDefaults/tools/reason/startsSeries/seq). Official
+ * payload shape: session/src/types.ts:388-395 (`EpochHeader` at :270-281,
+ * `RequestHeaderReason` at :381-387).
+ */
+export interface RouteHeader {
+  /** The header's call config (provider/model/effort/sampling scalars). */
+  readonly config: LlmCallConfigLike
+  /** Effective config fields materialized from the exact adapter. */
+  readonly adapterDefaults?: LlmCallConfigAdapterDefaultsLike
+  /** Assembled tool schemas; absent for a tool-less request. */
+  readonly tools?: readonly unknown[]
+  /** Why the snapshot was appended (official request/header reason). */
+  readonly reason: 'initial' | 'resume' | 'change' | 'series'
+  /** This request begins a distinct model-message series, independently of reason. */
+  readonly startsSeries?: true
+  /** Log seq of the producing request/header event. */
+  readonly seq: number
+}
+
+/**
+ * Cache-reset ledger classes the session/event face can identify (V1 store).
+ * Mapping of the zDSH-Go guardian 8-class whitelist
+ * (cache-guardian.ts:520-531) onto plugin-visible signals per
+ * RES-observe-route.md §Q6: 7 of 8 classes are identifiable here, the
+ * `sessionRecovery` restart form is half-visible (end-seed + resume header
+ * only), and `oneShotExempt` belongs to the llm/stream listener (V2), not to
+ * this ledger. `sampling-change` covers the call-config scalars that
+ * `callConfigEquals` compares but the guardian whitelist folds elsewhere —
+ * they break the wire prefix all the same (call-config.ts:1-6 rationale).
+ */
+export type ResetEventKind =
+  /** Provider/model/reasoningEffort changed (request/header reason 'change'). */
+  | 'model-change'
+  /** temperature/maxTokens/stop changed (request/header reason 'change'). */
+  | 'sampling-change'
+  /** Tool schemas changed (request/header tools diff vs the previous header). */
+  | 'toolset-change'
+  /** Official compaction bracket opened (compaction/start … compaction/end). */
+  | 'compaction'
+  /** Our own fold/unfold checkpoint replaced a surface span. */
+  | 'merge-rewrite'
+  /** A foreign single tool/result node was rewritten in place (pruner shape). */
+  | 'micro-prune'
+  /** Any other foreign replace producer (unattributable, Q6 unresolved ①). */
+  | 'unknown-replace'
+  /** A system/message node was rewritten on the surface (normalization). */
+  | 'system-section-change'
+  /** Session generation boundary (session/end-seed; sessionRecovery half-class). */
+  | 'session-recovery'
+
+/** One cache-reset ledger entry (RES-observe-route a.1 row 4: kind/seq/time/evidence). */
+export interface ResetEvent {
+  /** The identified reset class. */
+  readonly kind: ResetEventKind
+  /** Log seq of the event that produced the reset. */
+  readonly seq: number
+  /** Unix epoch ms of the producing event, when the event carried a time. */
+  readonly time?: number
+  /** Human-readable evidence (which fields differed / which nodes were replaced). */
+  readonly evidence: string
+}
+
+/**
+ * Attribution of one usage sample to one committed fold (RES-observe-route
+ * a.1 row 2, §Q4.2 rules). Produced by the V3 attribution engine; the V1
+ * store freezes the shape only.
+ */
+export interface FoldUsageAttribution {
+  /** FoldRecord.foldId of the attributed fold. */
+  readonly foldId: string
+  /** Seq of the fold's checkpoint (surfaceOp replace) event. */
+  readonly foldCommitSeq: number
+  /** Seq of the attributed assistant/message event. */
+  readonly messageSeq: number
+  /** Turn of the attributed message. */
+  readonly turn: number
+  /** Step of the attributed message. */
+  readonly step: number
+  /** Association strength (§Q4.2: strong = clean; retry = retried; weak = degraded to estimate). */
+  readonly quality: 'strong' | 'retry' | 'weak'
+  /** llm/retry events counted between fold commit and the attributed message. */
+  readonly retryCount: number
+  /** The attributed assistant/message was an interrupted prefix (§Q4.3 noise 7). */
+  readonly interrupted?: true
+}
+
+/** Three-state accounting grade of a usage record (§Q7.2). */
+export type UsageRecordState = 'measured' | 'semi' | 'estimated'
+
+/**
+ * One request's three-state usage ledger entry (RES-observe-route a.1 row 1:
+ * UsageSample + inputTokens/outputTokens/totalTokens/state/attribution).
+ * `state: 'semi'` is reserved for the V3 interpolation/meter-anchor paths;
+ * the V1 store emits only 'measured' (usage object present) and 'estimated'
+ * (absent). `attribution` stays undefined until the V3 attribution engine
+ * fills it.
+ */
+export interface UsageRecord extends UsageSample {
+  /** Un-cached input tokens (official TokenUsage disjoint accounting, llm/src/types.ts:167-173). */
+  readonly inputTokens?: number
+  /** Output tokens. */
+  readonly outputTokens?: number
+  /** Total tokens, when the provider reported one. */
+  readonly totalTokens?: number
+  /** The three-state grade of this record. */
+  readonly state: UsageRecordState
+  /** Fold attribution, when the V3 engine bound this sample to a fold. */
+  readonly attribution?: FoldUsageAttribution
+}
+
+/** Three-state sample counts (§Q7.2 grades). */
+export interface ThreeStateCounts {
+  readonly measured: number
+  readonly semi: number
+  readonly estimated: number
+}
+
+/** One fold's row of the repay table (§Q7.3 回本表). */
+export interface BreakevenTableRow {
+  /** The attributed fold. */
+  readonly foldId: string
+  /** Turns until the fold pays off (breakeven model output). */
+  readonly breakevenTurns: number
+  /** Attribution quality of the row's best sample. */
+  readonly quality: 'strong' | 'retry' | 'weak'
+}
+
+/** The reset-ledger digest row: one kind with its entry count. */
+export interface ResetSummaryRow {
+  readonly kind: ResetEventKind
+  readonly count: number
+}
+
+/**
+ * Aggregated observability view consumed by zctx_status (RES-observe-route
+ * a.1 row 6: threeState 计数 / 纯净样本占比 / 回本表 / 重置台账摘要).
+ * Built by the V3 aggregation; the V1 store freezes the shape only.
+ */
+export interface ObservabilitySnapshot {
+  /** Sample counts per three-state grade. */
+  readonly threeState: ThreeStateCounts
+  /** Clean-sample ratio in [0,1] (§Q4.3 noise剔除后纯净占比; honest-degradation threshold input). */
+  readonly cleanSampleRatio: number
+  /** One row per attributed fold (repay table). */
+  readonly breakevenTable: readonly BreakevenTableRow[]
+  /** Reset ledger digest, one row per observed kind (order: first-seen). */
+  readonly resetSummary: readonly ResetSummaryRow[]
 }

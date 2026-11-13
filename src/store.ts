@@ -47,7 +47,13 @@ import type {
   SessionEventLike,
   SessionLike,
   SurfaceNode,
+  UsageSample,
 } from './types.ts'
+
+// UsageSample moved to types.ts in V1 (UsageRecord extends it there without a
+// types→store cycle); re-exported here so the W3 public surface
+// (index.ts `export type { UsageSample } from './store.ts'`) is unchanged.
+export type { UsageSample } from './types.ts'
 
 /** Message-producing event types (official session/src/types.ts:439-444). */
 const MESSAGE_EVENT_TYPES: ReadonlySet<string> = new Set([
@@ -78,18 +84,6 @@ export interface FoldLedgerEntry extends FoldRecord {
   readonly shadowedBySeq?: number
   /** For absorbed/dead entries: the producing source kind that shadowed the checkpoint. */
   readonly shadowedByKind?: string
-}
-
-/** One provider usage sample taken from an assistant/message event (S6). */
-export interface UsageSample {
-  /** Seq of the assistant/message event. */
-  readonly seq: number
-  /** True when the event carried a usable usage object. */
-  readonly measured: boolean
-  /** Optional provider cache-read tokens. */
-  readonly cacheReadTokens?: number
-  /** Optional provider cache-write tokens. */
-  readonly cacheWriteTokens?: number
 }
 
 /** Aggregate usage state of the session (S6; consumed by zctx_status). */

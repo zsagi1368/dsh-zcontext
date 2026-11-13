@@ -49,6 +49,20 @@ export type {
   UsageSample,
   UsageSnapshot,
 } from './store.ts'
+export type {
+  BreakevenTableRow,
+  FoldUsageAttribution,
+  LlmCallConfigAdapterDefaultsLike,
+  LlmCallConfigLike,
+  ObservabilitySnapshot,
+  ResetEvent,
+  ResetEventKind,
+  ResetSummaryRow,
+  RouteHeader,
+  ThreeStateCounts,
+  UsageRecord,
+  UsageRecordState,
+} from './types.ts'
 export {
   CCM_MIN_CONTEXT_WINDOW,
   ccmWindowGate,
