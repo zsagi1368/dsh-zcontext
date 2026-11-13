@@ -16,6 +16,10 @@
 //       the plugin's fold/unfold checkpoints project through the official
 //       deriveEventMessage as usable UserMessages, and cross-checkpoint
 //       absorption windows are rejected as not contiguous (probe B2 shape)
+//   P6  V6 (card product 4): the V5 adapter export face of the BUILT
+//       artifact — the S2 exports exist and are functional (route/display
+//       name pins, KNOWN_PROTOCOLS = the official union, a missing maxTokens
+//       is a construction violation per official catalog.ts:934-936)
 
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -373,6 +377,75 @@ if (!existsSync(officialPath)) {
     detail = `threw: ${error instanceof Error ? error.message : String(error)}`
   }
   report('P5 real-session W3-1 projection + W3-2 rejection pin', ok, detail)
+}
+
+// ---------------------------------------------------------------------------
+// P6 — V6: the V5 adapter export face of the BUILT artifact (card product 4).
+// ---------------------------------------------------------------------------
+
+{
+  let ok = false
+  let detail = ''
+  try {
+    const exportsOk =
+      typeof zctx.createZctxAdapterClass === 'function'
+      && typeof zctx.resolveZctxProviders === 'function'
+      && typeof zctx.assertZctxProvidersResolvable === 'function'
+      && typeof zctx.loadAdapterFaces === 'function'
+      && typeof zctx.loadSupportedProtocols === 'function'
+      && typeof zctx.buildWireFaces === 'function'
+      && typeof zctx.requestHeaders === 'function'
+      && Array.isArray(zctx.KNOWN_PROTOCOLS)
+    const unionOk =
+      JSON.stringify(zctx.KNOWN_PROTOCOLS)
+      === JSON.stringify(['openai-completions', 'openai-responses', 'anthropic-messages'])
+    const routeOk =
+      zctx.zctxRouteOf('anthropic-messages') === 'zctx-anthropic-messages'
+      && zctx.zctxDisplayNameOf('anthropic-messages') === 'zctx anthropic-messages'
+    // Functional resolution through the built artifact (A-ruling: family IS
+    // the protocol; route = zctx-<family>; displayName verbatim).
+    const resolved = zctx.resolveZctxProviders(
+      {
+        providers: [{
+          family: 'openai-completions',
+          baseURL: 'https://gateway.example/v1',
+          models: [{ id: 'probe-model', contextWindow: 128000, maxTokens: 8192 }],
+        }],
+      },
+      zctx.KNOWN_PROTOCOLS,
+    )
+    const resolveOk =
+      resolved.violations.length === 0
+      && resolved.providers.length === 1
+      && resolved.providers[0]?.route === 'zctx-openai-completions'
+      && resolved.providers[0]?.displayName === 'zctx openai-completions'
+      && resolved.providers[0]?.protocol === 'openai-completions'
+      && resolved.providers[0]?.models[0]?.maxTokens === 8192
+    // V5-2 pin: a model WITHOUT maxTokens is a construction violation —
+    // the built artifact never invents defaults (official catalog.ts:934-936).
+    const missingMax = zctx.resolveZctxProviders(
+      { providers: [{ family: 'openai-completions', models: [{ id: 'probe-model', contextWindow: 128000 }] }] },
+      zctx.KNOWN_PROTOCOLS,
+    )
+    const v52Ok = missingMax.violations.length === 1 && missingMax.violations[0].includes('maxTokens')
+    // Construction fail-loud carries the complete violation list.
+    let throwOk = false
+    try {
+      zctx.assertZctxProvidersResolvable(
+        { providers: [{ family: 'definitely-not-a-protocol', models: [{ id: 'x', contextWindow: 1, maxTokens: 1 }] }] },
+        zctx.KNOWN_PROTOCOLS,
+      )
+    } catch (error) {
+      throwOk = error instanceof Error && error.message.includes('1 violation(s)')
+        && error.message.includes('not a supported wire protocol')
+    }
+    ok = exportsOk && unionOk && routeOk && resolveOk && v52Ok && throwOk
+    detail = `exports=${exportsOk} union=${unionOk} routePins=${routeOk} resolve=${resolveOk}`
+      + ` missingMaxTokensViolation=${v52Ok} constructionFailLoud=${throwOk}`
+  } catch (error) {
+    detail = `threw: ${error instanceof Error ? error.message : String(error)}`
+  }
+  report('P6 V6 adapter export face of the built lib (S2 exports functional + V5-2 pin)', ok, detail)
 }
 
 // ---------------------------------------------------------------------------

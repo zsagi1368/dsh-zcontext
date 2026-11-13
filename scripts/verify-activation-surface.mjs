@@ -25,6 +25,16 @@
 //   A7 B2          the nudge context registration asserts required === true.
 //   A8 probe       scripts/probe-artifact.mjs (reused as a sub-assertion, not
 //                  re-implemented) exits 0.
+//   A9 V6 (card product 3) config face: preflightMode defaults to 'observe'
+//                  (R2), the S2 providers section defaults to [] in BOTH
+//                  configDefaults and the schema validation output (R5 V5-3
+//                  unified statement), observe switches at their designed
+//                  defaults.
+//   A10 V6 (card product 3) adapter export face: the V5 exports exist and
+//                  are functional; KNOWN_PROTOCOLS = the official union; a
+//                  missing maxTokens is a construction violation (V5-2); R4
+//                  `maxRetries: 0` exactly one code site; R7
+//                  attributionHeaders present — all node direct reads.
 //
 // The mock host ctx in A7 mirrors tests/helpers/mock-session.ts + the
 // capability-probed faces; it exercises the REAL built plugin constructor.
@@ -235,6 +245,121 @@ let zctx
   })
   const summary = (probe.stdout ?? '').trim().split('\n').filter(Boolean).pop() ?? ''
   report('A8 probe-artifact.mjs subprocess', probe.status === 0, `exit=${probe.status}; ${summary}`)
+}
+
+// ---------------------------------------------------------------------------
+// A9 — V6 (card product 3): the v0.2.0 config face — preflightMode defaults
+// to 'observe' (R2: enforce unreachable under the default configuration),
+// the S2 providers section defaults to an EMPTY declaration list in BOTH
+// configDefaults and the schema validation output (one unified statement,
+// R5 V5-3), and the observe switches carry their designed defaults.
+// ---------------------------------------------------------------------------
+
+{
+  let ok = false
+  let detail = ''
+  try {
+    const d = zctx.configDefaults
+    const checks = {
+      "preflightMode defaults to 'observe'": d.preflightMode === 'observe',
+      'preflightMarginRatio 0.9': d.preflightMarginRatio === 0.9,
+      'attributionTimeWindowMs 90000': d.attributionTimeWindowMs === 90000,
+      'cleanSampleFloor 0.6': d.cleanSampleFloor === 0.6,
+      'observe.enabled true': d['observe.enabled'] === true,
+      'observe.attemptCapture false': d['observe.attemptCapture'] === false,
+      'configDefaults carries providers: []': Array.isArray(d.providers) && d.providers.length === 0,
+      'configDefaults frozen': Object.isFrozen(d),
+    }
+    let schemaOk = false
+    let schemaDetail = ''
+    try {
+      const result = await zctx.configSchema['~standard'].validate({})
+      schemaOk = result.issues === undefined
+        && Array.isArray(result.value?.providers)
+        && result.value.providers.length === 0
+        && result.value?.preflightMode === 'observe'
+      schemaDetail = `issues=${result.issues === undefined ? 'none' : 'present'}`
+    } catch (error) {
+      schemaDetail = `threw: ${error instanceof Error ? error.message : String(error)}`
+    }
+    const failed = Object.entries(checks).filter(([, v]) => !v).map(([name]) => name)
+    ok = failed.length === 0 && schemaOk
+    detail = failed.length === 0 && schemaOk
+      ? Object.keys(checks).join('; ') + `; schema validate({}): ${schemaDetail}`
+      : `failed: [${failed.join('; ')}]; schema: ${schemaDetail}`
+  } catch (error) {
+    detail = `threw: ${error instanceof Error ? error.message : String(error)}`
+  }
+  report('A9 V6 config face: preflightMode observe default + providers [] (defaults + schema)', ok, detail)
+}
+
+// ---------------------------------------------------------------------------
+// A10 — V6 (card product 3): the V5 adapter export face + R4/R7 code-shape
+// pins, all by direct node reads of the built artifact (no grep).
+//   - the adapter face exports exist and are functional;
+//   - KNOWN_PROTOCOLS equals the official supportedProtocols() union;
+//   - R4: `maxRetries: 0` appears EXACTLY ONCE in the comment-stripped code
+//     (single site — the agent recovery layer owns retries);
+//   - R7: attributionHeaders rides the built artifact.
+// ---------------------------------------------------------------------------
+
+{
+  let ok = false
+  let detail = ''
+  try {
+    const faceChecks = {
+      'createZctxAdapterClass': typeof zctx.createZctxAdapterClass === 'function',
+      'resolveZctxProviders': typeof zctx.resolveZctxProviders === 'function',
+      'assertZctxProvidersResolvable': typeof zctx.assertZctxProvidersResolvable === 'function',
+      'loadAdapterFaces': typeof zctx.loadAdapterFaces === 'function',
+      'loadSupportedProtocols': typeof zctx.loadSupportedProtocols === 'function',
+      'buildWireFaces': typeof zctx.buildWireFaces === 'function',
+      'requestHeaders': typeof zctx.requestHeaders === 'function',
+      'KNOWN_PROTOCOLS official union':
+        JSON.stringify(zctx.KNOWN_PROTOCOLS)
+        === JSON.stringify(['openai-completions', 'openai-responses', 'anthropic-messages']),
+      'zctxRouteOf pinned': zctx.zctxRouteOf('openai-completions') === 'zctx-openai-completions',
+      'zctxDisplayNameOf pinned': zctx.zctxDisplayNameOf('anthropic-messages') === 'zctx anthropic-messages',
+    }
+    // Functional V5-2 pin: a missing maxTokens is a construction violation
+    // (official catalog.ts:934-936 — never an invented default).
+    const missingMax = zctx.resolveZctxProviders(
+      { providers: [{ family: 'openai-completions', models: [{ id: 'm', contextWindow: 128000 }] }] },
+      zctx.KNOWN_PROTOCOLS,
+    )
+    const valid = zctx.resolveZctxProviders(
+      {
+        providers: [{
+          family: 'openai-completions',
+          baseURL: 'https://gateway.example/v1',
+          models: [{ id: 'm', contextWindow: 128000, maxTokens: 8192 }],
+        }],
+      },
+      zctx.KNOWN_PROTOCOLS,
+    )
+    const functionalChecks = {
+      'valid section resolves 0 violations': valid.violations.length === 0
+        && valid.providers[0]?.route === 'zctx-openai-completions',
+      'missing maxTokens is a construction violation (V5-2)': missingMax.violations.length === 1
+        && missingMax.violations[0].includes('maxTokens'),
+    }
+    // R4/R7 direct reads over the comment-stripped code text.
+    const libText = read('lib/index.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    const r4Count = libText.split('maxRetries: 0').length - 1
+    const codeChecks = {
+      'R4 maxRetries: 0 exactly one code site': r4Count === 1,
+      'R7 attributionHeaders present': libText.includes('attributionHeaders'),
+    }
+    const all = { ...faceChecks, ...functionalChecks, ...codeChecks }
+    const failed = Object.entries(all).filter(([, v]) => !v).map(([name]) => name)
+    ok = failed.length === 0
+    detail = failed.length === 0
+      ? `${Object.keys(all).length} adapter-face/R4/R7 assertions ok (maxRetries sites=${r4Count})`
+      : `failed: [${failed.join('; ')}]`
+  } catch (error) {
+    detail = `threw: ${error instanceof Error ? error.message : String(error)}`
+  }
+  report('A10 V6 adapter export face + R4 single-site + R7 attribution (node direct reads)', ok, detail)
 }
 
 // ---------------------------------------------------------------------------

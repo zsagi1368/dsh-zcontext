@@ -14,6 +14,16 @@
 //       `{ id: dsh-zcontext, name: dsh-zcontext }` row as its own layer, and
 //       the same dump WITHOUT our overlay must not contain it (negative
 //       control: the row comes from OUR patch, nothing preexisting).
+//   R3  V6 (card product 5) zctx provider directory smoke at the config
+//       layer: a user-style profile overlay patch carrying a providers
+//       declaration (family/baseURL/models with contextWindow AND maxTokens
+//       — the REQUIRED declaration surface, V5-2) composes through the REAL
+//       loader into the dsh-zcontext layer of the dump. HONEST SCOPE: this
+//       exercises the config-layer rows only — the runtime
+//       registerConfigurableProviders directory registration (Models-page
+//       visibility) needs a live llm runtime, which stays with the
+//       post-merge full-install smoke (plan A6), so a loader/CLI absence
+//       here reports SKIP with the reason.
 //
 // Full-install smoke (real `dsh plugin add` into a live profile + mounted
 // harness runtime) is deliberately out of scope here — it needs the published
@@ -120,6 +130,74 @@ if (!existsSync(cliBin)) {
   } finally {
     if (home.startsWith(tmpdir()) && home.includes('zctx-smoke-home-')) {
       rmSync(home, { recursive: true, force: true })
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// R3 — V6: zctx provider config rows compose through the REAL loader
+// (config-layer directory smoke; runtime registration stays post-merge).
+// ---------------------------------------------------------------------------
+
+const cliBinR3 = process.env.ZCTX_DSH_CLI ?? join(dshMain, 'apps/cli/lib/bin.js')
+if (!existsSync(cliBinR3)) {
+  skip('R3 zctx provider rows compose through the real loader (config layer)', `built CLI not found at ${cliBinR3} (set ZCTX_DSH_CLI)`)
+} else {
+  // Throwaway overlay dir: created by this run inside the OS temp dir, removed
+  // after the probe. Removal is guarded: only a mkdtemp result carrying the
+  // zctx-v6-smoke prefix inside the OS temp root is ever unlinked.
+  const overlayDir = mkdtempSync(join(tmpdir(), 'zctx-v6-smoke-'))
+  try {
+    const overlay = join(overlayDir, 'overlay.yml')
+    const overlayText = [
+      '- insert:',
+      '  - id: dsh-zcontext',
+      '    name: dsh-zcontext',
+      '    config:',
+      '      providers:',
+      '        - family: openai-completions',
+      '          baseURL: https://gateway.example/v1',
+      '          models:',
+      '            - id: smoke-model',
+      '              contextWindow: 128000',
+      '              maxTokens: 8192',
+      '',
+    ].join('\n')
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(overlay, overlayText, 'utf8')
+    const run = spawnSync(
+      process.execPath,
+      [cliBinR3, '--profile', 'web', '--patch', overlay, '--dump-config'],
+      { encoding: 'utf8', timeout: 120_000 },
+    )
+    if (run.status !== 0) {
+      report('R3 zctx provider rows compose through the real loader (config layer)', false,
+        `exit=${run.status}; stderr: ${(run.stderr ?? '').split('\n').slice(0, 4).join(' | ')}`)
+    } else {
+      const text = run.stdout ?? ''
+      const layerIdx = text.indexOf('# == ')
+      const layer = layerIdx >= 0 ? text.slice(layerIdx) : ''
+      const checks = {
+        'our layer present': layer.includes(overlay) || layer.includes('dsh-zcontext'),
+        'providers section composed': /providers:/.test(layer),
+        'family row composed': /family: openai-completions/.test(layer),
+        'baseURL row composed': /baseURL: https:\/\/gateway\.example\/v1/.test(layer),
+        'model row composed': /id: smoke-model/.test(layer),
+        'contextWindow declared': /contextWindow: 128000/.test(layer),
+        'maxTokens declared (V5-2 REQUIRED surface)': /maxTokens: 8192/.test(layer),
+      }
+      const failedChecks = Object.entries(checks).filter(([, v]) => !v).map(([name]) => name)
+      report(
+        'R3 zctx provider rows compose through the real loader (config layer)',
+        failedChecks.length === 0,
+        failedChecks.length === 0
+          ? `${Object.keys(checks).length} composed rows ok (config-layer only — runtime registerConfigurableProviders needs a live llm runtime: post-merge full-install smoke)`
+          : `failed: [${failedChecks.join('; ')}]`,
+      )
+    }
+  } finally {
+    if (overlayDir.startsWith(tmpdir()) && overlayDir.includes('zctx-v6-smoke-')) {
+      rmSync(overlayDir, { recursive: true, force: true })
     }
   }
 }
