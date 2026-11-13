@@ -46,6 +46,8 @@ describe('dsh-zcontext skeleton smoke', () => {
       summaryFloorChars: 50,
       summaryCeilingChars: 20000,
       netShrinkTolerance: 1.05,
+      attributionTimeWindowMs: 90000,
+      cleanSampleFloor: 0.6,
     })
     expect(Object.isFrozen(configDefaults)).toBe(true)
   })

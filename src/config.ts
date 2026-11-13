@@ -35,6 +35,20 @@ export interface ZcontextConfig {
   summaryCeilingChars: number
   /** Multiplier gate: a fold must shrink the ledger by at least 1/netShrinkTolerance. */
   netShrinkTolerance: number
+  /**
+   * Attribution time-window fallback in ms (V1): when seq reads are
+   * interrupted (store resync gap), fold→message association degrades to
+   * `messageTime − foldCommitTime ≤ attributionTimeWindowMs` (RES-observe-route
+   * §Q4.2 rule 4). Default 90000 — 待真机标定 (calibration pending, plan §3).
+   */
+  attributionTimeWindowMs: number
+  /**
+   * Clean-sample floor in [0,1] (V1): below this ratio of cleanly attributed
+   * samples zctx_status reports "attribution confidence insufficient" instead
+   * of a breakeven conclusion (RES-observe-route §Q7.3 honest degradation).
+   * Default 0.6 — 待真机标定 (calibration pending, plan §3).
+   */
+  cleanSampleFloor: number
 }
 
 /** Primitive field kinds supported by the Config schema. */
@@ -56,6 +70,8 @@ export const configDefaults: Readonly<ZcontextConfig> = Object.freeze<ZcontextCo
   summaryFloorChars: 50,
   summaryCeilingChars: 20000,
   netShrinkTolerance: 1.05,
+  attributionTimeWindowMs: 90000,
+  cleanSampleFloor: 0.6,
 })
 
 /**
@@ -73,6 +89,8 @@ const CONFIG_FIELD_SPECS = {
   summaryFloorChars: { type: 'number', default: configDefaults.summaryFloorChars },
   summaryCeilingChars: { type: 'number', default: configDefaults.summaryCeilingChars },
   netShrinkTolerance: { type: 'number', default: configDefaults.netShrinkTolerance },
+  attributionTimeWindowMs: { type: 'number', default: configDefaults.attributionTimeWindowMs },
+  cleanSampleFloor: { type: 'number', default: configDefaults.cleanSampleFloor },
 } as const satisfies { readonly [K in keyof ZcontextConfig]: ConfigFieldSpec }
 
 /** `~standard.validate` issue shape (StandardSchemaV1 subset). */
