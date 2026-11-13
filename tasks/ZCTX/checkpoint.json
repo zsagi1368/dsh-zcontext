@@ -1,6 +1,6 @@
 {
   "task": "ZCTX-V5",
-  "updatedAt": "2026-11-13T22:05:00+08:00",
+  "updatedAt": "2026-11-13T22:15:00+08:00",
   "baseCommit": "2952692 (R4 joint-review terminal, V3=99/V4=98)",
   "steps": [
     {
@@ -41,8 +41,22 @@
         "tests/adapter-plugin.spec.ts",
         "tests/plugin.spec.ts"
       ]
+    },
+    {
+      "id": "v5s3",
+      "name": "wire ledger (product 4, R1/R7): adapter/wire.ts (buildWireFaces — onPayload observe-only returns undefined CONSTANT with stableStringify+sha256 request-payload snapshots, unserializable payload honestly unrecorded; custom fetch hashing the FINAL init.body bytes with byteLength, Uint8Array bodies via byte decode, missing body honestly unrecorded, forwarding to real fetch untouched, recording faults never break the request; requestHeaders = official adapter.ts:215-223 attribution-wins case-insensitive merge port); types.ts WireSnapshot (domain wire, kind request-bytes|request-payload, honest coverage note); store.ts absorbWireSnapshot/wireSnapshots (WIRE_LEDGER_CAP 64, attach clears, copies out); zctx-adapter deps gain wireSink, stream options gain onPayload/fetch/headers for SESSION-BOUND requests only — one-shots keep ONLY the R7 headers (attribution is a request obligation, snapshots are a coverage decision); plugin injects the sink into resolveWatchedSession+storeFor. Tests +8 (415/415: wire faces 7 — R1 constant-undefined/deterministic hash/cyclic unrecorded/string+Uint8Array+missing-body bytes/attribution merge/store 64-cap; adapter integration 1 — session-bound triples + one-shot headers-only). tsc zero.",
+      "status": "done",
+      "artifacts": [
+        "src/adapter/wire.ts",
+        "src/types.ts",
+        "src/store.ts",
+        "src/adapter/zctx-adapter.ts",
+        "src/plugin.ts",
+        "tests/adapter-wire.spec.ts",
+        "tests/adapter-zctx.spec.ts"
+      ]
     }
   ],
-  "next": "v5s3 wire ledger (onPayload/fetch transparency + attributionHeaders R7 + wire-domain sha256 snapshots)",
+  "next": "v5s4 cache knobs (cacheRetention passthrough F4.6) + image budget honest boundary (product 5/6)",
   "notes": "Ledger check FIRST ACTION done: INDEX hits Z15/Z18/Z19/heredoc-length/Z13/Z14/Z17/Z12 carried as check items. Anchor reads (R8): dsh-llm lib 68 exports incl. LlmAdapter/LlmError/isContextWindowExceededError/attributionHeaders; llm-pi-ai lib exports only PiAiAdapter/Config/apply/inject/name/recordKeyFor/supportedProtocols — toStreamChunks/mapUsage reachable via src/*.ts (node type-stripping probed OK), classifyPiAiError module-private (stream.ts:42) => self-replicate with honest label; pi-ai 1.0.2 dist types.d.ts pins onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144; api/anthropic-messages.js + api/openai-completions.js export stream/streamSimple directly (Models-collection skip, per coordinator note). COORDINATOR RULING (A): providers[].family = wire protocol name, values = official supportedProtocols union taken DYNAMICALLY from the host ('openai-completions'|'openai-responses'|'anthropic-messages'), route = zctx-<family>, zero mapping, unknown family construction-time fail-loud, displayName = 'zctx <family>'."
 }

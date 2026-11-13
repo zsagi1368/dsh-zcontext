@@ -464,6 +464,14 @@ export class ZcontextPlugin extends ServiceBase {
           mapping: faces.mapping,
           providers: resolved,
           logger,
+          // The wire-domain ledger sink (V5 product 4): session-bound zctx
+          // requests land in the per-session store's wire ledger (plan §3
+          // dual-domain coverage note lives on the WireSnapshot record).
+          wireSink: (snapshot) => {
+            const session = this.resolveWatchedSession(snapshot.sessionId)
+            if (session === undefined) return
+            this.storeFor(session).absorbWireSnapshot(snapshot)
+          },
         })
         const routes = resolved.map((provider) => provider.route)
         const registration = registerAdapter(routes, adapter)

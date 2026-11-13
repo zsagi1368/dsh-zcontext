@@ -56,6 +56,8 @@ import { toPiContextTextOnly } from './context.ts'
 import type { AdapterFaces, HostLlmFace, MappingFace, PiAiFace } from './host.ts'
 import { classifyPiAiErrorTwins, type MappingDeps } from './map.ts'
 import type { ResolvedZctxModel, ResolvedZctxProvider } from './providers.ts'
+import { buildWireFaces, requestHeaders } from './wire.ts'
+import type { WireSink } from './wire.ts'
 
 /** Logger subset the adapter may use (honest degrade logging). */
 export interface AdapterLoggerLike {
@@ -112,6 +114,13 @@ export interface ZctxAdapterDeps {
   /** The resolved, validated provider specs (providers.ts; frozen per boot). */
   readonly providers: readonly ResolvedZctxProvider[]
   readonly logger?: AdapterLoggerLike
+  /**
+   * The wire-domain ledger sink (V5 product 4; R7's observation side).
+   * Receives one WireSnapshot per wire observation (fetch bytes / onPayload
+   * object view). Absent → the wire faces still ride the request (the
+   * attribution headers are R7-mandatory regardless) but nothing is recorded.
+   */
+  readonly wireSink?: WireSink
 }
 
 /** Wire-spelling reasoning efforts on one model (config vocabulary). */
@@ -396,12 +405,32 @@ export function createZctxAdapterClass(Base: abstract new () => unknown): new (d
         const window = modelInfo['context'] !== undefined
           ? ((modelInfo['context'] as { contextWindow?: number }).contextWindow ?? model.contextWindow)
           : model.contextWindow
+        // Wire-observation faces (V5 product 4): onPayload observe-only (R1),
+        // custom fetch hashing the final body bytes, attribution headers
+        // riding the request (R7). Session-bound requests only — one-shots
+        // have no session ledger to land in.
+        const sessionId = typeof options.sessionId === 'string' && options.sessionId.length > 0
+          ? options.sessionId
+          : undefined
+        const wireFaces = sessionId === undefined
+          ? undefined
+          : buildWireFaces(
+            { sessionId, provider: spec.route, model: model.id },
+            this.deps.wireSink,
+            host,
+          )
         const events = api.streamSimple(piModel, context, {
           ...(apiKey === undefined ? {} : { apiKey }),
           ...(reasoning === undefined ? {} : { reasoning }),
           ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
           ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
-          ...(options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) }),
+          ...(sessionId === undefined ? {} : { sessionId }),
+          ...(wireFaces === undefined ? {} : { onPayload: wireFaces.onPayload }),
+          ...(wireFaces === undefined ? {} : { fetch: wireFaces.fetch }),
+          // R7: attributionHeaders MUST reach the wire even when the ledger
+          // sink is absent — the headers are a request obligation, the
+          // snapshots are a coverage decision.
+          headers: wireFaces?.headers ?? requestHeaders(undefined, host),
           signal: upstream,
           // R4: the agent recovery layer owns visible attempts; one adapter
           // call is ONE SDK attempt (official adapter.ts:140-141).

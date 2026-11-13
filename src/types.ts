@@ -688,6 +688,35 @@ export interface PrefixBreakResetRef {
 }
 
 /**
+ * One WIRE-domain snapshot (v0.2.0 V5, task card product 4; plan §3 dual
+ * domain): the byte-level hash of what actually left the process on a zctx
+ * route — `sha256` over the FINAL request body bytes the custom fetch saw
+ * (`kind: 'request-bytes'`), or over the serialized pre-send payload object
+ * view (`kind: 'request-payload'`, stableStringify — deterministic but NOT
+ * the wire bytes). Honest-domain labeling: `domain: 'wire'` pins that this
+ * hash covers ONLY requests riding the zctx adapters (the harness domain's
+ * object hashes cover every route; neither domain can see the other's).
+ * Observation-only: the wire faces NEVER replace a payload (redline R1).
+ */
+export interface WireSnapshot {
+  /** Always 'wire' — the byte/object-level domain, zctx routes only. */
+  readonly domain: 'wire'
+  /** Session id the request was bound to; unbound (one-shot) requests are not recorded. */
+  readonly sessionId: string
+  /** The zctx route that served the request (`zctx-<family>`). */
+  readonly provider: string
+  readonly model: string
+  /** Which observation point produced the hash. */
+  readonly kind: 'request-bytes' | 'request-payload'
+  /** sha256 hex over the recorded bytes (or the stable-serialized payload). */
+  readonly sha256: string
+  /** Byte length when known ('request-bytes' with a string body; else undefined). */
+  readonly byteLength?: number
+  /** Unix epoch ms of the observation. */
+  readonly time: number
+}
+
+/**
  * One harness-domain prefix break (V2 mechanical piece): the object-level
  * message prefix SHRANK or CHANGED between consecutive snapshots. Registered
  * blind spot (honest domain boundary, RES-observe-route §Q5.2): pi-ai wire

@@ -35,3 +35,4 @@
 {"ts": "2026-11-13T21:30:00+08:00", "task": "ZCTX-V5", "step": "v5s0", "commits": [], "summary": "R4 three closures: resetBetween cap-guard + stats fallback-row exclusion + official-projector execution pin; 333/333 + tsc zero; checkpoint v5 replaced (V4 terminal state already in history)"}
 {"ts":"2026-11-13T21:55:00+08:00","task":"ZCTX-V5","step":"v5s1","commits":[],"summary":"adapter skeleton 5 modules + 55 tests; Windows fileURLToPath drive bug fixed in-process; official mapping reuse probed live (official-pi-ai-mapping)"}
 {"ts":"2026-11-13T22:05:00+08:00","task":"ZCTX-V5","step":"v5s2","commits":[],"summary":"adapter class + wiring + config providers section; 407/407; official-path plugin registration verified live; DUPLICATE precedent pinned"}
+{"ts":"2026-11-13T22:15:00+08:00","task":"ZCTX-V5","step":"v5s3","commits":[],"summary":"wire ledger: onPayload/fetch pass-through faces + attribution merge + store wire domain; 415/415"}

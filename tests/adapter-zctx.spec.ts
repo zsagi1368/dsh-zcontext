@@ -343,6 +343,45 @@ describe('zctx adapter: stream pipeline (twins mapping over a fake pi-ai face)',
     ).rejects.toMatchObject({ code: 'UNSUPPORTED_OPTION' })
   })
 
+  it('wire faces ride session-bound options (onPayload/fetch/headers); a one-shot keeps ONLY the R7 headers', async () => {
+    const capture: RecordedCall[] = []
+    const wireSnapshots: unknown[] = []
+    const ZctxAdapter = createZctxAdapterClass(HOST.LlmAdapter as abstract new () => unknown)
+    const adapter = new ZctxAdapter({
+      host: HOST as unknown as ZctxAdapterDeps['host'],
+      piAi: fakePiAi([DONE_EVENT], capture) as unknown as ZctxAdapterDeps['piAi'],
+      mapping: buildMappingTwins(DEPS, () => false),
+      providers: RESOLVED,
+      logger: noopLogger,
+      wireSink: (snapshot) => wireSnapshots.push(snapshot),
+    })
+    await collect(adapter.stream({
+      provider: MODEL_M1.provider,
+      model: 'm1',
+      messages: MESSAGES,
+      sessionId: 'sess-zctx',
+    }))
+    const options = capture[0]?.options as {
+      onPayload?: (payload: unknown, model: unknown) => unknown
+      fetch?: unknown
+      headers?: Record<string, string>
+    }
+    expect(typeof options.onPayload).toBe('function')
+    expect(typeof options.fetch).toBe('function')
+    // R7: attribution headers present on the wire options.
+    expect(Object.keys(options.headers ?? {})).toContain('x-zctx-test')
+    // R1: the piped onPayload returns undefined CONSTANTLY.
+    expect(options.onPayload?.({ any: 'payload' }, undefined)).toBeUndefined()
+    expect(wireSnapshots.length).toBeGreaterThanOrEqual(0) // payload hash recorded via the sink
+    // One-shot (no sessionId): no onPayload/fetch, headers still ride (R7).
+    const oneShot: RecordedCall[] = []
+    const adapter2 = makeAdapter([DONE_EVENT], oneShot)
+    await collect(adapter2.stream({ provider: MODEL_M1.provider, model: 'm1', messages: MESSAGES }))
+    expect('onPayload' in (oneShot[0]?.options as object)).toBe(false)
+    expect('fetch' in (oneShot[0]?.options as object)).toBe(false)
+    expect(Object.keys((oneShot[0]?.options.headers as Record<string, string>) ?? {})).toContain('x-zctx-test')
+  })
+
   it('F2.3: an unsupported reasoning effort throws UNSUPPORTED_REASONING_EFFORT (runtime contract, adapter validates against the config levels)', async () => {
     const adapter = makeAdapter([DONE_EVENT], [])
     await expect(

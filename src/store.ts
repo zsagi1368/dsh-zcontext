@@ -86,6 +86,7 @@ import type {
   ResetEventKind,
   RouteHeader,
   SessionEventLike,
+  WireSnapshot,
   SessionLike,
   SurfaceNode,
   UsageRecord,
@@ -166,6 +167,9 @@ const BREAK_LEDGER_CAP = 64
 
 /** Bounded cap for the non-durable captured-attempt-usage ledger (V2 receive port). */
 const CAPTURE_LEDGER_CAP = 64
+
+/** Bounded cap for the wire-domain ledger (V5 receive port, same 64-cap design). */
+const WIRE_LEDGER_CAP = 64
 
 /** Bounded cap for the S1 preflight calibration ledger (V4 receive port, same 64-cap design). */
 const PREFLIGHT_CALIBRATION_CAP = 64
@@ -525,6 +529,8 @@ export class FoldStore {
   private readonly breakLog: PrefixBreakRecord[] = []
   /** Bounded non-durable captured-attempt-usage ledger (V2 receive port; never session-logged). */
   private readonly captureLog: CapturedAttemptUsage[] = []
+  /** Bounded wire-domain ledger (V5 receive port, same 64-cap design; never session-logged). */
+  private readonly wireLog: WireSnapshot[] = []
   /** Bounded S1 preflight calibration ledger (V4 receive port; never session-logged). */
   private readonly preflightLog: PreflightCalibrationRecord[] = []
   private readonly anomaliesLog: StoreAnomaly[] = []
@@ -580,6 +586,7 @@ export class FoldStore {
     this.snapshotLog.length = 0
     this.breakLog.length = 0
     this.captureLog.length = 0
+    this.wireLog.length = 0
     this.preflightLog.length = 0
     this.anomaliesLog.length = 0
     this.foldAttributionLog.clear()
@@ -755,6 +762,22 @@ export class FoldStore {
   absorbCapturedAttemptUsage(record: CapturedAttemptUsage): void {
     if (this.captureLog.length >= CAPTURE_LEDGER_CAP) this.captureLog.shift()
     this.captureLog.push(record)
+  }
+
+  /**
+   * Wire-domain receive port (V5): append one byte/object-level hash of a
+   * zctx-route request. Observation-only by construction — the producer
+   * (adapter/wire.ts) never rewrites a payload (R1). Same 64-cap design as
+   * the V2 ledgers; never session-logged.
+   */
+  absorbWireSnapshot(snapshot: WireSnapshot): void {
+    if (this.wireLog.length >= WIRE_LEDGER_CAP) this.wireLog.shift()
+    this.wireLog.push(snapshot)
+  }
+
+  /** The bounded wire-domain ledger, oldest first (V5 receive port view). */
+  wireSnapshots(): readonly WireSnapshot[] {
+    return [...this.wireLog]
   }
 
   /** The bounded S1 preflight calibration ledger, oldest first (V4 receive port). */
