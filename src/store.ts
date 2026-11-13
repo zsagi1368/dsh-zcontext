@@ -40,18 +40,26 @@
  *   llm/stream listener), and the usage records with full token fields
  *   (UsageRecord). Rebuild and incremental maintenance share ONE
  *   transition (`applyEvent`), so attach scans, live feeds, and `resync()`
- *   gaps stay consistent by construction. `attribution` stays undefined
- *   until the V3 attribution engine fills it; `state: 'semi'` is likewise
- *   reserved for V3 interpolation — the V1 store emits 'measured'/'estimated'
- *   only. V2 adds: `reason: 'series'` headers are accounted as their own
- *   `series-restart` reset (V1 handoff ruling ①), and the PROCESS-MEMORY
- *   receive ports the V2 observe listener sinks into — request snapshots
- *   (RequestSnapshot), the harness-domain prefix-break ledger
- *   (PrefixBreakRecord), and the non-durable captured-attempt-usage ledger
- *   (CapturedAttemptUsage). Those three ledgers are never written to the
- *   session log (CARD-F a.1 进程内不入账); they are the zctx_status data
- *   plane the V3 aggregation consumes (routeHeaderChain/resetEvents/
- *   usageRecords expose the durable half of that plane).
+ *   gaps stay consistent by construction. V2 adds: `reason: 'series'`
+ *   headers are accounted as their own `series-restart` reset (V1 handoff
+ *   ruling ①), and the PROCESS-MEMORY receive ports the V2 observe listener
+ *   sinks into — request snapshots (RequestSnapshot), the harness-domain
+ *   prefix-break ledger (PrefixBreakRecord), and the non-durable
+ *   captured-attempt-usage ledger (CapturedAttemptUsage). Those three
+ *   ledgers are never written to the session log (CARD-F a.1 进程内不入账);
+ *   they are the zctx_status data plane the V3 aggregation consumes.
+ *
+ * V3 fills the fields V1 reserved (RES-observe-route §Q4/§Q7): the
+ * attribution engine (attribution.ts pure core) binds each assistant/message
+ * to its nearest preceding fold commit inside the shared `applyEvent`
+ * transition (attach scan, live feed, and resync behave identically by
+ * construction), and the semi paths grade usage-less requests —
+ * `meterAnchored` at event time through the INJECTED {@link MeterAnchorLike}
+ * (never a host import here) and `interpolated` retro-actively when the
+ * same-turn measured anchor arrives with no reset in between. Field absence
+ * is never reverse-inferred into cache support (§Q2.3). The fold-attribution
+ * ledger and the on-demand `observabilitySnapshot()` feed zctx_status's
+ * three-segment upgrade (§Q7.3: 三态占比 / 回本表 / 重置台账摘要).
  *
  * Zero host imports; the session is consumed through the structural
  * SessionLike contract only. Header field comparison is a local twin of the
@@ -60,12 +68,17 @@
  * @module store
  */
 
+import { buildObservabilitySnapshot, classifyFoldAttribution } from './attribution.ts'
 import { estimateTokens } from './budget.ts'
+import { configDefaults } from './config.ts'
 import type {
   CapturedAttemptUsage,
   FoldMap,
   FoldRecord,
+  FoldUsageAttribution,
   LlmCallConfigLike,
+  MeterAnchorLike,
+  ObservabilitySnapshot,
   PrefixBreakRecord,
   RequestSnapshot,
   ResetEvent,
@@ -152,6 +165,30 @@ const BREAK_LEDGER_CAP = 64
 
 /** Bounded cap for the non-durable captured-attempt-usage ledger (V2 receive port). */
 const CAPTURE_LEDGER_CAP = 64
+
+/**
+ * Bounded cap for the request/header chain (V1-B closure, R3 review: the
+ * chain was session-unbounded while every other ledger is capped). Same
+ * bounded design as the V2 64-cap ledgers; only the LAST header feeds the
+ * `change` comparison, and the chain digest reads the most recent 64 — older
+ * headers drop honestly at the cap. The observe listener's exemption window
+ * consumes resets by SEQ pointer (not index), so the resetLog cap below
+ * never mis-aligns it.
+ */
+const ROUTE_HEADER_LEDGER_CAP = 64
+
+/** Bounded cap for the cache-reset ledger (V1-B closure, same 64-cap design). */
+const RESET_LEDGER_CAP = 64
+
+/** Narrow an unknown to a plain object record (V3 helpers' guard). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object'
+}
+
+/** The value as a finite number, else undefined (honest absence). */
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
 
 /**
  * Pull the message object out of an event's data payload. Structural twin of
@@ -485,6 +522,28 @@ export class FoldStore {
   /** Bounded non-durable captured-attempt-usage ledger (V2 receive port; never session-logged). */
   private readonly captureLog: CapturedAttemptUsage[] = []
   private readonly anomaliesLog: StoreAnomaly[] = []
+  // -- V3 attribution engine state (§Q4.2; incremental inside applyEvent) ---
+  /** Fold-attribution ledger: foldId → its first-post-fold association (any quality). */
+  private readonly foldAttributionLog = new Map<string, FoldUsageAttribution>()
+  /** Ascending seqs of every consumed event (window binary-search index). */
+  private readonly eventSeqList: number[] = []
+  /** Ascending seqs of assistant/message events (repay-event detection input). */
+  private readonly assistantMessageSeqs: number[] = []
+  /** Parallel arrays of turn/start markers (seqs + the turn they opened). */
+  private readonly turnStartSeqs: number[] = []
+  private readonly turnStartTurns: number[] = []
+  /** Seq of the previous assistant/message (attribution candidate boundary). */
+  private lastAssistantMessageSeq = -1
+  /** Lifetime three-state counters (attach-scoped; cap-independent, §Q7.3). */
+  private threeState: { measured: number; semi: number; estimated: number } = {
+    measured: 0,
+    semi: 0,
+    estimated: 0,
+  }
+  /** Injected meter anchor for the `meterAnchored` semi path (§Q7.2 rule 2b). */
+  private meterAnchor: MeterAnchorLike | undefined
+  /** Config attributionTimeWindowMs (§Q4.2 rule 4 fallback; config-owned value). */
+  private attributionTimeWindowMs: number = configDefaults.attributionTimeWindowMs
   private compactionStartSeq: number | undefined
   private endSeedSeq: number | undefined
   private lastSeq = -1
@@ -516,6 +575,13 @@ export class FoldStore {
     this.breakLog.length = 0
     this.captureLog.length = 0
     this.anomaliesLog.length = 0
+    this.foldAttributionLog.clear()
+    this.eventSeqList.length = 0
+    this.assistantMessageSeqs.length = 0
+    this.turnStartSeqs.length = 0
+    this.turnStartTurns.length = 0
+    this.lastAssistantMessageSeq = -1
+    this.threeState = { measured: 0, semi: 0, estimated: 0 }
     this.compactionStartSeq = undefined
     this.endSeedSeq = undefined
     this.lastSeq = -1
@@ -689,6 +755,54 @@ export class FoldStore {
     return [...this.usageLedger]
   }
 
+  // -- V3 attribution engine (RES-observe-route §Q4/§Q7; card products 1-3) --
+
+  /**
+   * Inject the meter anchor for the `meterAnchored` semi path (§Q7.2 rule 2b:
+   * THROUGH INJECTION — the store never imports the host). Called once at
+   * store creation by the plugin; `undefined` keeps every usage-less request
+   * honestly 'estimated'.
+   */
+  setMeterAnchor(anchor: MeterAnchorLike | undefined): void {
+    this.meterAnchor = anchor
+  }
+
+  /**
+   * Set the attribution time-window fallback from config
+   * (attributionTimeWindowMs; never hardcoded — plan §3 threshold discipline).
+   */
+  setAttributionTimeWindowMs(ms: number): void {
+    if (typeof ms === 'number' && Number.isFinite(ms) && ms >= 0) {
+      this.attributionTimeWindowMs = ms
+    }
+  }
+
+  /** The fold-attribution ledger (foldId → association), commit order. */
+  foldAttributions(): readonly FoldUsageAttribution[] {
+    return [...this.foldAttributionLog.values()]
+  }
+
+  /**
+   * The aggregated observability snapshot for zctx_status (a.1 row 6): pure
+   * aggregation over the store's ledger views (attribution.ts
+   * buildObservabilitySnapshot). On-demand — status is user-invoked.
+   */
+  observabilitySnapshot(): ObservabilitySnapshot {
+    return buildObservabilitySnapshot({
+      usageRecords: this.usageLedger,
+      threeState: this.threeState,
+      foldEntries: [...this.ledger.values()].map((entry) => ({
+        foldId: entry.foldId,
+        checkpointSeq: entry.checkpointSeq,
+        tokensBefore: entry.tokensBefore,
+        tokensAfter: entry.tokensAfter,
+      })),
+      foldAttributions: [...this.foldAttributionLog.values()],
+      resetEvents: this.resetLog,
+      assistantMessageSeqs: [...this.assistantMessageSeqs],
+    })
+  }
+
   /** True while a `compaction/start` bracket is durably open (mutex). */
   compactionActive(): boolean {
     if (this.compactionStartSeq === undefined) return false
@@ -733,6 +847,7 @@ export class FoldStore {
    */
   private applyEvent(event: SessionEventLike): void {
     this.eventsBySeq.set(event.seq, event)
+    this.eventSeqList.push(event.seq)
     this.lastSeq = event.seq
 
     // -- request/header chain + header-driven resets (a.2 item 1) -------------
@@ -749,14 +864,18 @@ export class FoldStore {
       this.endSeedSeq = event.seq
       this.recordReset('session-recovery', event.seq, 'session/end-seed generation boundary', event.time)
     }
+    // -- turn markers (V3 attribution same-turn evidence, §Q4.2 rule 4) -------
+    else if (event.type === 'turn/start') {
+      const turn = isRecord(event.data) ? finiteNumber(event.data.turn) : undefined
+      if (turn !== undefined) {
+        this.turnStartSeqs.push(event.seq)
+        this.turnStartTurns.push(turn)
+      }
+    }
 
-    // -- usage ledger (assistant/message only) --------------------------------
+    // -- usage ledger + attribution (assistant/message only) -------------------
     if (event.type === 'assistant/message') {
-      const record = extractUsageRecord(event.data, event.seq)
-      if (this.usageLedger.length >= USAGE_LEDGER_CAP) this.usageLedger.shift()
-      this.usageLedger.push(record)
-      if (record.measured) this.measuredSamples += 1
-      else this.unmeasuredSamples += 1
+      this.applyAssistantMessage(event)
     }
 
     // -- fold ledger ----------------------------------------------------------
@@ -832,6 +951,9 @@ export class FoldStore {
         this.recordReset(reset.kind, event.seq, reset.evidence, event.time)
       }
     }
+    // V1-B closure: bounded chain (oldest dropped; the `change` comparison
+    // reads only the last header, so the cap never affects classification).
+    if (this.routeHeaders.length >= ROUTE_HEADER_LEDGER_CAP) this.routeHeaders.shift()
     this.routeHeaders.push(header)
   }
 
@@ -890,8 +1012,15 @@ export class FoldStore {
     )
   }
 
-  /** Append one reset ledger entry (evidence text is caller-owned). @internal */
+  /**
+   * Append one reset ledger entry (evidence text is caller-owned). V1-B
+   * closure: bounded ledger (oldest dropped). The observe listener's
+   * exemption window consumes resets by SEQ pointer, so the shift never
+   * mis-aligns it (store-observe spec pins 66→64).
+   * @internal
+   */
   private recordReset(kind: ResetEventKind, seq: number, evidence: string, time?: number): void {
+    if (this.resetLog.length >= RESET_LEDGER_CAP) this.resetLog.shift()
     this.resetLog.push({ kind, seq, ...(time !== undefined ? { time } : {}), evidence })
   }
 
@@ -910,6 +1039,217 @@ export class FoldStore {
         shadowedByKind: extractSourceKind(event.data) ?? event.type,
       })
     }
+  }
+
+  // -- V3 attribution engine internals (§Q4.2 incremental transition) --------
+
+  /**
+   * One assistant/message: build the usage record, grade the semi paths, fill
+   * the fold attribution (nearest preceding fold commit), then maintain the
+   * lifetime three-state counters and the interpolated retro-upgrade.
+   * Runs inside the shared applyEvent transition — attach scan, live feed,
+   * and resync rebuilds all attribute identically by construction.
+   * @internal
+   */
+  private applyAssistantMessage(event: SessionEventLike): void {
+    let record = extractUsageRecord(event.data, event.seq)
+    // -- meterAnchored semi path (§Q7.2 rule 2b, injected interface) ---------
+    if (!record.measured && this.meterAnchor !== undefined) {
+      const anchor = this.tryMeterAnchor(event.seq)
+      if (anchor !== undefined) {
+        record = { ...record, state: 'semi', semiKind: 'meterAnchored', inputTokens: anchor }
+      }
+    }
+    // -- attribution fill (§Q4.2; nearest fold commit binds the record) ------
+    const attribution = this.attributeMessage(event)
+    if (attribution !== undefined) {
+      record = { ...record, attribution }
+    }
+    if (this.usageLedger.length >= USAGE_LEDGER_CAP) this.usageLedger.shift()
+    this.usageLedger.push(record)
+    this.assistantMessageSeqs.push(event.seq)
+    // -- lifetime three-state counters (§Q7.3; the V1 measured/unmeasured
+    //    split keeps its original semantics: semi has no usable usage object
+    //    and therefore counts as unmeasured there too) ------------------------
+    if (record.measured) {
+      this.measuredSamples += 1
+      this.threeState = { ...this.threeState, measured: this.threeState.measured + 1 }
+      this.upgradeInterpolatedBefore(event, record)
+    } else {
+      this.unmeasuredSamples += 1
+      this.threeState = record.state === 'semi'
+        ? { ...this.threeState, semi: this.threeState.semi + 1 }
+        : { ...this.threeState, estimated: this.threeState.estimated + 1 }
+    }
+  }
+
+  /**
+   * Attribute one assistant/message against every fold commit since the
+   * previous assistant/message (§Q4.2: F's target = the FIRST M after F —
+   * folds before the previous message were already given their first M; later
+   * steps after this message are 维持账, noise ③). The nearest candidate's
+   * association binds the record (batch folds: the last commit before M is
+   * the clean window; earlier commits carry another replace in theirs and
+   * grade weak on their own associations).
+   * @internal
+   */
+  private attributeMessage(event: SessionEventLike): FoldUsageAttribution | undefined {
+    const data = isRecord(event.data) ? event.data : undefined
+    const messageTurn = data === undefined ? undefined : finiteNumber(data.turn)
+    const messageStep = data === undefined ? undefined : finiteNumber(data.step)
+    const interrupted = data?.interrupted === true
+    const previousMessageSeq = this.lastAssistantMessageSeq
+    this.lastAssistantMessageSeq = event.seq
+    if (messageTurn === undefined || messageStep === undefined) {
+      // Official assistant/message events always carry turn/step
+      // (session/src/types.ts:341-342); absence is malformed input — attribute
+      // nothing, record honestly.
+      this.recordAnomaly(
+        'attribution-skipped',
+        `assistant/message at seq ${event.seq} lacks the official turn/step envelope`,
+        event.seq,
+      )
+      return undefined
+    }
+    const messageTime = finiteNumber(event.time)
+    let nearest: FoldUsageAttribution | undefined
+    for (const entry of this.ledger.values()) {
+      if (entry.checkpointSeq <= previousMessageSeq || entry.checkpointSeq >= event.seq) continue
+      const foldEvent = this.eventsBySeq.get(entry.checkpointSeq)
+      const attribution = classifyFoldAttribution({
+        foldId: entry.foldId,
+        foldSeq: entry.checkpointSeq,
+        ...(foldEvent !== undefined && finiteNumber(foldEvent.time) !== undefined
+          ? { foldTime: foldEvent.time }
+          : {}),
+        ...(this.turnOpenAt(entry.checkpointSeq) !== undefined
+          ? { foldTurn: this.turnOpenAt(entry.checkpointSeq) }
+          : {}),
+        messageSeq: event.seq,
+        ...(messageTime !== undefined ? { messageTime } : {}),
+        messageTurn,
+        messageStep,
+        ...(interrupted ? { messageInterrupted: true } : {}),
+        windowEvents: this.windowEventsBetween(entry.checkpointSeq, event.seq),
+        timeWindowMs: this.attributionTimeWindowMs,
+      })
+      if (attribution !== undefined) {
+        this.foldAttributionLog.set(entry.foldId, attribution)
+        nearest = attribution
+      }
+    }
+    return nearest
+  }
+
+  /** Fail-soft meter-anchor probe: a meter fault degrades to estimated. @internal */
+  private tryMeterAnchor(seq: number): number | undefined {
+    try {
+      const anchor = this.meterAnchor?.inputAnchor(seq)
+      return typeof anchor === 'number' && Number.isFinite(anchor) && anchor > 0 ? anchor : undefined
+    } catch (error: unknown) {
+      this.recordAnomaly(
+        'meter-anchor-failed',
+        `meter anchor probe for seq ${seq} threw (${error instanceof Error ? error.message : String(error)})`,
+        seq,
+      )
+      return undefined
+    }
+  }
+
+  /**
+   * The `interpolated` semi path (§Q7.2 rule 2a): a measured anchor arrived;
+   * usage-less estimated records EARLIER in the same turn — with no reset
+   * entry between them and the anchor (conservative superset of "no
+   * route/system-section change") — carry the anchor's input-side fields over
+   * (absent stays absent, §Q2.3). Walking backwards stops at the first
+   * measured record (its own arrival already upgraded what it could), a turn
+   * change, an unknown turn, or a reset entry.
+   * @internal
+   */
+  private upgradeInterpolatedBefore(anchorEvent: SessionEventLike, anchor: UsageRecord): void {
+    if (
+      anchor.inputTokens === undefined
+      && anchor.cacheReadTokens === undefined
+      && anchor.cacheWriteTokens === undefined
+    ) {
+      return // no input-side evidence to carry over
+    }
+    const anchorTurn = this.messageTurnAt(anchorEvent.seq)
+    if (anchorTurn === undefined) return
+    for (let i = this.usageLedger.length - 2; i >= 0; i -= 1) {
+      const candidate = this.usageLedger[i]
+      if (candidate.state === 'measured') break
+      if (candidate.state !== 'estimated') continue // semi records are not blockers
+      const candidateTurn = this.messageTurnAt(candidate.seq)
+      if (candidateTurn === undefined || candidateTurn !== anchorTurn) break
+      if (this.resetBetween(candidate.seq, anchorEvent.seq)) break
+      this.usageLedger[i] = {
+        ...candidate,
+        state: 'semi',
+        semiKind: 'interpolated',
+        ...(anchor.inputTokens !== undefined ? { inputTokens: anchor.inputTokens } : {}),
+        ...(anchor.cacheReadTokens !== undefined ? { cacheReadTokens: anchor.cacheReadTokens } : {}),
+        ...(anchor.cacheWriteTokens !== undefined ? { cacheWriteTokens: anchor.cacheWriteTokens } : {}),
+      }
+      this.threeState = {
+        ...this.threeState,
+        estimated: this.threeState.estimated - 1,
+        semi: this.threeState.semi + 1,
+      }
+    }
+  }
+
+  /** First index in eventSeqList whose seq is strictly above `seq`. @internal */
+  private firstIndexAbove(seq: number): number {
+    let lo = 0
+    let hi = this.eventSeqList.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (this.eventSeqList[mid] <= seq) lo = mid + 1
+      else hi = mid
+    }
+    return lo
+  }
+
+  /** Retained events strictly between `from` and `to`, ascending. @internal */
+  private windowEventsBetween(from: number, to: number): SessionEventLike[] {
+    const start = this.firstIndexAbove(from)
+    const end = this.firstIndexAbove(to - 1)
+    const out: SessionEventLike[] = []
+    for (let i = start; i < end; i += 1) {
+      const event = this.eventsBySeq.get(this.eventSeqList[i])
+      if (event !== undefined) out.push(event)
+    }
+    return out
+  }
+
+  /** The turn open at `seq` (nearest turn/start at-or-before), when logged. @internal */
+  private turnOpenAt(seq: number): number | undefined {
+    let lo = 0
+    let hi = this.turnStartSeqs.length
+    let best = -1
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (this.turnStartSeqs[mid] <= seq) {
+        best = mid
+        lo = mid + 1
+      } else {
+        hi = mid
+      }
+    }
+    return best >= 0 ? this.turnStartTurns[best] : undefined
+  }
+
+  /** The `data.turn` of the retained event at one seq, when well-formed. @internal */
+  private messageTurnAt(seq: number): number | undefined {
+    const event = this.eventsBySeq.get(seq)
+    if (event === undefined || !isRecord(event.data)) return undefined
+    return finiteNumber(event.data.turn)
+  }
+
+  /** True when a reset-ledger entry sits strictly between the two seqs. @internal */
+  private resetBetween(from: number, to: number): boolean {
+    return this.resetLog.some((reset) => reset.seq > from && reset.seq < to)
   }
 
   /** Local surface replay from the retained log (fallback when no live surface). @internal */

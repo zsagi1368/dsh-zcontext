@@ -94,8 +94,13 @@ export interface ObserveDeps {
 
 /** Per-session listener state (process memory, keyed by session id). */
 interface SessionObserveState {
-  /** Reset-ledger entries already consumed by an exempt request. */
-  consumedResets: number
+  /**
+   * Seq of the last reset-ledger entry consumed by an exempt request (V1-B
+   * companion: the store's reset ledger is CAPPED (oldest dropped), so an
+   * INDEX pointer would mis-align after a shift — the seq pointer stays
+   * correct across cap eviction and attach rebuilds alike).
+   */
+  lastConsumedResetSeq: number | undefined
   /** Resets consumed since the previous snapshot — the next break's explanation. */
   explainedBy: PrefixBreakResetRef[] | undefined
   /** Gap-free attempt ordinal (only snapshotted requests increment). */
@@ -116,6 +121,17 @@ interface StreamPlan {
 
 /** Async-iterator type of the waterfall `next()` (official StreamChunk stream). */
 type NextStream = () => AsyncIterable<unknown>
+
+/**
+ * Bounded cap for the per-route model-info cache (V2-C closure, R3 review:
+ * the cache was process-unbounded — negative results included — which broke
+ * the plugin's 64-ledger bounded-memory discipline for no benefit). Insertion
+ * order eviction drops the OLDEST route when the cap is hit; a live route is
+ * re-resolved on its next request (one extra injected resolver call after 64
+ * other routes passed through). 64 = the same cap value every plugin ledger
+ * uses.
+ */
+const MODEL_INFO_CACHE_CAP = 64
 
 /** The waterfall listener signature (official 'llm/stream' event face). */
 export type ObserveStreamListener = (
@@ -150,6 +166,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * against its predecessor — length shrink and/or per-position break point.
  * Growth with an intact common prefix is the normal conversation walk and
  * records nothing. Returns undefined when there is no baseline or no break.
+ *
+ * DELIBERATE NARROWING (V2-B closure, R3 review; RES-observe-route a.3 as
+ * written): the break domain is the MESSAGE LIST ONLY — `systemHash` and
+ * `toolsHash` are collected on every snapshot but deliberately DO NOT
+ * participate in break detection. System-section and toolset changes are the
+ * reset ledger's territory (the `system-section-change` / `toolset-change` /
+ * `sampling-change` classes classify them through request/header diffs, and
+ * the exemption window excuses the first request after such a reset), and
+ * pi-ai-domain system folding is a registered object-level blind spot
+ * (§Q5.2) that a system/tools hash could never see either. Nothing here
+ * should grow a frozen-segment comparison without reopening that spec
+ * decision.
  */
 export function detectPrefixBreak(
   prev: RequestSnapshot | undefined,
@@ -251,11 +279,14 @@ export class ObserveListener {
     // Criterion 4: exemption window — the first main-chain request after a
     // reset is exempt; the consumed reset entries become the NEXT snapshot's
     // break explanation (the skipped request leaves the pre-reset baseline).
+    // Consumption is a SEQ pointer (V1-B companion): the store's reset ledger
+    // is capped with oldest-drop, so an index pointer would mis-align.
     const resets = store.resetEvents()
-    if (state.consumedResets > resets.length) state.consumedResets = resets.length // heal after an attach clear
-    const pending = resets.slice(state.consumedResets)
+    const consumedThrough = state.lastConsumedResetSeq
+    const pending =
+      consumedThrough === undefined ? resets : resets.filter((reset) => reset.seq > consumedThrough)
     if (pending.length > 0) {
-      state.consumedResets = resets.length
+      state.lastConsumedResetSeq = pending[pending.length - 1].seq
       state.explainedBy = [
         ...(state.explainedBy ?? []),
         ...pending.map((reset) => ({ kind: reset.kind, seq: reset.seq })),
@@ -341,6 +372,12 @@ export class ObserveListener {
         resolver === undefined
           ? Promise.resolve(undefined)
           : resolver(provider, model).catch(() => undefined)
+      // V2-C closure: bounded cache — drop the OLDEST route (insertion order)
+      // when the cap is hit; the evicted route re-resolves on next use.
+      if (this.modelInfoCache.size >= MODEL_INFO_CACHE_CAP) {
+        const oldest = this.modelInfoCache.keys().next()
+        if (!oldest.done) this.modelInfoCache.delete(oldest.value)
+      }
       this.modelInfoCache.set(key, entry)
     }
     return entry
@@ -350,7 +387,7 @@ export class ObserveListener {
   private stateFor(sessionId: string): SessionObserveState {
     let state = this.stateBySession.get(sessionId)
     if (state === undefined) {
-      state = { consumedResets: 0, explainedBy: undefined, attemptSeq: 0 }
+      state = { lastConsumedResetSeq: undefined, explainedBy: undefined, attemptSeq: 0 }
       this.stateBySession.set(sessionId, state)
     }
     return state
