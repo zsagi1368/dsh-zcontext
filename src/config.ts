@@ -49,6 +49,21 @@ export interface ZcontextConfig {
    * Default 0.6 — 待真机标定 (calibration pending, plan §3).
    */
   cleanSampleFloor: number
+  /**
+   * Observe face master switch (v0.2.0 V2, task card product 4): registers
+   * the read-only `llm/stream` waterfall listener whose per-attempt request
+   * snapshots + prefix-break records land in the per-session store's
+   * process-memory ledgers (RES-observe-route a.2/a.3). Default true — the
+   * face is observation-only and never short-circuits (V4 boundary).
+   */
+  'observe.enabled': boolean
+  /**
+   * Per-attempt usage capture (v0.2.0 V2): when true the observe listener
+   * wraps `next()` chunk-by-chunk to record FAILED attempts' usage into the
+   * NON-DURABLE process-memory ledger (RES-observe-route §Q8.2; never
+   * session-logged, CARD-F a.1 进程内不入账). Default false — opt-in.
+   */
+  'observe.attemptCapture': boolean
 }
 
 /** Primitive field kinds supported by the Config schema. */
@@ -72,6 +87,8 @@ export const configDefaults: Readonly<ZcontextConfig> = Object.freeze<ZcontextCo
   netShrinkTolerance: 1.05,
   attributionTimeWindowMs: 90000,
   cleanSampleFloor: 0.6,
+  'observe.enabled': true,
+  'observe.attemptCapture': false,
 })
 
 /**
@@ -91,6 +108,8 @@ const CONFIG_FIELD_SPECS = {
   netShrinkTolerance: { type: 'number', default: configDefaults.netShrinkTolerance },
   attributionTimeWindowMs: { type: 'number', default: configDefaults.attributionTimeWindowMs },
   cleanSampleFloor: { type: 'number', default: configDefaults.cleanSampleFloor },
+  'observe.enabled': { type: 'boolean', default: configDefaults['observe.enabled'] },
+  'observe.attemptCapture': { type: 'boolean', default: configDefaults['observe.attemptCapture'] },
 } as const satisfies { readonly [K in keyof ZcontextConfig]: ConfigFieldSpec }
 
 /** `~standard.validate` issue shape (StandardSchemaV1 subset). */
