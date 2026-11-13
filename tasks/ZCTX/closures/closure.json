@@ -611,6 +611,46 @@
       "owner": "coder-v6",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "V6-F",
+      "source": "V6 card product 1-2 + plan B6: README bilingual update (three new capability blocks + limitations update, en/zh mirror) + CHANGELOG 0.2.0 finalized",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "commits e733ad1 (CHANGELOG 0.2.0: S2 wave appended in full + Honest ceilings and calibration debt section) + 80c43d5 (README en/zh: observability-ledger / preflight-s1 / zctx-router sections, settings +7 v0.2.0 fields, limitations +2 honest-ceiling entries, 424 tests + probes 6/10/3); mirror verified anchor-by-anchor (identical anchor lines 28-217) and fact-count-matched (6/6 limitation bullets, 9/9 key-number lines)",
+      "owner": "coder-v6",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V6-G",
+      "source": "V6 card products 3-4 + plan B5: verify-activation-surface + probe-artifact extensions (card assertion list)",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "commit 6d835b1: verify-activation-surface +A9 (preflightMode observe default R2, providers [] unified default in configDefaults AND schema output V5-3, observe switches) +A10 (adapter export face functional, KNOWN_PROTOCOLS official union, R4 maxRetries:0 single code site, R7 attributionHeaders — node direct reads) 8->10 groups; probe-artifact +P6 (S2 exports functional, route/displayName pins, missing-maxTokens construction violation V5-2, assertZctxProvidersResolvable fail-loud) 5->6 groups; all exit 0 against the fresh lib",
+      "owner": "coder-v6",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V6-H",
+      "source": "V6 card product 5 + plan B4: smoke-real-loader zctx provider directory smoke (capability-reach -> real run, not SKIPPED)",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "commit 6d835b1: smoke-real-loader +R3 — a user-style profile overlay patch carrying providers (family/baseURL/models/contextWindow/maxTokens) composes through the REAL loader CLI dump-config (7 composed rows asserted); honest scope label in the probe output: config-layer only, runtime registerConfigurableProviders needs a live llm runtime -> stays with the post-merge full-install smoke (plan A6). 3/3 PASS exit 0",
+      "owner": "coder-v6",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V6-I",
+      "source": "V6 card product 7 + acceptance: version 0.2.0 + final battery + terminal governance",
+      "type": "acceptance-pin",
+      "disposition": "fixed",
+      "evidence": "commits e733ad1 (version 0.2.0 + lib rebuilt 988.84 kB 7 files) + 6d835b1 + 80c43d5; final battery green: build -> 424/424 vitest -> tsc --noEmit zero; four probes exit 0 (probe-artifact 6/6, verify-activation-surface 10/10, smoke-real-loader 3/3, probe-host-imports 16/16 with U2 report timestamp-only diff restored to the committed state); closure 65 items, only W5-A6-INSTALL user_approved_deferred (v0.1.0 baseline, post-merge) open-by-design",
+      "owner": "coder-v6",
+      "status": "verified",
+      "phase": "block"
     }
   ],
   "updatedAt": "2026-11-13"

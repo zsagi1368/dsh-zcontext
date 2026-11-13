@@ -39,3 +39,4 @@
 {"ts":"2026-11-13T22:25:00+08:00","task":"ZCTX-V5","step":"v5s4","commits":[],"summary":"cache knobs passthrough + image honest boundary (dead knobs refused); 417/417"}
 {"ts":"2026-11-13T22:35:00+08:00","task":"ZCTX-V5","step":"v5s5","commits":[],"summary":"minimal directory visibility-only + index public surface; 419/419"}
 {"ts":"2026-11-13T22:45:00+08:00","task":"ZCTX-V5","step":"v5s6-terminal","commits":[],"summary":"terminal battery green: build 984.97 kB + 419/419 + tsc zero + 4 probes exit 0; R1-R8 audit clean; closure 56 items 0 new OPEN"}
+{"ts": "2026-11-13T12:55:00+08:00", "task": "ZCTX-V6", "step": "v6s4-terminal", "commits": ["dec0bcc", "c935277", "e733ad1", "6d835b1", "80c43d5"], "summary": "terminal battery green: 0.2.0 + lib 988.84 kB + 424/424 + tsc zero + probes 6/10/3/16; R5 four + V1-A fixed/verified; closure 65 items 1 by-design deferred; README en/zh mirror verified"}

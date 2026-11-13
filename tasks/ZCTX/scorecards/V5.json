@@ -1,0 +1,110 @@
+{
+  "block": "V5",
+  "task": "ZCTX v0.2.0 V5 波单审 — S2 薄 adapter（七子块 v5s0..v5s6：R4 三条顺手闭合 → adapter 骨架五模块 → ZctxAdapter 类+stream 管线+config 结构化段 → wire 账本 → 缓存旋钮+图片诚实边界 → 最小目录 visibility-only → lib 重建+探针）",
+  "range": "12543ae (v5s0 R4 顺手闭合，含起点提交本体) / e16cced v5s1 / c3fd691 v5s2 / 1a47363 v5s3 / 033d005 v5s4 / e197549 v5s5 / 43142c7 v5s6 / e243c70 governance terminal — 有效审查区间 12543ae^..e243c70（8 提交，src+tests 约 4.5k 行，已按卡面纪律拆七子块提交）",
+  "reviewer": "reviewer-R5 (independent subagent; reviewer ≠ V5 coder)",
+  "date": "2026-11-13",
+  "verdict": "通过 (总分 98 ≥ 98) → 交主线放行中间合入；0 条 [阻断]；4 条 [建议] V5-1..V5-4 登记最终验收台账（阻塞最终验收，不阻塞中间合入）",
+  "total": 98,
+  "threshold": 98,
+  "scores": {
+    "correctness": 25,
+    "completeness": 19,
+    "consistency": 19,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 10
+  },
+  "verification_trio_reviewer_run": {
+    "build": "pnpm build → tsdown 984.97 kB (7 files) EXIT=0；git status --porcelain lib/ 为空 = 入库 lib 与重建字节一致",
+    "test": "pnpm test → vitest 22 files 419/419 passed EXIT=0（轨迹 332+1 V4-2钉+55 s1+19 s2+8 s3+2 s4+2 s5=419 与提交声称吻合；adapter-host 7 / adapter-providers 48 / adapter-zctx 16+3 / adapter-wire 7 / adapter-plugin 7；官方路径两例实跑无 SKIP：mapping source='official-pi-ai-mapping' + preflight projector='official'）",
+    "lint": "pnpm lint → tsc --noEmit 零错 EXIT=0（build→test→tsc 顺序，Z19）",
+    "probes": "probe-artifact 5/0/0 + verify-activation-surface 8/0 + smoke-real-loader 2/0/0 + probe-host-imports 16/0/0 全 EXIT=0；U2 报告重生成仅时间戳差异已 git checkout 还原入库态（沿 REVIEW-V3V4 先例）",
+    "closure_machine_count": "node 遍历 closure.json → 56 items / 0 非闭合（唯一 status=open = W5-A6-INSTALL 遗留 user_approved_deferred）；V5-A..V5-I 九条全 fixed/verified，disposition 词表零违规",
+    "redline_grep": "R1-R8 独立 grep 复跑（node 全量 src 扫描）：R1 onPayload 仅 wire.ts（类型签名 ()=>undefined + return undefined 恒定，无任何 payload 返回站点）；R3 src/ 仅 JSDoc 禁令命中；R4 maxRetries 全 src 唯一站点 zctx-adapter.ts:452 maxRetries:0 + 捕获钉测试；R5 路由仅经 zctxRouteOf('zctx-<family>')；R6 transport 零传递+ws 仅出现于拒绝字符串+pi-ai 1.0.2 dist 三协议 api 模块 transport/websocket 零消费（node 独立扫描复核，防 ugrep 假阴性）；R7 attributionHeaders 全请求含 one-shot（wireFaces?.headers ?? requestHeaders(undefined)）；R8 pi-ai/dsh-llm 零静态 import（仅 host.ts 动态 import 字符串+ambient 声明）"
+  },
+  "official_semantics_audit": {
+    "method": "官方 llm-pi-ai src（zDSH-main 树=1.0.2 锁定）逐文件实读对照 + pi-ai 1.0.2 dist（node_modules/.pnpm/@earendil-works+pi-ai@1.0.2_*/）独立 node 扫描",
+    "stream_ts": "mapUsage（三计数互斥+cache 仅非零）逐行一致；classifyPiAiError 正则表 401/403→AUTH、quota、429/rate.?limit、413/4xx、5\\d\\d、timeout、stream ended (before|without)、undici terminated/Premature close→TRANSPORT、兜底 PI_AI_ERROR 全表一致；mapStopReason 双分类器（piOverflow 先+harnessOverflow=stopReason error+isContextWindowExceededError）+stop 空内容→EMPTY_RESPONSE+pending/deferred→PI_AI_ERROR+aborted 分支一致（twin 增 default 防御分支=结构输入超集）；toStreamChunks 7 形+usage 先于 finish+finish 后无 chunk+tool arguments block-end 重 stringify（raw JSON 语义 F5.1）+contentIndex 1:1+STREAM_CLOSED 兜底一致",
+    "replay_ts": "readReplayState 校验集（kind pi-ai/version 2/api|provider|model 非空/stopReason 白名单/签名串/redacted bool/逐块类型）逐行一致；foreignAssistant api 'dsh-foreign'+absent-is-foreign 注释语义一致；replayedAssistant provider/model/block-count/逐块类型四闸一致；toPiAssistant INVALID_REPLAY_STATE 守门外其余 loud 一致；emit/consume 同 schema——官方 llm-pi-ai 信封可经 zctx twin 回放（专测 :492 钉跨 adapter 互操作）",
+    "context_ts": "text-only 路径忠实：flattenText/splitSystemPrompt(\\n\\n join+filter Boolean)/piContext(tools 非空才带)/appendDeveloper(INVALID_REQUEST 未声明工具+UNSUPPORTED_CONTENT 非 text 块)/toolsOf(deferLoading 剔除)/toolResultOf('(no output)') 一致；图片任何角色 UNSUPPORTED_CONTENT 消息原文同官方 textOnlyContext:247；twin 增 file 块 fail-loud=F6.2 投影后不变量显式化（诚实增强非偏离）",
+    "adapter_ts": "maxRetries:0 位置与官方 profileOptions 同型；requestHeaders attribution-wins 大小写不敏感合并与官方 adapter.ts:215-223 逐行一致；stop 门 UNSUPPORTED_OPTION 同官方 :347-348；consumer+AbortSignal.any 同官方 :372-375（idleWatchdog 不携带=诚实注记）；prepareCall 快照冻结同官方 :330-336；imageRequestPricing 不覆盖=text-only 正确",
+    "anchors_spot_check": "wire.ts 所引 dist/types.d.ts:52 (FetchFunction)/:80 (onPayload)、catalog.ts:69-86 THINKING_LEVELS 升序（off/minimal/low/medium/high/xhigh/max）、官方 GATE 单值 'anthropic'（catalog.ts:146-151 经 F4.6）、llm-pi-ai config.ts:306 maxTokens min(1)——逐个实读吻合",
+    "pi_ai_dist_probe": "node 独立扫描 1.0.2 dist：三协议 api 模块 transport/websocket 零命中（R6 双重保障：插件不传+1.0.2 api 模块根本不消费）；buildBaseOptions 透传 fetch/onPayload/headers/maxRetries/cacheRetention/sessionId（透传面全部落地真实请求选项）；options?.maxTokens ?? model.maxTokens 与 anthropic-messages.js:880 max_tokens 证实 Model.maxTokens 缺省可达 wire（→ [建议] V5-2）"
+  },
+  "evidence": {
+    "correctness": [
+      "孪生 port 保真三方对照通过（见 official_semantics_audit）——'忠实 port+诚实锚点'自评属实，抽验 3 处关键语义（usage 三计数互斥/7 形 chunk/tool arguments raw JSON）全对上",
+      "R1 最严核：onPayload 类型级 ()=>undefined + 实现体 return undefined 恒定 + 双调用钉测试（adapter-wire.spec:31-49）；fetch 只哈希不改写（real fetch 原样收到调用，:62-86 钉）；grep+实读双验零 replace 站点",
+      "R4 唯一站点+捕获钉（adapter-zctx.spec:230-235 options.maxRetries===0）；MISSING_CREDENTIAL 无 ambient 回退（:237-250 删 env 实测）；两路错误：throw 经 twin 表分类（terminated→TRANSPORT :252-275）+in-band error finish（SERVER :277-296）+caller-abort→ABORTED 升级（:298-326）",
+      "fail-soft 三面：all-or-nothing（缺 pi-ai 面→整体 undefined，host.spec:61-68）+坏 override 降级（:53-60）+memoized+resetAdapterFacesForTest 缝；Z20 fileURLToPath 修复在位（host.ts:132-139 注释锚+坑册 INDEX.md 2026-11-13 条目含诚实自纠）",
+      "构造期 fail-loud 完整违规清单（providers.ts assertZctxProvidersResolvable 一次抛全清单，plugin 捕获落 warn 不炸 boot，adapter-plugin.spec:129-147 钉）；DUPLICATE_ADAPTER/DUPLICATE_DIRECTORY keep-old-route 先例（F9.3/F1.6）双路径钉（:148-184, :223-256）",
+      "store V3-1 停走条件：resetLog.length >= RESET_LEDGER_CAP → return true（store.ts:1297，语义=超 cap 即 unknown，与卡面『不给无 reset 结论』逐字一致，比 V3 评审建议的最老-seq 停走更保守）"
+    ],
+    "completeness": [
+      "卡面产物 1-9 全交付：骨架（extends LlmAdapter 经可选导入）/chunk 映射（官方优先+孪生兜底+source 标注）/错误两路/wire 账本/缓存旋钮/图片 UNSUPPORTED_CONTENT/最小目录/config 结构化段/测试（87 新例）",
+      "R4 三条顺手闭合全落地：V3-1 一行停走（store.ts:1297）/V4-1 fallback 行剔除出统计+basis 'official only (excluded N uncalibrated...)'（tools.ts:531-558，测试改写 comparable=2+mean 重算）/V4-2 preflight 官方路径执行钉（preflight.spec:681-741 projector='official'+官方 file 投影估算差异+SKIPPED 约定）",
+      "volatile 承重件（U1 GO 条件 1）落实：config.ts providers 段 .volatile()（schemastery Node volatile 存在性守卫）+U1 §4 实读核对（settings index.ts:307-309 volatileForm 门）；visibility-only 诚实日志+profile overlay patch 权威声明",
+      "A 案零映射：family=supportedProtocols() 动态取（host.ts:222-239）+KNOWN_PROTOCOLS 与官方 union 相等钉（adapter-host.spec:71-73）+未知 family 违规清单含 supported 全集",
+      "[建议 V5-1 扣 1 分]：V3-1 闭合缺边界测试——store-attribution.spec 有逐出机制钉(:330)与 reset-entry 保守闸钉(:262)，但无「resetLog 满 cap ⇒ interpolated 不升格」专钉；删掉 store.ts:1297 一行无任何测试变红；closure V5-F 如实只声称代码修复，非虚报，但按 V3 评审建议原文『补一例 store-attribution 边界测试』的替代路线选了纯代码路线，测试缺口未按 §11 显式记账",
+      "[建议 V5-4 扣分项记录于 completeness]：wireAdapterFace 违规清单仅在宿主可达门之后检查（plugin.ts 先 faces===undefined 早退）——宿主不可达+配置违例并存时用户只见 'not reachable' info，见不到完整违规清单；而 assertZctxProvidersResolvable 不依赖宿主（协议表有 builtin 兜底），违规检查可先行"
+    ],
+    "consistency": [
+      "官方锚点全部实读核对（audit 块），锚漂移为零；R8 锚点=1.0.2 dist 实读（wire.ts 头注 types.d.ts:52/:80 经 grep 实证行号准确）",
+      "与 V1-V4 纪律同构：64-cap（WIRE_LEDGER_CAP）/warn-once/fail-soft/capability-probe/诚实标注（MappingSource domain-field 纪律延续）/CONFIG_FIELD_SPECS satisfies 钉延续（ PrimitiveKind +providers）",
+      "config 结构化段前移 v5s2（随消费面落地）+v5s5 只补目录——无契约影响；smoke 契约钉 +providers:[] 为 Z19 有意识修正（提交信息声明），configDefaults 与 schema default 对齐",
+      "cacheControlFormat 仅 'anthropic'+仅 openai-completions 构造期拒收=F4.6 官方 GATE 单值语义（死配置不诚实携带）；cacheRetention 直通=pi-ai resolveCacheRetention 自持优先级；'none' 抑制标记由 pi-ai downstream 执行——委托边界正确",
+      "[建议 V5-2 扣 1 分]：maxTokens 缺省→静默 32768（zctx-adapter.ts:201）与官方 catalog.ts:934-936 fail-loud 语义偏离：官方对手写模型缺 maxTokens 记 invalid（有 catalog base/defaultMaxTokens 兜底链），zctx 静默发明 32768 且该值经 pi-ai buildBaseOptions（options?.maxTokens ?? model.maxTokens）与 anthropic-messages.js:880 到达 wire max_tokens；harness 侧 modelInfo 不带 defaultMaxTokens（诚实），但 pi-ai 侧 wire 面携带未声明值；有 clampMaxTokensToContext 防溢出故非安全缺陷，属官方对齐度缺口+未文档化的发明默认",
+      "[建议 V5-3]：config.ts:175 注释 'configDefaults omits it (optional)' 与 :150 configDefaults.providers=[] 及 smoke 契约钉直接矛盾（默认值已是契约的一部分）——一行陈旧注释"
+    ],
+    "verifiability": [
+      "亲验五件套全绿（本文件 verification_trio_reviewer_run，reviewer 本机实跑 2026-11-13）：build 984.97 kB 字节一致/419-419/tsc 零/四探针全绿/closure 56-0 机器数",
+      "红线 R1-R8 独立复跑（node 全量扫描脚本，非 grep 单工具——含 ugrep 假阴性换法复核纪律）；pi-ai dist 独立 node 扫描（transport/onPayload/fetch/maxTokens 消费面）提供 R6/R8 的第二证据源",
+      "测试数轨迹逐提交吻合：333→388→407→415→417→419→419；V5-A..V5-I closure 条目 evidence 与实盘对得上（V5-F 如实只声称已做部分）",
+      "checkpoint 链在位：7 steps（v5s0..v5s6-terminal）+history 41 行单调追加；progress.md 逐块落盘含 RSI 捕获（Z20 fileURLToPath 错盘+目录 override ESM 解析，候选 V6 固化）"
+    ],
+    "safety_rollback": [
+      "R1/R4/R5/R6/R7 五条本波直接受考红线全过（见 redline_grep + official_semantics_audit.pi_ai_dist_probe）；R2/R3 面未触碰（diff 文件清单实证 preflight.ts 零改动）",
+      "凭据面：apiKeyEnv 只携引用名（providers.ts 校验非空名），运行时 process.env 读取+缺失 MISSING_CREDENTIAL fail-loud 无回退——无凭证入库/无日志泄露（MISSING_CREDENTIAL 消息只含 env 名）",
+      "boot 安全：wireAdapterFace 全路径不抛（异步 continuation 内 try/catch 逐层+最外层兜底 warn）；fires-and-forget 但 adapterRegistration 可 await（测试可等待沉降态）；目录拒绝/缺面不影响 adapter 注册（F1.6 先例）",
+      "wire 面故障免疫：序列化失败/哈希故障绝不影响请求（onPayload catch 吞+fetch 双 catch，测试钉 cyclic payload 零记录+请求照发）"
+    ],
+    "maintainability": [
+      "模块边界干净：map/replay/context 纯叶（无跨模块接线）+twins 组装叶+host 加载器+zctx-adapter 类+wire 观测面——每文件单一职责且零宿主静态依赖（R8 结构性）；官方可达时整面切官方实现（adapter-host.spec:75-95 实跑钉）",
+      "诚实标注纪律贯穿：MappingSource/None fallback KNOWN_PROTOCOLS source 标注/visibility-only 日志/dead-knob 拒收/IMAGE_OFFLOAD_REQUIRED unreachable-by-construction JSDoc",
+      "行数口径：src/adapter 五模块 ~1950 行 vs 计划 +500-800 估算——卡面先例（V3/V4 同判）：估算未含诚实标注+fail-soft+双路径展开；子块七提交使审查可分解，不扣 artifact 分（过程注记：计划估算工具按 V4 先例继续校准）",
+      "[建议 V5-3/V5-4 为可维护性级 nit：一行陈旧注释+违规检查次序]——记录为 OPEN 建议，不改维度分（两处均一行级修复，模块整体结构为 V1-V5 最佳）"
+    ]
+  },
+  "suggestions": [
+    {
+      "id": "V5-1",
+      "location": "src/store.ts:1297 resetBetween cap-guard（tests/store-attribution.spec.ts 无对应专钉）",
+      "problem": "V3-1 闭合的停走条件（resetLog 满 64 ⇒ return true ⇒ interpolated 不升格）无回归测试：现有钉只覆盖逐出机制(:330)与 reset-entry 保守闸(:262)；删除该行任何测试不变红——一条正确性承重的保守闸处于无钉状态；closure V5-F 如实声称代码修复，但 V3-1 建议原文的『补一例边界测试』分支未走亦未按 §11 显式记账",
+      "fix": "补一例 store-attribution 边界用例：构造锚点后灌入 64+ reset 事件再喂同 turn estimated 候选，断言 record 停留 estimated（state!==semi/semiKind!==interpolated）——以测试断言为准绳；或按 §11 记 user_approved_deferred（附病态触达论证：需单 turn ≥64 次 reset 且候选仍在 usage 64-cap 内）",
+      "disposition": "OPEN → 主线 §11 记账（建议随 V6 当波 fixed，阻塞最终验收）"
+    },
+    {
+      "id": "V5-2",
+      "location": "src/adapter/zctx-adapter.ts:201 materializePiModel（maxTokens: model.maxTokens ?? 32768）",
+      "problem": "配置未声明 maxTokens 时静默发明 32768 默认并经 pi-ai 到达 wire（1.0.2 buildBaseOptions options?.maxTokens ?? model.maxTokens；anthropic-messages.js:880 max_tokens 同源）——官方 catalog.ts:934-936 对手写模型缺 maxTokens 是构造期 invalid（fail-loud 完整违规清单，兜底链=catalog base/defaultMaxTokens）；zctx 的 harness 面 modelInfo 不带 defaultMaxTokens 是诚实的，但 wire 面携带了用户未声明的值且 32768 无处文档化；有 clampMaxTokensToContext 防溢出，非安全/正确性缺陷，属官方语义对齐缺口（C5：能注册≠能对齐语义）",
+      "fix": "二选一：(a) 官方对齐——providers.ts 构造校验加一条 maxTokens 必填（违规清单已有同型机制，一行+一测）；(b) 保留缺省但文档化——providers.ts JSDoc+README 写明 'absent maxTokens materializes as 32768 (pi-ai clamps to context)'，并补一测断言 materializePiModel 缺省值，使其成为受钉的契约而非隐式行为",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收）"
+    },
+    {
+      "id": "V5-3",
+      "location": "src/config.ts:175（CONFIG_FIELD_SPECS providers 条目注释）",
+      "problem": "注释声称 'configDefaults omits it (optional)'，但 config.ts:150 configDefaults.providers=[] 已存在且 tests/smoke.spec.ts 契约深等钉包含 providers:[]——注释与代码、与契约钉三方矛盾（v5s6 对齐时未同步注释）",
+      "fix": "一行注释改为如 'schema default = []，configDefaults.providers=[] 与 smoke 契约钉三方一致（zero routes keep-alive）'",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收）"
+    },
+    {
+      "id": "V5-4",
+      "location": "src/plugin.ts wireAdapterFace（faces===undefined 早退在 assertZctxProvidersResolvable 之前）",
+      "problem": "宿主不可达与配置违例并存时，用户只见 'adapter face skipped — …not reachable' info，永远看不到完整违规清单——而违规校验（resolveZctxProviders）不依赖宿主（协议表有 builtin 兜底），检查可先于可达性门执行；诚实诊断纪律下违例信息不应被可达性门屏蔽",
+      "fix": "把 resolveZctxProviders（非抛版本）提前到 loadAdapterFaces 之前/并行，违例先 warn 全清单再按可达性决定注册——行为面不变，仅诊断信息前移；补一测：宿主缺席+坏配置 ⇒ 日志含违规清单",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收）"
+    }
+  ],
+  "fraud_check": "未发现造假：官方 stream.ts/replay.ts/context.ts/adapter.ts/catalog.ts 与 pi-ai 1.0.2 dist 逐处实读对照（含 grep 0 命中的 re-export 星号澄清与 ugrep 假阴性换法复核）；测试声称数字（333/388/407/415/417/419、984.97 kB、探针 5/8/2/16、closure 56 条）与实跑一致；R4 单站点/R1 undefined 恒定/R7 one-shot headers 均有机器钉且 reviewer 独立复跑吻合；官方路径两例（official-pi-ai-mapping/projector=official）本机实跑无 SKIP；closure V5-F 未夸大（如实不含边界测试）；评分无自评（reviewer-R5 ≠ V5 coder）。评审过程仅还原探针重生成的 U2 报告时间戳（git checkout，沿上轮先例），未修改任何业务代码/测试/配置/del"
+}

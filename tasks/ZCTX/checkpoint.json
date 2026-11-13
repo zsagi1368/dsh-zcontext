@@ -1,97 +1,59 @@
 {
-  "task": "ZCTX-V5",
-  "updatedAt": "2026-11-13T22:45:00+08:00",
-  "baseCommit": "2952692 (R4 joint-review terminal, V3=99/V4=98)",
-  "steps": [
-    {
-      "id": "v5s0",
-      "name": "R4 three closures (card 顺手闭合): V3-1 store.resetBetween cap-guard (>=RESET_LEDGER_CAP returns true = stop-walk-unknown, evictions make 'no reset' unprovable) + JSDoc; V4-1 preflightCalibrationStats EXCLUDES local-fallback rows from the error math (fallbackRows counter; basis 'official only (excluded N uncalibrated local-fallback row(s))' — chosen disposition: exclusion, matching the stats' enforce-calibration purpose) + preflight.spec stats pin updated (comparable 2, mean (-100/12+10)/2); V4-2 preflight.spec NEW official-projector execution describe (host lib on disk, observe.spec SKIPPED convention, markAgentLoopRequest mark, projector=official pin + estimate>0 + SAME file-block request re-run on the fallback path asserts estimate DIVERGES — two-path never fused). Tests 333/333 (332 baseline +1), tsc --noEmit zero errors.",
-      "status": "done",
-      "artifacts": [
-        "src/store.ts",
-        "src/tools.ts",
-        "tests/preflight.spec.ts"
-      ]
-    },
-    {
-      "id": "v5s1",
-      "name": "adapter skeleton (src/adapter/ new directory, 5 modules): host.ts (three fail-soft lazy loaders with per-process memoization + resetForTest — ZCTX_DSH_LLM/ZCTX_PIAI/ZCTX_DSH_LLM_PIAI overrides, directory-override dist/index.js resolution, fileURLToPath not pathname — Windows /G: drive bug caught in-process, KNOWN_PROTOCOLS = official union gate, all-or-nothing faces), providers.ts (A-ruling pure resolution: family===protocol from the official union, route zctx-<family> R5, displayName zctx-<family> verbatim, construction fail-loud COMPLETE violation list — family/models/contextWindow INVALID_MODEL_CONTEXT/maxTokens/R6 ws+non-http baseURL/apiKeyEnv rules; assertZctxProvidersResolvable throws one error with the full list), map.ts (event-mapping twins: mapUsage F5.6 three-count + cache-only-nonzero, classifyPiAiError port of the module-private stream.ts:42-68 table incl. undici terminated/Premature-close, mapStopReason overflow-double-classifier + EMPTY_RESPONSE + pending/deferred PI_AI_ERROR, toStreamChunks 7-shape port with usage-before-finish + raw-JSON tool args + STREAM_CLOSED, toPiReplayState emit twin), replay.ts (consume twin: readReplayState versioned validation + foreignAssistant dsh-foreign neutral + replayedAssistant signature recombination + INVALID_REPLAY_STATE one-message degrade), context.ts (text-only history conversion twin: system split, deferLoading tool filter, tool-name recovery, developer tool-addition resolution, image/file invariant throws; string-content defensive normalization), twins.ts (assembly with injected pi-ai isContextOverflow). SCOPE: history conversion is ALWAYS the twin (official context.ts pulls dsh-attachment transitively; text-only scope rejects images before conversion — honest boundary). tsc zero + 388/388 (333 baseline + 55).",
-      "status": "done",
-      "artifacts": [
-        "src/adapter/host.ts",
-        "src/adapter/providers.ts",
-        "src/adapter/map.ts",
-        "src/adapter/replay.ts",
-        "src/adapter/context.ts",
-        "src/adapter/twins.ts",
-        "tests/adapter-providers.spec.ts",
-        "tests/adapter-host.spec.ts"
-      ]
-    },
-    {
-      "id": "v5s2",
-      "name": "zctx-adapter class + plugin wiring + config structured section (products 1/3/8 — config section pulled forward from v5s5 because the wiring consumes it): zctx-adapter.ts (createZctxAdapterClass factory over the loaded abstract base — F2 member decisions JSDoc-noted: stream only-required, providerInfo displayName zctx <family>, providerRetryPolicy NOT overridden = official default policy per F1.5/F5.5, imageRequestPricing not overridden text-only, listModels from settings, resolveModel construction-gated contextWindow + reasoning efforts as distinct pi-ai levels in escalation order, prepareCall official snapshot freeze; stream pipeline = spec/model/credential one-capture freeze + consumer AbortController + pi-ai Model materialization (thinkingLevelMap from the wire dict, cost zeros honest) + text-only context twin + api.streamSimple options (maxRetries:0 R4 pin, apiKey, reasoning, temperature/maxTokens/sessionId passthrough, signal) + mapping.toStreamChunks; catch path = caller-abort ABORTED / LlmError passthrough / non-LlmError classified through the twin table into the official taxonomy); config.ts providers section (schemastery nested object array + VOLATILE — U1: the volatile field is load-bearing for the Models-page namespace mount — fail-soft validator structural pass-through, shape-only schema with semantics pinned at construction); plugin.ts wireAdapterFace (async continuation tracked as adapterRegistration — gates: no-providers info keep-alive / no-registerAdapter warn / faces-undefined info fail-soft / construction fail-loud warn with the COMPLETE violation list / DUPLICATE_ADAPTER runtime refusal = official keep-old-route precedent; never breaks boot). Tests +19 (407/407: adapter-zctx 14 — F2 members/UNKNOWN_MODEL+NO_ADAPTER/prepareCall freeze/pipeline over real twins with fake pi-ai face/maxRetries pin/apiKey chain+MISSING_CREDENTIAL/transport classification/in-band error finish/abort/image refusal/stop+protocol refusal/reasoning effort; adapter-plugin 5 — keep-alive/official-path real registration with route+face+mapping provenance/violation-list warn/DUPLICATE conflict/unreachable info). tsc zero.",
-      "status": "done",
-      "artifacts": [
-        "src/adapter/zctx-adapter.ts",
-        "src/config.ts",
-        "src/plugin.ts",
-        "src/tools.ts",
-        "tests/adapter-zctx.spec.ts",
-        "tests/adapter-plugin.spec.ts",
-        "tests/plugin.spec.ts"
-      ]
-    },
-    {
-      "id": "v5s3",
-      "name": "wire ledger (product 4, R1/R7): adapter/wire.ts (buildWireFaces — onPayload observe-only returns undefined CONSTANT with stableStringify+sha256 request-payload snapshots, unserializable payload honestly unrecorded; custom fetch hashing the FINAL init.body bytes with byteLength, Uint8Array bodies via byte decode, missing body honestly unrecorded, forwarding to real fetch untouched, recording faults never break the request; requestHeaders = official adapter.ts:215-223 attribution-wins case-insensitive merge port); types.ts WireSnapshot (domain wire, kind request-bytes|request-payload, honest coverage note); store.ts absorbWireSnapshot/wireSnapshots (WIRE_LEDGER_CAP 64, attach clears, copies out); zctx-adapter deps gain wireSink, stream options gain onPayload/fetch/headers for SESSION-BOUND requests only — one-shots keep ONLY the R7 headers (attribution is a request obligation, snapshots are a coverage decision); plugin injects the sink into resolveWatchedSession+storeFor. Tests +8 (415/415: wire faces 7 — R1 constant-undefined/deterministic hash/cyclic unrecorded/string+Uint8Array+missing-body bytes/attribution merge/store 64-cap; adapter integration 1 — session-bound triples + one-shot headers-only). tsc zero.",
-      "status": "done",
-      "artifacts": [
-        "src/adapter/wire.ts",
-        "src/types.ts",
-        "src/store.ts",
-        "src/adapter/zctx-adapter.ts",
-        "src/plugin.ts",
-        "tests/adapter-wire.spec.ts",
-        "tests/adapter-zctx.spec.ts"
-      ]
-    },
-    {
-      "id": "v5s4",
-      "name": "cache knobs + image honest boundary (products 5/6, F4.6/F5.7): providers.ts config gains cacheRetention (none|short|long — construction-validated union violation otherwise) + cacheControlFormat (ONLY anthropic per the official GATE union catalog.ts:146-151, ONLY on the openai-completions family — anywhere else = dead config = construction violation, carried honestly instead); ResolvedZctxProvider carries both; zctx-adapter materializePiModel adds compat {cacheControlFormat} and streamSimple options add cacheRetention verbatim (pi-ai resolveCacheRetention owns precedence; none disables markers); IMAGE BUDGET: the three F5.7 knobs (maxRequestImageBytes/requestImagePixelBudget/requestImageMaxBytes) deliberately NOT in the config — a text-only route refuses images with UNSUPPORTED_CONTENT before conversion (v5s2 pin), so knobs with no consumer would be dead config; IMAGE_OFFLOAD_REQUIRED unreachable by construction (JSDoc honest boundary); transport knob deliberately never passed (R6: HTTP(SSE) only). config.ts schemastery node gains the two fields. Tests +2 (417/417: providers knob validation matrix; adapter passthrough pins — options.cacheRetention + model.compat on knobbed config, absent keys on plain config). tsc zero.",
-      "status": "done",
-      "artifacts": [
-        "src/adapter/providers.ts",
-        "src/adapter/zctx-adapter.ts",
-        "src/config.ts",
-        "tests/adapter-providers.spec.ts",
-        "tests/adapter-zctx.spec.ts"
-      ]
-    },
-    {
-      "id": "v5s5",
-      "name": "minimal directory (product 7; U1 SKIP → VISIBILITY-ONLY): plugin wireAdapterFace gains the registerConfigurableProviders block after a successful adapter registration — entries = official LlmConfigurableProvider shape {provider: route, displayName, settingsNs: dsh-zcontext (the SERVICE_NAME settings namespace), settingsPath: [providers, String(index)] (positional into the providers array — config order = declaration order, S2 config static per boot so the binding cannot drift), declared: true}; HONEST NOTES in the info log: visibility-only (page editing unavailable for a third-party settingsNs — U1 §3 ProviderEditor.layoutOf gate), config authority = profile overlay patch (README documents); missing method → warn with the adapter registration STANDING (separate try/catch from the adapter registration — a directory refusal DUPLICATE_DIRECTORY/INVALID_DIRECTORY logs and keeps the adapter, official keep-current-directory precedent F1.6); tools.ts LlmRuntimeLike gains the optional face; index.ts public surface gains the V5 adapter exports (host faces/providers resolution/class factory/wire faces + types). Tests +2 (419/419: directory entries shape pin incl. U1 honesty log lines; missing-face warn + DUPLICATE_DIRECTORY refusal keeping the adapter). tsc zero.",
-      "status": "done",
-      "artifacts": [
-        "src/plugin.ts",
-        "src/tools.ts",
-        "src/index.ts",
-        "tests/adapter-plugin.spec.ts"
-      ]
-    },
-    {
-      "id": "v5s6-terminal",
-      "name": "V5 terminal: lib rebuilt (tsdown 984.97 kB, 7 files, committed per Z3) BEFORE the final test run (Z19 build→test→tsc order); smoke.spec config pin +providers:[] conscious amendment (the volatile S2 section defaults to an empty list) + configDefaults aligned; FOUR probes exit 0 against the fresh lib (probe-artifact 5/5, verify-activation-surface 8/8, smoke-real-loader 2/2, U2 host-imports 16/16); R1-R8 grep audit clean (R1 undefined-constant onPayload / R2 preflight pin untouched / R3 zero ctx.llm in adapter / R4 single maxRetries:0 + test / R5 zctx- prefix / R6 no transport + ws refusal / R7 attribution everywhere incl. one-shots / R8 dist anchors live-read and JSDoc-documented); closure.json +V5-A..V5-I (9 items, all fixed/verified, 0 new OPEN — 56 total, only legacy OPEN = W5-A6-INSTALL user_approved_deferred); commits v5s0..v5s6 = 12543ae / e16cced / (v5s2) / (v5s3) / 033d005 / e197549 / (v5s6 terminal).",
-      "status": "done",
-      "artifacts": [
-        "lib/index.js",
-        "lib/index.d.ts",
-        "tasks/ZCTX/closures/closure.json",
-        "tasks/ZCTX/checkpoint.json",
-        "reports/probes/U2-host-imports.md"
-      ]
-    }
-  ],
-  "next": "V6 docs+verify-script upgrade+release wave (planner); V5 ready for the single-wave review (V5 单审 per plan §5)",
-  "notes": "Ledger check FIRST ACTION done: INDEX hits Z15/Z18/Z19/heredoc-length/Z13/Z14/Z17/Z12 carried as check items. Anchor reads (R8): dsh-llm lib 68 exports incl. LlmAdapter/LlmError/isContextWindowExceededError/attributionHeaders; llm-pi-ai lib exports only PiAiAdapter/Config/apply/inject/name/recordKeyFor/supportedProtocols — toStreamChunks/mapUsage reachable via src/*.ts (node type-stripping probed OK), classifyPiAiError module-private (stream.ts:42) => self-replicate with honest label; pi-ai 1.0.2 dist types.d.ts pins onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144; api/anthropic-messages.js + api/openai-completions.js export stream/streamSimple directly (Models-collection skip, per coordinator note). COORDINATOR RULING (A): providers[].family = wire protocol name, values = official supportedProtocols union taken DYNAMICALLY from the host ('openai-completions'|'openai-responses'|'anthropic-messages'), route = zctx-<family>, zero mapping, unknown family construction-time fail-loud, displayName = 'zctx <family>'."
+ "task": "ZCTX-V6",
+ "updatedAt": "2026-11-13T12:55:00+08:00",
+ "baseCommit": "e243c70 (V5 governance terminal, 419/419)",
+ "steps": [
+  {
+   "id": "v6s1",
+   "name": "R5 four closures + V1-A in ONE commit dec0bcc (code before docs): V5-1 resetBetween cap-guard boundary pins (at-cap stop-walk stays estimated / at-cap-1 interpolates, deleting the guard line goes red; V3-1 test branch walked per REVIEW-V5 6.2); V5-2 official alignment option-a — maxTokens REQUIRED at the providers.ts construction gate (catalog.ts:934-936 semantics), ?? 32768 removed from the wire face, dedicated violation test; V5-3 one-statement providers-default comment (configDefaults/schema/smoke all carry []); V5-4 violation list hoisted BEFORE loadAdapterFaces (validation host-independent; pin: unreachable faces + bad config still logs the COMPLETE list); V1-A pinned-not-fixed (callConfigEquals JSDoc boundary + store-observe NaN pin — unreachable on the official wire). tsc zero + 424/424 (419+5); closure +V6-A..E; governance increment c935277",
+   "status": "done",
+   "artifacts": [
+    "src/adapter/providers.ts",
+    "src/adapter/zctx-adapter.ts",
+    "src/config.ts",
+    "src/plugin.ts",
+    "src/store.ts",
+    "tests/adapter-providers.spec.ts",
+    "tests/adapter-zctx.spec.ts",
+    "tests/adapter-plugin.spec.ts",
+    "tests/store-attribution.spec.ts",
+    "tests/store-observe.spec.ts",
+    "tasks/ZCTX/closures/closure.json"
+   ]
+  },
+  {
+   "id": "v6s2",
+   "name": "release face e733ad1: version 0.2.0 + CHANGELOG finalized (S2 wave full append + honest-ceilings section) + lib rebuilt 988.84 kB (7 files); probe extensions 6d835b1: surface 8->10 (+A9 config face / +A10 adapter face + R4 single-site + R7), artifact 5->6 (+P6 S2 exports + V5-2 pin), smoke 2->3 (+R3 real-loader providers-row compose, honest config-layer scope); four probes exit 0 (6/10/3/16), U2 timestamp-only diff restored",
+   "status": "done",
+   "artifacts": [
+    "package.json",
+    "CHANGELOG.md",
+    "lib",
+    "scripts/probe-artifact.mjs",
+    "scripts/verify-activation-surface.mjs",
+    "scripts/smoke-real-loader.mjs"
+   ]
+  },
+  {
+   "id": "v6s3",
+   "name": "README bilingual 80c43d5: three capability sections + settings +7 fields + limitations +2 honest ceilings + development 424/6/10/3; en/zh mirror anchor-identical (28..217) + fact counts 6/6 and 9/9",
+   "status": "done",
+   "artifacts": [
+    "README.md",
+    "README.zh.md"
+   ]
+  },
+  {
+   "id": "v6s4-terminal",
+   "name": "terminal governance: closure 65 items (V6-A..I verified; only W5-A6-INSTALL user_approved_deferred by design, phase post-merge); RSI check: Z20 already in ZDSH-LESSONS + INDEX, no-new-lesson this wave; final battery re-run green (build/424/tsc/probes) + clean tree with only governance files staged for the terminal commit",
+   "status": "done",
+   "artifacts": [
+    "tasks/ZCTX/closures/closure.json",
+    "tasks/ZCTX/progress.md",
+    "tasks/ZCTX/checkpoint.json",
+    "tasks/ZCTX/checkpoint-history.jsonl"
+   ]
+  }
+ ],
+ "next": "terminal — awaiting V6 review (scorecard) then orchestrator release steps (push/tag/ledger are mainline-owned)"
 }
