@@ -213,6 +213,47 @@ export function detectPrefixBreak(
 }
 
 /**
+ * The session/store registry the main-chain criteria need (V4 factoring): a
+ * MINIMAL structural face both listeners' deps satisfy — the criteria only
+ * need session resolution and a truthy store binding; each listener casts
+ * the binding to its own store interface.
+ */
+export interface MainChainRegistry {
+  resolveSession(sessionId: string): unknown
+  /** Any store binding the caller requires; truthiness is all the criteria need. */
+  storeFor(session: unknown): unknown
+}
+
+/**
+ * The main-chain criteria 1-3 (V2), factored out in V4 for the preflight
+ * listener to REUSE (task card: 复用 V2 observe listener 的主链四判据 — shared
+ * code, not a copy): official WeakSet identity (or the labeled heuristic),
+ * purpose exclusion, watched-session + store binding. Criterion 4 (the
+ * exemption window) is deliberately NOT part of this helper: it exists for
+ * SNAPSHOT semantics only (a post-reset request's snapshot would merely
+ * re-record the reset its ledger already explains) and stays a per-listener
+ * state machine in ObserveListener — the preflight listener must judge EVERY
+ * main-chain request, including the one right after a reset.
+ */
+export function matchesMainChain(
+  options: Record<string, unknown>,
+  projector: HostProjector,
+  registry: MainChainRegistry,
+): { sessionId: string; store: unknown } | undefined {
+  // Criterion 1: agent-loop identity (official WeakSet / labeled heuristic).
+  if (!projector.isAgentLoopRequest(options)) return undefined
+  // Criterion 2: one-shot exclusion (compaction/session-title never match).
+  if (options.purpose !== undefined) return undefined
+  // Criterion 3: the request's session must be watched and store-bound.
+  const sessionId = options.sessionId
+  if (typeof sessionId !== 'string') return undefined
+  const session = registry.resolveSession(sessionId)
+  const store = registry.storeFor(session)
+  if (store === undefined) return undefined
+  return { sessionId, store }
+}
+
+/**
  * The llm/stream observe listener. Construct once per plugin; register
  * `onStream` (bound) on the host's llm/stream waterfall.
  */
@@ -222,6 +263,8 @@ export class ObserveListener {
   private readonly modelInfoCache = new Map<string, Promise<HostModelInfoLike | undefined>>()
   private projector: Promise<HostProjector> | undefined
   private warnedSinkFault = false
+  /** V2-A closure: the prepare-catch warns ONCE instead of swallowing silently. */
+  private warnedPrepareFault = false
 
   constructor(deps: ObserveDeps) {
     this.deps = deps
@@ -248,7 +291,18 @@ export class ObserveListener {
     let plan: StreamPlan | undefined
     try {
       plan = await this.prepare(options)
-    } catch {
+    } catch (error: unknown) {
+      // V2-A closure (R3 review suggestion): a prepare fault used to be
+      // swallowed silently, hiding a broken observation face behind a healthy
+      // stream. Warn ONCE per listener (never per request — the request must
+      // still go through untouched) so operators see the face died; the
+      // pass-through below is unchanged.
+      if (!this.warnedPrepareFault) {
+        this.warnedPrepareFault = true
+        this.deps.logger?.warn?.(
+          `dsh-zcontext: observe prepare failed (${error instanceof Error ? error.message : String(error)}); request snapshots stay off until the fault clears`,
+        )
+      }
       plan = undefined // observation must never break a real request
     }
     if (plan === undefined || !this.deps.attemptCapture) {
@@ -264,16 +318,12 @@ export class ObserveListener {
   private async prepare(options: unknown): Promise<StreamPlan | undefined> {
     if (!isRecord(options)) return undefined
     const projector = await this.ensureProjector()
-    // Criterion 1: agent-loop identity (official WeakSet / labeled heuristic).
-    if (!projector.isAgentLoopRequest(options)) return undefined
-    // Criterion 2: one-shot exclusion (purpose-present requests never snapshot).
-    if (options.purpose !== undefined) return undefined
-    // Criterion 3: the request's session must be watched and store-bound.
-    const sessionId = options.sessionId
-    if (typeof sessionId !== 'string') return undefined
-    const session = this.deps.resolveSession(sessionId)
-    const store = this.deps.storeFor(session)
-    if (store === undefined) return undefined
+    // Criteria 1-3 via the shared helper (V4 factoring; criterion 4 below is
+    // the snapshot-only exemption window).
+    const match = matchesMainChain(options, projector, this.deps)
+    if (match === undefined) return undefined
+    const sessionId = match.sessionId
+    const store = match.store as ObserveStoreAccess
     const state = this.stateFor(sessionId)
 
     // Criterion 4: exemption window — the first main-chain request after a

@@ -23,3 +23,7 @@ vitest 全绿+tsc 零错+build 绿+干净树；enforce 在默认配置下不可�
 ## 约束
 
 红线 R1-R8 全适用（尤其 R2/R3）；observe→enforce 的迁移条件写进 CHANGELOG 草稿（真机标定前 enforce 是 opt-in 高级用法）；净室。
+
+## 顺手闭合（V3 移交）
+
+- V2-A：prepare 的 catch 静默吞错→warn-once（R3 建议条目；落点在 host-llm/plugin 接线面，本波同域顺手处置；处置后 closure 登记 fixed/verified）。

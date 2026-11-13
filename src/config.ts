@@ -64,6 +64,37 @@ export interface ZcontextConfig {
    * session-logged, CARD-F a.1 进程内不入账). Default false — opt-in.
    */
   'observe.attemptCapture': boolean
+  /**
+   * S1 preflight mode (v0.2.0 V4, task card product 1; RES-adapter-route
+   * §11b S1 + F6.3/F8.3): the llm/stream waterfall listener that estimates
+   * the request's context size BEFORE the wire and judges it against the
+   * CCM trigger line.
+   *
+   * - 'off': the face is not registered at all (zero overhead).
+   * - 'observe' (DEFAULT): estimates are recorded into the process-memory
+   *   calibration ledger (estimate vs the real usage that follows =
+   *   estimator error statistics, visible in zctx_status) and the request
+   *   always proceeds — 只记台账，不短路.
+   * - 'enforce': a hit short-circuits the stream with a synthesized
+   *   `finish{kind:'error', failure:{code:'CONTEXT_WINDOW_EXCEEDED'}}`
+   *   chunk (official sanctioned short-circuit, llm/src/index.ts:66-70) so
+   *   the official compaction overflow recovery chain takes over
+   *   (compaction-basic/src/index.ts:194→233).
+   *
+   * DEFAULT IS OBSERVE, NEVER ENFORCE (plan §2 redline R2): a preflight
+   * false positive triggers one unnecessary compaction surface rewrite
+   * (F6.4 误报代价), so enforce stays opt-in until the estimator's error
+   * distribution has been calibrated on real machines (no-go condition 4).
+   */
+  preflightMode: 'off' | 'observe' | 'enforce'
+  /**
+   * Preflight hit margin (v0.2.0 V4): the estimated request context must
+   * EXCEED `triggerLine × preflightMarginRatio` to count as a hit, where
+   * triggerLine = W − R_pess (budget.ts CCM §1.2). Default 0.9 — the 10%
+   * headroom keeps estimator noise from firing the hard line; 估算器误差分布
+   * 待真机标定后调整 (calibration pending, plan §3).
+   */
+  preflightMarginRatio: number
 }
 
 /** Primitive field kinds supported by the Config schema. */
@@ -89,6 +120,8 @@ export const configDefaults: Readonly<ZcontextConfig> = Object.freeze<ZcontextCo
   cleanSampleFloor: 0.6,
   'observe.enabled': true,
   'observe.attemptCapture': false,
+  preflightMode: 'observe',
+  preflightMarginRatio: 0.9,
 })
 
 /**
@@ -110,6 +143,8 @@ const CONFIG_FIELD_SPECS = {
   cleanSampleFloor: { type: 'number', default: configDefaults.cleanSampleFloor },
   'observe.enabled': { type: 'boolean', default: configDefaults['observe.enabled'] },
   'observe.attemptCapture': { type: 'boolean', default: configDefaults['observe.attemptCapture'] },
+  preflightMode: { type: 'string', default: configDefaults.preflightMode },
+  preflightMarginRatio: { type: 'number', default: configDefaults.preflightMarginRatio },
 } as const satisfies { readonly [K in keyof ZcontextConfig]: ConfigFieldSpec }
 
 /** `~standard.validate` issue shape (StandardSchemaV1 subset). */

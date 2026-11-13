@@ -79,6 +79,7 @@ import type {
   LlmCallConfigLike,
   MeterAnchorLike,
   ObservabilitySnapshot,
+  PreflightCalibrationRecord,
   PrefixBreakRecord,
   RequestSnapshot,
   ResetEvent,
@@ -165,6 +166,9 @@ const BREAK_LEDGER_CAP = 64
 
 /** Bounded cap for the non-durable captured-attempt-usage ledger (V2 receive port). */
 const CAPTURE_LEDGER_CAP = 64
+
+/** Bounded cap for the S1 preflight calibration ledger (V4 receive port, same 64-cap design). */
+const PREFLIGHT_CALIBRATION_CAP = 64
 
 /**
  * Bounded cap for the request/header chain (V1-B closure, R3 review: the
@@ -521,6 +525,8 @@ export class FoldStore {
   private readonly breakLog: PrefixBreakRecord[] = []
   /** Bounded non-durable captured-attempt-usage ledger (V2 receive port; never session-logged). */
   private readonly captureLog: CapturedAttemptUsage[] = []
+  /** Bounded S1 preflight calibration ledger (V4 receive port; never session-logged). */
+  private readonly preflightLog: PreflightCalibrationRecord[] = []
   private readonly anomaliesLog: StoreAnomaly[] = []
   // -- V3 attribution engine state (§Q4.2; incremental inside applyEvent) ---
   /** Fold-attribution ledger: foldId → its first-post-fold association (any quality). */
@@ -574,6 +580,7 @@ export class FoldStore {
     this.snapshotLog.length = 0
     this.breakLog.length = 0
     this.captureLog.length = 0
+    this.preflightLog.length = 0
     this.anomaliesLog.length = 0
     this.foldAttributionLog.clear()
     this.eventSeqList.length = 0
@@ -748,6 +755,23 @@ export class FoldStore {
   absorbCapturedAttemptUsage(record: CapturedAttemptUsage): void {
     if (this.captureLog.length >= CAPTURE_LEDGER_CAP) this.captureLog.shift()
     this.captureLog.push(record)
+  }
+
+  /** The bounded S1 preflight calibration ledger, oldest first (V4 receive port). */
+  preflightCalibrations(): readonly PreflightCalibrationRecord[] {
+    return [...this.preflightLog]
+  }
+
+  /**
+   * S1 preflight calibration sink (V4): append one estimate-vs-reality
+   * record (preflightMode observe/enforce). Process-memory only, never
+   * session-logged; the estimator error statistics zctx_status renders are
+   * computed on demand from this ledger (card product 3 — the dataset that
+   * decides when enforce is safe to promote, no-go condition 4).
+   */
+  absorbPreflightCalibration(record: PreflightCalibrationRecord): void {
+    if (this.preflightLog.length >= PREFLIGHT_CALIBRATION_CAP) this.preflightLog.shift()
+    this.preflightLog.push(record)
   }
 
   /** The bounded usage-record ledger, oldest first (V1 observability). */

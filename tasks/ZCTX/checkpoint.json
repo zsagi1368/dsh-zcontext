@@ -1,52 +1,14 @@
 {
-  "task": "ZCTX-V3",
-  "updatedAt": "2026-11-13T18:15:00+08:00",
-  "baseCommit": "0405e30 (V1+V2 joint review 99/99 main)",
+  "task": "ZCTX-V4",
+  "updatedAt": "2026-11-13T19:05:00+08:00",
+  "baseCommit": "62d6889 (V3 governance terminal)",
   "steps": [
     {
-      "id": "v3s1",
-      "name": "attribution engine pure core (091b496): classifyFoldAttribution (Q4.2 seq primary key + turn/step structure, strong/retry/weak grades, llm/retry pollution count, attempt-without-retry-voucher = weak, compaction/replace/header-change = weak) + time-window fallback (chain break -> T_M-T_F <= attributionTimeWindowMs and same turn, honesty-capped weak + timeWindow marker) + 8-item noise disposition table + billedInput/cleanSampleRatio/buildObservabilitySnapshot aggregation (VERIFY-C #15 three-state inputs, repay event = the max(1,ceil(turns))-th post-fold message, fold account admits strong/retry only) + types additions (timeWindow/semiKind/repaid/repayEventSeq/MeterAnchorLike) + index public surface; tsc clean",
+      "id": "v4s0",
+      "name": "design freeze (no code yet): ledger check done (Z15 tsc-first / heredoc-truncation redline carried, heredoc encoding failure on CJK content re-verified in-process and avoided via Write tool; no other registry hits for this domain); official protocol read DIRECTLY from source (llm/src/types.ts:41-62 LlmFailure fields, :156-163 FinishReasonMap error={kind,failure}, :452-464 StreamChunk 7-shape + 'usage before terminal finish and nothing afterward' doc, error.ts:25 CONTEXT_WINDOW_EXCEEDED_CODE, llm/src/index.ts:66-80 waterfall short-circuit doc 'yield your own chunks to short-circuit', compaction-basic/src/index.ts:190-236 overflow recovery consumes failure.code -> compactIfNeeded -> retry); DECISIONS: (1) preflight = SEPARATE listener in preflight.ts (observe.ts module contract pins 'never short-circuits' as the V2 listener's hard identity; card names preflight.ts as its own product), registered FIRST (outermost; cordis waterfall = outermost-first, vendor/cordis/src/events.ts:221-236) so an enforce short-circuit suppresses the whole downstream chain; (2) criteria reuse: matchesMainChain (criteria 1-3, pure) factored out of observe.prepare and exported; criterion 4 (exemption window) deliberately NOT applied to preflight — every main-chain request gets an overflow judgment (a post-reset request must still be judged; the exemption exists for SNAPSHOT semantics only, documented); (3) margin contract: hit iff estimate > triggerLine x marginRatio (card product-1 normative JSDoc wording; product-2's '+R_pess > W x margin' phrasing differs by 0.1xR_pess — resolved toward product-1 + F6.4 false-positive-cost bias (fewer false positives = higher threshold); flagged in handoff); (4) R_pess/maxOutput from options.maxTokens ?? modelInfo.defaultMaxTokens ?? 32768; window from resolveModelInfo context.contextWindow; degenerate computeBudget window -> fail-soft hit=undefined (release, F6.4 degrade-to-observe); (5) images: official gating (project away only for KNOWN image-less models, mirroring observe.normalizeForHash) — projected-away images cost placeholder chars/3, KEPT images cost adapter imageRequestPricing (visualTokens + estimateTokens(text)) when injectable, else PER_IMAGE_FALLBACK_TOKENS=2048 constant reserve + honest label (calibration pending); (6) calibration record absorbed ONCE at stream settle (enforce hit absorbs immediately with outcome short-circuited); stats = estimate vs billedInputTokens(measured usage); (7) config flat primitive keys per card (plan section-3 structured-settings relaxation applies to V5 providers, card overrides for V4); (8) V2-A warn-once lands in observe.handleStream catch with its own flag + test",
       "status": "done",
-      "artifacts": [
-        "src/attribution.ts",
-        "src/types.ts",
-        "src/index.ts"
-      ]
-    },
-    {
-      "id": "v3s2",
-      "name": "store integration + observe closures (9e7ec51): applyAssistantMessage attributes + grades semi paths inside the single applyEvent transition (meterAnchored via injected MeterAnchorLike fail-soft; interpolated same-turn retro-upgrade, absent-stays-absent, reset-between stop) + lifetime three-state counters + eventSeqList/turnStart binary indexes + V1-B (routeHeaders/resetLog cap 64 + observe exemption window moved to a SEQ consumption pointer) + V2-C (modelInfoCache cap 64) + V2-B JSDoc; 252/252 regression green",
-      "status": "done",
-      "artifacts": [
-        "src/store.ts",
-        "src/observe.ts"
-      ]
-    },
-    {
-      "id": "v3s3",
-      "name": "zctx_status three-segment upgrade (7a84aec + a17f8f2): ObservabilitySnapshot assembled into renderStatus — session summary (folds/repaid/recovery/three-state pct) + repay table (cleanSampleFloor honest gate, below floor -> attribution-confidence-insufficient withholds repay conclusions) + recent folds (quality/retryCount/markers) + reset digest; ZctxToolRuntime gains config cleanSampleFloor; plugin injects anchor + timeWindow (config-owned, never hardcoded); empty ledger renders the honest empty shape (no false confidence verdict)",
-      "status": "done",
-      "artifacts": [
-        "src/texts.ts",
-        "src/tools.ts",
-        "src/plugin.ts"
-      ]
-    },
-    {
-      "id": "v3s4",
-      "name": "tests + lib rebuild (ec8f311/517ef8d): attribution.spec 27 + store-attribution.spec 19 (feed/scan dual regime, 8 noises item-by-item, three-state edges incl. estimated-not-reverse-inferred, V1-B cap pins) + tools.spec three-segment rendering + observe.spec V2-D official-projector zero-mutation pin (host build on disk, ran live); 302/302 (16 files); tsdown 642.50 kB",
-      "status": "done",
-      "artifacts": [
-        "tests/attribution.spec.ts",
-        "tests/store-attribution.spec.ts",
-        "tests/tools.spec.ts",
-        "tests/observe.spec.ts",
-        "lib/index.js",
-        "lib/index.d.ts",
-        "lib/index.js.map"
-      ]
+      "artifacts": ["tasks/ZCTX/checkpoint.json"]
     }
   ],
-  "next": "V3 reviewer joint scorecard (with V4) -> V4 S1 preflight",
-  "closure": "40 items: 4 new V1-B/V2-B/V2-C/V2-D fixed/verified (R3 mechanical suggestions cleared), only OPEN=W5-A6-INSTALL (v0.1.0 post-merge user_approved_deferred legacy, not this wave); V2-A out of card scope, reported to the coordinator as-is"
+  "next": "v4s1 config keys -> v4s2 types -> v4s3 preflight.ts -> v4s4 observe V2-A + store port -> v4s5 plugin wiring + status -> v4s6 tests -> three greens + lib rebuild"
 }

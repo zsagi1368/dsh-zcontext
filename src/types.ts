@@ -776,3 +776,90 @@ export interface MeterAnchorLike {
    */
   inputAnchor(seq: number): number | undefined
 }
+
+// ---------------------------------------------------------------------------
+// S1 preflight face (v0.2.0 V4; RES-adapter-route §11b S1 + F3.3/F3.4/F6.1-F6.4/
+// F8.3). Process-memory calibration ledger like the V2 faces above: never
+// session-logged, bounded, dies with the process.
+// ---------------------------------------------------------------------------
+
+/** Preflight mode tri-state (config preflightMode; R2: default 'observe'). */
+export type PreflightMode = 'off' | 'observe' | 'enforce'
+
+/**
+ * Which image-cost path priced the kept image blocks of one estimate.
+ * 'adapter' = the injected official `imageRequestPricing` answered
+ * (visualTokens + text per occurrence, llm/src/types.ts:212-220);
+ * 'constant-reserve' = the pricing face was unavailable and each image
+ * carried a fixed conservative reserve instead (待标定; honest domain label);
+ * 'not-exercised' = no image occurrence stayed on the wire (none present, or
+ * all projected away by the official image-less gating) so no pricing
+ * decision was involved.
+ */
+export type PreflightImagePricing = 'adapter' | 'constant-reserve' | 'not-exercised'
+
+/** How one preflight-judged attempt settled (calibration record outcome). */
+export type PreflightOutcome =
+  /** The stream completed and a usage chunk was observed (comparable). */
+  | 'completed'
+  /** enforce hit → the synthesized error finish replaced the stream (no usage exists). */
+  | 'short-circuited'
+  /** The stream ran but no usage chunk appeared (not comparable). */
+  | 'no-usage'
+  /** The stream threw before a terminal finish (not comparable). */
+  | 'error'
+  /** The stream was aborted before a terminal finish (not comparable). */
+  | 'aborted'
+
+/**
+ * One preflight estimate-vs-reality calibration record (card product 3: the
+ * estimate / judgment / subsequent-real-usage comparison = the calibration
+ * dataset that decides when enforce is safe to promote — no-go condition 4).
+ * Absorbed ONCE per judged attempt, at stream settle (or immediately on an
+ * enforce short-circuit, where no stream ever ran).
+ */
+export interface PreflightCalibrationRecord {
+  /** Session id the judged request belonged to. */
+  readonly sessionId: string
+  /** The mode the listener ran under ('observe' | 'enforce'; 'off' never records). */
+  readonly mode: Exclude<PreflightMode, 'off'>
+  /** Request route. */
+  readonly provider: string
+  readonly model: string
+  /** The chars/3 estimate of the projected request input, in tokens. */
+  readonly estimate: number
+  /** The context window the judgment used; undefined = unresolvable (released). */
+  readonly window?: number
+  /** The CCM trigger line (W − R_pess) for the window; present exactly when window is. */
+  readonly triggerLine?: number
+  /** The margin ratio applied (config preflightMarginRatio, echoed for audit). */
+  readonly marginRatio: number
+  /** Which projection implementation produced the estimate ('official'/'local-fallback'). */
+  readonly projector: SnapshotProjector
+  /** Which image-cost path priced the kept images. */
+  readonly imagePricing: PreflightImagePricing
+  /** Number of image occurrences priced (kept or projected-away). */
+  readonly imageCount: number
+  /**
+   * The judgment: true = over the calibrated line (enforce would short-circuit),
+   * false = under it, undefined = window unresolvable → released honestly
+   * (F6.4 degrade-to-observe).
+   */
+  readonly hit: boolean | undefined
+  /** How the attempt settled. */
+  readonly outcome: PreflightOutcome
+  /**
+   * The usage chunk observed before the terminal finish, when one appeared
+   * (input side is the estimate's comparison target through the DISJOINT
+   * accounting: billed input = input + cacheRead + cacheWrite, §Q2.1).
+   */
+  readonly usage?: {
+    readonly inputTokens?: number
+    readonly outputTokens?: number
+    readonly totalTokens?: number
+    readonly cacheReadTokens?: number
+    readonly cacheWriteTokens?: number
+  }
+  /** Unix epoch ms of the estimate (stream start), not of the settle. */
+  readonly time: number
+}
