@@ -621,10 +621,13 @@ export async function renderStatus(runtime: ZctxToolRuntime, session: SessionLik
   const snapshot = store.observabilitySnapshot()
   const attributionByFold = new Map<string, FoldUsageAttribution>()
   for (const attribution of store.foldAttributions()) attributionByFold.set(attribution.foldId, attribution)
+  // An empty fold ledger has no evidence to judge — the honest shape is the
+  // empty note, not a confidence verdict about folds that never existed.
+  const emptyLedger = entries.length === 0
   const confidenceOk = snapshot.cleanSampleRatio >= runtime.cleanSampleFloor
-  const repaidText = confidenceOk
-    ? String(snapshot.breakevenTable.filter((row) => row.repaid === true).length)
-    : STATUS_OBS_SESSION_REPAID_WITHHELD
+  const repaidText = !emptyLedger && !confidenceOk
+    ? STATUS_OBS_SESSION_REPAID_WITHHELD
+    : String(snapshot.breakevenTable.filter((row) => row.repaid === true).length)
   const totalBefore = entries.reduce((sum, entry) => sum + entry.tokensBefore, 0)
   const totalNet = entries.reduce((sum, entry) => sum + (entry.tokensBefore - entry.tokensAfter), 0)
   lines.push(STATUS_OBS_HEADER)
@@ -650,7 +653,10 @@ export async function renderStatus(runtime: ZctxToolRuntime, session: SessionLik
     )
   }
   // Segment 2: repay conclusions behind the confidence gate.
-  if (!confidenceOk) {
+  if (emptyLedger) {
+    lines.push(STATUS_OBS_BREAKEVEN_HEADER)
+    lines.push(STATUS_OBS_BREAKEVEN_EMPTY)
+  } else if (!confidenceOk) {
     lines.push(
       fill(STATUS_OBS_CONFIDENCE_INSUFFICIENT, {
         ratioPct: formatPct(snapshot.cleanSampleRatio * 100),
