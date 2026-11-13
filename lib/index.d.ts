@@ -46,6 +46,21 @@ interface ZcontextConfig {
    * Default 0.6 — 待真机标定 (calibration pending, plan §3).
    */
   cleanSampleFloor: number;
+  /**
+   * Observe face master switch (v0.2.0 V2, task card product 4): registers
+   * the read-only `llm/stream` waterfall listener whose per-attempt request
+   * snapshots + prefix-break records land in the per-session store's
+   * process-memory ledgers (RES-observe-route a.2/a.3). Default true — the
+   * face is observation-only and never short-circuits (V4 boundary).
+   */
+  'observe.enabled': boolean;
+  /**
+   * Per-attempt usage capture (v0.2.0 V2): when true the observe listener
+   * wraps `next()` chunk-by-chunk to record FAILED attempts' usage into the
+   * NON-DURABLE process-memory ledger (RES-observe-route §Q8.2; never
+   * session-logged, CARD-F a.1 进程内不入账). Default false — opt-in.
+   */
+  'observe.attemptCapture': boolean;
 }
 /** Contractual defaults for every Config field (plan §3). */
 declare const configDefaults: Readonly<ZcontextConfig>;
@@ -485,7 +500,18 @@ type ResetEventKind =
 /** A system/message node was rewritten on the surface (normalization). */
 'system-section-change' |
 /** Session generation boundary (session/end-seed; sessionRecovery half-class). */
-'session-recovery';
+'session-recovery' |
+/**
+ * A request/header with reason 'series' — the producer SELF-ADMITTED that
+ * the message-series prefix is no longer continuous (official semantics,
+ * session/src/types.ts:265-273: "an unchanged header began an explicitly
+ * distinct message series or followed a surface replacement"). V1 handoff
+ * ruling ①: this observable signal is accounted as a reset in its own right
+ * (RES-observe-route §Q6 "归入可见"). It may coincide with a replace-driven
+ * entry (e.g. merge-rewrite) — the ledger records per-SIGNAL, not per
+ * physical reset, so both entries stand and V3's digest counts kinds.
+ */
+'series-restart';
 /** One cache-reset ledger entry (RES-observe-route a.1 row 4: kind/seq/time/evidence). */
 interface ResetEvent {
   /** The identified reset class. */
@@ -576,6 +602,110 @@ interface ObservabilitySnapshot {
   readonly breakevenTable: readonly BreakevenTableRow[];
   /** Reset ledger digest, one row per observed kind (order: first-seen). */
   readonly resetSummary: readonly ResetSummaryRow[];
+}
+/**
+ * Which request-projection implementation produced a snapshot's hashes.
+ * Domain-field discipline: the two variants do NOT normalize identically
+ * (the local fallback cannot replicate the official file/image/tool-update
+ * projections exactly), so every snapshot names its own projector and the
+ * ledger never mixes them silently.
+ */
+type SnapshotProjector = 'official' | 'local-fallback';
+/**
+ * One llm/stream request snapshot (RES-observe-route a.1 row 5:
+ * perMessageHashes/systemHash/toolsHash/attemptSeq/purpose/isLoop, plus the
+ * honest-domain fields the card requires). Built by the V2 observe listener
+ * for every MAIN-CHAIN request (four criteria, Q8.1) and handed to the store
+ * through the injected snapshot sink.
+ */
+interface RequestSnapshot {
+  /** Session id the request was bound to (matched against the watched set, criterion 3). */
+  readonly sessionId: string;
+  /** Per-session monotonic ordinal, gap-free (only snapshotted requests increment). */
+  readonly attemptSeq: number;
+  /** Request route (audit face; route changes are reset-ledger territory, not breaks). */
+  readonly provider: string;
+  readonly model: string;
+  /** Per-message stable hashes (stableStringify key-sorted + sha256) of the normalized message list. */
+  readonly perMessageHashes: readonly string[];
+  /** Stable hash of `options.system` when present (one-shot requests only; undefined on the loop chain). */
+  readonly systemHash?: string;
+  /** Stable hash of `options.tools` when present. */
+  readonly toolsHash?: string;
+  /** Official one-shot purpose marker; always undefined on snapshotted (main-chain) requests. */
+  readonly purpose?: 'compaction' | 'session-title';
+  /** Criterion-1 verdict (true for every snapshotted request; recorded for audit). */
+  readonly isLoop: boolean;
+  /** Which projection implementation normalized the hashes. */
+  readonly projector: SnapshotProjector;
+  /** Unix epoch ms of the snapshot. */
+  readonly time: number;
+}
+/** Reference to one reset-ledger entry that explains a prefix break. */
+interface PrefixBreakResetRef {
+  readonly kind: ResetEventKind;
+  readonly seq: number;
+}
+/**
+ * One harness-domain prefix break (V2 mechanical piece): the object-level
+ * message prefix SHRANK or CHANGED between consecutive snapshots. Registered
+ * blind spot (honest domain boundary, RES-observe-route §Q5.2): pi-ai wire
+ * rewrites (bit reordering, system folding, effort synthesis, breakpoint
+ * shifts) are invisible at the object level — `domain: 'harness'` pins that.
+ */
+interface PrefixBreakRecord {
+  /** Always 'harness' — object-level hashes cover the harness domain only. */
+  readonly domain: 'harness';
+  /** Session id the snapshots belong to. */
+  readonly sessionId: string;
+  /** attemptSeq of the snapshot that broke the prefix. */
+  readonly attemptSeq: number;
+  /** attemptSeq of the previous snapshot (undefined when the store had no baseline). */
+  readonly prevAttemptSeq?: number;
+  /** First differing message index inside the common prefix; undefined = pure tail shrink. */
+  readonly breakIndex?: number;
+  /** How the break manifested. */
+  readonly mode: 'length-shrink' | 'content-change';
+  /**
+   * Break classification (card: 关联 ResetEvent 分类或 unknown-break):
+   * 'reset-explained' when the listener consumed reset-ledger entries between
+   * the two snapshots, 'unknown-break' otherwise (runtime-context refresh and
+   * other unlogged object churn, §Q4.3 noise 6).
+   */
+  readonly classification: 'reset-explained' | 'unknown-break';
+  /** The explaining reset entries (present exactly when classification is 'reset-explained'). */
+  readonly explainedBy?: readonly PrefixBreakResetRef[];
+  /** Unix epoch ms of the newer snapshot. */
+  readonly time: number;
+}
+/**
+ * One FAILED attempt's usage captured by the optional `observe.attemptCapture`
+ * face (RES-observe-route §Q8.2 item 2: session logs keep no per-attempt
+ * usage for retried-away attempts — the llm/stream listener wrapping `next()`
+ * is the only capture position, and the record dies with the process).
+ */
+interface CapturedAttemptUsage {
+  /** Session id the request was bound to. */
+  readonly sessionId: string;
+  /** The snapshot's attemptSeq (0 when the exempt window consumed the request without a snapshot). */
+  readonly attemptSeq: number;
+  /** Request route. */
+  readonly provider: string;
+  readonly model: string;
+  /** The usage chunk observed before the terminal error/abort. */
+  readonly usage: {
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+    readonly totalTokens?: number;
+    readonly cacheReadTokens?: number;
+    readonly cacheWriteTokens?: number;
+  };
+  /** How the stream terminated (official FinishReason kinds, llm/src/types.ts:156-163). */
+  readonly outcome: 'error' | 'aborted';
+  /** Always true — this record never reaches the session log and is lost on exit. */
+  readonly nonDurable: true;
+  /** Unix epoch ms of the capture. */
+  readonly time: number;
 }
 /**
  * Estimate the token cost of a text with the CCM L0 chars/3 estimator. It is
@@ -751,6 +881,12 @@ declare class FoldStore {
   private readonly routeHeaders;
   /** Append-only cache-reset ledger (oldest first). */
   private readonly resetLog;
+  /** Bounded process-memory snapshot ledger (V2 receive port; never session-logged). */
+  private readonly snapshotLog;
+  /** Bounded process-memory prefix-break ledger (V2 receive port; never session-logged). */
+  private readonly breakLog;
+  /** Bounded non-durable captured-attempt-usage ledger (V2 receive port; never session-logged). */
+  private readonly captureLog;
   private readonly anomaliesLog;
   private compactionStartSeq;
   private endSeedSeq;
@@ -799,6 +935,27 @@ declare class FoldStore {
   lastRouteHeader(): RouteHeader | undefined;
   /** The cache-reset ledger, oldest first (V1 observability). */
   resetEvents(): readonly ResetEvent[];
+  /** The in-process snapshot ledger, oldest first (bounded; oldest dropped). */
+  requestSnapshots(): readonly RequestSnapshot[];
+  /** The most recent request snapshot, when any (the listener's comparison baseline). */
+  lastRequestSnapshot(): RequestSnapshot | undefined;
+  /** The harness-domain prefix-break ledger, oldest first (bounded; oldest dropped). */
+  prefixBreakEvents(): readonly PrefixBreakRecord[];
+  /** The non-durable captured-attempt-usage ledger, oldest first (bounded; oldest dropped). */
+  capturedAttemptUsage(): readonly CapturedAttemptUsage[];
+  /**
+   * Snapshot sink: append one request snapshot to the process-memory ledger
+   * and, when the listener detected a prefix break against the previous
+   * snapshot, the classified break record next to it. The listener computes
+   * the break (the hash件 lives in observe.ts); the store only receives.
+   */
+  absorbRequestSnapshot(snapshot: RequestSnapshot, breakRecord?: PrefixBreakRecord): void;
+  /**
+   * Non-durable capture sink: append one failed attempt's observed usage
+   * (observe.attemptCapture face). The record dies with the process by
+   * design; the ledger is only bounded memory.
+   */
+  absorbCapturedAttemptUsage(record: CapturedAttemptUsage): void;
   /** The bounded usage-record ledger, oldest first (V1 observability). */
   usageRecords(): readonly UsageRecord[];
   /** True while a `compaction/start` bracket is durably open (mutex). */
@@ -1051,6 +1208,14 @@ interface LlmRuntimeLike {
       contextWindow?: number;
     };
     defaultMaxTokens?: number;
+    /**
+     * Official ModelInfo pass-through (llm/src/index.ts:180) consumed by the
+     * observe listener's projection gating (v0.2.0 V2); undefined = unknown
+     * modalities → image projection honestly skipped.
+     */
+    inputModalities?: readonly string[];
+    /** Official ModelInfo pass-through (llm/src/index.ts:184); undefined = unsupported route. */
+    toolUpdate?: 'in-history' | 'addition-only';
   }>;
 }
 /** Everything the four tools (and the /zctx command) need from the host. */
@@ -1131,6 +1296,8 @@ declare class ZcontextPlugin extends ServiceBase {
   private readonly lastPressure;
   private readonly liveSessions;
   private readonly runtime;
+  /** The observe face's listener; undefined when the face is off (config or capability). */
+  private observe;
   private warnedWindowFailure;
   constructor(ctx: HostContextLike, config?: Partial<ZcontextConfig>);
   /** session/event feed: maintain live stores + warm the window cache. @internal */
@@ -1143,6 +1310,31 @@ declare class ZcontextPlugin extends ServiceBase {
   private wireNudgeFace;
   /** The /zctx command. @internal */
   private wireCommandFace;
+  /**
+   * The llm/stream observe face (v0.2.0 V2): a strictly read-only waterfall
+   * listener whose per-attempt request snapshots + prefix-break records land
+   * in the per-session store's process-memory ledgers (the store's
+   * absorbRequestSnapshot / absorbCapturedAttemptUsage receive ports).
+   *
+   * Same capability-probe discipline as the five faces above: a deliberate
+   * config switch logs info, a missing capability logs warn, and neither
+   * ever breaks boot. The face needs BOTH the event bus (the registration
+   * surface — official hosts register via `ctx.on('llm/stream', …)`, see the
+   * llm Events declaration at llm/src/index.ts:76-78) AND the llm runtime
+   * (the waterfall owner: without it no `llm/stream` event ever fires).
+   * @internal
+   */
+  private wireObserveFace;
+  /**
+   * The observe listener's watched-session resolution (criterion 3): a
+   * session ID maps to its live session object when the plugin saw the
+   * session through the feed (official Session carries `id: SessionId`,
+   * core/session/src/index.ts:420, and the agent loop fills
+   * GenerateOptions.sessionId from it — agent-loop/src/agent.ts:718).
+   * Unseen/disposed IDs resolve undefined → not watched.
+   * @internal
+   */
+  private resolveWatchedSession;
   /** Per-session store registry: lazy create + attach (resume-restore scan). @internal */
   private storeFor;
   /** Validator config for one session (context window from the cache when known). @internal */
@@ -1208,5 +1400,5 @@ declare function buildZctxCommand(runtime: ZctxToolRuntime): ZctxCommandDefiniti
  */
 /** Plugin identity exported for loader probes. */
 declare const name = "dsh-zcontext";
-export { type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CcmWindowGate, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, type ParamSpec, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type RouteHeader, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordState, type UsageSample, type UsageSnapshot, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, buildGuidanceSection, buildZctxCommand, buildZctxTools, ccmWindowGate, computeBreakevenReport, computeBudget, configDefaults, configSchema, crossedThresholds, estimateTokens, fold, foldableRanges, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, resolveDefineTool, unfold, validateFold };
+export { type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, type ParamSpec, type PrefixBreakRecord, type PrefixBreakResetRef, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type RouteHeader, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordState, type UsageSample, type UsageSnapshot, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, buildGuidanceSection, buildZctxCommand, buildZctxTools, ccmWindowGate, computeBreakevenReport, computeBudget, configDefaults, configSchema, crossedThresholds, estimateTokens, fold, foldableRanges, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, resolveDefineTool, unfold, validateFold };
 //# sourceMappingURL=index.d.ts.map
