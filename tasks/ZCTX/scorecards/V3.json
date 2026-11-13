@@ -1,0 +1,75 @@
+{
+  "block": "V3",
+  "task": "ZCTX v0.2.0 V3+V4 联审（V3 半场）— 归因引擎纯核心 + store 单迁移接线 + 三态定级 + 回本聚合 + zctx_status 三段升级 + V1-B/V2-B/V2-C/V2-D 顺手闭合",
+  "range": "091b496 (attribution 引擎本体，含起点提交本体约定同 V1) / 7a84aec status 三段 / 9e7ec51 store 接线+V1-B cap / ec8f311 测试 / 517ef8d lib / a17f8f2 空账诚实形 / 62d6889 governance — 有效审查区间 0405e30..62d6889",
+  "reviewer": "reviewer-R4 (independent subagent; reviewer ≠ coder-v3)",
+  "date": "2026-11-13",
+  "verdict": "通过 (总分 99 ≥ 98) → 交主线放行中间合入；1 条 [建议] V3-1 登记最终验收台账（阻塞最终验收，不阻塞中间合入）",
+  "total": 99,
+  "threshold": 98,
+  "scores": {
+    "correctness": 24,
+    "completeness": 20,
+    "consistency": 20,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 10
+  },
+  "verification_trio_reviewer_run": {
+    "lint": "pnpm lint → tsc --noEmit 零错, EXIT=0",
+    "test": "pnpm test → vitest 17 files 332/332 passed EXIT=0（attribution 27 / store-attribution 19 / tools 三段 3 新例 / observe 23 含 V2-D 官方路径实跑）",
+    "build": "pnpm build → tsdown 741.04 kB EXIT=0；git status --porcelain lib/ 为空 = 入库 lib 与重建字节一致（含 V3+V4 全部波次）",
+    "probe_artifact": "node scripts/probe-artifact.mjs → 5 PASS 0 SKIP 0 FAIL EXIT=0",
+    "activation_surface": "node scripts/verify-activation-surface.mjs → 8 PASS 0 FAIL EXIT=0",
+    "host_imports": "node scripts/probe-host-imports.mjs → 16 PASS 0 SKIP 0 FAIL EXIT=0（报告重生成仅时间戳差异，已还原入库态）",
+    "closure_machine_count": "node -e 遍历 tasks/ZCTX/closures/closure.json → 47 items / 0 非闭合（唯一 status=open 为 W5-A6-INSTALL，disposition=user_approved_deferred, phase=post-merge，v0.1.0 基线遗留非本波）",
+    "redline_grep": "R1-R8 逐条 grep src/：registerAdapter/maxRetries/attributionHeaders/onPayload/.fetch(/websocket/ws:// 零命中；llm.stream 仅事件名注释命中；pi-ai 仅注释零 import；R2 enforce 字面仅在 config/types/preflight.ts:397 mode 门/plugin 文档出现，默认 observe 有三层测试钉"
+  },
+  "evidence": {
+    "correctness": [
+      "§Q4.2 规则逐条对照（RES-observe-route.md:114-124 实读）：F=带 zctx-fold source 的 replace user/message、M=F 后第一个 assistant/message、strong 四条件（无 attempt/无 compaction/*/无其他 replace/无 header reason:'change'）、retry=llm/retry 计污染度、weak=只入总账——attribution.ts:187-285 逐行吻合；attempt-无-voucher→weak 是规格三态不完备区（attempt 在场禁 strong+无 llm/retry 禁 retry 的机械推论）的唯一自洽补全，JSDoc 带锚（attribution.ts:29-33, agent.ts:491-511）并有专测 attribution.spec.ts:141-144",
+      "时间窗兜底诚实封顶：链断裂判据=保留 seq 必须恰覆盖 (foldSeq, messageSeq)（attribution.ts:232-240 连续性机检）→ 兜底要求 T_M−T_F ≤ attributionTimeWindowMs 且同 turn 且通过者仍封顶 weak + timeWindow:true（:242-268）；五负例（超窗/turn 边界/foldTurn 异/缺时间/坏信封）+『完整链永不读时钟』专钉 attribution.spec.ts:225-296",
+      "8 项噪声逐项实现+逐项测试：噪声 1（attempt+voucher=retry spec:182-192）/2（tool/result 非噪声 :194-202）/4（M turn/step 原样 :204-213）/6（普通 append 无影响 :215-222）引擎级；3（首 step 后 candidates 止于前一 assistant/message store.ts:1120-1166）/5（compaction 竞争 weak :127-140）/7（interrupted 透传 :142-150）/8（外会话不入账 :152-173）store 级；surfaceOp 官方词表实读=仅 replace（zDSH-main core/session/src/types.ts:464, :513），op!=='append' 为防御性冗余无噪声 2 误分类风险",
+      "三态定级边界（§Q7.2）：estimated 记录零字段（store.ts extractUsageRecord:304-327）→ estimated 路径 T=σ 约定成立（attribution.ts:366 repayTokens = billed ?? fold.tokensAfter）；interpolated 保守停止三闸（同 turn 变/未知 turn/reset-between，store.ts:1193-1224）+ absent stays absent + output 永不插值（store-attribution.spec:237-273）；meterAnchored 仅 input 侧经注入面（MeterAnchorLike, store.ts:1080-1086）、fail-soft 故障→estimated+anomaly（tryMeterAnchor:1169-1181, spec:301-313）、无注入面→estimated 不得反推（spec:288-299）",
+      "回本聚合手算验证：T=100/S=10000/σ=500 → oneTime=1090/saving=950 → 1.147（spec:330-332）；T=σ 路径 1450/950（:346-347）；回本事件=max(1,⌈turns⌉) 个后折叠 assistant/message（attribution.ts:328-342, §Q7.3 原文以 assistant/message 为事件载体）；Infinity 永不回本（:379-392）；fold 账只收 strong/retry（:357-358）",
+      "store 单迁移三制度同构：attributeMessage 在 applyEvent 内部（store.ts:872-1107），feed/scan 双制度全等钉（store-attribution.spec:69-98）；批折叠最近提交绑定+更早提交自身判弱（:175-192）",
+      "空折叠账诚实形（a17f8f2）：entries=0 → repaid 显 0 不出归因可信度不足（tools.ts:705-709, :735-737；tools.spec 空账用例断言 not.toContain 归因可信度不足）",
+      "[建议 V3-1 扣 1 分]：upgradeInterpolatedBefore 的 resetBetween（store.ts:1275-1277）在 resetLog 64-cap 逐出后无法证明『候选与锚之间无 reset』——需单 turn 内 ≥64 次 reset 且候选仍在 64-cap usage 账内的病态组合才触达，后果仅为一条诚实标注 semi 的插值记录；修法一行（候选 seq 早于保留 resetLog 最老 seq 时停走）"
+    ],
+    "completeness": [
+      "卡面产物 1-5 全交付：attribution.ts 引擎（091b496）+ store 接线（9e7ec51）+ status 三段（7a84aec）+ 回本聚合 + 测试全路径（ec8f311: attribution 27 + store-attribution 19 + tools 3）",
+      "四条机械闭合全 fixed/verified：V1-B routeHeaders/resetLog 64-cap（store.ts:182/185, spec:316-340 66→64 机器钉）+ observe 豁免窗改 seq 消费指针（observe.ts:97-108, :332-345——cap 逐出与 attach 重建均对齐）；V2-B detectPrefixBreak 收窄文档（observe.ts:170-181 DELIBERATE NARROWING JSDoc + PrefixBreakRecord）；V2-C modelInfoCache 64-cap（observe.ts:126-134, :427-431）；V2-D 官方 projector 零变异钉（observe.spec :450-499，宿主在盘实跑 23/23 无 SKIP）",
+      "closure.json 机器数 47 条 0 非闭合；V1-A（非有限值）按卡面约定留 V6 终验，非本波机械项"
+    ],
+    "consistency": [
+      "官方锚点实读吻合：assistant/message 信封 turn/step 必填（zDSH-main core/session/src/types.ts:341-342）+ interrupted?: true（:345）+ 裸 UserMessage 形状（:305-311, fold-engine.ts:302-320 自产形状一致）",
+      "阈值零硬编码：attributionTimeWindowMs/cleanSampleFloor 均经 config→plugin 注入（plugin.ts:466, tools.ts:435-439, store.ts:795-801），configDefaults 90000/0.6 与规格建议值一致",
+      "回本公式为 budget.ts:196 冻结的 VERIFY-C #15 价格加权模型（未改公式，只升级输入三态——卡面与计划 §3 要求）",
+      "有界台账纪律同构：六个 64-cap + 256 anomaly cap 与 V1/V2 命名与注释风格一致"
+    ],
+    "verifiability": [
+      "亲验三绿+三探针全绿（本文件 verification_trio 块，reviewer 本机实跑 2026-11-13）",
+      "测试数轨迹与提交声称吻合：V3 后 302 = 252 基线 + attribution 27 + store-attribution 19 + tools 3 + observe 官方组 1；回本数学手算复核两条",
+      "closure 0 OPEN 为机器计数复核非口头声称"
+    ],
+    "safety_rollback": [
+      "纯进程内存零宿主写入；台账全有界；meterAnchor 故障 fail-soft 不入流；attachment 语义为诚实标注不抛错",
+      "无凭证/无注入面；grep 全红线干净（见 verification_trio.redline_grep）"
+    ],
+    "maintainability": [
+      "attribution.ts 零宿主依赖验证：import 仅 ./budget.ts + ./types.ts（attribution.ts:102-112）",
+      "matchesMainChain 抽出共享（observe.ts:238-254）供 V4 复用，判据单一权威无双写",
+      "行数口径判定：V3 src 波约 1067 行 vs 计划表 +200-310——卡面范围与交付一致、计划表估算偏低；artifact 本身结构清晰无重复，不扣 artifact 分（过程注记记入 REVIEW-V3V4.md）"
+    ]
+  },
+  "suggestions": [
+    {
+      "id": "V3-1",
+      "location": "src/store.ts:1275-1277 resetBetween + store.ts:1209 调用点",
+      "problem": "interpolated 的保守闸 resetBetween 依赖 64-cap resetLog：当候选 usage 记录仍被 64-cap usageLedger 保留、但候选与锚之间的 reset 条目已被逐出（≥64 次 reset 挤出）时，『无 reset entry between them』的保守声明失去证明力，插值可能跨越一次未在册 reset",
+      "fix": "停走条件加一条：候选 seq 早于当前 resetLog 最老条目 seq（且 resetLog 非空）即 break（覆盖不可证明区域一律保守停止）；补一例 store-attribution 边界测试；或按 §11 记 user_approved_deferred（病态触达 + 后果为诚实标注 semi）",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    }
+  ],
+  "fraud_check": "未发现造假：测试断言与实现语义逐条对上（8 噪声逐项、五负例、双制度、caps 66→64）；提交声称数字（302→332、741.04 kB、47 条 closure）与实跑一致；官方/guardian/cordis 锚点实读吻合；评分无自评（reviewer-R4 ≠ coder-v3）"
+}

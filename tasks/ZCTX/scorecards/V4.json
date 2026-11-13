@@ -1,0 +1,99 @@
+{
+  "block": "V4",
+  "task": "ZCTX v0.2.0 V4 波联审（V4 半场）— S1 preflight（三态模式门 + OUTERMOST listener + 估算器双路 + enforce 官方 chunk 形态短路 + 校准台账 + zctx_status 第 5 段）+ V2-A 顺手闭合 + Z18/Z19 坑册",
+  "range": "4b2b499 (config+types+observe 重组+V2-A，含起点提交本体) / 206e84d preflight core+wiring / 4023c7f tests+lib / d388d57 CHANGELOG / da0e02d Z19 smoke 修正 — 有效审查区间 62d6889..da0e02d",
+  "reviewer": "reviewer-R4 (independent subagent; reviewer ≠ coder-v4)",
+  "date": "2026-11-13",
+  "verdict": "通过 (总分 98 ≥ 98) → 交主线放行中间合入；2 条 [建议] V4-1/V4-2 登记最终验收台账（阻塞最终验收，不阻塞中间合入）",
+  "total": 98,
+  "threshold": 98,
+  "scores": {
+    "correctness": 24,
+    "completeness": 19,
+    "consistency": 20,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 10
+  },
+  "verification_trio_reviewer_run": {
+    "lint": "pnpm lint → tsc --noEmit 零错, EXIT=0",
+    "test": "pnpm test → vitest 17 files 332/332 passed EXIT=0（preflight 27 / plugin 21 含全链 enforce 短路例 / observe 23 含 V2-A 闭合例 / smoke 6 含 V4 两键字面钉）",
+    "build": "pnpm build → tsdown 741.04 kB EXIT=0；git status --porcelain lib/ 为空 = 入库 lib 与重建字节一致",
+    "probe_artifact": "node scripts/probe-artifact.mjs → 5 PASS 0 SKIP 0 FAIL EXIT=0",
+    "activation_surface": "node scripts/verify-activation-surface.mjs → 8 PASS 0 FAIL EXIT=0",
+    "host_imports": "node scripts/probe-host-imports.mjs → 16 PASS 0 SKIP 0 FAIL EXIT=0（G4 携带 CONTEXT_WINDOW_EXCEEDED_CODE 字面拼写给 pin）",
+    "closure_machine_count": "47 items / 0 非闭合（V4-A..G 全 fixed/verified，V4-E=margin 契约歧义裁决条目）",
+    "redline_grep": "R2：'enforce' 仅 config/types/preflight.ts:397 mode 门/文档；R3：deps 键面结构化钉（preflight.spec:521-545）+ src grep 零 llm.stream 调用；R1/R4-R8 本波无面"
+  },
+  "margin_ruling": {
+    "question": "卡面 product-1 JSDoc（估算命中阈值=triggerLine×margin）vs product-2 判定行（估算 context+reserve(R_pess) > W×marginRatio）差 0.1×R_pess",
+    "ruling": "coder 按 product-1 + F6.4 误报偏向钉死 hit ⇔ estimate > triggerLine × marginRatio —— 裁决成立",
+    "reasons": [
+      "卡面 product-1 是 marginRatio 的语义定义处（config 契约），product-2 判定行与之矛盾必择一；config.ts:89-97 与 CHANGELOG:28 均按 product-1 表述，契约面自洽",
+      "F6.4 误报代价=一次无谓 compaction surface 重写 → 偏向更高阈值；θ1−θ2=+0.1×R_pess（W=128k 具体化：product-1 于 98510 触发 vs product-2 于 96656，product-1 误报更少）",
+      "margin=1 时两读法都退化为官方 triggerLine（content > W−R_pess），product-1 的 margin 语义（对 trigger 线的距离比例）与 budget.ts CCM 触发语义一致；product-2 把 R_pess 同时放在左边和 margin 基上属双重计入",
+      "实现/测试/JSDoc 三方一致：preflight.ts:330（严格 >）、judgeEstimate 边界钉（estimate==threshold 非命中, +1 命中）、margin clamp (0,1] 防 margin>1 越过官方触发线（preflight.ts:338-345）",
+      "歧义已在 V4-E 显式登记（closure.json contract-ambiguity, fixed/verified, flagged for reviewer confirmation）——本条即 reviewer 确认"
+    ]
+  },
+  "evidence": {
+    "correctness": [
+      "enforce chunk 形态官方实读核对：zDSH-main llm/src/types.ts:446-464（'Adapters emit usage before the terminal finish and nothing afterward' 原文在档）+ :41-62 LlmFailure{message,code 必填/status/providerRetryAfterMs/requestId/offloadImages 可选}（插件只发 message+code=合法，status/requestId 缺席诚实）+ :156-163 FinishReasonMap['error']={kind:'failure'} 形状吻合 + llm/src/error.ts:25 CONTEXT_WINDOW_EXCEEDED_CODE 拼写（U2 探针 G4 实测）",
+      "短路恰一终态：exactly one chunk + innerStarted=false 钉（preflight.spec:299-332）+ 全链组合下内层 observe 被抑制（plugin.spec :455-499：0 快照 + calibration short-circuited）——cordis waterfall 语义实读背书（zDSH-main vendor/cordis/src/events.ts:221-236 'Listeners run outermost-first; a listener that does not call next() vetoes the rest of the chain, including the built-in behavior'）+ 官方 sanctioned（llm/src/index.ts:66-78 'call next() … or yield your own chunks to short-circuit'）+ plugin.ts:240-241 preflight 先注册=OUTERMOST",
+      "恢复链不死锁：compaction/session-title purpose 门使恢复链自调永不短路（preflight.spec:348-364 零记录钉）——F6.3 官方恢复链语义（compaction-basic :194→:233）不受 preflight 干扰",
+      "估算器：system 仅 string 时计入=正确（官方 GenerateOptions.system?: string，types.ts:528 实读，无结构化 system 漏计）；图片官方门镜像（inputModalities 已知且无 image 才投影Away, preflight.ts:441-448 = observe.normalizeForHash 同条件）；计价两路+错位/抛错 fail-soft（safePriceImages :294-306, spec:186-199）；Z18 守卫三处 typeof raw === 'string'（walkMessage:233-239/else 分支 + tools 循环 :265-267）与坑册教训一致",
+      "fail-soft 全覆盖：window 不可解→hit undefined 释放（:322）；退化窗 computeBudget throw→释放（:331-334）；估算故障 warn-once 释放（:379-393 钉 warn 恰 1 次）；margin 越界回退 0.9 warn-once（:338-345, spec:229-243）",
+      "校准生命周期：completed/no-usage/error/aborted/short-circuited 五态（types.ts:804-823）+ abort rethrow 不吞 + signal 推导（preflight.spec:392-412）；modelInfo promise 缓存 64-cap 负结果缓存（:530-545, spec:469-476）",
+      "[建议 V4-1 扣 1 分]：preflightCalibrationStats 把 projector='local-fallback' 行计入 comparable/mean/worst（tools.ts:509-523），basis 行却声明 'fallback rows are not calibrated'（:529）——数字真值性张力：显示的 mean error 不是官方估算器的 mean error；行为被 spec:611-624 显式钉为故意（'comparable AND a basis marker'），属措辞/口径问题非行为缺陷；修法二选一（剔除 fallback 行出 comparable 并标注，或改写 basis 措辞为 mixed-pollution 声明）"
+    ],
+    "completeness": [
+      "卡面产物 1-4 全交付：config 三态+margin（4b2b499, 默认 observe/0.9 R2 JSDoc）；preflight.ts listener（206e84d）；校准台账（64-cap never session-logged, store.ts:772-777）；测试（4023c7f 27 例）",
+      "R2 三层钉：configDefaults.preflightMode==='observe'（preflight.spec:116-131）+ configSchema roundtrip + smoke 字面钉（smoke.spec:53-56, Z19 修正后对新鲜 lib 双绿）；plugin.spec 2-listener 计数钉默认态",
+      "observe→enforce 迁移条件入 CHANGELOG 草稿（d388d57:52-66：真机标定误差分布/误报代价接受/短路对账——卡面约束逐字满足）",
+      "V2-A 闭合正确：prepare catch warn-once 每 listener 一次、fail-soft 不变（observe.ts:293-307；R3 建议原文=『加 sink() 同款 warn-once，不改 fail-soft 行为，只可见化』——语义判定一致）；测试 observe.spec:426-448",
+      "Z18/Z19 坑册闭环：zDSH-LESSONS.md + ~/.agents/rsi/INDEX.md:144 捕获行 + V4-F/V4-G closure 条目",
+      "[建议 V4-2 扣 1 分]：卡面『估算器两路径（宿主/fallback）』的宿主(official projector)路径无 preflight 执行钉——preflight.spec 全部在 fallback projector 下跑（记录 projector='local-fallback'），observe.spec 有官方 describe 先例（宿主在盘 SKIPPED 约定 + V2-D 零变异钉），preflight 缺同款；共享投影面已有官方钉部分背书，但 preflight 特有差量（注入 fileRequestText resolver 的官方路径估算值/图片门）未在官方 projector 下实跑；修法=照 observe.spec 官方 describe 形态补一例 ZCTX_DSH_LLM 官方路径估算钉"
+    ],
+    "consistency": [
+      "官方锚点全部实读核对（chunk 协议/LlmFailure/FinishReasonMap/LlmImageRequestPrice{visualTokens,text}/purpose 词表/TokenSurfaceNode{seq,tokens} head-to-tail/cordis waterfall 组合序）——锚点漂移为零",
+      "config 扁平 primitive 键先例一致（V1 阈值字段 + V2 observe.enabled 同款）；CONFIG_FIELD_SPECS satisfies 钉延续",
+      "64-cap/warn-once/fail-soft/capability-probe 四纪律与 V1/V2 完全同构（PREFLIGHT_CALIBRATION_CAP=64 store.ts:171, MODEL_INFO_CACHE_CAP=64 preflight.ts:360）",
+      "matchesMainChain 共享面单一权威：判据 1-3 复用、判据 4（豁免窗）有据排除于 preflight（observe.ts:227-237 文档化理由：post-reset 请求仍须判定）",
+      "margin 语义与 budget.ts triggerLine 一致（margin=1 退化为官方触发线）"
+    ],
+    "verifiability": [
+      "亲验三绿+三探针全绿（本文件 verification_trio 块，reviewer 本机实跑 2026-11-13）",
+      "plugin.spec enforce 全链例数学复核：W=16384/C=8192 → R_pess=7986 → triggerLine=8398 → hit line 7558；200000 chars → ceil(200000/3)=66667 → 命中 ✓",
+      "judgeEstimate 边界（==阈值不命中/+1 命中）依赖 triggerLine×0.9=166176 恰为整数（184640×0.9），测试注释如实声明",
+      "测试数轨迹吻合：302 + 27 preflight + 1 observe V2-A + 2 plugin = 332"
+    ],
+    "safety_rollback": [
+      "R2 双保险：默认 observe 不可达 enforce（config 默认+测试钉）+ enforce 行为面全部有钉；R3 结构性不可达（deps 无 llm 运行时，键面枚举钉）",
+      "只读纪律：零变异钉跨 observe+enforce 双模式复用（preflight.spec:483-519 深冻结+引用同一性）；abort rethrow 不吞流故障",
+      "短路不破坏官方恢复链（purpose 门）；校准台账进程内存 never session-logged",
+      "无凭证/无注入面；del/ 备份纪律由 coder 侧记录（v4-preflight-prechange 11 文件 SHA-256，progress.md:53）"
+    ],
+    "maintainability": [
+      "行数口径判定成立：preflight.ts 600 行=375 代码+189 注释+36 空行；卡面 80-140 为计划期估算，未含 fail-soft 双路径/错误路径/诚实标注纪律的实际展开（observe.ts 527 行先例同量级）；coder 自辩『逻辑约 250 行』与 375 代码行差量=接口/type 面 ~60 行+表面样板，可信；不扣 artifact 分，过程注记=计划估算工具应按『每交付面含诚实标注与 fail-soft』校准",
+      "deps 窄面（R3）+ 每 member 降级路径文档化（PreflightDeps JSDoc 逐 member）",
+      "导出面齐：index.ts 增 preflight 公开面（buildPreflightErrorFinish/estimateProjectedRequest/judgeEstimate/PreflightListener 等）"
+    ]
+  },
+  "suggestions": [
+    {
+      "id": "V4-1",
+      "location": "src/tools.ts:509-531 preflightCalibrationStats（basis 行 :529 vs 循环内 fallback 行计入 comparable）",
+      "problem": "local-fallback 投影行计入 mean/worst 统计，basis 行声明 'fallback rows are not calibrated'——校准台账的呈现数字与声明口径不一致；该台账是未来 enforce 升格决策的供数源（no-go 条件 4），混合口径会污染官方估算器误差分布的判读",
+      "fix": "二选一：(a) 循环内 projector==='local-fallback' 的记录不计入 comparable（stats 拆 official-only 口径 + fallback 行单独计数标注）；(b) basis 措辞改为如实的混合声明（'mixed official + local-fallback; fallback rows pollute the mean'）并同步 spec 注释——任一以测试断言为准绳",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    },
+    {
+      "id": "V4-2",
+      "location": "tests/preflight.spec.ts（全文）",
+      "problem": "卡面『估算器两路径（宿主/fallback）』的宿主路径缺 preflight 执行钉：全部 27 例在 local-fallback projector 下运行，官方 projector（ZCTX_DSH_LLM 宿主在盘路径）下 preflight 的估算/图片门/record projector='official' 标注无机器钉；observe.spec 已有同构官方 describe 先例可照抄",
+      "fix": "照 observe.spec 官方 describe 形态补一例：ZCTX_DSH_LLM 覆盖 → PreflightListener 跑一次主链请求 → 断言 record.projector==='official' + 官方 handle 文本估算差异 + 零变异（宿主缺席 SKIPPED 约定同款）",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    }
+  ],
+  "fraud_check": "未发现造假：官方 chunk 协议/LlmFailure/cordis 组合序/TokenSurfaceNode 锚点逐个实读核对；测试声称数字（332、741.04 kB、探针 5/8/16）与实跑一致；enforce 全链例数学复核（triggerLine 8398/hit line 7558/estimate 66667）成立；V2-A 闭合与 R3 建议原文语义一致；评分无自评（reviewer-R4 ≠ coder-v4）"
+}
