@@ -54,6 +54,10 @@ describe('dsh-zcontext skeleton smoke', () => {
       // configuration — the pin makes every config-contract change conscious).
       preflightMode: 'observe',
       preflightMarginRatio: 0.9,
+      // v0.2.0 V5 (S2 adapter): the volatile providers section defaults to an
+      // EMPTY declaration list — zero routes, the adapter face stays a
+      // keep-alive under the default configuration.
+      providers: [],
     })
     expect(Object.isFrozen(configDefaults)).toBe(true)
   })

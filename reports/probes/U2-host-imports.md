@@ -1,7 +1,7 @@
 # U2 装载探针报告 — dsh-llm 跨仓绝对路径导入（probe-host-imports.mjs 机器生成）
 
 - 探针目标：`file:///G:/000Github/zDSH/zDSH-main/packages/llm/llm/lib/index.js`
-- 运行时间：2026-11-13T00:30:25.872Z
+- 运行时间：2026-11-13T19:37:08.837Z
 - 结果汇总：16 PASS / 0 SKIP / 0 FAIL（exit 0）
 - 回答问题：RES-adapter-route.md [U2] 的 dsh-llm 半边——插件运行时能否按绝对路径装载宿主 llm 库并观察公开导出（dsh-session 同模式已由 probe-artifact P5 先证，本探针覆盖 llm 包）。
 

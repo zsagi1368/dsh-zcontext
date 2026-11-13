@@ -144,6 +144,10 @@ export const configDefaults: Readonly<ZcontextConfig> = Object.freeze<ZcontextCo
   'observe.attemptCapture': false,
   preflightMode: 'observe',
   preflightMarginRatio: 0.9,
+  // V5 S2: the structured providers section defaults to an EMPTY declaration
+  // list (zero routes = the adapter face stays a keep-alive). Aligned with
+  // the schema default (both schemastery .default([]) and the fail-soft shim).
+  providers: [],
 })
 
 /**

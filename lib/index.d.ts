@@ -1,17 +1,117 @@
 /**
- * Plugin configuration contract and schema (plan §3; every field primitive).
+ * zctx provider-spec resolution — the PURE config→spec layer the adapter
+ * consumes (task card V5 products 1/8; coordinator A-ruling recorded
+ * 2026-11-13): `providers[].family` IS the wire protocol name, taken from
+ * the official `supportedProtocols()` union ('openai-completions' |
+ * 'openai-responses' | 'anthropic-messages') — ZERO invented mapping, the
+ * route name is `zctx-<family>` (redline R5), the display name is
+ * `zctx <family>` verbatim, and an unknown family is a CONSTRUCTION-TIME
+ * violation (fail-loud with the complete violation list; the wiring layer
+ * catches and skips the face with the list in the log — boot never breaks,
+ * the五面降级 precedent, while the constructor contract stays fail-loud).
  *
- * Moved verbatim from the W1 index.ts skeleton in W4: the plugin class needs
- * `configSchema` at class-definition time (`static Config`), so it must live
- * in a module the plugin imports WITHOUT the index.ts cycle. The public
- * surface is unchanged — index.ts re-exports everything it always did.
+ * Validation rules (card: "contextWindow 必须声明（正整数，INVALID_MODEL_CONTEXT
+ * 语义）——配置缺失模型→构造期 fail-loud 列清单"):
+ *   - family: non-empty, member of the supported union, no duplicates (two
+ *     entries with the same family would race for the same route key).
+ *   - models: at least one per provider; ids non-empty and unique.
+ *   - contextWindow: REQUIRED positive integer (INVALID_MODEL_CONTEXT
+ *     semantics — F2.2 normalizeModelInfo index.ts:783-788).
+ *   - maxTokens: positive integer when present (F2.2 :808-815 semantics).
+ *   - baseURL: absolute http(s) URL when present (redline R6 — HTTP(SSE)
+ *     only; ws:// or other schemes are a violation, not a silent pass).
+ *   - apiKeyEnv: non-empty string when present (a reference NAME — config
+ *     carries the reference, never the secret, F4.3).
  *
- * Host-face types are structural (duck-typed): `@deepseek-ai/schemastery` is
- * resolved lazily at load time and falls back to a minimal built-in validator
- * (fail-soft) when it cannot be resolved, so this module always loads.
- *
- * @module config
+ * @module adapter/providers
  */
+/** One provider entry of the structured settings section (card product 8 + 5). */
+interface ZctxProviderConfig {
+  /** The wire protocol family (A-ruling: member of the official protocol union). */
+  readonly family: string;
+  /** Endpoint override (http/https; R6). */
+  readonly baseURL?: string;
+  /** Environment variable NAME holding the API key (a reference, F4.3). */
+  readonly apiKeyEnv?: string;
+  /** The declared models (at least one; card: 配置缺失模型 fail-loud). */
+  readonly models: readonly ZctxProviderModelConfig[];
+  /**
+   * Prompt-cache retention knob (card product 5, F4.6): 'none' | 'short' |
+   * 'long', passed through to pi-ai StreamOptions.cacheRetention (pi-ai's
+   * resolveCacheRetention: explicit value > env > default 'short'). Absent =
+   * pi-ai's own default applies.
+   */
+  readonly cacheRetention?: 'none' | 'short' | 'long';
+  /**
+   * Cache-control marker format for OpenAI-compatible endpoints (card
+   * product 5, F4.6: only ONE legal value, 'anthropic' — the official GATE
+   * catalog.ts:146-151 union). ONLY meaningful on the openai-completions
+   * family; on any other family it is a construction violation (dead config
+   * is dishonest config).
+   */
+  readonly cacheControlFormat?: 'anthropic';
+}
+/** One model entry of a provider (card product 8 fields). */
+interface ZctxProviderModelConfig {
+  readonly id: string;
+  /** REQUIRED positive integer (INVALID_MODEL_CONTEXT semantics). */
+  readonly contextWindow: number;
+  /** Positive integer when present. */
+  readonly maxTokens?: number;
+  /** Wire-spelling reasoning efforts: wireValue → pi-ai level; false = none. */
+  readonly reasoningEfforts?: Readonly<Record<string, string>> | false;
+}
+/** One resolved, validated provider spec the adapter registers. */
+interface ResolvedZctxProvider {
+  /** The adapter route key: `zctx-<family>` (R5). */
+  readonly route: string;
+  readonly family: string;
+  /** `zctx <family>` (card product 1). */
+  readonly displayName: string;
+  /** The wire protocol (A-ruling: === family). */
+  readonly protocol: string;
+  readonly baseURL?: string;
+  readonly apiKeyEnv?: string;
+  readonly models: readonly ResolvedZctxModel[];
+  /** Cache retention passthrough (F4.6); absent = pi-ai default applies. */
+  readonly cacheRetention?: 'none' | 'short' | 'long';
+  /** Cache-control marker format (F4.6); present only on openai-completions. */
+  readonly cacheControlFormat?: 'anthropic';
+}
+/** One resolved, validated model descriptor. */
+interface ResolvedZctxModel {
+  readonly id: string;
+  readonly name: string;
+  readonly contextWindow: number;
+  readonly maxTokens?: number;
+  readonly reasoningEfforts?: Readonly<Record<string, string>> | false;
+}
+/** The structured settings section shape (v5s5 wires the schemastery schema). */
+interface ZctxProvidersSection {
+  readonly providers?: readonly ZctxProviderConfig[];
+}
+/** The route key for one family (R5 namespace). */
+declare function zctxRouteOf(family: string): string;
+/** The display name for one family (card product 1, verbatim technical name). */
+declare function zctxDisplayNameOf(family: string): string;
+/**
+ * Resolve and validate the whole providers section at once. Returns the
+ * resolved specs AND the complete violation list (构造期 fail-loud 列清单 —
+ * the caller throws with the FULL list, never one-at-a-time). Empty/absent
+ * section resolves to zero providers with zero violations (the adapter face
+ * then registers zero routes — legal per F1.4's keep-alive semantics).
+ */
+declare function resolveZctxProviders(section: ZctxProvidersSection | undefined, supportedProtocols: readonly string[]): {
+  providers: ResolvedZctxProvider[];
+  violations: string[];
+};
+/**
+ * The construction-time fail-loud gate: throws with the COMPLETE violation
+ * list when any violation exists. The wiring layer catches this and skips
+ * the adapter face with the list in the log (fail-soft at boot, fail-loud
+ * at the adapter contract — both disciplines hold).
+ */
+declare function assertZctxProvidersResolvable(section: ZctxProvidersSection | undefined, supportedProtocols: readonly string[]): ResolvedZctxProvider[];
 /** Frozen plugin configuration contract (plan §3; every field is primitive). */
 interface ZcontextConfig {
   /** Master switch; when false the plugin stays passive (official compaction remains the hard floor). */
@@ -92,6 +192,26 @@ interface ZcontextConfig {
    * 待真机标定后调整 (calibration pending, plan §3).
    */
   preflightMarginRatio: number;
+  /**
+   * The structured S2 adapter section (v0.2.0 V5, task card product 8; plan
+   * §3 structured-settings relaxation, official llm-pi-ai schemastery
+   * precedent config.ts:340-361): `providers[]` entries declare the routes
+   * the zctx adapters register — family/baseURL/apiKeyEnv/models[].id/
+   * contextWindow/maxTokens/reasoningEfforts (wire spelling).
+   *
+   * The `family` IS the wire protocol name, validated against the OFFICIAL
+   * llm-pi-ai `supportedProtocols()` union taken DYNAMICALLY (coordinator
+   * A-ruling 2026-11-13: zero invented mapping; route = `zctx-<family>`,
+   * redline R5; unknown family = construction-time fail-loud violation).
+   *
+   * VOLATILE (U1): the Models page only mounts a settings namespace whose
+   * Config carries a volatile field (settings describe volatileForm gate) —
+   * this section is the volatile anchor that makes the directory rows
+   * visible (visibility-only; page editing stays unavailable — U1 SKIP,
+   * config authority = the profile overlay patch). Absent section = zero
+   * providers = the adapter face registers nothing (legal keep-alive).
+   */
+  providers?: readonly ZctxProviderConfig[];
 }
 /** Contractual defaults for every Config field (plan §3). */
 declare const configDefaults: Readonly<ZcontextConfig>;
@@ -706,6 +826,34 @@ interface RequestSnapshot {
 interface PrefixBreakResetRef {
   readonly kind: ResetEventKind;
   readonly seq: number;
+}
+/**
+ * One WIRE-domain snapshot (v0.2.0 V5, task card product 4; plan §3 dual
+ * domain): the byte-level hash of what actually left the process on a zctx
+ * route — `sha256` over the FINAL request body bytes the custom fetch saw
+ * (`kind: 'request-bytes'`), or over the serialized pre-send payload object
+ * view (`kind: 'request-payload'`, stableStringify — deterministic but NOT
+ * the wire bytes). Honest-domain labeling: `domain: 'wire'` pins that this
+ * hash covers ONLY requests riding the zctx adapters (the harness domain's
+ * object hashes cover every route; neither domain can see the other's).
+ * Observation-only: the wire faces NEVER replace a payload (redline R1).
+ */
+interface WireSnapshot {
+  /** Always 'wire' — the byte/object-level domain, zctx routes only. */
+  readonly domain: 'wire';
+  /** Session id the request was bound to; unbound (one-shot) requests are not recorded. */
+  readonly sessionId: string;
+  /** The zctx route that served the request (`zctx-<family>`). */
+  readonly provider: string;
+  readonly model: string;
+  /** Which observation point produced the hash. */
+  readonly kind: 'request-bytes' | 'request-payload';
+  /** sha256 hex over the recorded bytes (or the stable-serialized payload). */
+  readonly sha256: string;
+  /** Byte length when known ('request-bytes' with a string body; else undefined). */
+  readonly byteLength?: number;
+  /** Unix epoch ms of the observation. */
+  readonly time: number;
 }
 /**
  * One harness-domain prefix break (V2 mechanical piece): the object-level
@@ -1337,6 +1485,8 @@ declare class FoldStore {
   private readonly breakLog;
   /** Bounded non-durable captured-attempt-usage ledger (V2 receive port; never session-logged). */
   private readonly captureLog;
+  /** Bounded wire-domain ledger (V5 receive port, same 64-cap design; never session-logged). */
+  private readonly wireLog;
   /** Bounded S1 preflight calibration ledger (V4 receive port; never session-logged). */
   private readonly preflightLog;
   private readonly anomaliesLog;
@@ -1425,6 +1575,15 @@ declare class FoldStore {
    * design; the ledger is only bounded memory.
    */
   absorbCapturedAttemptUsage(record: CapturedAttemptUsage): void;
+  /**
+   * Wire-domain receive port (V5): append one byte/object-level hash of a
+   * zctx-route request. Observation-only by construction — the producer
+   * (adapter/wire.ts) never rewrites a payload (R1). Same 64-cap design as
+   * the V2 ledgers; never session-logged.
+   */
+  absorbWireSnapshot(snapshot: WireSnapshot): void;
+  /** The bounded wire-domain ledger, oldest first (V5 receive port view). */
+  wireSnapshots(): readonly WireSnapshot[];
   /** The bounded S1 preflight calibration ledger, oldest first (V4 receive port). */
   preflightCalibrations(): readonly PreflightCalibrationRecord[];
   /**
@@ -1542,7 +1701,13 @@ declare class FoldStore {
   private turnOpenAt;
   /** The `data.turn` of the retained event at one seq, when well-formed. @internal */
   private messageTurnAt;
-  /** True when a reset-ledger entry sits strictly between the two seqs. @internal */
+  /**
+   * True when a reset-ledger entry sits strictly between the two seqs — or
+   * when the ledger is at its cap (V3-1: `RESET_LEDGER_CAP` eviction via
+   * shift-and-push makes "no reset" unprovable, because an evicted entry may
+   * have sat between the seqs; the walk stops conservatively instead of
+   * upgrading across a possibly-evicted reset). @internal
+   */
   private resetBetween;
   /** Local surface replay from the retained log (fallback when no live surface). @internal */
   private replaySurfaceNodes;
@@ -1793,6 +1958,22 @@ interface LlmRuntimeLike {
       text: string;
     }[];
   } | undefined;
+  /**
+   * Official `ctx.llm.registerAdapter` (llm/src/index.ts:400-429), probed by
+   * the V5 adapter face (F1.1): registers the routes with an all-or-nothing
+   * validation (DUPLICATE_ADAPTER on any collision), captures the retry
+   * policy at registration, and returns the lifecycle handle the cordis
+   * effect owns. Optional: absent → the adapter face is not registrable.
+   */
+  registerAdapter?(providers: readonly string[], adapter: unknown): unknown;
+  /**
+   * Official `ctx.llm.registerConfigurableProviders` (llm/src/index.ts:494-547,
+   * F1.6), probed by the V5 adapter face for the MINIMAL directory (product
+   * 7): entries are the LlmConfigurableProvider shape; all-or-nothing
+   * (DUPLICATE_DIRECTORY on any collision). Optional: absent → the directory
+   * face is skipped with a warn while the adapter registration stands.
+   */
+  registerConfigurableProviders?(entries: readonly unknown[]): unknown;
 }
 /** Everything the four tools (and the /zctx command) need from the host. */
 interface ZctxToolRuntime {
@@ -1887,6 +2068,13 @@ declare class ZcontextPlugin extends ServiceBase {
   private observe;
   /** The S1 preflight face's listener; undefined when preflightMode is 'off'. */
   private preflight;
+  /**
+   * The S2 adapter face's registration continuation (undefined when the face
+   * gated off synchronously). The constructor is synchronous (cordis), so
+   * the async registration is a tracked continuation: failures log honestly
+   * inside, never throw — and tests/status can await the settled state.
+   */
+  adapterRegistration: Promise<void> | undefined;
   private warnedWindowFailure;
   constructor(ctx: HostContextLike, config?: Partial<ZcontextConfig>);
   /** session/event feed: maintain live stores + warm the window cache. @internal */
@@ -1923,6 +2111,30 @@ declare class ZcontextPlugin extends ServiceBase {
    * @internal
    */
   private wirePreflightFace;
+  /**
+   * The S2 adapter face (v0.2.0 V5, task card product 1; RES-adapter-route
+   * §11b 形态二): builds the zctx adapters over the fail-soft-loaded host
+   * faces and registers them with the llm runtime
+   * (`ctx.llm.registerAdapter`, F1.1 all-or-nothing; DUPLICATE_ADAPTER on any
+   * route collision → the OFFICIAL conflict precedent applies — keep the
+   * old route + error log, llm-pi-ai:310-316 — boot unaffected).
+   *
+   * Face gates, each honest and none boot-breaking (五面降级先例):
+   *   - no providers declared (absent/empty section) → info, zero routes
+   *     (legal keep-alive, F1.4).
+   *   - llm runtime without registerAdapter → warn, skipped.
+   *   - host lib / pi-ai unreachable (faces undefined) → info, skipped —
+   *     the card constraint "宿主不可达→adapter 面整体不注册（fail-soft）".
+   *   - config violations → the CONSTRUCTION fail-loud error (complete
+   *     violation list, providers.ts) lands in a warn log, skipped — the
+   *     adapter contract is fail-loud while boot stays fail-soft.
+   *
+   * The host faces load asynchronously, so the registration completes as a
+   * fire-and-forget continuation after the synchronous constructor returns
+   * (the warmWindow precedent); every failure inside logs and never throws.
+   * @internal
+   */
+  private wireAdapterFace;
   /**
    * The llm/stream observe face (v0.2.0 V2): a strictly read-only waterfall
    * listener whose per-attempt request snapshots + prefix-break records land
@@ -2010,6 +2222,200 @@ interface ZctxCommandDefinition {
 /** Build the /zctx command definition against the given runtime. */
 declare function buildZctxCommand(runtime: ZctxToolRuntime): ZctxCommandDefinition;
 /**
+ * Optional host faces for the S2 adapter — fail-soft lazy loaders for the
+ * three host surfaces the zctx adapter rides (task card V5 product 1/2;
+ * RES-adapter-route F5.9 "借力清单", F7.4, U2 probe).
+ *
+ * Zero static host imports (the config.ts / host-llm.ts fail-soft precedent):
+ * every loader dynamic-imports and returns `undefined` when the surface is
+ * unreachable. The plugin wiring treats `undefined` as "adapter face is not
+ * registrable" and logs honestly — the adapter face NEVER breaks boot.
+ *
+ * Three surfaces, each with its own probe convention:
+ *
+ *  1. `@deepseek-ai/dsh-llm` (BUILT lib) — the LlmAdapter abstract base the
+ *     card requires (`ZctxAdapter extends LlmAdapter`), the official error
+ *     taxonomy (LlmError, the *_CODE constants, the two overflow/quota
+ *     classifiers) and attributionHeaders (F9.6). Override: `ZCTX_DSH_LLM`
+ *     (same convention as host-llm.ts; U2 probe: 16/16 live on disk).
+ *  2. `@earendil-works/pi-ai` (1.0.2 dist, R8 anchor) — the transport engine:
+ *     `isContextOverflow` (utils/overflow re-exported from the root) and the
+ *     per-protocol stream implementations (`./api/<protocol>` exporting
+ *     `stream`/`streamSimple` directly — probed live, so the adapter calls
+ *     the API module WITHOUT building a Models collection; coordinator note
+ *     recorded on this finding). Override: `ZCTX_PIAI`.
+ *  3. `@deepseek-ai/dsh-llm-pi-ai/src/{stream,replay}` (TS sources — the
+ *     package publishes `exports ./src/*`) — the official chunk-mapping
+ *     pieces (`toStreamChunks`/`mapUsage`/`mapStopReason`/`toPiReplayState`/
+ *     `toPiAssistant`). When reachable the adapter maps events through the
+ *     OFFICIAL implementation; when unreachable the self-replicated twins in
+ *     `map.ts`/`replay.ts` take over and every record they touch is labeled
+ *     `zctx-mapping` (honest provenance, same discipline as host-llm.ts).
+ *     `classifyPiAiError` is module-private upstream (src/stream.ts:42 has no
+ *     export) so the twin ALWAYS supplies it (the adapter's catch path uses
+ *     it directly regardless of the mapping source). Override:
+ *     `ZCTX_DSH_LLM_PIAI` (points at the llm-pi-ai package root directory).
+ *
+ * Loading is lazy and memoized per process; `resetAdapterFacesForTest`
+ * drops the memoization (two-path tests, same seam as host-llm.ts).
+ *
+ * @module adapter/host
+ */
+/** Structural surface of the @deepseek-ai/dsh-llm exports the adapter consumes. */
+interface HostLlmFace {
+  /** The official LlmAdapter abstract base class (`extends` target). */
+  readonly LlmAdapter: abstract new () => unknown;
+  /** The official harness error (two-path error delivery, F5.2). */
+  readonly LlmError: new (message: string, code: string, options?: {
+    cause?: unknown;
+  }) => Error;
+  readonly CONTEXT_WINDOW_EXCEEDED_CODE: string;
+  readonly EMPTY_RESPONSE_CODE: string;
+  readonly QUOTA_EXCEEDED_CODE: string;
+  readonly IMAGE_OFFLOAD_REQUIRED_CODE: string;
+  /** Official overflow text classifier (error.ts:64-100, four regex groups). */
+  readonly isContextWindowExceededError: (message: string) => boolean;
+  /** Official quota text classifier (used by the error twin). */
+  readonly isQuotaExceededError: (message: string) => boolean;
+  /** Harness attribution headers — MUST ride every wire request (F9.6). */
+  readonly attributionHeaders: () => Record<string, string>;
+  /** Official image-block detector (image gating, F5.7). */
+  readonly contentHasImage: (content: unknown) => boolean;
+}
+/** One pi-ai protocol API module's stream face (anthropic-messages.js:376/:712 shape). */
+interface PiAiApiStreams {
+  readonly stream: (model: unknown, context: unknown, options?: unknown) => unknown;
+  readonly streamSimple: (model: unknown, context: unknown, options?: unknown) => unknown;
+}
+/** Structural surface of @earendil-works/pi-ai the adapter consumes. */
+interface PiAiFace {
+  /** pi-ai's own overflow classifier (25+ provider patterns, F5.4). */
+  readonly isContextOverflow: (message: unknown, contextWindow?: number) => boolean;
+  /**
+   * Load one wire protocol's stream implementation. Undefined = this build
+   * cannot serve the protocol (honest release at resolve time).
+   */
+  loadApi(protocol: string): Promise<PiAiApiStreams | undefined>;
+}
+/** Where the chunk mapping ran — recorded on every adapter surface honestly. */
+type MappingSource = 'official-pi-ai-mapping' | 'zctx-mapping';
+/**
+ * The chunk/history mapping face. The official llm-pi-ai implementations when
+ * their TS sources resolve, the self-replicated twins otherwise (`source`
+ * names which one — the domain-field discipline the V2 ledger froze).
+ */
+interface MappingFace {
+  readonly source: MappingSource;
+  mapUsage(usage: unknown): unknown;
+  mapStopReason(message: unknown, contextWindow?: number): unknown;
+  toStreamChunks(events: AsyncIterable<unknown>, contextWindow?: number, callerSignal?: AbortSignal, requestedModel?: string): AsyncGenerator<unknown>;
+  toPiReplayState(message: unknown, requestedModel?: string): unknown;
+  toPiAssistant(message: unknown, onDegrade?: (reason: string) => void): unknown;
+}
+/** All three faces the adapter face needs; `undefined` = not registrable. */
+interface AdapterFaces {
+  readonly host: HostLlmFace;
+  readonly piAi: PiAiFace;
+  readonly mapping: MappingFace;
+}
+/**
+ * The BUILTIN fallback protocol list (official llm-pi-ai PROTOCOLS table,
+ * llm-pi-ai/src/provider.ts:47-51). The AUTHORITATIVE gate is the official
+ * `supportedProtocols()` union loaded dynamically (coordinator A-ruling:
+ * "官方 union 单源对拍防漂移 — supportedProtocols() 动态取，宿主升级加协议
+ * 我们自动跟"); this constant is only the honest fallback when the
+ * llm-pi-ai lib cannot resolve.
+ */
+declare const KNOWN_PROTOCOLS: readonly ["openai-completions", "openai-responses", "anthropic-messages"];
+/**
+ * The wire-protocol union the config `family` values are validated against.
+ * Source of truth: the official llm-pi-ai lib's `supportedProtocols()` (its
+ * package main exports it — probed live); when that package is unreachable,
+ * the {@link KNOWN_PROTOCOLS} fallback applies with `source: 'builtin'` so
+ * callers can label the provenance honestly.
+ */
+declare function loadSupportedProtocols(): Promise<{
+  protocols: readonly string[];
+  source: 'official' | 'builtin';
+}>;
+/**
+ * Load all three faces once per process. `undefined` = the adapter face is
+ * NOT registrable (host lib or pi-ai unreachable) — the wiring logs honestly
+ * and skips the face; this is never a throw.
+ */
+declare function loadAdapterFaces(): Promise<AdapterFaces | undefined>;
+/** Where one wire observation lands (the per-session store's wire ledger). */
+type WireSink = (snapshot: WireSnapshot) => void;
+/** The observation faces injected into one streamSimple call. */
+interface WireFaces {
+  /** pi-ai onPayload — observe-only, ALWAYS returns undefined (R1). */
+  readonly onPayload: (payload: unknown, model: unknown) => undefined;
+  /** Custom fetch — hashes init.body when present, forwards untouched. */
+  readonly fetch: typeof globalThis.fetch;
+  /** Request headers carrying the attribution names (R7). */
+  readonly headers: Record<string, string>;
+}
+/** Identity context for one request's wire records. */
+interface WireRequestIdentity {
+  readonly sessionId: string;
+  readonly provider: string;
+  readonly model: string;
+}
+/**
+ * Build the wire faces for ONE stream call. `sink` is absent → the faces
+ * still observe (cheap) but record nothing — no, honest simplification:
+ * with no sink there is no ledger, so a no-op sink is equivalent; the faces
+ * are built ONLY when a sink exists (the adapter passes one always — the
+ * wiring decides coverage).
+ */
+declare function buildWireFaces(identity: WireRequestIdentity, sink: WireSink | undefined, host: HostLlmFace): WireFaces;
+/**
+ * Merge deployment headers with the attribution headers, attribution names
+ * WINNING case-insensitively (official llm-pi-ai adapter.ts:215-223 port).
+ * R7: the attribution set MUST reach the wire; collisions are removed from
+ * the deployment set rather than reordered after it.
+ */
+declare function requestHeaders(deployment: Readonly<Record<string, string>> | undefined, host: HostLlmFace): Record<string, string>;
+/** Logger subset the adapter may use (honest degrade logging). */
+interface AdapterLoggerLike {
+  warn?(message: string): unknown;
+  info?(message: string): unknown;
+}
+/** The structural face the adapter presents to the runtime (F2 table). */
+interface ZctxAdapterFace {
+  providerInfo(provider: string): {
+    id: string;
+    name: string;
+  };
+  providerRetryPolicy(provider: string): unknown;
+  listModels(provider: string): Promise<readonly unknown[]>;
+  resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<unknown>;
+  prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<unknown>;
+  stream(options: unknown): AsyncIterable<unknown>;
+}
+/** Everything the adapter class needs — all optional-import faces, pre-loaded. */
+interface ZctxAdapterDeps {
+  readonly host: HostLlmFace;
+  readonly piAi: PiAiFace;
+  readonly mapping: MappingFace;
+  /** The resolved, validated provider specs (providers.ts; frozen per boot). */
+  readonly providers: readonly ResolvedZctxProvider[];
+  readonly logger?: AdapterLoggerLike;
+  /**
+   * The wire-domain ledger sink (V5 product 4; R7's observation side).
+   * Receives one WireSnapshot per wire observation (fetch bytes / onPayload
+   * object view). Absent → the wire faces still ride the request (the
+   * attribution headers are R7-mandatory regardless) but nothing is recorded.
+   */
+  readonly wireSink?: WireSink;
+}
+/**
+ * Build the concrete adapter class over the loaded LlmAdapter base. The
+ * runtime duck-types every member (F1.1 registerAdapter calls the members;
+ * `extends` pins the abstract contract the card requires).
+ */
+declare function createZctxAdapterClass(Base: abstract new () => unknown): new (deps: ZctxAdapterDeps) => ZctxAdapterFace;
+/**
  * dsh-zcontext — model-driven incremental context folding for the DeepSeek
  * Harness (official surface replace channel).
  *
@@ -2024,5 +2430,5 @@ declare function buildZctxCommand(runtime: ZctxToolRuntime): ZctxCommandDefiniti
  */
 /** Plugin identity exported for loader probes. */
 declare const name = "dsh-zcontext";
-export { type AttributionFoldEntry, type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type ClassifyAttributionInput, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type HostImagePriceLike, type HostImagePricingLike, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, type MeterAnchorLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, PER_IMAGE_FALLBACK_TOKENS, PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE, type ParamSpec, type PrefixBreakRecord, type PrefixBreakResetRef, type PreflightCalibrationRecord, type PreflightDeps, type PreflightEstimate, type PreflightImagePricing, type PreflightJudgment, PreflightListener, type PreflightMode, type PreflightOutcome, type PreflightStoreAccess, type PreflightStreamListener, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type RouteHeader, type SnapshotAggregationInput, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordSemiKind, type UsageRecordState, type UsageSample, type UsageSnapshot, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, billedInputTokens, buildGuidanceSection, buildObservabilitySnapshot, buildPreflightErrorFinish, buildZctxCommand, buildZctxTools, ccmWindowGate, classifyFoldAttribution, cleanSampleRatio, computeBreakevenReport, computeBudget, configDefaults, configSchema, crossedThresholds, estimateProjectedRequest, estimateTokens, fold, foldableRanges, judgeEstimate, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, resolveDefineTool, resolveMarginRatio, unfold, validateFold };
+export { type AdapterFaces, type AttributionFoldEntry, type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type ClassifyAttributionInput, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type HostImagePriceLike, type HostImagePricingLike, type HostLlmFace, KNOWN_PROTOCOLS, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, type MappingFace, type MappingSource, type MeterAnchorLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, PER_IMAGE_FALLBACK_TOKENS, PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE, type ParamSpec, type PiAiApiStreams, type PiAiFace, type PrefixBreakRecord, type PrefixBreakResetRef, type PreflightCalibrationRecord, type PreflightDeps, type PreflightEstimate, type PreflightImagePricing, type PreflightJudgment, PreflightListener, type PreflightMode, type PreflightOutcome, type PreflightStoreAccess, type PreflightStreamListener, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type ResolvedZctxModel, type ResolvedZctxProvider, type RouteHeader, type SnapshotAggregationInput, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordSemiKind, type UsageRecordState, type UsageSample, type UsageSnapshot, type WireFaces, type WireRequestIdentity, type WireSink, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxAdapterDeps, type ZctxAdapterFace, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxProviderConfig, type ZctxProviderModelConfig, type ZctxProvidersSection, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, assertZctxProvidersResolvable, billedInputTokens, buildGuidanceSection, buildObservabilitySnapshot, buildPreflightErrorFinish, buildWireFaces, buildZctxCommand, buildZctxTools, ccmWindowGate, classifyFoldAttribution, cleanSampleRatio, computeBreakevenReport, computeBudget, configDefaults, configSchema, createZctxAdapterClass, crossedThresholds, estimateProjectedRequest, estimateTokens, fold, foldableRanges, judgeEstimate, loadAdapterFaces, loadSupportedProtocols, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, requestHeaders, resolveDefineTool, resolveMarginRatio, resolveZctxProviders, unfold, validateFold, zctxDisplayNameOf, zctxRouteOf };
 //# sourceMappingURL=index.d.ts.map
