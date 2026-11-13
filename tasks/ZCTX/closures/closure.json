@@ -471,7 +471,97 @@
       "owner": "coder-v4",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "V5-A",
+      "source": "V5 task card products 1/2 (adapter skeleton + chunk mapping): ZctxAdapter extends LlmAdapter via fail-optional host face, 7-shape chunk protocol with usage-before-finish, official mapping reuse (official-pi-ai-mapping) with labeled zctx-mapping twins fallback",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "src/adapter/{host,providers,map,replay,context,twins,zctx-adapter}.ts; tests/adapter-providers.spec.ts (48) + adapter-zctx.spec.ts (16) + adapter-host.spec.ts (7) — official mapping source pinned live on the reference machine (adapter-host OFFICIAL case); classifyPiAiError twins-only (module-private upstream stream.ts:42) honestly documented",
+      "owner": "coder-v5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V5-B",
+      "source": "V5 card product 3 (error two paths): throw LlmError official taxonomy vs in-band error finish chunks; SDK maxRetries=0 (R4); caller abort → ABORTED",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "zctx-adapter.ts catch path (abort/LlmError passthrough/twin-table classification) + streamSimple options maxRetries:0; tests: TRANSPORT classification, in-band SERVER finish, ABORTED upgrade, R4 pin (capture.options.maxRetries === 0)",
+      "owner": "coder-v5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V5-C",
+      "source": "V5 card product 4 (wire ledger, R7): onPayload+custom fetch pass-through, wire-domain sha256 snapshots, attributionHeaders on every request",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "src/adapter/wire.ts (R1 undefined-constant onPayload; fetch hashes init.body with byteLength; requestHeaders attribution-wins merge port of official adapter.ts:215-223); types.ts WireSnapshot; store absorbWireSnapshot 64-cap; tests/adapter-wire.spec.ts (7) + adapter-zctx wire-integration case (session-bound triples / one-shot headers-only)",
+      "owner": "coder-v5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V5-D",
+      "source": "V5 card products 5/6 (cache knobs + image budget): cacheRetention passthrough + cacheControlFormat compat materialization with construction-gated dead-config refusal; image refusal UNSUPPORTED_CONTENT as the honest S2 boundary",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "providers.ts cache-knob validation matrix test + adapter-zctx passthrough pins (options.cacheRetention verbatim, model.compat {cacheControlFormat}); the three F5.7 image knobs deliberately NOT in config (JSDoc honest boundary: knobs with no consumer are dead config; IMAGE_OFFLOAD_REQUIRED unreachable by construction)",
+      "owner": "coder-v5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V5-E",
+      "source": "V5 card products 7/8 (minimal directory + config structured section): registerConfigurableProviders visibility-only with U1 honesty; providers[] schemastery section with VOLATILE namespace-mount anchor (config section pulled forward from v5s5 — the wiring consumes it)",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "plugin.ts directory block (settingsNs=dsh-zcontext, positional settingsPath, declared:true, U1 honesty log lines); config.ts providers schema (schemastery nested + volatile; fail-soft pass-through; configDefaults providers:[] aligned); adapter-plugin.spec directory cases (entries shape pin, missing-face warn, DUPLICATE_DIRECTORY refusal keeps the adapter)",
+      "owner": "coder-v5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V5-F",
+      "source": "R4 joint-review three closures (card 顺手闭合): V3-1 resetBetween cap guard, V4-1 calibration stats fallback-row exclusion, V4-2 official-projector execution pin",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "store.ts resetBetween (>=RESET_LEDGER_CAP → stop-walk unknown); tools.ts preflightCalibrationStats fallbackRows exclusion with honest basis line; preflight.spec official-path describe (host-on-disk SKIPPED convention + two-path estimate divergence); stats pin updated (comparable 2)",
+      "owner": "coder-v5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V5-G",
+      "source": "redlines R1-R8 audit for the V5 wave (card 验收: 红线逐条核对)",
+      "type": "acceptance-pin",
+      "disposition": "fixed",
+      "evidence": "grep audit clean: R1 onPayload undefined-constant (no payload returns in src/adapter); R2 preflightMode default observe untouched (smoke pin); R3 zero ctx.llm references in src/adapter (only the JSDoc prohibition); R4 single maxRetries:0 site + test pin; R5 zctx- prefix only (zctxRouteOf); R6 no transport option ever passed + ws/non-http baseURL construction violations; R7 attributionHeaders on every streamSimple call incl. ledger-less one-shots; R8 pi-ai 1.0.2 dist anchors read live (types.d.ts onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144) and documented in JSDoc",
+      "owner": "coder-v5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V5-H",
+      "source": "final battery (card 验收: vitest 全绿 + tsc 零错 + build 绿 + 三探针 exit 0 + 干净树)",
+      "type": "acceptance-pin",
+      "disposition": "fixed",
+      "evidence": "build tsdown 984.97 kB (7 files, lib committed per Z3); 419/419 against the fresh lib; tsc --noEmit zero; probe-artifact 5/5 + verify-activation-surface 8/8 + smoke-real-loader 2/2 + U2 host-imports 16/16 all exit 0; smoke config pin +providers:[] conscious Z19 amendment",
+      "owner": "coder-v5",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V5-I",
+      "source": "coordinator A-ruling integration (family = wire protocol name, official supportedProtocols union taken dynamically, zero invented mapping, unknown family construction fail-loud)",
+      "type": "decision-application",
+      "disposition": "fixed",
+      "evidence": "providers.ts A-ruling JSDoc + validation; host.ts loadSupportedProtocols (official lib supportedProtocols() with KNOWN_PROTOCOLS builtin fallback + honest builtin label); displayName zctx <family> verbatim; tests pin route/displayName/protocol identity",
+      "owner": "coder-v5",
+      "status": "verified",
+      "phase": "block"
     }
   ],
-  "updatedAt": "2026-11-13T20:00:00+08:00"
+  "updatedAt": "2026-11-13T22:45:00+08:00"
 }

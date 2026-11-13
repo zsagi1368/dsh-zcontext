@@ -38,3 +38,4 @@
 {"ts":"2026-11-13T22:15:00+08:00","task":"ZCTX-V5","step":"v5s3","commits":[],"summary":"wire ledger: onPayload/fetch pass-through faces + attribution merge + store wire domain; 415/415"}
 {"ts":"2026-11-13T22:25:00+08:00","task":"ZCTX-V5","step":"v5s4","commits":[],"summary":"cache knobs passthrough + image honest boundary (dead knobs refused); 417/417"}
 {"ts":"2026-11-13T22:35:00+08:00","task":"ZCTX-V5","step":"v5s5","commits":[],"summary":"minimal directory visibility-only + index public surface; 419/419"}
+{"ts":"2026-11-13T22:45:00+08:00","task":"ZCTX-V5","step":"v5s6-terminal","commits":[],"summary":"terminal battery green: build 984.97 kB + 419/419 + tsc zero + 4 probes exit 0; R1-R8 audit clean; closure 56 items 0 new OPEN"}

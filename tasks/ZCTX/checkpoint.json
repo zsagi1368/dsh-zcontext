@@ -1,6 +1,6 @@
 {
   "task": "ZCTX-V5",
-  "updatedAt": "2026-11-13T22:35:00+08:00",
+  "updatedAt": "2026-11-13T22:45:00+08:00",
   "baseCommit": "2952692 (R4 joint-review terminal, V3=99/V4=98)",
   "steps": [
     {
@@ -78,8 +78,20 @@
         "src/index.ts",
         "tests/adapter-plugin.spec.ts"
       ]
+    },
+    {
+      "id": "v5s6-terminal",
+      "name": "V5 terminal: lib rebuilt (tsdown 984.97 kB, 7 files, committed per Z3) BEFORE the final test run (Z19 build→test→tsc order); smoke.spec config pin +providers:[] conscious amendment (the volatile S2 section defaults to an empty list) + configDefaults aligned; FOUR probes exit 0 against the fresh lib (probe-artifact 5/5, verify-activation-surface 8/8, smoke-real-loader 2/2, U2 host-imports 16/16); R1-R8 grep audit clean (R1 undefined-constant onPayload / R2 preflight pin untouched / R3 zero ctx.llm in adapter / R4 single maxRetries:0 + test / R5 zctx- prefix / R6 no transport + ws refusal / R7 attribution everywhere incl. one-shots / R8 dist anchors live-read and JSDoc-documented); closure.json +V5-A..V5-I (9 items, all fixed/verified, 0 new OPEN — 56 total, only legacy OPEN = W5-A6-INSTALL user_approved_deferred); commits v5s0..v5s6 = 12543ae / e16cced / (v5s2) / (v5s3) / 033d005 / e197549 / (v5s6 terminal).",
+      "status": "done",
+      "artifacts": [
+        "lib/index.js",
+        "lib/index.d.ts",
+        "tasks/ZCTX/closures/closure.json",
+        "tasks/ZCTX/checkpoint.json",
+        "reports/probes/U2-host-imports.md"
+      ]
     }
   ],
-  "next": "v5s6 terminal: lib rebuild (build BEFORE test — Z19), verify-activation-surface/probe-artifact extension, smoke probe, README/CHANGELOG, closure ledger, final battery",
+  "next": "V6 docs+verify-script upgrade+release wave (planner); V5 ready for the single-wave review (V5 单审 per plan §5)",
   "notes": "Ledger check FIRST ACTION done: INDEX hits Z15/Z18/Z19/heredoc-length/Z13/Z14/Z17/Z12 carried as check items. Anchor reads (R8): dsh-llm lib 68 exports incl. LlmAdapter/LlmError/isContextWindowExceededError/attributionHeaders; llm-pi-ai lib exports only PiAiAdapter/Config/apply/inject/name/recordKeyFor/supportedProtocols — toStreamChunks/mapUsage reachable via src/*.ts (node type-stripping probed OK), classifyPiAiError module-private (stream.ts:42) => self-replicate with honest label; pi-ai 1.0.2 dist types.d.ts pins onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144; api/anthropic-messages.js + api/openai-completions.js export stream/streamSimple directly (Models-collection skip, per coordinator note). COORDINATOR RULING (A): providers[].family = wire protocol name, values = official supportedProtocols union taken DYNAMICALLY from the host ('openai-completions'|'openai-responses'|'anthropic-messages'), route = zctx-<family>, zero mapping, unknown family construction-time fail-loud, displayName = 'zctx <family>'."
 }
