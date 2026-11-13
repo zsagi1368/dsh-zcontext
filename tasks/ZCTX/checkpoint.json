@@ -1,63 +1,52 @@
 {
-  "task": "ZCTX-V2",
-  "updatedAt": "2026-11-13T09:10:00+08:00",
-  "baseCommit": "b3b5286 (v0.1.0 terminal, main); V1 terminal = 91ab316 chain",
+  "task": "ZCTX-V3",
+  "updatedAt": "2026-11-13T18:15:00+08:00",
+  "baseCommit": "0405e30 (V1+V2 joint review 99/99 main)",
   "steps": [
     {
-      "id": "v2s1",
-      "name": "types contract freeze (7425822): RequestSnapshot (a.1 row 5 + honest projector/domain fields) / PrefixBreakRecord (harness-domain, reset-explained|unknown-break) / CapturedAttemptUsage (non-durable attemptCapture face) / ResetEventKind +series-restart (V1 handoff ruling 1); index re-exports extended; 211/211",
-      "status": "done",
-      "artifacts": ["src/types.ts", "src/index.ts"]
-    },
-    {
-      "id": "v2s2",
-      "name": "host-llm fail-soft lazy loader + hash primitives (24c35d1): official projection exports when host resolvable, labeled local-fallback structural twins otherwise (ZCTX_DSH_LLM override keeps probe convention), probe spec pins BOTH paths; hash.ts stableStringify+sha256; 218/218",
-      "status": "done",
-      "artifacts": ["src/host-llm.ts", "src/hash.ts", "tests/host-llm.spec.ts"]
-    },
-    {
-      "id": "v2s3",
-      "name": "observe.ts llm/stream waterfall listener (15f421b): four main-chain criteria / per-attempt RequestSnapshot via injected sinks / detectPrefixBreak mechanical piece (reset-explained vs unknown-break, domain harness) / optional attemptCapture (abort-rethrow + inner-close pinned) / zero-mutation pin on deep-frozen options / sink faults fail-soft warn-once; 239/239",
-      "status": "done",
-      "artifacts": ["src/observe.ts", "tests/observe.spec.ts"]
-    },
-    {
-      "id": "v2s4",
-      "name": "store receive ports + series reset accounting (59efa43): absorbRequestSnapshot/absorbCapturedAttemptUsage (bounded 64/64/64, attach clears, never session-logged per CARD-F a.1) + snapshot/break/capture getters (zctx_status data plane for V3); reason='series' headers account as series-restart reset; 246/246",
-      "status": "done",
-      "artifacts": ["src/store.ts", "tests/store-observe.spec.ts"]
-    },
-    {
-      "id": "v2s5",
-      "name": "c5 config + plugin wiring (458b664/7574f25): config 'observe.enabled'=true / 'observe.attemptCapture'=false flat primitive dotted keys + satisfies pin; wireObserveFace registers ObserveListener.onStream on ctx.on('llm/stream') (official Events face llm/src/index.ts:76-78), capability-probed (config=info / missing ctx.on or llm=warn+skip, five-face precedent), snapshots route to store receive ports via the single lazy-attach registry, watched-set=liveSessions on official Session.id (agent.ts:718); LlmRuntimeLike official ModelInfo pass-through fields (additive); ObserveListener.forgetSession wired to session/disposed",
-      "status": "done",
-      "artifacts": ["src/config.ts", "src/plugin.ts", "src/tools.ts", "src/observe.ts"]
-    },
-    {
-      "id": "v2s6",
-      "name": "c5 tests + lib rebuild + card (95007cc/bc281d5): plugin.spec 6 wiring cases (registration+snapshot routing w/ local-fallback honest pin / no-llm skip warn / observe.enabled=false info-not-warn face-scoped / attemptCapture=true non-durable capture / unwatched-id criterion 3 / dispose clears listener state via attemptSeq-restart pin) + degrades pin 5->6 + listeners key set + smoke defaults pin; lib/index.{js,d.ts,js.map} rebuilt (includes the 59efa43 rebuild artifact left dirty); V2 card in-repo",
-      "status": "done",
-      "artifacts": ["tests/plugin.spec.ts", "tests/smoke.spec.ts", "lib/index.js", "lib/index.d.ts", "lib/index.js.map", "tasks/ZCTX/cards/V2-observe-hash.md"]
-    },
-    {
-      "id": "v2s7",
-      "name": "governance: closure.json 36 items (0 OPEN machine-counted) + progress + checkpoint(ZCTX-V2)/history + del backup del/20261113-v2-c5-plugin-prechange (5 files, SHA-256 = HEAD blobs, RESTORE.md on disk)",
+      "id": "v3s1",
+      "name": "attribution engine pure core (091b496): classifyFoldAttribution (Q4.2 seq primary key + turn/step structure, strong/retry/weak grades, llm/retry pollution count, attempt-without-retry-voucher = weak, compaction/replace/header-change = weak) + time-window fallback (chain break -> T_M-T_F <= attributionTimeWindowMs and same turn, honesty-capped weak + timeWindow marker) + 8-item noise disposition table + billedInput/cleanSampleRatio/buildObservabilitySnapshot aggregation (VERIFY-C #15 three-state inputs, repay event = the max(1,ceil(turns))-th post-fold message, fold account admits strong/retry only) + types additions (timeWindow/semiKind/repaid/repayEventSeq/MeterAnchorLike) + index public surface; tsc clean",
       "status": "done",
       "artifacts": [
-        "tasks/ZCTX/closures/closure.json",
-        "tasks/ZCTX/progress.md",
-        "tasks/ZCTX/checkpoint.json",
-        "tasks/ZCTX/checkpoint-history.jsonl",
-        "del/20261113-v2-c5-plugin-prechange/"
+        "src/attribution.ts",
+        "src/types.ts",
+        "src/index.ts"
+      ]
+    },
+    {
+      "id": "v3s2",
+      "name": "store integration + observe closures (9e7ec51): applyAssistantMessage attributes + grades semi paths inside the single applyEvent transition (meterAnchored via injected MeterAnchorLike fail-soft; interpolated same-turn retro-upgrade, absent-stays-absent, reset-between stop) + lifetime three-state counters + eventSeqList/turnStart binary indexes + V1-B (routeHeaders/resetLog cap 64 + observe exemption window moved to a SEQ consumption pointer) + V2-C (modelInfoCache cap 64) + V2-B JSDoc; 252/252 regression green",
+      "status": "done",
+      "artifacts": [
+        "src/store.ts",
+        "src/observe.ts"
+      ]
+    },
+    {
+      "id": "v3s3",
+      "name": "zctx_status three-segment upgrade (7a84aec + a17f8f2): ObservabilitySnapshot assembled into renderStatus — session summary (folds/repaid/recovery/three-state pct) + repay table (cleanSampleFloor honest gate, below floor -> attribution-confidence-insufficient withholds repay conclusions) + recent folds (quality/retryCount/markers) + reset digest; ZctxToolRuntime gains config cleanSampleFloor; plugin injects anchor + timeWindow (config-owned, never hardcoded); empty ledger renders the honest empty shape (no false confidence verdict)",
+      "status": "done",
+      "artifacts": [
+        "src/texts.ts",
+        "src/tools.ts",
+        "src/plugin.ts"
+      ]
+    },
+    {
+      "id": "v3s4",
+      "name": "tests + lib rebuild (ec8f311/517ef8d): attribution.spec 27 + store-attribution.spec 19 (feed/scan dual regime, 8 noises item-by-item, three-state edges incl. estimated-not-reverse-inferred, V1-B cap pins) + tools.spec three-segment rendering + observe.spec V2-D official-projector zero-mutation pin (host build on disk, ran live); 302/302 (16 files); tsdown 642.50 kB",
+      "status": "done",
+      "artifacts": [
+        "tests/attribution.spec.ts",
+        "tests/store-attribution.spec.ts",
+        "tests/tools.spec.ts",
+        "tests/observe.spec.ts",
+        "lib/index.js",
+        "lib/index.d.ts",
+        "lib/index.js.map"
       ]
     }
   ],
-  "next": "V2 reviewer scorecard (V1+V2 联审, >=98) -> V3 attribution engine + breakeven aggregation + zctx_status three-section upgrade",
-  "notes": [
-    "three green: tsc 0 errors / vitest 252-252 (14 files, 246 baseline + 6 wiring) / tsdown build green; probe-artifact 5-5 (P2 feedListeners=3 counts session/ prefix only); verify-activation-surface 8-8 exit 0",
-    "config naming ruling: coordinator course correction 'primitive 保持' over plan §3 schemastery-nested structured section — flat dotted keys 'observe.enabled'/'observe.attemptCapture' pin the card's public config path while keeping every field primitive (YAML flat-key form unambiguous); V4 preflightMode expected to follow the same flat primitive pattern",
-    "observe face wiring semantics: storeFor resolves through the plugin's single lazy-attach registry (not a read-only lookup) so a watched session's store is created at its first observed request — the attach scan rebuilds header/reset chains from history, keeping the exemption-window semantics correct; unwatched ids (not in liveSessions) resolve undefined and absorb nothing",
-    "session/disposed now also drops the listener's per-id state (additive ObserveListener.forgetSession) — process-memory state must not outlive its session",
-    "first red in tests: the pre-existing listeners key-set pin lacked 'llm/stream' (expected change, not a defect) — fixed in the same wave; all other suites green on first run"
-  ]
+  "next": "V3 reviewer joint scorecard (with V4) -> V4 S1 preflight",
+  "closure": "40 items: 4 new V1-B/V2-B/V2-C/V2-D fixed/verified (R3 mechanical suggestions cleared), only OPEN=W5-A6-INSTALL (v0.1.0 post-merge user_approved_deferred legacy, not this wave); V2-A out of card scope, reported to the coordinator as-is"
 }

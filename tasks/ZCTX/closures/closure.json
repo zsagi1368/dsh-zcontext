@@ -361,7 +361,47 @@
       "owner": "coder-v2",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "V1-B",
+      "source": "REVIEW-V1V2.md §4 [建议] V1-B (routeHeaders/resetLog session-unbounded)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 9e7ec51: ROUTE_HEADER_LEDGER_CAP/RESET_LEDGER_CAP=64 (oldest dropped, cap value declared in comment) + store-attribution.spec 66→64 pins both ledgers; companion: observe.ts exemption window moved to a SEQ consumption pointer (index pointer would mis-align after cap shift) — observe.spec 22/22",
+      "owner": "coder-v3",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V2-B",
+      "source": "REVIEW-V1V2.md §4 [建议] V2-B (systemHash/toolsHash collected but not break-compared — spec a.3 deliberate narrowing undocumented)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 9e7ec51: documentation-only (non-behavioral) — detectPrefixBreak JSDoc + PrefixBreakRecord type doc both declare the deliberate message-list-only narrowing (system/tools = reset-ledger territory + §Q5.2 pi-ai blind spot) with RES-observe-route a.3 reference; tsc clean, no behavior delta",
+      "owner": "coder-v3",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V2-C",
+      "source": "REVIEW-V1V2.md §4 [建议] V2-C (modelInfoCache process-unbounded incl. negative results)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 9e7ec51: MODEL_INFO_CACHE_CAP=64 (insertion-order eviction of the oldest route, cap value + re-resolution semantics declared in comment); observe.spec 22/22 green with the bounded cache",
+      "owner": "coder-v3",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V2-D",
+      "source": "REVIEW-V1V2.md §4 [建议] V2-D (zero-mutation pin ran only under the fallback projector)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit ec8f311: observe.spec official-path describe gains the full zero-mutation pin (deep-frozen tree byte-identity + reference identity + attemptCapture under the OFFICIAL projector via ZCTX_DSH_LLM host-build override, honest skip when absent — SKIPPED mechanism same as the probe); ran LIVE on this machine (22/22, no skip)",
+      "owner": "coder-v3",
+      "status": "verified",
+      "phase": "block"
     }
   ],
-  "updatedAt": "2026-11-13T09:10:00+08:00"
+  "updatedAt": "2026-11-13T18:10:00+08:00"
 }

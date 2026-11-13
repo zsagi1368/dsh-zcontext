@@ -22,3 +22,11 @@ vitest 全绿+tsc 零错+build 绿+干净树；小步提交 feat(ZCTX): V3 <modu
 ## 约束
 
 红线 R1-R8；纯核心零宿主依赖（semi 的 meterAnchored 经注入接口）；净室；阈值字段用 config 值不硬编码。
+
+## 顺手闭合（R3 联审建议中的机械项，同波处置）
+
+- V1-B：store 的 routeHeaders/resetLog 会话内无界→加有界 cap（与 V2 的 64 有界设计同构，cap 值注释声明）；
+- V2-B：detectPrefixBreak 只用 messages 哈希、systemHash/toolsHash 采集但不参与 break 检测——规格 a.3 有意收窄，**补文档声明**（JSDoc+RES 引用），非行为变更；
+- V2-C：modelInfoCache 进程级无界→有界 cap；
+- V2-D：零变异钉仅跑 fallback projector→补官方 projector 路径的零变异钉（宿主在盘路径，SKIPPED 机制同探针）。
+- 处置后 closure 台账对应条目 fixed/verified；V1-A（非有限值理论差异）不属机械项，留 V6 终验处置。
