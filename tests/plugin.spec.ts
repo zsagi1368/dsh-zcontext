@@ -143,10 +143,10 @@ describe('plugin: face wiring', () => {
     expect(ctx.registeredSections).toHaveLength(0)
     expect(ctx.registeredContexts).toHaveLength(0)
     expect(ctx.registeredCommands).toHaveLength(0)
-    // Six faces: session feed, tools, guidance, nudge, command, observe
-    // (the observe face probes ctx.on before the llm runtime, so the missing
-    // bus is what it reports here).
-    expect(ctx.logLines.filter((l) => l.level === 'warn')).toHaveLength(6)
+    // Seven faces: session feed, tools, guidance, nudge, command, preflight,
+    // observe (both llm/stream faces probe ctx.on before the llm runtime, so
+    // the missing bus is what they report here).
+    expect(ctx.logLines.filter((l) => l.level === 'warn')).toHaveLength(7)
     expect(ctx.logLines.every((l) => l.message.includes('skipped'))).toBe(true)
   })
 })
@@ -361,13 +361,25 @@ describe('plugin: observe face (llm/stream wiring, v0.2.0 V2 c5)', () => {
     options: Record<string, unknown>,
     chunks: readonly unknown[],
   ): Promise<unknown[]> {
-    const listener = ctx.listeners.get('llm/stream')![0] as
-      (options: unknown, next: () => AsyncIterable<unknown>) => AsyncIterable<unknown>
+    // V4: two listeners compose on this event (preflight outermost + observe
+    // inner). Compose them the way cordis does (outermost-first: the first
+    // registered runs first; `next()` reaches the following listener,
+    // vendor/cordis/src/events.ts:221-236) so the wiring test stays faithful
+    // to the real chain.
+    const listeners = [...(ctx.listeners.get('llm/stream') ?? [])] as ((
+      options: unknown,
+      next: () => AsyncIterable<unknown>,
+    ) => AsyncIterable<unknown>)[]
     const inner = async function* () {
       for (const chunk of chunks) yield chunk
     }
+    let next: () => AsyncIterable<unknown> = () => inner()
+    for (const listener of listeners.reverse()) {
+      const downstream = next
+      next = () => listener(options, downstream)
+    }
     const consumed: unknown[] = []
-    for await (const chunk of listener(options, () => inner())) consumed.push(chunk)
+    for await (const chunk of next()) consumed.push(chunk)
     return consumed
   }
 
@@ -383,10 +395,14 @@ describe('plugin: observe face (llm/stream wiring, v0.2.0 V2 c5)', () => {
     { type: 'finish', reason: { kind: 'stop' } },
   ]
 
-  it('registers the llm/stream listener and routes snapshots into the session store (attemptCapture default off)', async () => {
+  it('registers the llm/stream listeners (preflight outermost + observe inner) and routes snapshots into the session store (attemptCapture default off)', async () => {
     const ctx = mockCtx()
     const plugin = new ZcontextPlugin(ctx)
-    expect(ctx.listeners.get('llm/stream')).toHaveLength(1)
+    // V4: preflightMode defaults to 'observe' → the preflight listener joins
+    // the observe listener (registration order = cordis composition order:
+    // preflight first = outermost — the ordering pin lives in preflight.spec,
+    // where an enforce hit proves the inner listener never fires).
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(2)
     // The observed session must be watched: created through the feed with an
     // id the request carries.
     const session = withId(seedConversation().session, 'sess-1')
@@ -421,10 +437,12 @@ describe('plugin: observe face (llm/stream wiring, v0.2.0 V2 c5)', () => {
     expect(ctx.listeners.has('session/event')).toBe(true)
   })
 
-  it('observe.enabled=false registers nothing and logs the choice as info, not warn', () => {
+  it('observe.enabled=false leaves the preflight listener (independent face switches) and logs the choice as info, not warn', () => {
     const ctx = mockCtx()
     new ZcontextPlugin(ctx, { 'observe.enabled': false })
-    expect(ctx.listeners.has('llm/stream')).toBe(false)
+    // V4: observe.enabled gates ONLY the observe face; the preflight face is
+    // gated by preflightMode (default 'observe') — one listener remains.
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(1)
     expect(
       ctx.logLines.some((l) => l.level === 'info' && l.message.includes('observe.enabled=false')),
     ).toBe(true)
@@ -435,6 +453,51 @@ describe('plugin: observe face (llm/stream wiring, v0.2.0 V2 c5)', () => {
     expect(ctx.registeredContexts).toHaveLength(1)
     expect(ctx.registeredCommands).toHaveLength(1)
     expect(ctx.listeners.has('session/event')).toBe(true)
+  })
+
+  it('preflightMode=off registers no llm/stream listener at all (zero overhead)', () => {
+    const ctx = mockCtx()
+    new ZcontextPlugin(ctx, { preflightMode: 'off', 'observe.enabled': false })
+    expect(ctx.listeners.has('llm/stream')).toBe(false)
+    expect(
+      ctx.logLines.some((l) => l.level === 'info' && l.message.includes('preflightMode=off')),
+    ).toBe(true)
+  })
+
+  it('preflightMode=enforce short-circuits a hit OUTERMOST: the synthesized finish error replaces the stream and the inner observe listener never fires', async () => {
+    // 16384-window mock: triggerLine(16384, maxOutput 8192) = 8398 → the hit
+    // line is 7558; the 200000-char message estimates ~66667 tokens → hit.
+    // enforce is OPT-IN — the default-mode pins are the configDefaults
+    // assertion in preflight.spec and the 2-listener observe-mode count above.
+    const ctx = mockCtx({
+      llm: { resolveModelInfo: async () => ({ context: { contextWindow: 16384 }, defaultMaxTokens: 8192 }) },
+    })
+    const plugin = new ZcontextPlugin(ctx, { preflightMode: 'enforce' })
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(2)
+    const session = withId(seedConversation().session, 'sess-1')
+    ctx.emit('session/created', session)
+    const hitRequest = {
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      sessionId: 'sess-1',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'x'.repeat(200000) }] }],
+    }
+    const consumed = await runRegistered(ctx, hitRequest, OK_CHUNKS)
+    // Exactly one terminal chunk — the synthesized finish error (official
+    // short-circuit, llm/src/index.ts:66-70).
+    expect(consumed).toHaveLength(1)
+    const finish = consumed[0] as { type: string; reason: { kind: string; failure: { code: string } } }
+    expect(finish.type).toBe('finish')
+    expect(finish.reason.kind).toBe('error')
+    expect(finish.reason.failure.code).toBe('CONTEXT_WINDOW_EXCEEDED')
+    // Ordering proof (preflight outermost): the inner observe listener was
+    // suppressed by the short-circuit — no snapshot for a request that never
+    // reached the wire.
+    expect(storeOf(plugin, session).requestSnapshots()).toHaveLength(0)
+    // The calibration record landed with the enforce mode + short-circuit outcome.
+    const calibrations = storeOf(plugin, session).preflightCalibrations()
+    expect(calibrations).toHaveLength(1)
+    expect(calibrations[0]).toMatchObject({ mode: 'enforce', hit: true, outcome: 'short-circuited' })
   })
 
   it('observe.attemptCapture=true records failed-attempt usage into the non-durable ledger', async () => {

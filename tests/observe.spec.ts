@@ -423,6 +423,29 @@ describe('observe listener: attemptCapture face', () => {
     expect(warns).toHaveLength(1)
     expect(warns[0]).toContain('observe sink failed')
   })
+
+  it('V2-A closure: prepare faults warn ONCE instead of being swallowed silently, and the stream still passes through', async () => {
+    const warns: string[] = []
+    const store = new FakeObserveStore()
+    const listener = new ObserveListener({
+      ...makeDeps(store),
+      // Criterion-3 store resolution explodes: prepare throws before any sink.
+      storeFor: () => {
+        throw new Error('store exploded')
+      },
+      logger: { warn: (m) => warns.push(m) },
+    })
+    const { consumed } = await runStream(listener, loopOptions(), [FINISH_OK])
+    expect(consumed).toEqual([FINISH_OK]) // the request never breaks
+    expect(warns).toHaveLength(1)
+    expect(warns[0]).toContain('observe prepare failed')
+    expect(warns[0]).toContain('store exploded')
+    // Second firing: the warn-once flag holds (one warning per listener, not
+    // per request), and the stream still passes through.
+    await runStream(listener, loopOptions(), [FINISH_OK])
+    expect(warns).toHaveLength(1)
+    expect(store.snapshots).toHaveLength(0) // the observation face stays off
+  })
 })
 
 describe('observe listener: official projector path (host build on disk)', () => {

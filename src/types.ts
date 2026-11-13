@@ -838,7 +838,11 @@ export interface PreflightCalibrationRecord {
   readonly projector: SnapshotProjector
   /** Which image-cost path priced the kept images. */
   readonly imagePricing: PreflightImagePricing
-  /** Number of image occurrences priced (kept or projected-away). */
+  /**
+   * Number of image occurrences KEPT on the wire (the pricing path's input;
+   * projected-away images are already part of the text estimate through their
+   * placeholder text).
+   */
   readonly imageCount: number
   /**
    * The judgment: true = over the calibrated line (enforce would short-circuit),

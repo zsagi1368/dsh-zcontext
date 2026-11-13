@@ -210,6 +210,9 @@ function contentHasType(message: RequestMessageLike, type: string): boolean {
  * image blocks return for pricing, every other block (tool-call history,
  * residual file shapes, unknown future blocks) counts its structural JSON
  * — an honest chars-level reduction of whatever actually rides the wire.
+ * Values JSON cannot represent (undefined content, function slots) count 0 —
+ * malformed shapes never break the estimator (the fail-soft release above is
+ * the second line of defense).
  */
 function walkMessage(message: RequestMessageLike): { chars: number; keptImages: unknown[] } {
   const content = message.content
@@ -227,10 +230,12 @@ function walkMessage(message: RequestMessageLike): { chars: number; keptImages: 
         keptImages.push(block)
         continue
       }
-      chars += stableStringify(block).length
+      const raw = stableStringify(block)
+      chars += typeof raw === 'string' ? raw.length : 0
     }
   } else {
-    chars += stableStringify(content).length
+    const raw = stableStringify(content)
+    chars += typeof raw === 'string' ? raw.length : 0
   }
   return { chars, keptImages }
 }
@@ -256,7 +261,10 @@ export function estimateProjectedRequest(input: {
     keptImages = keptImages.concat(walked.keptImages)
   }
   if (typeof input.system === 'string') chars += input.system.length
-  for (const tool of input.tools ?? []) chars += stableStringify(tool).length
+  for (const tool of input.tools ?? []) {
+    const raw = stableStringify(tool)
+    chars += typeof raw === 'string' ? raw.length : 0
+  }
 
   // Image cost, two honest paths (card: 计价/常数预留+标注).
   let imageTokens = 0

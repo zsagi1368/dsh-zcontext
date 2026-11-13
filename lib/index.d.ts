@@ -61,6 +61,37 @@ interface ZcontextConfig {
    * session-logged, CARD-F a.1 进程内不入账). Default false — opt-in.
    */
   'observe.attemptCapture': boolean;
+  /**
+   * S1 preflight mode (v0.2.0 V4, task card product 1; RES-adapter-route
+   * §11b S1 + F6.3/F8.3): the llm/stream waterfall listener that estimates
+   * the request's context size BEFORE the wire and judges it against the
+   * CCM trigger line.
+   *
+   * - 'off': the face is not registered at all (zero overhead).
+   * - 'observe' (DEFAULT): estimates are recorded into the process-memory
+   *   calibration ledger (estimate vs the real usage that follows =
+   *   estimator error statistics, visible in zctx_status) and the request
+   *   always proceeds — 只记台账，不短路.
+   * - 'enforce': a hit short-circuits the stream with a synthesized
+   *   `finish{kind:'error', failure:{code:'CONTEXT_WINDOW_EXCEEDED'}}`
+   *   chunk (official sanctioned short-circuit, llm/src/index.ts:66-70) so
+   *   the official compaction overflow recovery chain takes over
+   *   (compaction-basic/src/index.ts:194→233).
+   *
+   * DEFAULT IS OBSERVE, NEVER ENFORCE (plan §2 redline R2): a preflight
+   * false positive triggers one unnecessary compaction surface rewrite
+   * (F6.4 误报代价), so enforce stays opt-in until the estimator's error
+   * distribution has been calibrated on real machines (no-go condition 4).
+   */
+  preflightMode: 'off' | 'observe' | 'enforce';
+  /**
+   * Preflight hit margin (v0.2.0 V4): the estimated request context must
+   * EXCEED `triggerLine × preflightMarginRatio` to count as a hit, where
+   * triggerLine = W − R_pess (budget.ts CCM §1.2). Default 0.9 — the 10%
+   * headroom keeps estimator noise from firing the hard line; 估算器误差分布
+   * 待真机标定后调整 (calibration pending, plan §3).
+   */
+  preflightMarginRatio: number;
 }
 /** Contractual defaults for every Config field (plan §3). */
 declare const configDefaults: Readonly<ZcontextConfig>;
@@ -763,6 +794,87 @@ interface MeterAnchorLike {
    */
   inputAnchor(seq: number): number | undefined;
 }
+/** Preflight mode tri-state (config preflightMode; R2: default 'observe'). */
+type PreflightMode = 'off' | 'observe' | 'enforce';
+/**
+ * Which image-cost path priced the kept image blocks of one estimate.
+ * 'adapter' = the injected official `imageRequestPricing` answered
+ * (visualTokens + text per occurrence, llm/src/types.ts:212-220);
+ * 'constant-reserve' = the pricing face was unavailable and each image
+ * carried a fixed conservative reserve instead (待标定; honest domain label);
+ * 'not-exercised' = no image occurrence stayed on the wire (none present, or
+ * all projected away by the official image-less gating) so no pricing
+ * decision was involved.
+ */
+type PreflightImagePricing = 'adapter' | 'constant-reserve' | 'not-exercised';
+/** How one preflight-judged attempt settled (calibration record outcome). */
+type PreflightOutcome =
+/** The stream completed and a usage chunk was observed (comparable). */
+'completed' |
+/** enforce hit → the synthesized error finish replaced the stream (no usage exists). */
+'short-circuited' |
+/** The stream ran but no usage chunk appeared (not comparable). */
+'no-usage' |
+/** The stream threw before a terminal finish (not comparable). */
+'error' |
+/** The stream was aborted before a terminal finish (not comparable). */
+'aborted';
+/**
+ * One preflight estimate-vs-reality calibration record (card product 3: the
+ * estimate / judgment / subsequent-real-usage comparison = the calibration
+ * dataset that decides when enforce is safe to promote — no-go condition 4).
+ * Absorbed ONCE per judged attempt, at stream settle (or immediately on an
+ * enforce short-circuit, where no stream ever ran).
+ */
+interface PreflightCalibrationRecord {
+  /** Session id the judged request belonged to. */
+  readonly sessionId: string;
+  /** The mode the listener ran under ('observe' | 'enforce'; 'off' never records). */
+  readonly mode: Exclude<PreflightMode, 'off'>;
+  /** Request route. */
+  readonly provider: string;
+  readonly model: string;
+  /** The chars/3 estimate of the projected request input, in tokens. */
+  readonly estimate: number;
+  /** The context window the judgment used; undefined = unresolvable (released). */
+  readonly window?: number;
+  /** The CCM trigger line (W − R_pess) for the window; present exactly when window is. */
+  readonly triggerLine?: number;
+  /** The margin ratio applied (config preflightMarginRatio, echoed for audit). */
+  readonly marginRatio: number;
+  /** Which projection implementation produced the estimate ('official'/'local-fallback'). */
+  readonly projector: SnapshotProjector;
+  /** Which image-cost path priced the kept images. */
+  readonly imagePricing: PreflightImagePricing;
+  /**
+   * Number of image occurrences KEPT on the wire (the pricing path's input;
+   * projected-away images are already part of the text estimate through their
+   * placeholder text).
+   */
+  readonly imageCount: number;
+  /**
+   * The judgment: true = over the calibrated line (enforce would short-circuit),
+   * false = under it, undefined = window unresolvable → released honestly
+   * (F6.4 degrade-to-observe).
+   */
+  readonly hit: boolean | undefined;
+  /** How the attempt settled. */
+  readonly outcome: PreflightOutcome;
+  /**
+   * The usage chunk observed before the terminal finish, when one appeared
+   * (input side is the estimate's comparison target through the DISJOINT
+   * accounting: billed input = input + cacheRead + cacheWrite, §Q2.1).
+   */
+  readonly usage?: {
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+    readonly totalTokens?: number;
+    readonly cacheReadTokens?: number;
+    readonly cacheWriteTokens?: number;
+  };
+  /** Unix epoch ms of the estimate (stream start), not of the settle. */
+  readonly time: number;
+}
 /** Structural fold-ledger view the aggregation consumes (store-shaped). */
 interface AttributionFoldEntry {
   readonly foldId: string;
@@ -962,6 +1074,210 @@ declare function buildGuidanceSection(): GuidanceSectionSpec;
  * `{ ok:false, reasons }` (all reasons collected) on any semantic failure.
  */
 declare function validateFold(input: ValidateFoldInput): FoldValidationResult;
+/** Structural subset of the official ModelInfo the projection gating needs (llm/src/types.ts:320-345, :420). */
+interface HostModelInfoLike {
+  /** Input modalities when known (official gating: images project away only for image-less models). */
+  readonly inputModalities?: readonly string[];
+  /** Tool-update routing capability ('in-history' | 'addition-only'); undefined = unsupported route. */
+  readonly toolUpdate?: 'in-history' | 'addition-only';
+  readonly context?: {
+    readonly contextWindow?: number;
+  };
+  readonly defaultMaxTokens?: number;
+}
+/** One request message, structurally reduced (official Message | RequestUserInput). */
+type RequestMessageLike = Record<string, unknown>;
+/** One tool schema (official ToolSchema: name/description/parameters/deferLoading?). */
+type ToolSchemaLike = Record<string, unknown>;
+/** Structural twin of the official ProjectedToolUpdates (content.ts:424 return shape). */
+interface ProjectedToolUpdatesLike {
+  readonly messages: readonly RequestMessageLike[];
+  readonly tools: readonly ToolSchemaLike[] | undefined;
+}
+/** Resolver callback mirroring the official projectFilesToText resolvePath parameter. */
+type ResolvePathLike = (ref: unknown) => string | undefined;
+/**
+ * The projection face the V2 observe listener consumes. `projector` names
+ * the implementation behind every method call so the ledger can label each
+ * snapshot's normalization provenance.
+ */
+interface HostProjector {
+  readonly projector: SnapshotProjector;
+  /**
+   * Official WeakSet identity check (call-config.ts:94-96) when the host is
+   * present; the documented structural heuristic otherwise (see
+   * {@link fallbackIsAgentLoopRequest}).
+   */
+  isAgentLoopRequest(options: unknown): boolean;
+  projectFilesToText(messages: readonly RequestMessageLike[], resolvePath: ResolvePathLike): readonly RequestMessageLike[];
+  projectImagesForTextModel(messages: readonly RequestMessageLike[]): readonly RequestMessageLike[];
+  projectToolUpdates(messages: readonly RequestMessageLike[], tools: readonly ToolSchemaLike[] | undefined, toolUpdate: 'in-history' | 'addition-only' | undefined, history?: unknown): ProjectedToolUpdatesLike;
+}
+/**
+ * Conservative per-image token reserve used when the adapter's
+ * imageRequestPricing is unavailable (card: 每图常数预留+标注). An
+ * UNCALIBRATED placeholder chosen well above typical single-image visual
+ * token costs so the estimate errs toward safety on image-heavy requests;
+ * calibration pending (plan §3) — adjust from the calibration ledger, never
+ * silently.
+ */
+declare const PER_IMAGE_FALLBACK_TOKENS = 2048;
+/**
+ * The official overflow failure code (llm/src/error.ts:25,
+ * `CONTEXT_WINDOW_EXCEEDED_CODE`, read directly from source). Duplicated as
+ * a literal because this module never imports the host statically (fail-soft
+ * loading discipline, config.ts precedent); tests pin the value against the
+ * official constant's documented spelling.
+ */
+declare const PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE = "CONTEXT_WINDOW_EXCEEDED";
+/** Structural twin of the official LlmImageRequestPrice (llm/src/types.ts:200-208). */
+interface HostImagePriceLike {
+  /** Provider visual tokens for the image occurrence. */
+  readonly visualTokens: number;
+  /** Model-visible text sent for this occurrence (priced by the text estimator). */
+  readonly text: string;
+}
+/** Structural twin of the official LlmImageRequestPricing (llm/src/types.ts:212-220). */
+interface HostImagePricingLike {
+  priceImages(images: readonly unknown[]): readonly HostImagePriceLike[];
+}
+/** The store receive port the preflight listener needs (implemented by FoldStore). */
+interface PreflightStoreAccess {
+  /** Calibration sink: append one estimate-vs-reality record (bounded, oldest dropped). */
+  absorbPreflightCalibration(record: PreflightCalibrationRecord): void;
+}
+/**
+ * Dependencies injected from the plugin. Narrow by construction (R3): no llm
+ * runtime — only single-purpose helpers; each optional member degrades
+ * honestly (documented per member).
+ */
+interface PreflightDeps {
+  /** The listener's mode; 'off' never reaches a constructed listener (plugin gate). */
+  mode: Exclude<PreflightMode, 'off'>;
+  /** Hit margin (config preflightMarginRatio; validated in the constructor). */
+  marginRatio: number;
+  /** Resolve one session id to its live session (criterion 3); undefined = not watched. */
+  resolveSession(sessionId: string): unknown;
+  /** Per-session store accessors; undefined = unbound (no estimate, no record). */
+  storeFor(session: unknown): PreflightStoreAccess | undefined;
+  /**
+   * Official ModelInfo resolution (context window source, F6.2; image gating
+   * modalities). Optional: without it the window is unknown → released
+   * honestly (hit undefined, F6.4 degrade).
+   */
+  resolveModelInfo?(provider: string, model: string): Promise<HostModelInfoLike | undefined>;
+  /**
+   * Official `ctx.llm.fileRequestText` (adapter-dispatch-identical handle
+   * text, llm/src/index.ts:690-692). Optional: without it the projection's
+   * default resolver yields the deterministic fallback handle text.
+   */
+  fileRequestText?(ref: unknown): string;
+  /**
+   * Official `ctx.llm.imageRequestPricing` (llm/src/index.ts:680-682).
+   * Optional: without it kept images carry the constant reserve.
+   */
+  imageRequestPricing?(provider: string, model: string): HostImagePricingLike | undefined;
+  /** Logger (warn-once on faults). */
+  logger?: {
+    warn?(message: string): void;
+  };
+}
+/** The waterfall listener signature (official 'llm/stream' event face). */
+type PreflightStreamListener = (options: unknown, next: () => AsyncIterable<unknown>) => AsyncIterable<unknown>;
+/** The pure estimate result (test surface). */
+interface PreflightEstimate {
+  /** Total estimated request input tokens (text chars/3 + image costs). */
+  readonly tokens: number;
+  /** Which image-cost path priced the kept images. */
+  readonly imagePricing: PreflightImagePricing;
+  /** Number of image occurrences seen (kept + projected-away). */
+  readonly imageCount: number;
+}
+/** The pure judgment result (test surface). */
+interface PreflightJudgment {
+  /** Context window used; undefined = unresolvable. */
+  readonly window: number | undefined;
+  /** CCM trigger line for the window; present exactly when window is. */
+  readonly triggerLine: number | undefined;
+  /** Hit verdict; undefined = window/budget unusable → released (F6.4). */
+  readonly hit: boolean | undefined;
+}
+/**
+ * Estimate the projected request's input tokens (the pure estimator; the
+ * listener feeds it the projections). `projected.messages` must already carry
+ * the file/image/tool-update projections; kept images are priced here.
+ */
+declare function estimateProjectedRequest(input: {
+  readonly messages: readonly RequestMessageLike[];
+  readonly tools: readonly ToolSchemaLike[] | undefined;
+  readonly system: unknown;
+  readonly pricing: HostImagePricingLike | undefined;
+}): PreflightEstimate;
+/**
+ * Judge one estimate against the CCM trigger line (card: 估算 >
+ * triggerLine × marginRatio → 命中). Fail-soft everywhere: an unresolvable
+ * window or a degenerate computeBudget window releases the request with
+ * hit undefined (F6.4 degrade-to-observe — the provider's own overflow
+ * error still reaches the same recovery chain).
+ */
+declare function judgeEstimate(input: {
+  readonly estimate: number;
+  readonly modelInfo: HostModelInfoLike | undefined;
+  readonly optionsMaxTokens: unknown;
+  readonly marginRatio: number;
+}): PreflightJudgment;
+/** Clamp the configured margin into (0, 1]; anything else falls back to 0.9 (warn-once). */
+declare function resolveMarginRatio(value: number | undefined, logger: PreflightDeps['logger']): number;
+/**
+ * The S1 preflight listener. Construct once per plugin when
+ * preflightMode !== 'off'; register `onStream` on the host's llm/stream
+ * waterfall BEFORE the observe listener (outermost — see module docstring).
+ */
+declare class PreflightListener {
+  private readonly deps;
+  private readonly modelInfoCache;
+  private projector;
+  private warnedFault;
+  private warnedSinkFault;
+  /** Same bounded-cap design as the V2 model-info cache (V2-C precedent). */
+  private static readonly MODEL_INFO_CACHE_CAP;
+  constructor(deps: PreflightDeps);
+  /** Memoized projector (same lazy face as the observe listener). */
+  ensureProjector(): Promise<HostProjector>;
+  /** The waterfall listener body (instance arrow property — cordis `this` safety). */
+  readonly onStream: PreflightStreamListener;
+  /** @internal */
+  private handleStream;
+  /**
+   * Criteria 1-3 (shared matchesMainChain) + estimate + judgment. Every
+   * main-chain request is judged — criterion 4's snapshot exemption window
+   * does NOT apply here (a post-reset request must still be judged; see
+   * matchesMainChain). Non-main-chain requests (one-shots: compaction
+   * summarize, session-title) stream through untouched — enforce MUST NOT
+   * short-circuit the compaction recovery's own calls.
+   * @internal
+   */
+  private judgeRequest;
+  /**
+   * Pass-through wrapper: yields every chunk unchanged (zero-mutation pin
+   * covers this path), watches the usage + finish chunks, and absorbs the
+   * calibration record when the stream settles. Abort/throw safety: the
+   * error rethrows; the record lands in the finally with an honest outcome.
+   * @internal
+   */
+  private calibrateWrap;
+  /** Memoized per-route model info (bounded, negative results cached; V2-C design). */
+  private resolveModelInfoCached;
+  /** Fail-soft sink: a store fault warns once and never breaks the stream. @internal */
+  private sink;
+}
+/**
+ * The synthesized terminal finish chunk for an enforce hit (official chunk
+ * protocol, llm/src/types.ts:452-464 + FinishReasonMap :156-163 + LlmFailure
+ * :41-62 — read directly, not from memory). No usage chunk precedes it (no
+ * usage exists), no chunk follows it.
+ */
+declare function buildPreflightErrorFinish(calibration: Omit<PreflightCalibrationRecord, 'outcome' | 'usage'>): unknown;
 /** Status of one fold ledger entry. */
 type FoldLedgerStatus = 'active' | 'unfolded' | 'absorbed' | 'dead';
 /** One committed fold, as tracked by the store ledger. */
@@ -1021,6 +1337,8 @@ declare class FoldStore {
   private readonly breakLog;
   /** Bounded non-durable captured-attempt-usage ledger (V2 receive port; never session-logged). */
   private readonly captureLog;
+  /** Bounded S1 preflight calibration ledger (V4 receive port; never session-logged). */
+  private readonly preflightLog;
   private readonly anomaliesLog;
   /** Fold-attribution ledger: foldId → its first-post-fold association (any quality). */
   private readonly foldAttributionLog;
@@ -1107,6 +1425,16 @@ declare class FoldStore {
    * design; the ledger is only bounded memory.
    */
   absorbCapturedAttemptUsage(record: CapturedAttemptUsage): void;
+  /** The bounded S1 preflight calibration ledger, oldest first (V4 receive port). */
+  preflightCalibrations(): readonly PreflightCalibrationRecord[];
+  /**
+   * S1 preflight calibration sink (V4): append one estimate-vs-reality
+   * record (preflightMode observe/enforce). Process-memory only, never
+   * session-logged; the estimator error statistics zctx_status renders are
+   * computed on demand from this ledger (card product 3 — the dataset that
+   * decides when enforce is safe to promote, no-go condition 4).
+   */
+  absorbPreflightCalibration(record: PreflightCalibrationRecord): void;
   /** The bounded usage-record ledger, oldest first (V1 observability). */
   usageRecords(): readonly UsageRecord[];
   /**
@@ -1448,6 +1776,23 @@ interface LlmRuntimeLike {
     /** Official ModelInfo pass-through (llm/src/index.ts:184); undefined = unsupported route. */
     toolUpdate?: 'in-history' | 'addition-only';
   }>;
+  /**
+   * Official `ctx.llm.fileRequestText` (llm/src/index.ts:690-692), probed by
+   * the V4 preflight face for adapter-dispatch-identical file handle text in
+   * its estimate. Optional: absent → the projection's default resolver.
+   */
+  fileRequestText?(ref: unknown): string;
+  /**
+   * Official `ctx.llm.imageRequestPricing` (llm/src/index.ts:680-682),
+   * probed by the V4 preflight face to price kept image occurrences.
+   * Optional: absent → per-image constant reserve (honest label).
+   */
+  imageRequestPricing?(provider: string, model: string): {
+    priceImages(images: readonly unknown[]): readonly {
+      visualTokens: number;
+      text: string;
+    }[];
+  } | undefined;
 }
 /** Everything the four tools (and the /zctx command) need from the host. */
 interface ZctxToolRuntime {
@@ -1460,6 +1805,11 @@ interface ZctxToolRuntime {
    * Config-owned value — never hardcoded here.
    */
   readonly cleanSampleFloor: number;
+  /**
+   * Config preflightMode (V4 status face; optional for backward-compatible
+   * test runtimes): the mode line the preflight estimator segment renders.
+   */
+  readonly preflightMode?: 'off' | 'observe' | 'enforce';
   /** Per-session store registry (lazy create + attach, feed-maintained). */
   storeFor(session: SessionLike): FoldStore;
   /** Validator config resolved for this session (window from cache when known). */
@@ -1535,6 +1885,8 @@ declare class ZcontextPlugin extends ServiceBase {
   private readonly runtime;
   /** The observe face's listener; undefined when the face is off (config or capability). */
   private observe;
+  /** The S1 preflight face's listener; undefined when preflightMode is 'off'. */
+  private preflight;
   private warnedWindowFailure;
   constructor(ctx: HostContextLike, config?: Partial<ZcontextConfig>);
   /** session/event feed: maintain live stores + warm the window cache. @internal */
@@ -1547,6 +1899,30 @@ declare class ZcontextPlugin extends ServiceBase {
   private wireNudgeFace;
   /** The /zctx command. @internal */
   private wireCommandFace;
+  /**
+   * The S1 preflight face (v0.2.0 V4, task card products 1-2;
+   * RES-adapter-route §11b S1): a SECOND llm/stream waterfall listener that
+   * estimates the request's context before the wire and, in enforce mode
+   * only, short-circuits a hit with the official CONTEXT_WINDOW_EXCEEDED
+   * finish (the official compaction overflow recovery chain owns the retry).
+   *
+   * Registered BEFORE the observe listener so it composes OUTERMOST (cordis
+   * waterfall = outermost-first, vendor/cordis/src/events.ts:221-236): an
+   * enforce short-circuit must suppress the entire downstream chain — no
+   * adapter dispatch, no wire request, no observation cost. In observe mode
+   * it calls next() like any listener and the calibration ledger (product 3)
+   * builds.
+   *
+   * REDLINE R2: enforce is unreachable under the default configuration —
+   * preflightMode defaults to 'observe' and only an explicit user setting
+   * turns it on (pinned by test). REDLINE R3: the listener's deps carry NO
+   * llm runtime — the ctx.llm.stream self-call is structurally unreachable.
+   *
+   * Same capability-probe discipline as the other faces: 'off' logs info,
+   * a missing capability logs warn, and neither ever breaks boot.
+   * @internal
+   */
+  private wirePreflightFace;
   /**
    * The llm/stream observe face (v0.2.0 V2): a strictly read-only waterfall
    * listener whose per-attempt request snapshots + prefix-break records land
@@ -1648,5 +2024,5 @@ declare function buildZctxCommand(runtime: ZctxToolRuntime): ZctxCommandDefiniti
  */
 /** Plugin identity exported for loader probes. */
 declare const name = "dsh-zcontext";
-export { type AttributionFoldEntry, type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type ClassifyAttributionInput, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, type MeterAnchorLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, type ParamSpec, type PrefixBreakRecord, type PrefixBreakResetRef, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type RouteHeader, type SnapshotAggregationInput, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordSemiKind, type UsageRecordState, type UsageSample, type UsageSnapshot, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, billedInputTokens, buildGuidanceSection, buildObservabilitySnapshot, buildZctxCommand, buildZctxTools, ccmWindowGate, classifyFoldAttribution, cleanSampleRatio, computeBreakevenReport, computeBudget, configDefaults, configSchema, crossedThresholds, estimateTokens, fold, foldableRanges, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, resolveDefineTool, unfold, validateFold };
+export { type AttributionFoldEntry, type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type ClassifyAttributionInput, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type HostImagePriceLike, type HostImagePricingLike, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, type MeterAnchorLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, PER_IMAGE_FALLBACK_TOKENS, PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE, type ParamSpec, type PrefixBreakRecord, type PrefixBreakResetRef, type PreflightCalibrationRecord, type PreflightDeps, type PreflightEstimate, type PreflightImagePricing, type PreflightJudgment, PreflightListener, type PreflightMode, type PreflightOutcome, type PreflightStoreAccess, type PreflightStreamListener, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type RouteHeader, type SnapshotAggregationInput, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordSemiKind, type UsageRecordState, type UsageSample, type UsageSnapshot, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, billedInputTokens, buildGuidanceSection, buildObservabilitySnapshot, buildPreflightErrorFinish, buildZctxCommand, buildZctxTools, ccmWindowGate, classifyFoldAttribution, cleanSampleRatio, computeBreakevenReport, computeBudget, configDefaults, configSchema, crossedThresholds, estimateProjectedRequest, estimateTokens, fold, foldableRanges, judgeEstimate, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, resolveDefineTool, resolveMarginRatio, unfold, validateFold };
 //# sourceMappingURL=index.d.ts.map
