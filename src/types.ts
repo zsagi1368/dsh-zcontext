@@ -492,6 +492,17 @@ export type ResetEventKind =
   | 'system-section-change'
   /** Session generation boundary (session/end-seed; sessionRecovery half-class). */
   | 'session-recovery'
+  /**
+   * A request/header with reason 'series' — the producer SELF-ADMITTED that
+   * the message-series prefix is no longer continuous (official semantics,
+   * session/src/types.ts:265-273: "an unchanged header began an explicitly
+   * distinct message series or followed a surface replacement"). V1 handoff
+   * ruling ①: this observable signal is accounted as a reset in its own right
+   * (RES-observe-route §Q6 "归入可见"). It may coincide with a replace-driven
+   * entry (e.g. merge-rewrite) — the ledger records per-SIGNAL, not per
+   * physical reset, so both entries stand and V3's digest counts kinds.
+   */
+  | 'series-restart'
 
 /** One cache-reset ledger entry (RES-observe-route a.1 row 4: kind/seq/time/evidence). */
 export interface ResetEvent {
@@ -590,4 +601,120 @@ export interface ObservabilitySnapshot {
   readonly breakevenTable: readonly BreakevenTableRow[]
   /** Reset ledger digest, one row per observed kind (order: first-seen). */
   readonly resetSummary: readonly ResetSummaryRow[]
+}
+
+// ---------------------------------------------------------------------------
+// llm/stream observe face (v0.2.0 V2; RES-observe-route a.1 row 5 + a.3).
+// ALL shapes here are PROCESS-MEMORY ledgers: the session log stays the only
+// durable state and none of these records is ever written to it (CARD-F a.1
+// 进程内不入账). The store keeps the receive ports; the V2 listener builds.
+// ---------------------------------------------------------------------------
+
+/**
+ * Which request-projection implementation produced a snapshot's hashes.
+ * Domain-field discipline: the two variants do NOT normalize identically
+ * (the local fallback cannot replicate the official file/image/tool-update
+ * projections exactly), so every snapshot names its own projector and the
+ * ledger never mixes them silently.
+ */
+export type SnapshotProjector = 'official' | 'local-fallback'
+
+/**
+ * One llm/stream request snapshot (RES-observe-route a.1 row 5:
+ * perMessageHashes/systemHash/toolsHash/attemptSeq/purpose/isLoop, plus the
+ * honest-domain fields the card requires). Built by the V2 observe listener
+ * for every MAIN-CHAIN request (four criteria, Q8.1) and handed to the store
+ * through the injected snapshot sink.
+ */
+export interface RequestSnapshot {
+  /** Session id the request was bound to (matched against the watched set, criterion 3). */
+  readonly sessionId: string
+  /** Per-session monotonic ordinal, gap-free (only snapshotted requests increment). */
+  readonly attemptSeq: number
+  /** Request route (audit face; route changes are reset-ledger territory, not breaks). */
+  readonly provider: string
+  readonly model: string
+  /** Per-message stable hashes (stableStringify key-sorted + sha256) of the normalized message list. */
+  readonly perMessageHashes: readonly string[]
+  /** Stable hash of `options.system` when present (one-shot requests only; undefined on the loop chain). */
+  readonly systemHash?: string
+  /** Stable hash of `options.tools` when present. */
+  readonly toolsHash?: string
+  /** Official one-shot purpose marker; always undefined on snapshotted (main-chain) requests. */
+  readonly purpose?: 'compaction' | 'session-title'
+  /** Criterion-1 verdict (true for every snapshotted request; recorded for audit). */
+  readonly isLoop: boolean
+  /** Which projection implementation normalized the hashes. */
+  readonly projector: SnapshotProjector
+  /** Unix epoch ms of the snapshot. */
+  readonly time: number
+}
+
+/** Reference to one reset-ledger entry that explains a prefix break. */
+export interface PrefixBreakResetRef {
+  readonly kind: ResetEventKind
+  readonly seq: number
+}
+
+/**
+ * One harness-domain prefix break (V2 mechanical piece): the object-level
+ * message prefix SHRANK or CHANGED between consecutive snapshots. Registered
+ * blind spot (honest domain boundary, RES-observe-route §Q5.2): pi-ai wire
+ * rewrites (bit reordering, system folding, effort synthesis, breakpoint
+ * shifts) are invisible at the object level — `domain: 'harness'` pins that.
+ */
+export interface PrefixBreakRecord {
+  /** Always 'harness' — object-level hashes cover the harness domain only. */
+  readonly domain: 'harness'
+  /** Session id the snapshots belong to. */
+  readonly sessionId: string
+  /** attemptSeq of the snapshot that broke the prefix. */
+  readonly attemptSeq: number
+  /** attemptSeq of the previous snapshot (undefined when the store had no baseline). */
+  readonly prevAttemptSeq?: number
+  /** First differing message index inside the common prefix; undefined = pure tail shrink. */
+  readonly breakIndex?: number
+  /** How the break manifested. */
+  readonly mode: 'length-shrink' | 'content-change'
+  /**
+   * Break classification (card: 关联 ResetEvent 分类或 unknown-break):
+   * 'reset-explained' when the listener consumed reset-ledger entries between
+   * the two snapshots, 'unknown-break' otherwise (runtime-context refresh and
+   * other unlogged object churn, §Q4.3 noise 6).
+   */
+  readonly classification: 'reset-explained' | 'unknown-break'
+  /** The explaining reset entries (present exactly when classification is 'reset-explained'). */
+  readonly explainedBy?: readonly PrefixBreakResetRef[]
+  /** Unix epoch ms of the newer snapshot. */
+  readonly time: number
+}
+
+/**
+ * One FAILED attempt's usage captured by the optional `observe.attemptCapture`
+ * face (RES-observe-route §Q8.2 item 2: session logs keep no per-attempt
+ * usage for retried-away attempts — the llm/stream listener wrapping `next()`
+ * is the only capture position, and the record dies with the process).
+ */
+export interface CapturedAttemptUsage {
+  /** Session id the request was bound to. */
+  readonly sessionId: string
+  /** The snapshot's attemptSeq (0 when the exempt window consumed the request without a snapshot). */
+  readonly attemptSeq: number
+  /** Request route. */
+  readonly provider: string
+  readonly model: string
+  /** The usage chunk observed before the terminal error/abort. */
+  readonly usage: {
+    readonly inputTokens?: number
+    readonly outputTokens?: number
+    readonly totalTokens?: number
+    readonly cacheReadTokens?: number
+    readonly cacheWriteTokens?: number
+  }
+  /** How the stream terminated (official FinishReason kinds, llm/src/types.ts:156-163). */
+  readonly outcome: 'error' | 'aborted'
+  /** Always true — this record never reaches the session log and is lost on exit. */
+  readonly nonDurable: true
+  /** Unix epoch ms of the capture. */
+  readonly time: number
 }
