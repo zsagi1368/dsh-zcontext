@@ -64,7 +64,12 @@ import type {
   TokenMeterLike,
   ZctxToolRuntime,
 } from './tools.ts'
-import type { SessionEventLike, SessionLike, ValidatorConfig } from './types.ts'
+import type {
+  MeterAnchorLike,
+  SessionEventLike,
+  SessionLike,
+  ValidatorConfig,
+} from './types.ts'
 
 /** Service name the plugin registers under. */
 const SERVICE_NAME = 'dsh-zcontext'
@@ -206,6 +211,7 @@ export class ZcontextPlugin extends ServiceBase {
       logger: ctx.logger,
       tokenMeter: ctx.tokenMeter,
       llm: ctx.llm,
+      cleanSampleFloor: this.config.cleanSampleFloor,
       storeFor: (session) => this.storeFor(session),
       validatorConfig: (session) => this.validatorConfig(session),
     }
@@ -376,9 +382,46 @@ export class ZcontextPlugin extends ServiceBase {
     if (store === undefined) {
       store = new FoldStore()
       store.attach(session)
+      // V3 config-owned thresholds + injected faces (never hardcoded):
+      // the attribution time-window fallback (§Q4.2 rule 4) and the
+      // meter-anchor interface for the `meterAnchored` semi path (§Q7.2
+      // rule 2b — through INJECTION, the store stays host-import-free).
+      store.setAttributionTimeWindowMs(this.config.attributionTimeWindowMs)
+      store.setMeterAnchor(this.meterAnchorFor(session))
       this.stores.set(session as object, store)
     }
     return store
+  }
+
+  /**
+   * The V3 meter-anchor interface over the official tokenMeter (§Q7.2 rule
+   * 2b): for the request that produced the message at `seq`, the input-side
+   * anchor is the summed route-priced tokens of the surface nodes positioned
+   * BEFORE the message's own node (official TokenMeasurement.nodes,
+   * token-meter/src/types.ts:31-56). Unavailable faces (no meter, no node
+   * projection, node not on the current surface, non-positive sum, meter
+   * fault) report undefined so the record stays honestly 'estimated'.
+   * @internal
+   */
+  private meterAnchorFor(session: SessionLike): MeterAnchorLike | undefined {
+    const meter = this.runtime.tokenMeter
+    if (meter === undefined || typeof meter.measure !== 'function') return undefined
+    return {
+      inputAnchor: (seq: number): number | undefined => {
+        try {
+          const measurement = meter.measure(session)
+          const nodes = measurement.nodes
+          if (nodes === undefined) return undefined
+          const index = nodes.findIndex((node) => node.seq === seq)
+          if (index <= 0) return undefined // not on the surface, or nothing before it
+          let sum = 0
+          for (let i = 0; i < index; i += 1) sum += nodes[i]?.tokens ?? 0
+          return Number.isFinite(sum) && sum > 0 ? sum : undefined
+        } catch {
+          return undefined
+        }
+      },
+    }
   }
 
   /** Validator config for one session (context window from the cache when known). @internal */

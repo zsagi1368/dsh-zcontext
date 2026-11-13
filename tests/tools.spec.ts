@@ -31,6 +31,7 @@ function testRuntime(overrides: Partial<ZctxToolRuntime> = {}): ZctxToolRuntime 
   }
   return {
     stores,
+    cleanSampleFloor: 0.6,
     storeFor(session: SessionLike): FoldStore {
       let store = stores.get(session)
       if (store === undefined) {

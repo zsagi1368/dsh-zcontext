@@ -359,6 +359,57 @@ export const STATUS_PARTIAL_PREFIX = 'status rendered in degraded mode:'
 
 export const STATUS_DEGRADED_ROW = '  - {{detail}}'
 
+// ---------------------------------------------------------------------------
+// V3 observability lines (zctx_status three-segment upgrade, RES-observe-route
+// §Q7.3: 本会话摘要 / 最近折叠条目 / 重置台账摘要 + 回本表; the clean-sample
+// floor gate withholds repay conclusions below the floor — 诚实纪律).
+// ---------------------------------------------------------------------------
+
+export const STATUS_OBS_HEADER = 'Observability (fold→usage attribution, three-state accounting):'
+
+export const STATUS_OBS_SESSION_LINE =
+  'session: {{folds}} folds committed / repaid {{repaid}} / recovery {{recoveryPct}}% (net removed ÷ folded of committed folds)'
+
+export const STATUS_OBS_SESSION_REPAID_WITHHELD = 'withheld'
+
+export const STATUS_OBS_THREE_STATE =
+  'three-state: measured {{measuredPct}}% / semi {{semiPct}}% / estimated {{estimatedPct}}% of {{total}} request{{plural}}'
+
+export const STATUS_OBS_NO_SAMPLES = 'three-state: no assistant requests observed yet'
+
+export const STATUS_OBS_BREAKEVEN_HEADER =
+  'Repay table (VERIFY-C #15 price-weighted model over fold-account samples):'
+
+export const STATUS_OBS_BREAKEVEN_ROW =
+  '  - {{foldId}}: breakeven ≈ {{turns}} turns [{{quality}}]{{repaidMark}}'
+
+export const STATUS_OBS_REPAID_MARK = ' — REPAY EVENT at assistant/message seq {{seq}}'
+
+export const STATUS_OBS_BREAKEVEN_EMPTY =
+  '  (no fold-account sample yet: no strong/retry-attributed request after a fold)'
+
+export const STATUS_OBS_CONFIDENCE_INSUFFICIENT =
+  'attribution confidence insufficient (归因可信度不足): clean-sample {{ratioPct}}% < floor {{floorPct}}% — repay conclusions withheld (honest degradation, §Q7.3)'
+
+export const STATUS_OBS_RECENT_HEADER = 'Recent folds (attribution quality):'
+
+export const STATUS_OBS_RECENT_ROW =
+  '  - {{foldId}} [{{status}}] checkpoint seq {{seq}}: quality {{quality}}{{retryPart}}{{flags}}'
+
+export const STATUS_OBS_RETRY_PART = ', retries {{count}}'
+
+export const STATUS_OBS_FLAG_TIME_WINDOW = ', time-window fallback'
+
+export const STATUS_OBS_FLAG_INTERRUPTED = ', interrupted prefix'
+
+export const STATUS_OBS_RECENT_EMPTY = '  (no folds committed yet)'
+
+export const STATUS_OBS_RESET_HEADER = 'Reset ledger digest (kind × count):'
+
+export const STATUS_OBS_RESET_ROW = '  - {{kind}}: {{count}}'
+
+export const STATUS_OBS_RESET_EMPTY = '  (no cache resets recorded)'
+
 export const RECALL_REPLY_HEADER = 'Recall hits for "{{query}}" ({{count}} of {{total}}):'
 
 export const RECALL_REPLY_ROW =

@@ -51,6 +51,25 @@ import {
   STATUS_FOLD_ROW,
   STATUS_METER_UNAVAILABLE,
   STATUS_NO_SESSION,
+  STATUS_OBS_BREAKEVEN_EMPTY,
+  STATUS_OBS_BREAKEVEN_HEADER,
+  STATUS_OBS_BREAKEVEN_ROW,
+  STATUS_OBS_CONFIDENCE_INSUFFICIENT,
+  STATUS_OBS_FLAG_INTERRUPTED,
+  STATUS_OBS_FLAG_TIME_WINDOW,
+  STATUS_OBS_HEADER,
+  STATUS_OBS_RECENT_EMPTY,
+  STATUS_OBS_RECENT_HEADER,
+  STATUS_OBS_RECENT_ROW,
+  STATUS_OBS_REPAID_MARK,
+  STATUS_OBS_RESET_EMPTY,
+  STATUS_OBS_RESET_HEADER,
+  STATUS_OBS_RESET_ROW,
+  STATUS_OBS_RETRY_PART,
+  STATUS_OBS_SESSION_LINE,
+  STATUS_OBS_SESSION_REPAID_WITHHELD,
+  STATUS_OBS_THREE_STATE,
+  STATUS_OBS_NO_SAMPLES,
   STATUS_PARTIAL_PREFIX,
   STATUS_RANGES_HEADER,
   STATUS_USAGE_ESTIMATED,
@@ -64,7 +83,13 @@ import {
   NUDGE_RANGE_ROW,
   fill,
 } from './texts.ts'
-import type { RecallEntry, SessionLike, ToolRunContextLike, ValidatorConfig } from './types.ts'
+import type {
+  FoldUsageAttribution,
+  RecallEntry,
+  SessionLike,
+  ToolRunContextLike,
+  ValidatorConfig,
+} from './types.ts'
 import type { FoldStore } from './store.ts'
 import {
   ccmWindowGate,
@@ -337,7 +362,17 @@ export interface LoggerLike {
 
 /** Structural tokenMeter subset used by the status/nudge faces. */
 export interface TokenMeterLike {
-  measure(session: SessionLike): { readonly totalTokens: number }
+  measure(session: SessionLike): {
+    readonly totalTokens: number
+    /**
+     * Official TokenMeasurement surface nodes pass-through (additive, V3;
+     * token-meter/src/types.ts:31-56): the route-priced per-node projection
+     * the meter-anchor interface sums for the `meterAnchored` semi path.
+     * Undefined when the host meter predates the node projection — the
+     * anchor then honestly reports unavailability.
+     */
+    readonly nodes?: readonly { readonly seq: number; readonly tokens: number }[]
+  }
 }
 
 /** Structural llm runtime subset used by the status/window resolution. */
@@ -375,6 +410,12 @@ export interface ZctxToolRuntime {
   readonly logger?: LoggerLike
   readonly tokenMeter?: TokenMeterLike
   readonly llm?: LlmRuntimeLike
+  /**
+   * Config cleanSampleFloor (V3 status gate, §Q7.3 诚实纪律): the renderer
+   * withholds repay conclusions when the clean-sample ratio falls below it.
+   * Config-owned value — never hardcoded here.
+   */
+  readonly cleanSampleFloor: number
   /** Per-session store registry (lazy create + attach, feed-maintained). */
   storeFor(session: SessionLike): FoldStore
   /** Validator config resolved for this session (window from cache when known). */
@@ -406,6 +447,9 @@ export function routedRequestTarget(
 // ---------------------------------------------------------------------------
 // Status rendering (shared by zctx_status and the /zctx command).
 // ---------------------------------------------------------------------------
+
+/** Recent-fold rows shown in the observability segment (compact by design). */
+const RECENT_FOLD_ROWS = 3
 
 /**
  * Render the full status report. Every host face is capability-probed and
@@ -565,6 +609,107 @@ export async function renderStatus(runtime: ZctxToolRuntime, session: SessionLik
     lines.push(
       fill(STATUS_USAGE_ESTIMATED, { samples: usage.samples, plural: usage.samples === 1 ? '' : 's' }),
     )
+  }
+
+  // ---- observability (V3 three-segment upgrade; RES-observe-route §Q7.3) ------
+  // Segment 1 (session summary): folds / repaid / recovery / three-state pct.
+  // Segment 2 (repay conclusions): the breakeven table, OR the honest
+  // degradation note when the clean-sample ratio sits below the config floor —
+  // "归因可信度不足" withholds the repay conclusions, never a low-confidence
+  // claim. Segment 3 (recent folds with attribution quality) + segment 4
+  // (reset ledger digest) are facts, not conclusions, and always render.
+  const snapshot = store.observabilitySnapshot()
+  const attributionByFold = new Map<string, FoldUsageAttribution>()
+  for (const attribution of store.foldAttributions()) attributionByFold.set(attribution.foldId, attribution)
+  const confidenceOk = snapshot.cleanSampleRatio >= runtime.cleanSampleFloor
+  const repaidText = confidenceOk
+    ? String(snapshot.breakevenTable.filter((row) => row.repaid === true).length)
+    : STATUS_OBS_SESSION_REPAID_WITHHELD
+  const totalBefore = entries.reduce((sum, entry) => sum + entry.tokensBefore, 0)
+  const totalNet = entries.reduce((sum, entry) => sum + (entry.tokensBefore - entry.tokensAfter), 0)
+  lines.push(STATUS_OBS_HEADER)
+  lines.push(
+    fill(STATUS_OBS_SESSION_LINE, {
+      folds: entries.length,
+      repaid: repaidText,
+      recoveryPct: totalBefore > 0 ? formatPct((totalNet / totalBefore) * 100) : 'n/a',
+    }),
+  )
+  const threeTotal = snapshot.threeState.measured + snapshot.threeState.semi + snapshot.threeState.estimated
+  if (threeTotal === 0) {
+    lines.push(STATUS_OBS_NO_SAMPLES)
+  } else {
+    lines.push(
+      fill(STATUS_OBS_THREE_STATE, {
+        measuredPct: formatPct((snapshot.threeState.measured / threeTotal) * 100),
+        semiPct: formatPct((snapshot.threeState.semi / threeTotal) * 100),
+        estimatedPct: formatPct((snapshot.threeState.estimated / threeTotal) * 100),
+        total: threeTotal,
+        plural: threeTotal === 1 ? '' : 's',
+      }),
+    )
+  }
+  // Segment 2: repay conclusions behind the confidence gate.
+  if (!confidenceOk) {
+    lines.push(
+      fill(STATUS_OBS_CONFIDENCE_INSUFFICIENT, {
+        ratioPct: formatPct(snapshot.cleanSampleRatio * 100),
+        floorPct: formatPct(runtime.cleanSampleFloor * 100),
+      }),
+    )
+  } else {
+    lines.push(STATUS_OBS_BREAKEVEN_HEADER)
+    if (snapshot.breakevenTable.length === 0) {
+      lines.push(STATUS_OBS_BREAKEVEN_EMPTY)
+    } else {
+      for (const row of snapshot.breakevenTable) {
+        const repaidMark =
+          row.repaid === true ? fill(STATUS_OBS_REPAID_MARK, { seq: row.repayEventSeq ?? 0 }) : ''
+        lines.push(
+          fill(STATUS_OBS_BREAKEVEN_ROW, {
+            foldId: row.foldId,
+            turns: row.breakevenTurns === Number.POSITIVE_INFINITY ? 'never' : formatPct(row.breakevenTurns),
+            quality: row.quality,
+            repaidMark,
+          }),
+        )
+      }
+    }
+  }
+  // Segment 3: recent folds with attribution quality (+ noise markers).
+  lines.push(STATUS_OBS_RECENT_HEADER)
+  if (entries.length === 0) {
+    lines.push(STATUS_OBS_RECENT_EMPTY)
+  } else {
+    for (const entry of entries.slice(-RECENT_FOLD_ROWS).reverse()) {
+      const attribution = attributionByFold.get(entry.foldId)
+      const retryPart =
+        attribution !== undefined && attribution.retryCount > 0
+          ? fill(STATUS_OBS_RETRY_PART, { count: attribution.retryCount })
+          : ''
+      const flags =
+        (attribution?.timeWindow === true ? STATUS_OBS_FLAG_TIME_WINDOW : '')
+        + (attribution?.interrupted === true ? STATUS_OBS_FLAG_INTERRUPTED : '')
+      lines.push(
+        fill(STATUS_OBS_RECENT_ROW, {
+          foldId: entry.foldId,
+          status: entry.status,
+          seq: entry.checkpointSeq,
+          quality: attribution?.quality ?? 'unattributed',
+          retryPart,
+          flags,
+        }),
+      )
+    }
+  }
+  // Segment 4: reset ledger digest (V1 ResetEvent classification counts).
+  lines.push(STATUS_OBS_RESET_HEADER)
+  if (snapshot.resetSummary.length === 0) {
+    lines.push(STATUS_OBS_RESET_EMPTY)
+  } else {
+    for (const row of snapshot.resetSummary) {
+      lines.push(fill(STATUS_OBS_RESET_ROW, { kind: row.kind, count: row.count }))
+    }
   }
 
   // ---- degraded rows first-class ----------------------------------------------
