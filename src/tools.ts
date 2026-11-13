@@ -71,6 +71,12 @@ import {
   STATUS_OBS_THREE_STATE,
   STATUS_OBS_NO_SAMPLES,
   STATUS_PARTIAL_PREFIX,
+  STATUS_PREFLIGHT_BASIS,
+  STATUS_PREFLIGHT_EMPTY,
+  STATUS_PREFLIGHT_HEADER,
+  STATUS_PREFLIGHT_NOT_COMPARABLE,
+  STATUS_PREFLIGHT_SHORTCIRCUITS,
+  STATUS_PREFLIGHT_STATS,
   STATUS_RANGES_HEADER,
   STATUS_USAGE_ESTIMATED,
   STATUS_USAGE_MEASURED,
@@ -85,6 +91,7 @@ import {
 } from './texts.ts'
 import type {
   FoldUsageAttribution,
+  PreflightCalibrationRecord,
   RecallEntry,
   SessionLike,
   ToolRunContextLike,
@@ -389,6 +396,20 @@ export interface LlmRuntimeLike {
     /** Official ModelInfo pass-through (llm/src/index.ts:184); undefined = unsupported route. */
     toolUpdate?: 'in-history' | 'addition-only'
   }>
+  /**
+   * Official `ctx.llm.fileRequestText` (llm/src/index.ts:690-692), probed by
+   * the V4 preflight face for adapter-dispatch-identical file handle text in
+   * its estimate. Optional: absent → the projection's default resolver.
+   */
+  fileRequestText?(ref: unknown): string
+  /**
+   * Official `ctx.llm.imageRequestPricing` (llm/src/index.ts:680-682),
+   * probed by the V4 preflight face to price kept image occurrences.
+   * Optional: absent → per-image constant reserve (honest label).
+   */
+  imageRequestPricing?(provider: string, model: string): {
+    priceImages(images: readonly unknown[]): readonly { visualTokens: number; text: string }[]
+  } | undefined
 }
 
 /**
@@ -416,6 +437,11 @@ export interface ZctxToolRuntime {
    * Config-owned value — never hardcoded here.
    */
   readonly cleanSampleFloor: number
+  /**
+   * Config preflightMode (V4 status face; optional for backward-compatible
+   * test runtimes): the mode line the preflight estimator segment renders.
+   */
+  readonly preflightMode?: 'off' | 'observe' | 'enforce'
   /** Per-session store registry (lazy create + attach, feed-maintained). */
   storeFor(session: SessionLike): FoldStore
   /** Validator config resolved for this session (window from cache when known). */
@@ -450,6 +476,59 @@ export function routedRequestTarget(
 
 /** Recent-fold rows shown in the observability segment (compact by design). */
 const RECENT_FOLD_ROWS = 3
+
+/** Aggregated estimator error statistics over the S1 calibration ledger (V4). */
+export interface PreflightStats {
+  /** Records whose stream settled with a usable billed-input usage. */
+  readonly comparable: number
+  /** Mean signed error over comparable samples, % (positive = overestimate). */
+  readonly meanErrorPct: number
+  /** Worst absolute error over comparable samples, %. */
+  readonly worstErrorPct: number
+  /** Enforce short-circuits (no wire request, hence no comparison). */
+  readonly shortCircuits: number
+  /** Projection honesty line: official only, or mixed with fallback estimates. */
+  readonly basis: string
+}
+
+/**
+ * Estimate-vs-reality statistics (card product 3): each comparable record's
+ * error is `(estimate − billedInput) / billedInput`, where billedInput is the
+ * DISJOINT-accounting input side (input + cacheRead + cacheWrite, §Q2.1) —
+ * the estimate approximates the prompt, not the output. Pure function over
+ * the store's calibration ledger; the renderer calls it at status time.
+ */
+export function preflightCalibrationStats(
+  records: readonly PreflightCalibrationRecord[],
+): PreflightStats {
+  let comparable = 0
+  let errorSum = 0
+  let worst = 0
+  let shortCircuits = 0
+  let fallbackSeen = false
+  for (const record of records) {
+    if (record.projector === 'local-fallback') fallbackSeen = true
+    if (record.outcome === 'short-circuited') {
+      shortCircuits += 1
+      continue
+    }
+    const usage = record.usage
+    if (usage?.inputTokens === undefined) continue
+    const billed = usage.inputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
+    if (!Number.isFinite(billed) || billed <= 0) continue
+    const errorPct = ((record.estimate - billed) / billed) * 100
+    comparable += 1
+    errorSum += errorPct
+    worst = Math.max(worst, Math.abs(errorPct))
+  }
+  return {
+    comparable,
+    meanErrorPct: comparable > 0 ? errorSum / comparable : 0,
+    worstErrorPct: worst,
+    shortCircuits,
+    basis: fallbackSeen ? 'official + local-fallback (fallback rows are not calibrated)' : 'official',
+  }
+}
 
 /**
  * Render the full status report. Every host face is capability-probed and
@@ -716,6 +795,38 @@ export async function renderStatus(runtime: ZctxToolRuntime, session: SessionLik
     for (const row of snapshot.resetSummary) {
       lines.push(fill(STATUS_OBS_RESET_ROW, { kind: row.kind, count: row.count }))
     }
+  }
+
+  // Segment 5 (V4): preflight estimator calibration (card product 3). The
+  // statistics feed the observe→enforce promotion decision (no-go condition
+  // 4) — rendered as facts, never as a recommendation.
+  lines.push(fill(STATUS_PREFLIGHT_HEADER, { mode: runtime.preflightMode ?? 'unknown' }))
+  const calibration = store.preflightCalibrations()
+  if (calibration.length === 0) {
+    lines.push(STATUS_PREFLIGHT_EMPTY)
+  } else {
+    const stats = preflightCalibrationStats(calibration)
+    if (stats.comparable > 0) {
+      lines.push(
+        fill(STATUS_PREFLIGHT_STATS, {
+          samples: stats.comparable,
+          plural: stats.comparable === 1 ? '' : 's',
+          meanPct: formatPct(stats.meanErrorPct),
+          worstPct: formatPct(stats.worstErrorPct),
+        }),
+      )
+    } else if (stats.shortCircuits === 0) {
+      lines.push(STATUS_PREFLIGHT_NOT_COMPARABLE)
+    }
+    if (stats.shortCircuits > 0) {
+      lines.push(
+        fill(STATUS_PREFLIGHT_SHORTCIRCUITS, {
+          count: stats.shortCircuits,
+          plural: stats.shortCircuits === 1 ? '' : 's',
+        }),
+      )
+    }
+    lines.push(fill(STATUS_PREFLIGHT_BASIS, { basis: stats.basis }))
   }
 
   // ---- degraded rows first-class ----------------------------------------------

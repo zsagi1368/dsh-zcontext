@@ -18,11 +18,19 @@
  *     survives the official suppressRuntimeContext filter that drops
  *     non-required contributions, system-prompt/src/index.ts:627-628)
  *   - `commands.register`   → the `/zctx` command
- *   - `llm/stream`          → the read-only cache-observe listener (v0.2.0
+ *   - `llm/stream` (outer)  → the S1 preflight listener (v0.2.0 V4,
+ *     RES-adapter-route §11b S1): estimates the request's context before the
+ *     wire; mode 'observe' (DEFAULT) only records the calibration ledger
+ *     (estimate vs the real usage that follows), mode 'enforce' (opt-in,
+ *     R2) short-circuits a hit with the official CONTEXT_WINDOW_EXCEEDED
+ *     finish so the compaction recovery chain takes over; mode 'off'
+ *     registers nothing.
+ *   - `llm/stream` (inner)  → the read-only cache-observe listener (v0.2.0
  *     V2, RES-observe-route a.2/a.3): per-attempt request snapshots +
  *     prefix-break classification land in the per-session store's
  *     process-memory ledgers; attemptCapture is opt-in (`observe.attemptCapture`).
- *     Strictly observational — never short-circuits (the V4 preflight boundary).
+ *     Strictly observational — never short-circuits (the preflight listener
+ *     above is the only short-circuiting face).
  *
  * The nudge context provider is a PURE function of (pressure, budget,
  * ranges): it contributes '' (nothing on the wire) unless a threshold was
@@ -52,6 +60,7 @@ import { buildGuidanceSection } from './guidance.ts'
 import { nudgeContextText } from './nudge.ts'
 import { ObserveListener } from './observe.ts'
 import type { ObserveStoreAccess } from './observe.ts'
+import { PreflightListener } from './preflight.ts'
 import { FoldStore } from './store.ts'
 import {
   buildZctxTools,
@@ -201,6 +210,8 @@ export class ZcontextPlugin extends ServiceBase {
   private readonly runtime: ZctxToolRuntime
   /** The observe face's listener; undefined when the face is off (config or capability). */
   private observe: ObserveListener | undefined
+  /** The S1 preflight face's listener; undefined when preflightMode is 'off'. */
+  private preflight: PreflightListener | undefined
   private warnedWindowFailure = false
 
   constructor(ctx: HostContextLike, config: Partial<ZcontextConfig> = {}) {
@@ -212,6 +223,7 @@ export class ZcontextPlugin extends ServiceBase {
       tokenMeter: ctx.tokenMeter,
       llm: ctx.llm,
       cleanSampleFloor: this.config.cleanSampleFloor,
+      preflightMode: this.config.preflightMode,
       storeFor: (session) => this.storeFor(session),
       validatorConfig: (session) => this.validatorConfig(session),
     }
@@ -225,6 +237,7 @@ export class ZcontextPlugin extends ServiceBase {
     this.wireGuidanceFace()
     this.wireNudgeFace()
     this.wireCommandFace()
+    this.wirePreflightFace()
     this.wireObserveFace()
   }
 
@@ -308,6 +321,70 @@ export class ZcontextPlugin extends ServiceBase {
       return
     }
     ctx.commands.register(buildZctxCommand(this.runtime))
+  }
+
+  /**
+   * The S1 preflight face (v0.2.0 V4, task card products 1-2;
+   * RES-adapter-route §11b S1): a SECOND llm/stream waterfall listener that
+   * estimates the request's context before the wire and, in enforce mode
+   * only, short-circuits a hit with the official CONTEXT_WINDOW_EXCEEDED
+   * finish (the official compaction overflow recovery chain owns the retry).
+   *
+   * Registered BEFORE the observe listener so it composes OUTERMOST (cordis
+   * waterfall = outermost-first, vendor/cordis/src/events.ts:221-236): an
+   * enforce short-circuit must suppress the entire downstream chain — no
+   * adapter dispatch, no wire request, no observation cost. In observe mode
+   * it calls next() like any listener and the calibration ledger (product 3)
+   * builds.
+   *
+   * REDLINE R2: enforce is unreachable under the default configuration —
+   * preflightMode defaults to 'observe' and only an explicit user setting
+   * turns it on (pinned by test). REDLINE R3: the listener's deps carry NO
+   * llm runtime — the ctx.llm.stream self-call is structurally unreachable.
+   *
+   * Same capability-probe discipline as the other faces: 'off' logs info,
+   * a missing capability logs warn, and neither ever breaks boot.
+   * @internal
+   */
+  private wirePreflightFace(): void {
+    const { ctx } = this
+    const mode = this.config.preflightMode
+    if (mode === 'off') {
+      ctx.logger?.info?.('dsh-zcontext: preflight face disabled by config (preflightMode=off)')
+      return
+    }
+    if (typeof ctx.on !== 'function') {
+      ctx.logger?.warn?.('dsh-zcontext: ctx.on unavailable — preflight face skipped (no bus to register the llm/stream listener on)')
+      return
+    }
+    if (ctx.llm === undefined) {
+      ctx.logger?.warn?.('dsh-zcontext: llm service unavailable — preflight face skipped (estimation rides the llm/stream waterfall)')
+      return
+    }
+    const llm = ctx.llm
+    // Capture the optional helper members once (capability-probed, `this`
+    // bound to the runtime) so the deps surface carries exactly the narrow
+    // functions and nothing else (R3).
+    const fileText = typeof llm.fileRequestText === 'function' ? llm.fileRequestText.bind(llm) : undefined
+    const imagePricing =
+      typeof llm.imageRequestPricing === 'function' ? llm.imageRequestPricing.bind(llm) : undefined
+    const listener = new PreflightListener({
+      mode,
+      marginRatio: this.config.preflightMarginRatio,
+      resolveSession: (sessionId) => this.resolveWatchedSession(sessionId),
+      storeFor: (session) => this.storeFor(session as SessionLike),
+      // Official ModelInfo (context window source F6.2 + image gating
+      // modalities); failures degrade inside the listener (bounded cache).
+      resolveModelInfo: async (provider, model) => llm.resolveModelInfo(provider, model),
+      // Adapter-dispatch-identical file handle text (F3.4) when the host
+      // exposes it; absent → the projection's default resolver.
+      fileRequestText: fileText,
+      // Per-route image pricing (card: 计价 path); absent → constant reserve.
+      imageRequestPricing: imagePricing,
+      logger: ctx.logger,
+    })
+    this.preflight = listener
+    ctx.on('llm/stream', listener.onStream)
   }
 
   /**

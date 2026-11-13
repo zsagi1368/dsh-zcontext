@@ -410,6 +410,28 @@ export const STATUS_OBS_RESET_ROW = '  - {{kind}}: {{count}}'
 
 export const STATUS_OBS_RESET_EMPTY = '  (no cache resets recorded)'
 
+// ---------------------------------------------------------------------------
+// V4 preflight estimator lines (zctx_status; card product 3 — the estimator
+// error statistics over the S1 calibration ledger decide when enforce is
+// safe to promote, no-go condition 4; thresholds 待真机标定).
+// ---------------------------------------------------------------------------
+
+export const STATUS_PREFLIGHT_HEADER = 'Preflight estimator (S1, mode {{mode}}):'
+
+export const STATUS_PREFLIGHT_STATS =
+  'calibration: {{samples}} comparable request{{plural}}, mean error {{meanPct}}% / worst {{worstPct}}% (estimate − billed input)'
+
+export const STATUS_PREFLIGHT_SHORTCIRCUITS =
+  '  - {{count}} enforce short-circuit{{plural}} (no wire request, no usage to compare)'
+
+export const STATUS_PREFLIGHT_BASIS = '  - estimate basis: {{basis}}'
+
+export const STATUS_PREFLIGHT_EMPTY =
+  '  (no judged requests yet — calibration dataset builds in observe/enforce mode)'
+
+export const STATUS_PREFLIGHT_NOT_COMPARABLE =
+  '  - no comparable samples yet (streams settled without a usable usage chunk)'
+
 export const RECALL_REPLY_HEADER = 'Recall hits for "{{query}}" ({{count}} of {{total}}):'
 
 export const RECALL_REPLY_ROW =

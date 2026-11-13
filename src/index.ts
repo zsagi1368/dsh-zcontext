@@ -49,6 +49,29 @@ export { buildGuidanceSection } from './guidance.ts'
 export { validateFold } from './validator.ts'
 
 // ---------------------------------------------------------------------------
+// S1 preflight (v0.2.0 V4; RES-adapter-route §11b S1).
+// ---------------------------------------------------------------------------
+
+export {
+  buildPreflightErrorFinish,
+  estimateProjectedRequest,
+  judgeEstimate,
+  PER_IMAGE_FALLBACK_TOKENS,
+  PreflightListener,
+  PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE,
+  resolveMarginRatio,
+} from './preflight.ts'
+export type {
+  HostImagePricingLike,
+  HostImagePriceLike,
+  PreflightDeps,
+  PreflightEstimate,
+  PreflightJudgment,
+  PreflightStoreAccess,
+  PreflightStreamListener,
+} from './preflight.ts'
+
+// ---------------------------------------------------------------------------
 // W3 engine.
 // ---------------------------------------------------------------------------
 
@@ -67,6 +90,10 @@ export type {
   LlmCallConfigAdapterDefaultsLike,
   LlmCallConfigLike,
   ObservabilitySnapshot,
+  PreflightCalibrationRecord,
+  PreflightImagePricing,
+  PreflightMode,
+  PreflightOutcome,
   PrefixBreakRecord,
   PrefixBreakResetRef,
   RequestSnapshot,
