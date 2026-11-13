@@ -241,6 +241,56 @@
       "owner": "coder-w5",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "V1-U2-PROBE",
+      "source": "cards/V1-probes-store.md item 1 (RES-adapter-route U2)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 168ef03: scripts/probe-host-imports.mjs (G1 reachability / G2 ESM import liveness / G3 10 named-export assertions + spelling pin / G4 callConfigEquals live semantics + CONTEXT_WINDOW_EXCEEDED_CODE literal) — 16 PASS 0 SKIP 0 FAIL exit 0; machine report reports/probes/U2-host-imports.md",
+      "owner": "coder-v1",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V1-U1-PROBE",
+      "source": "cards/V1-probes-store.md item 2 (RES-adapter-route U1)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 8eb4e78: reports/probes/U1-models-ui.md — read-only source investigation with file:line anchors; verdict SKIP for the card question (directory entries reach the data plane, but ProviderEditor.layoutOf pins llm-deepseek/llm-pi-ai and disables Apply for unknown layouts; visibility additionally needs a volatile Config field — settings describe volatileForm gate); GO conditions + unresolved items registered in the report §4",
+      "owner": "coder-v1",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V1-TYPES",
+      "source": "cards/V1-probes-store.md item 3 (RES-observe-route a.1 table)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 8e82b1b: src/types.ts RouteHeader/LlmCallConfigLike/LlmCallConfigAdapterDefaultsLike/ResetEvent(9-kind union per §Q6 mapping)/FoldUsageAttribution/UsageRecord(state)/ThreeStateCounts+BreakevenTableRow+ResetSummaryRow+ObservabilitySnapshot; UsageSample moved to types.ts and re-exported from store.ts (W3 surface unchanged, 193/193); SessionEventLike +time? (official session/src/types.ts:499); index.ts type exports added; lib d.ts carries all new names",
+      "owner": "coder-v1",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V1-CONFIG",
+      "source": "cards/V1-probes-store.md item 5 (plan §3 design freeze)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit c763f21: src/config.ts attributionTimeWindowMs=90000 + cleanSampleFloor=0.6 (both JSDoc 待真机标定); CONFIG_FIELD_SPECS satisfies pin keeps the schema table honest; smoke.spec defaults pin extended; tsc 0 + 193/193 + build green",
+      "owner": "coder-v1",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V1-STORE",
+      "source": "cards/V1-probes-store.md item 4 (RES-observe-route a.1/a.2)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 563a7a5: src/store.ts request/header chain + cache-reset ledger (per-category classification incl. local callConfigEquals twin, bracket-aware replace classification) + UsageRecord full-token upgrade; one shared applyEvent transition for attach/feed/resync; tests/store-observe.spec.ts 18 cases (per-kind 9 kinds, dual-regime feed==scan, resync gap repair, event-time propagation); 211/211 (12 files); probe-artifact 5/5; verify-activation-surface 8/8",
+      "owner": "coder-v1",
+      "status": "verified",
+      "phase": "block"
     }
   ],
   "updatedAt": "2026-11-12T13:40:00+08:00"

@@ -1,134 +1,75 @@
 {
-  "task": "ZCTX-W5",
-  "updatedAt": "2026-11-12T13:35:00+08:00",
+  "task": "ZCTX-V1",
+  "updatedAt": "2026-11-12T16:32:00+08:00",
+  "baseCommit": "b3b5286 (v0.1.0 terminal, main)",
   "steps": [
     {
-      "id": "w4s0",
-      "name": "config.ts split out of index.ts (breaks the plugin->Config cycle; public surface unchanged) + del backup of pre-W4 index.ts/smoke.spec.ts (HEAD blobs 9ee6619)",
+      "id": "v1s1",
+      "name": "U2 loading probe scripts/probe-host-imports.mjs + machine report reports/probes/U2-host-imports.md (168ef03): 16 PASS 0 SKIP 0 FAIL exit 0 — cross-repo dsh-llm import live, 10 required exports on disk, attributionHeaders spelling pinned, callConfigEquals live semantics + CONTEXT_WINDOW_EXCEEDED_CODE literal",
+      "status": "done",
+      "artifacts": [
+        "scripts/probe-host-imports.mjs",
+        "reports/probes/U2-host-imports.md"
+      ]
+    },
+    {
+      "id": "v1s2",
+      "name": "U1 directory-UI probe report reports/probes/U1-models-ui.md (8eb4e78): SKIP verdict for in-page config (layoutOf hard-codes llm-deepseek/llm-pi-ai; unknown layout disables Apply); visibility conditional on volatile Config field; GO conditions registered §4",
+      "status": "done",
+      "artifacts": [
+        "reports/probes/U1-models-ui.md"
+      ]
+    },
+    {
+      "id": "v1s3",
+      "name": "types extension (8e82b1b): RouteHeader/LlmCallConfigLike/LlmCallConfigAdapterDefaultsLike/ResetEvent(9 kinds)/FoldUsageAttribution/UsageRecord/ObservabilitySnapshot(+three rows) frozen per a.1; UsageSample moved to types.ts with store re-export (W3 surface unchanged); SessionEventLike +time?",
+      "status": "done",
+      "artifacts": [
+        "src/types.ts",
+        "src/store.ts",
+        "src/index.ts"
+      ]
+    },
+    {
+      "id": "v1s4",
+      "name": "config increment (c763f21): attributionTimeWindowMs=90000 + cleanSampleFloor=0.6, JSDoc 待真机标定; CONFIG_FIELD_SPECS satisfies pin; smoke.spec pin extended",
       "status": "done",
       "artifacts": [
         "src/config.ts",
-        "del/20261112-w4-index-smoke-prechange/"
+        "tests/smoke.spec.ts"
       ]
     },
     {
-      "id": "w4s1",
-      "name": "tools.ts: resolveDefineTool (lazy host require + fail-soft shim with ToolArgsError semantics) + parseFoldContent (parseCompressInput-aligned lenient parser, self-implemented) + buildZctxTools (4 tools, no isConcurrencySafe S8) + renderStatus (budget/ranges/folds/anomalies/S6 usage split/CCM below-domain note)",
+      "id": "v1s5",
+      "name": "store extension (563a7a5): RouteHeader chain + reset ledger (9-kind classification, bracket-aware, local callConfigEquals twin noted) + UsageRecord full-token upgrade; single applyEvent transition; tests/store-observe.spec.ts 18 cases; MockSession non-surface discipline; lib rebuilt",
       "status": "done",
       "artifacts": [
-        "src/tools.ts",
-        "tests/tools.spec.ts"
-      ],
-      "tests": 21
-    },
-    {
-      "id": "w4s2",
-      "name": "plugin.ts: ZcontextPlugin extends cordis Service (lazy require + structural shim) + capability-probed faces (session feed / tools / guidance / nudge required:true B2 / command) + per-session store registry + async window cache warmup + threshold-crossing nudge provider (suppressed='' no-op)",
-      "status": "done",
-      "artifacts": [
-        "src/plugin.ts",
-        "tests/plugin.spec.ts"
-      ],
-      "tests": 12
-    },
-    {
-      "id": "w4s3",
-      "name": "command.ts /zctx (status|fold|unfold, fail-soft error texts) + index.ts pure re-export rewrite + smoke.spec adapted to cordis-compatible minimal ctx + store.eventText public accessor",
-      "status": "done",
-      "artifacts": [
-        "src/command.ts",
-        "src/index.ts",
-        "tests/smoke.spec.ts",
-        "src/store.ts"
-      ]
-    },
-    {
-      "id": "w4s4",
-      "name": "three-green + artifact probe: build (lib 116.63 kB) + tsc zero errors + 189/189 (11 files); node probe on lib/index.js: 14 exports + face wiring (4 tools/1 section/1 required context/1 command/3 listeners) + end-to-end fold+status through the built artifact + no isConcurrencySafe",
-      "status": "done",
-      "artifacts": [
+        "src/store.ts",
+        "tests/store-observe.spec.ts",
+        "tests/helpers/mock-session.ts",
         "lib/index.js",
         "lib/index.d.ts",
         "lib/index.js.map"
       ]
     },
     {
-      "id": "w3w4-rework-r1",
-      "name": "REVIEW-W3W4 rework round 1: W3-1 bare-UserMessage commits (tests-first pins) + W3-2 reachable-domain docs + slice-equivalence pin + W4-1 latest removal + W4-2 loop removal + W4-3 scripts/probe-artifact.mjs (5 groups) + W4-4 AssembleContext attribution",
-      "status": "done",
-      "artifacts": [
-        "src/fold-engine.ts",
-        "src/validator.ts",
-        "src/texts.ts",
-        "src/tools.ts",
-        "src/plugin.ts",
-        "tests/fold-engine.spec.ts",
-        "tests/helpers/mock-session.ts",
-        "tests/plugin.spec.ts",
-        "tests/tools.spec.ts",
-        "scripts/probe-artifact.mjs"
-      ]
-    },
-    {
-      "id": "w5s1",
-      "name": "R2 re-review artifacts committed (d5c5ceb: REVIEW-W3W4 re-review section + W3=99/W4=100 scorecards) — W5 unblocked",
-      "status": "done",
-      "artifacts": [
-        "tasks/ZCTX/handoffs/REVIEW-W3W4.md",
-        "tasks/ZCTX/scorecards/W3.json",
-        "tasks/ZCTX/scorecards/W4.json"
-      ]
-    },
-    {
-      "id": "w5s2",
-      "name": "A6 real-machine smoke script scripts/smoke-real-loader.mjs (c12911e): real app-boot loader parse+compose of our cordis.patch.yml + real CLI dump-config with our overlay (+negative control); observed 2 PASS 0 SKIP 0 FAIL; throwaway DSH_HOME cleaned; unexecutable full-install part registered as closure W5-A6-INSTALL (post-merge)",
-      "status": "done",
-      "artifacts": [
-        "scripts/smoke-real-loader.mjs"
-      ]
-    },
-    {
-      "id": "w5s3",
-      "name": "A4 activation-surface assertion set scripts/verify-activation-surface.mjs (d72ec36): 8 groups (Z3 artifact+ls-tree / package.json install gate / Z7 identity+tools / patch yml line parse / checkpoint markers / S8 comment-stripped code scan + runtime / B2 required:true / probe-artifact subprocess); observed 8 PASS 0 FAIL exit 0",
-      "status": "done",
-      "artifacts": [
-        "scripts/verify-activation-surface.mjs"
-      ]
-    },
-    {
-      "id": "w5s4",
-      "name": "Bilingual README.md + README.zh.md (ec0d3ac, 12 unified anchors, 12/12 sections, 9/9 settings rows, mechanical alignment check) + SECURITY.md + CHANGELOG.md full 0.1.0 entry (4584526); pre-change copies in del/20261112-w5-docs-prechange/ (SHA-256 verified)",
-      "status": "done",
-      "artifacts": [
-        "README.md",
-        "README.zh.md",
-        "SECURITY.md",
-        "CHANGELOG.md",
-        "del/20261112-w5-docs-prechange/"
-      ]
-    },
-    {
-      "id": "w5s5",
-      "name": "RSI closure + governance terminal state: ZDSH-LESSONS.md Z17 (bundled lib keeps comments — absence assertions must strip comments first; first-run false red fixed) + ~/.agents/rsi/INDEX.md capture row + closure.json 24 items (23 block closed, 1 post-merge deferred) + progress/checkpoint/history final; backups del/20261112-w5-rsi-lessons-prechange/",
+      "id": "v1s6",
+      "name": "governance: closure.json 29 items (0 OPEN) + progress + checkpoint/history + del backup del/20261112-v1-observe-prechange (4 files, SHA-256 verified)",
       "status": "done",
       "artifacts": [
         "tasks/ZCTX/closures/closure.json",
         "tasks/ZCTX/progress.md",
         "tasks/ZCTX/checkpoint.json",
         "tasks/ZCTX/checkpoint-history.jsonl",
-        "G:/000Github/zDSH/ZDSH-LESSONS.md",
-        "C:/Users/ZS/.agents/rsi/INDEX.md",
-        "del/20261112-w5-rsi-lessons-prechange/"
+        "del/20261112-v1-observe-prechange/"
       ]
     }
   ],
-  "next": "W5 reviewer scorecard (>=98 to pass) -> synthesizer closure (merge/tag/ledger per §15)",
+  "next": "V1 reviewer scorecard (>=98) -> V2 observe.ts wave; probes hand-off: U2 GO for dsh-llm imports (V2/V4/V5 may import via absolute-path probe pattern at script level), U1 SKIP for in-page Models editing (S2 downgrade registered)",
   "notes": [
-    "defineTool resolved from @deepseek-ai/dsh-tools when the host provides it; shim compiles the same author prop-map to the enforced JSON-Schema subset",
-    "nudge provider contributes '' unless a threshold was crossed (cache model) and is gated below CCM 32768 and without a cached window",
-    "smoke.spec construction now uses a cordis-compatible minimal ctx (real Service base needs reflect.provide); pre-change copies in del/",
-    "rework r1: checkpoint payloads are the official bare UserMessage (types.ts:309, surface.ts:132-134, region.ts:506-508); absorption reachable domain documented as boundary-aligned [checkpoint,checkpoint]; numeric shadowed filter == positional slice pinned by dual-regime sweeps; nudge provider consumes AssembleContext (agent.session attribution, most-recent fallback)",
-    "W5: verify-activation-surface.mjs A6 group strips comments before scanning lib for isConcurrencySafe (tsdown preserves rationale comments — Z17); raw-text scan alone produced a false red on the first run",
-    "W5 A6: real-loader/real-CLI/real-session probes all executed (2 PASS + probe 5/5); the pnpm-install-into-live-profile + full boot mount is registered as closure W5-A6-INSTALL (user_approved_deferred, post-merge, owner=mainline, trigger=user desktop env, review 2026-11-19)"
+    "three green: tsc 0 errors / vitest 211-211 (12 files, 193+18) / tsdown build green; probe-artifact 5-5; verify-activation-surface 8-8; probe-host-imports 16-16",
+    "route header classification emits one reset per differing category (model/toolset/sampling); evidence strings name the changed fields; series/initial reasons record no reset by card scope (a.2 item 1 covers change only) — RES Q6 series-break noted as V2+ candidate",
+    "UsageRecord.state semi + attribution reserved for V3; store emits measured/estimated only",
+    "U2 spelling finding: attributionHeaders (correct) — E-note attrbutionHeaders variant does not exist in the host lib"
   ]
 }
