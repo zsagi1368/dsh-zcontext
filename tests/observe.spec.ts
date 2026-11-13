@@ -450,6 +450,53 @@ describe('observe listener: official projector path (host build on disk)', () =>
     expect(store.snapshots).toHaveLength(1)
     expect(store.snapshots[0]?.projector).toBe('official')
   }, 20000)
+
+  // V2-D closure (R3 review): the zero-mutation pin previously ran only on
+  // the fallback projector path — this pin re-runs the SAME byte-identity +
+  // reference-identity discipline through the OFFICIAL projection exports
+  // (host build on disk, honest skip when absent — same probe convention).
+  it('deep-frozen options stay byte-identical across a firing on the OFFICIAL projector path', async () => {
+    const hostLib = 'G:/000Github/zDSH/zDSH-main/packages/llm/llm/lib/index.js'
+    if (!existsSyncAny(hostLib)) {
+      delete process.env.ZCTX_DSH_LLM
+      resetHostProjectorCacheForTest()
+      return // honest skip: no host build on this machine (probe convention)
+    }
+    process.env.ZCTX_DSH_LLM = pathToFileURLAny(hostLib)
+    resetHostProjectorCacheForTest()
+    const host = (await import(pathToFileURLAny(hostLib))) as {
+      markAgentLoopRequest: <T>(request: T) => T
+    }
+    const store = new FakeObserveStore()
+    const listener = new ObserveListener(makeDeps(store, true))
+    // Exercise every projection face: text + file + image blocks, a
+    // deferLoading tool, and a system prompt (one-shot field stays unused on
+    // the loop chain but is hashed when present).
+    const messages = [
+      { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+      { role: 'user', content: [{ type: 'file', attachment: { attachmentId: 'att-1', name: 'a.sql', bytes: 10 } }] },
+      { role: 'user', content: [{ type: 'image', attachment: { attachmentId: 'att-2', name: 'pic.png', bytes: 20 } }] },
+    ]
+    const tools = [{ name: 't', description: 'd', parameters: {}, deferLoading: true }]
+    const options = deepFreeze(loopOptions({ messages, tools, system: 'sys prompt' }))
+    const before = structuredClone(options)
+    expect(Object.isFrozen(options)).toBe(true)
+    const marked = host.markAgentLoopRequest(options as never)
+    const chunks = [USAGE, FINISH_ERROR]
+    const { consumed } = await runStream(listener, marked, chunks)
+    expect(consumed).toEqual(chunks)
+    // The snapshot came from the OFFICIAL projector…
+    expect(store.snapshots).toHaveLength(1)
+    expect(store.snapshots[0]?.projector).toBe('official')
+    // …while the frozen request tree stayed byte-identical and the caller's
+    // references were never swapped (mutation AND identity pin).
+    expect(options).toEqual(before)
+    expect(Object.isFrozen(options.messages)).toBe(true)
+    expect(options.messages).toBe(messages)
+    expect(options.tools).toBe(tools)
+    // The failed attempt was captured while the request stayed untouched.
+    expect(store.captures).toHaveLength(1)
+  }, 20000)
 })
 
 /** Local fs/url helpers (spec-local; keeps the vitest import surface minimal). */

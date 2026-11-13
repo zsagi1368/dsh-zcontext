@@ -301,3 +301,97 @@ describe('tools: status token figures are estimates, not measurements', () => {
     expect(estimateTokens('abcd')).toBe(2)
   })
 })
+
+// ---------------------------------------------------------------------------
+// V3 observability rendering (task card product 4: zctx_status 三段升级).
+// ---------------------------------------------------------------------------
+
+describe('tools: zctx_status three-segment observability upgrade', () => {
+  function assistantPayload(turn: number, step: number, usage?: Record<string, number>) {
+    return {
+      turn,
+      step,
+      message: { role: 'assistant', content: [{ type: 'text', text: 'reply' }], source: { kind: 'model' } },
+      ...(usage !== undefined ? { usage } : {}),
+    }
+  }
+
+  function foldCommitPayload(foldId: string, before: number, after: number) {
+    return {
+      id: `ck-${foldId}`,
+      role: 'user',
+      content: [{ type: 'text', text: 'folded summary' }],
+      source: { kind: 'zctx-fold', foldId, tokensBefore: before, tokensAfter: after },
+    }
+  }
+
+  it('renders session summary, repay table with the repay event, recent folds, and the reset digest', async () => {
+    const { session } = seedConversation()
+    const runtime = testRuntime()
+    const store = runtime.storeFor(session)
+    const off = session.onAppend((event) => store.onEvent(session, event))
+    // Fold commit at seq 9 (over 1..2 — never the system head) + two requests.
+    session.append('user/message', foldCommitPayload('f1', 10000, 50), {
+      surfaceOp: { op: 'replace', startSeq: 1, endSeq: 2 },
+      sourceEventSeqs: [1, 2],
+    })
+    session.append('assistant/message', assistantPayload(1, 1, { inputTokens: 50, outputTokens: 5 }))
+    session.append('assistant/message', assistantPayload(1, 2, { inputTokens: 60, outputTokens: 5 }))
+    off()
+    const status = await renderStatus(runtime, session)
+    // Segment 1: session summary (folds / repaid / recovery / three-state).
+    expect(status).toContain('Observability (fold→usage attribution, three-state accounting):')
+    expect(status).toContain('session: 1 folds committed / repaid 1 / recovery 99.5%')
+    // Seed samples carry no turn envelope → honest estimated counts.
+    expect(status).toContain('three-state: measured 33.3% / semi 0.0% / estimated 66.7% of 6 requests')
+    // Segment 2: repay table — T = billedInput 50 → oneTime = 0.9·50+4·50−0.1·10000
+    //   = −1155 → max(0,·) = 0 → breakevenTurns 0 → repay event = the 1st post-fold message (seq 10).
+    expect(status).toContain('Repay table (VERIFY-C #15 price-weighted model over fold-account samples):')
+    expect(status).toContain('- f1: breakeven ≈ 0.0 turns [strong] — REPAY EVENT at assistant/message seq 10')
+    // Segment 3: recent folds with attribution quality.
+    expect(status).toContain('Recent folds (attribution quality):')
+    expect(status).toContain('[active] checkpoint seq 9: quality strong')
+    // Segment 4: reset digest (the fold's own merge-rewrite entry).
+    expect(status).toContain('Reset ledger digest (kind × count):')
+    expect(status).toContain('- merge-rewrite: 1')
+  })
+
+  it('withholds repay conclusions below the clean-sample floor (honest degradation, §Q7.3)', async () => {
+    const { session } = seedConversation()
+    const runtime = testRuntime()
+    const store = runtime.storeFor(session)
+    const off = session.onAppend((event) => store.onEvent(session, event))
+    session.append('user/message', foldCommitPayload('f1', 10000, 50), {
+      surfaceOp: { op: 'replace', startSeq: 1, endSeq: 2 },
+      sourceEventSeqs: [1, 2],
+    })
+    // A compaction bracket races the window → the only association is weak.
+    session.append('compaction/start', { turn: 1 })
+    session.append('assistant/message', assistantPayload(1, 1, { inputTokens: 50 }))
+    off()
+    const status = await renderStatus(runtime, session)
+    expect(status).toContain('attribution confidence insufficient (归因可信度不足): clean-sample 0.0% < floor 60.0%')
+    expect(status).toContain('session: 1 folds committed / repaid withheld')
+    // No repay conclusions anywhere.
+    expect(status).not.toContain('Repay table')
+    expect(status).not.toContain('REPAY EVENT')
+    // Facts still render: recent folds (weak quality) + reset digest.
+    expect(status).toContain('quality weak')
+    expect(status).toContain('Reset ledger digest (kind × count):')
+    expect(status).toContain('- merge-rewrite: 1')
+    expect(status).toContain('- compaction: 1')
+  })
+
+  it('renders the no-samples and empty-ledger shapes honestly', async () => {
+    const session = new MockSession()
+    const runtime = testRuntime()
+    const status = await renderStatus(runtime, session)
+    expect(status).toContain('three-state: no assistant requests observed yet')
+    expect(status).toContain('session: 0 folds committed / repaid 0 / recovery n/a')
+    expect(status).toContain('(no fold-account sample yet: no strong/retry-attributed request after a fold)')
+    expect(status).toContain('(no folds committed yet)')
+    expect(status).toContain('(no cache resets recorded)')
+    // An empty ledger has no evidence to judge — no confidence verdict.
+    expect(status).not.toContain('attribution confidence insufficient')
+  })
+})
