@@ -2,7 +2,7 @@
 
 Model-driven incremental context folding for the [DeepSeek Harness](https://github.com/deepseek-ai) — the model folds finished stretches of a conversation into short summaries it writes itself, keeping the working window small over very long sessions, through the official surface-replace channel only.
 
-- **What it is** — a third-party plugin package (`dsh-zcontext`) for the official DeepSeek Harness: four tools (`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`), one static guidance section, one pressure nudge, one `/zctx` command, and a nine-field settings page. No host patches, no forks, no wire rewriting.
+- **What it is** — a third-party plugin package (`dsh-zcontext`) for the official DeepSeek Harness: four tools (`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`), one static guidance section, one pressure nudge, one `/zctx` command, an always-on observability ledger, an opt-in-able preflight gate, and an opt-in zctx router for your own providers — all surfaced through one settings page (nine primitive fields plus the v0.2.0 sections below). No host patches, no forks; the only wire-facing face is the declared S2 router, which never rewrites a request body.
 - **Why it exists** — the official harness ships compaction-basic, which summarizes the whole window under pressure; it has no model-driven incremental folding. The [billion-context](https://github.com/ranxianglei/billion-context) research demonstrated the mechanism (model writes summaries, model picks ranges, cache-aware nudges, sessions run long with low window occupancy). This plugin reimplements that capability through the official plugin surface — the same mechanism, the harness's own proper channel.
 
   <a id="clean-room"></a>
@@ -15,6 +15,9 @@ Model-driven incremental context folding for the [DeepSeek Harness](https://gith
 - [The four tools](#the-four-tools)
 - [The /zctx command](#the-zctx-command)
 - [Relation to official compaction](#relation-to-official-compaction)
+- [Observability ledger (installed = recording)](#observability-ledger)
+- [Preflight (S1): judge the window before the wire](#preflight-s1)
+- [zctx router (S2): bring-your-own providers, honestly](#zctx-router)
 - [Settings](#settings)
 - [Behavior notes](#behavior-notes)
 - [Limitations](#limitations)
@@ -31,7 +34,7 @@ Folding replaces a span of earlier turns on the session surface with one short s
 2. **Nudge** — a runtime context fires when occupancy crosses 25/50/75/90% of the window (configurable). It contributes text only on a threshold crossing; between crossings it adds nothing to the wire (crossing-counted cache re-payment, not free).
 3. **Fold** — the model calls `zctx_fold` with ranges + summaries. A conservative validator enforces: protected recent tail, first user message pinned, system head untouched, tool calls folded together with their results, net-shrink gate, atomic batch (any invalid range rejects the whole batch), no overlap with an active compaction.
 4. **Ledger** — each fold commits a checkpoint event whose `message.source` carries `kind: 'zctx-fold'` (or `'zctx-unfold'`). There is **zero independent storage**: the fold ledger is rebuilt by scanning the session log, so resume and fork just work, and the original events stay in the log forever.
-5. **Status** — `zctx_status` is the trusted ledger: window occupancy vs the fold trigger line, budget breakdown (CCM v2.3 formulas), foldable ranges with PROTECTED marks, active folds, anomalies, and cache usage (measured or estimated, labeled honestly).
+5. **Status** — `zctx_status` is the trusted ledger: window occupancy vs the fold trigger line, budget breakdown (CCM v2.3 formulas), foldable ranges with PROTECTED marks, active folds, anomalies, and cache usage (measured or estimated, labeled honestly). In v0.2.0 it renders the observability ledger in three segments (session summary, repay table behind the clean-sample gate, recent folds with attribution quality + reset digest).
 
 Cache economics are accounted, not hand-waved: the four tool schemas plus the guidance section are a fixed wire overhead; each fold or nudge crossing re-pays a prefix rebuild from the cache anchor. `zctx_status` shows the breakeven split between measured (provider-reported cache read/write) and estimated values.
 
@@ -42,7 +45,7 @@ Cache economics are accounted, not hand-waved: the four tool schemas plus the gu
 dsh plugin add github:zsagi1368/dsh-zcontext
 ```
 
-Requirements: the DeepSeek Harness with plugin support, Node.js >= 22.13. The built artifact ships in the repository (`lib/`), so a git-form install never runs a build step and never asks for pnpm build approvals (`allowBuilds`). The only peer dependency is `@deepseek-ai/cordis` (optional, resolved from the host). After installing, the plugin appears in the settings page under its own section (static `Config` schema, nine fields below), and `/zctx` becomes available in sessions.
+Requirements: the DeepSeek Harness with plugin support, Node.js >= 22.13. The built artifact ships in the repository (`lib/`), so a git-form install never runs a build step and never asks for pnpm build approvals (`allowBuilds`). The only peer dependency is `@deepseek-ai/cordis` (optional, resolved from the host). After installing, the plugin appears in the settings page under its own section (static `Config` schema, the fields below), and `/zctx` becomes available in sessions. The observability ledger starts recording immediately; folding needs nothing else.
 
 <a id="the-four-tools"></a>
 ## The four tools
@@ -102,10 +105,47 @@ The same engine, driven from the chat input:
 
 **Coexistence, never interception.** The official `compaction-basic` is never disabled, blocked, or delayed by this plugin. It remains the unconditional hard floor: if the model never folds (tool adoption is the model's choice), compaction still summarizes under pressure exactly as upstream designed. When an official compaction is actively running, a concurrent fold commit is rejected cleanly and retried later. Folding earlier and smaller is the intended division of labor — proactive folds keep the window small so the hard floor rarely has to fire.
 
+<a id="observability-ledger"></a>
+## Observability ledger (installed = recording)
+
+The ledger starts recording the moment the plugin is installed — no opt-in needed (`observe.enabled: true` by default; see it through `zctx_status`). A strictly read-only `llm/stream` listener watches every attempt and keeps, in process memory:
+
+- **Request snapshots with normalized prefix hashes** — per-attempt views of what the wire actually saw, each row labeled with its projector provenance (the official projection exports when the host is present, a labeled local fallback otherwise).
+- **A reset-event ledger** — model change, sampling change, toolset change, system-section change, compaction, session recovery, series restart, merge rewrites: every "the context changed under us" event that explains a cache re-payment.
+- **Three-state usage accounting** — `measured` (provider-reported), `semi` (honestly upgraded: interpolated from a same-turn anchor, or meter-anchored), `estimated` (never guessed; a field that was absent stays absent).
+- **Fold→usage attribution** — seq-order primary key with a time-window fallback, strong/retry/weak grades, and eight documented noise dispositions (multi-step after folds, retries, interrupts, one-shots, and friends).
+
+`zctx_status` renders the whole ledger in three segments: the session summary, the repay table (behind the clean-sample gate — when the pure-sample ratio falls below `cleanSampleFloor` the status says attribution confidence is insufficient instead of showing numbers), and recent folds with their attribution quality plus the reset digest.
+
+Dual-domain honesty: harness-domain rows cover every watched session; wire-domain byte hashes exist only for sessions the zctx router drove (below).
+
+<a id="preflight-s1"></a>
+## Preflight (S1): judge the window before the wire
+
+`preflightMode: 'off' | 'observe' | 'enforce'` — **default `'observe'`**.
+
+- **observe (default)** — a second read-only listener estimates each request's context before the wire (the official projection exports when the host is present, labeled fallback twins otherwise; kept images priced via the adapter's `imageRequestPricing` or a declared constant reserve) and records estimate-vs-real-usage into a calibration ledger that `zctx_status` renders as error statistics. Nothing is ever short-circuited in this mode.
+- **enforce (explicit opt-in)** — a hit (estimate > trigger line × `preflightMarginRatio`) short-circuits the stream with exactly one terminal `finish{kind:'error', failure:{code:'CONTEXT_WINDOW_EXCEEDED'}}` chunk — the official sanctioned short-circuit — saving the doomed wire request; the official compaction overflow recovery chain owns everything after. One-shot requests (compaction, session title) are never judged, so the recovery's own calls can never be short-circuited.
+- **off** — the listener does not register.
+
+enforce stays opt-in until three migration conditions hold: the estimator's error distribution is calibrated on real machines, the false-positive cost (one unnecessary compaction surface rewrite per wrong hit) is consciously accepted, and observed hits reconcile with real provider overflows. Until then the estimator thresholds are declared calibration debt (see [Limitations](#limitations)).
+
+<a id="zctx-router"></a>
+## zctx router (S2): bring-your-own providers, honestly
+
+The one place v0.2.0 touches the wire — as a declared exception, not a takeover: a thin adapter that lets the harness drive **your own** OpenAI-/Anthropic-compatible endpoints through the official configurable-provider surface. The official routes are never replaced, and the adapter **never rewrites a request body** (the zero-mutation redline is pinned by tests).
+
+- **family IS the protocol.** Each declared provider becomes the route `zctx-<family>`, where `family` is a wire protocol name from the official `supportedProtocols()` union (`openai-completions` | `openai-responses` | `anthropic-messages`, loaded dynamically from the host with a labeled builtin fallback). Zero invented protocol mapping; an unknown family is refused at construction with the complete violation list.
+- **Configuration shape.** The structured `providers[]` settings section is the config authority, written by hand through a profile overlay patch. The Models page mounts the plugin's namespace and shows each route's row, credential badge, and error field — but page **editing is not available** for a third-party namespace (probe-tested; honest ceiling): the page is visibility-only.
+- **Every model declares its capacities.** `contextWindow` and `maxTokens` are REQUIRED positive integers per model — a missing value is a construction violation, never an invented default (official catalog semantics).
+- **Cache knobs.** `cacheRetention` (`'none' | 'short' | 'long'`) passes through to pi-ai's own precedence (explicit value > env > default `'short'`; `'none'` disables cache markers); `cacheControlFormat: 'anthropic'` materializes cache-control markers — only on the `openai-completions` family, refused anywhere else as dead config.
+- **Redlines honored.** `maxRetries: 0` (the agent recovery layer owns retries), attribution headers ride every request including one-shots, HTTP(SSE) protocols only (no WebSocket transport), text-only — image/file content blocks are refused before the wire.
+- **Wire ledger coverage.** Only sessions the router actually drives get wire-domain byte-hash rows; everything else stays harness-domain only, and every row carries its `domain` label.
+
 <a id="settings"></a>
 ## Settings
 
-Nine primitive fields; the static `Config` schema generates the settings page automatically.
+Nine primitive fields plus the v0.2.0 sections (observe switches, preflight, and the S2 providers declaration); the static `Config` schema generates the settings page automatically.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
@@ -118,6 +158,18 @@ Nine primitive fields; the static `Config` schema generates the settings page au
 | `summaryFloorChars` | number | `50` | Shortest acceptable summary text in characters. |
 | `summaryCeilingChars` | number | `20000` | Longest acceptable summary text in characters. |
 | `netShrinkTolerance` | number | `1.05` | A fold must shrink the ledger by at least `1/netShrinkTolerance`. |
+
+The v0.2.0 sections ride the same schema:
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `attributionTimeWindowMs` | number | `90000` | Attribution time-window fallback (uncalibrated — see [Limitations](#limitations)). |
+| `cleanSampleFloor` | number | `0.6` | Below this pure-sample ratio, `zctx_status` reports insufficient attribution confidence instead of a repay table. |
+| `observe.enabled` | boolean | `true` | Master switch of the observability ledger (installed = recording). |
+| `observe.attemptCapture` | boolean | `false` | Also record failed attempts' usage (non-durable, process memory only). |
+| `preflightMode` | string | `"observe"` | `'off' \| 'observe' \| 'enforce'` — see [Preflight (S1)](#preflight-s1). |
+| `preflightMarginRatio` | number | `0.9` | Preflight hit margin (uncalibrated — see [Limitations](#limitations)). |
+| `providers` | provider[] | `[]` | S2 router declarations (see [zctx router](#zctx-router)); zero routes = the adapter face stays a legal keep-alive. Configured through a profile overlay patch. |
 
 Independent of these settings, the whole automatic face (nudge + engine gate) stays off below a context window of 32768 tokens — the estimation formulas' legal domain. Tools remain usable; status renders an explicit note.
 
@@ -139,6 +191,8 @@ Three behaviors that are deliberate, not bugs:
 - **No wire-level fallback.** Folding rides the official surface replace channel only. There is no request rewriting, no fetch proxy, no prompt-level truncation fallback; if the channel is unavailable, the plugin does not degrade to hacky alternatives.
 - **Cross-checkpoint absorption is boundary-aligned.** A fold window may absorb an earlier fold's checkpoint only when the window is exactly `[checkpoint, checkpoint]`; wider spans across a checkpoint are rejected with an explicit reason.
 - **Single-session scope.** `zctx_recall` and the ledger are per-session; no cross-session retrieval.
+- **Estimator thresholds are uncalibrated.** `attributionTimeWindowMs=90000`, `cleanSampleFloor=0.6`, and `preflightMarginRatio=0.9` are designed defaults awaiting real-machine calibration; the chars/3 estimator's underestimate risk on dense CJK text is the known hazard. `zctx_status` renders the calibration statistics that will justify adjusting them — until then, `preflightMode: 'enforce'` is opt-in advanced usage only.
+- **The wire-domain ledger sees only zctx-routed sessions, and object-level hashes are blind below the harness boundary.** Harness-domain normalized prefix hashes see harness events only — whatever pi-ai or the transport stack does below that boundary (serialization, provider-specific framing) is invisible to them; the wire-domain byte hashes see the real bytes but only where the S2 router drove the request. This is the honest ceiling of v0.2.0's observability, declared rather than papered over.
 
 <a id="security"></a>
 ## Security
@@ -166,13 +220,13 @@ All implementation, wording, tests, and documentation in this repository are ori
 pnpm install
 pnpm build          # tsdown → lib/ (committed artifact, byte-pinned in CI probes)
 pnpm lint           # tsc --noEmit, zero errors expected
-pnpm test           # vitest suite (193 tests), incl. real official-session pins
+pnpm test           # vitest suite (424 tests), incl. real official-session pins
 ```
 
 Repository-internal verification probes:
 
 ```sh
-node scripts/probe-artifact.mjs             # 5 probe groups against the built lib
-node scripts/verify-activation-surface.mjs  # A4 activation-surface assertions (8 groups)
-node scripts/smoke-real-loader.mjs          # A6 real-machine smoke (skips parts when zDSH-main is absent)
+node scripts/probe-artifact.mjs             # 6 probe groups against the built lib
+node scripts/verify-activation-surface.mjs  # activation-surface assertions (10 groups)
+node scripts/smoke-real-loader.mjs          # real-machine smoke (3 probes; skips parts when zDSH-main is absent)
 ```

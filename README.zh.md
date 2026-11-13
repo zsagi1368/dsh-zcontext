@@ -2,7 +2,7 @@
 
 [DeepSeek Harness](https://github.com/deepseek-ai) 的模型驱动增量上下文折叠插件——把对话里已经收尾的段落折叠成模型自己撰写的短摘要，让超长会话的工作窗口始终保持在低位。全部折叠都走官方 surface replace 通道，不改底座、不改请求、不改线缆。
 
-- **这是什么**——官方 DeepSeek Harness 的第三方插件包（`dsh-zcontext`）：四个工具（`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`）、一段静态指导、一条压力提醒（nudge）、一个 `/zctx` 命令、一张九字段设置页。不 patch 宿主，不 fork，不在请求层做任何手脚。
+- **这是什么**——官方 DeepSeek Harness 的第三方插件包（`dsh-zcontext`）：四个工具（`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`）、一段静态指导、一条压力提醒（nudge）、一个 `/zctx` 命令、一本装上即记的观测账本、一道可开启的 preflight 预检门、一个接入自有供应商的 zctx 路由（opt-in）——全部经同一张设置页呈现（九个原始字段加下方 v0.2.0 各段）。不 patch 宿主，不 fork；唯一面向线缆的面是显式声明的 S2 路由，且它绝不改写请求体。
 - **为什么做它**——官方自带的 compaction-basic 只做「窗口压力触发时的全量摘要」，没有模型驱动的增量折叠。[billion-context](https://github.com/ranxianglei/billion-context) 研究证明了这套机制的可行性（模型自己写摘要、自己选区间、缓存感知的 nudge，长会话窗口占用保持低位）。本插件把这套能力装进官方插件面——同样的机制，走宿主自己的正道。
 
   <a id="clean-room"></a>
@@ -15,6 +15,9 @@
 - [四个工具](#the-four-tools)
 - [/zctx 命令](#the-zctx-command)
 - [与官方 compaction 的关系](#relation-to-official-compaction)
+- [观测账本（装上即开始记）](#observability-ledger)
+- [Preflight 预检（S1）：上线缆之前先判窗口](#preflight-s1)
+- [zctx 路由（S2）：接入自有供应商，且诚实](#zctx-router)
 - [设置项](#settings)
 - [行为说明](#behavior-notes)
 - [限制](#limitations)
@@ -31,7 +34,7 @@
 2. **Nudge**——占用率跨越窗口的 25/50/75/90%（可配置）时触发的运行时上下文。只在跨越发生时贡献文本；两次跨越之间对线缆零贡献（跨越计次的缓存重付，不是免费）。
 3. **折叠**——模型调用 `zctx_fold` 提交区间与摘要。保守验证器把关：保护区（最近尾部）、第一条 user 消息永久钉死、system head 不碰、tool 调用与结果必须同窗折叠、净缩门、原子批次（任一区间非法则整批拒收）、与活跃 compaction 互斥。
 4. **台账**——每次折叠提交一个 checkpoint 事件，其 `message.source` 带 `kind: 'zctx-fold'`（或 `'zctx-unfold'`）。**零独立存储**：折叠台账靠扫描会话日志重建，恢复会话、分叉会话都天然成立，原始事件永久留在日志里。
-5. **Status**——`zctx_status` 是唯一可信台账：窗口占用对触发线、预算分解（CCM v2.3 公式）、可折叠区间图（PROTECTED 标注）、活跃折叠、异常记录、缓存用量（实测或估算，如实标注）。
+5. **Status**——`zctx_status` 是唯一可信台账：窗口占用对触发线、预算分解（CCM v2.3 公式）、可折叠区间图（PROTECTED 标注）、活跃折叠、异常记录、缓存用量（实测或估算，如实标注）。v0.2.0 起它按三段渲染观测账本（会话摘要、纯净样本门后的回本表、带归因质量的近期折叠 + 重置台账摘要）。
 
 缓存经济学是记账出来的，不是口号：四个工具 schema 加指导段是固定线缆开销；每次折叠或 nudge 跨越都要从缓存锚点起重付一次前缀重建。`zctx_status` 展示实测（供应商上报的 cache read/write）与估算两种口径的分账。
 
@@ -42,7 +45,7 @@
 dsh plugin add github:zsagi1368/dsh-zcontext
 ```
 
-环境要求：支持插件的 DeepSeek Harness，Node.js >= 22.13。构建产物随仓库发布（`lib/` 已入库），git 形态安装不触发任何构建步骤，也不会向 pnpm 请求构建审批（`allowBuilds`）。唯一 peer 依赖是 `@deepseek-ai/cordis`（optional，由宿主提供）。装好后设置页会出现本插件的专属段（static `Config` schema，九字段见下），会话里可用 `/zctx`。
+环境要求：支持插件的 DeepSeek Harness，Node.js >= 22.13。构建产物随仓库发布（`lib/` 已入库），git 形态安装不触发任何构建步骤，也不会向 pnpm 请求构建审批（`allowBuilds`）。唯一 peer 依赖是 `@deepseek-ai/cordis`（optional，由宿主提供）。装好后设置页会出现本插件的专属段（static `Config` schema，字段见下），会话里可用 `/zctx`。观测账本装上即开始记录；折叠无需任何额外配置。
 
 <a id="the-four-tools"></a>
 ## 四个工具
@@ -102,10 +105,47 @@ dsh plugin add github:zsagi1368/dsh-zcontext
 
 **共存，绝不拦截。** 本插件从不停用、阻塞或延后官方 `compaction-basic`。它是无条件的硬底：就算模型一次都不折叠（用不用工具是模型的选择），窗口压力到点时 compaction 仍会照上游原设计做全量摘要。官方 compaction 活跃期间，并发的折叠提交会被干净地拒收、稍后重试。设计上的分工是：更早、更小的主动折叠把窗口压低，让硬底尽量少触发。
 
+<a id="observability-ledger"></a>
+## 观测账本（装上即开始记）
+
+账本在插件装上的那一刻就开始记录——不需要任何 opt-in（`observe.enabled: true` 默认开启；通过 `zctx_status` 查看）。一条严格只读的 `llm/stream` 监听器旁听每一次尝试，把以下内容记进进程内存：
+
+- **带归一化前缀哈希的请求快照**——线缆实际所见内容的逐次尝试视图，每行标注投影器来源（宿主在位时用官方投影导出，缺席时用如实标注的本地兜底）。
+- **重置事件台账**——模型变更、采样变更、工具集变更、system 段变更、compaction、会话恢复、series 重启、合并改写：每一件「上下文在我们脚下变了」的事件，都是一次缓存重付的解释。
+- **三态用量记账**——`measured`（供应商上报）、`semi`（诚实升格：同轮锚点插值或仪表锚定）、`estimated`（绝不猜数；缺席的字段保持缺席）。
+- **折叠→用量归因**——seq 序主键 + 时间窗兜底，strong/retry/weak 三级质量，八项成文噪声处置（折叠后多步、重试、中断、一次性调用等）。
+
+`zctx_status` 按三段渲染整本账：会话摘要、回本表（纯净样本门后——纯净占比跌破 `cleanSampleFloor` 时，status 明说「归因可信度不足」而不是硬给数字）、带归因质量的近期折叠加重置台账摘要。
+
+双域诚实：harness 域行覆盖每一个被监视会话；wire 域字节哈希只存在于 zctx 路由实际驱动的会话（见下）。
+
+<a id="preflight-s1"></a>
+## Preflight 预检（S1）：上线缆之前先判窗口
+
+`preflightMode: 'off' | 'observe' | 'enforce'`——**默认 `'observe'`**。
+
+- **observe（默认）**——第二条只读监听器在线缆之前估算每个请求的上下文（宿主在位时用官方投影导出，缺席时用如实标注的兜底孪生；保留的图片按 adapter 的 `imageRequestPricing` 定价或用声明的常数储备），并把「估算 vs 真实用量」记入校准台账，由 `zctx_status` 渲染误差统计。此模式下绝不短路。
+- **enforce（显式 opt-in）**——命中（估算 > 触发线 × `preflightMarginRatio`）时以恰好一个终态 `finish{kind:'error', failure:{code:'CONTEXT_WINDOW_EXCEEDED'}}` chunk 短路本次流——官方认可的短路形态——省下这单注定失败的线缆请求；其后的全部救援由官方 compaction 溢出恢复链接管。一次性请求（compaction、会话标题）永不参与判罚，恢复链自己的调用不可能被自己短路。
+- **off**——该监听器不注册。
+
+enforce 在三个迁移条件全部成立之前保持 opt-in：估算器误差分布经真机标定、误报代价（每次误判多付一次 compaction 表面改写）被有意识地接受、observe 期记录的命中与真实供应商溢出对得上账。在那之前，估算器阈值是声明的标定欠账（见[限制](#limitations)）。
+
+<a id="zctx-router"></a>
+## zctx 路由（S2）：接入自有供应商，且诚实
+
+v0.2.0 唯一触碰线缆的地方——作为显式声明的例外，不是接管：一个薄 adapter，让 harness 经官方可配置供应商面驱动**你自己的** OpenAI/Anthropic 兼容端点。官方路由永不被替换，adapter **绝不改写请求体**（零改写红线有测试钉死）。
+
+- **family 就是协议名。** 每个声明的供应商成为路由 `zctx-<family>`，其中 `family` 直接取官方 `supportedProtocols()` union 的线缆协议名（`openai-completions` | `openai-responses` | `anthropic-messages`，从宿主动态加载，带如实标注的内置兜底）。零发明映射；未知 family 在构造期被拒收并附完整违规清单。
+- **配置形态。** 结构化 `providers[]` 设置段是配置权威，经 profile overlay patch 手写。Models 页会挂载本插件命名空间、显示每条路由的行、凭据徽标与错误字段——但第三方命名空间**没有页面编辑能力**（探针实测；诚实天花板）：页面仅可见。
+- **每个模型声明自己的容量。** `contextWindow` 与 `maxTokens` 是每个模型的必填正整数——缺值即构造期违规，绝不发明默认值（官方 catalog 语义）。
+- **缓存旋钮。** `cacheRetention`（`'none' | 'short' | 'long'`）直通 pi-ai 自身的优先级（显式值 > 环境变量 > 默认 `'short'`；`'none'` 关闭缓存标记）；`cacheControlFormat: 'anthropic'` 物化 cache-control 标记——仅在 `openai-completions` 族有意义，其他族构造成拒收（死配置不诚实携带）。
+- **红线全守。** `maxRetries: 0`（重试归 agent 恢复层独占）、归因头随每一次请求上行（含一次性调用）、仅 HTTP(SSE) 协议（无 WebSocket 传输）、纯文本——image/file 内容块在线缆之前被拒收。
+- **wire 账本覆盖。** 只有路由实际驱动的会话才有 wire 域字节哈希行；其余会话保持 harness 域，每行携带自己的 `domain` 标注。
+
 <a id="settings"></a>
 ## 设置项
 
-九个原始类型字段；static `Config` schema 自动生成设置页。
+九个原始类型字段加 v0.2.0 各段（observe 开关、preflight、S2 providers 声明）；static `Config` schema 自动生成设置页。
 
 | 字段 | 类型 | 默认值 | 含义 |
 |---|---|---|---|
@@ -118,6 +158,18 @@ dsh plugin add github:zsagi1368/dsh-zcontext
 | `summaryFloorChars` | number | `50` | 摘要文本的最短字符数。 |
 | `summaryCeilingChars` | number | `20000` | 摘要文本的最长字符数。 |
 | `netShrinkTolerance` | number | `1.05` | 折叠必须至少把台账缩到 `1/netShrinkTolerance`。 |
+
+v0.2.0 各段共用同一 schema：
+
+| 字段 | 类型 | 默认值 | 含义 |
+|---|---|---|---|
+| `attributionTimeWindowMs` | number | `90000` | 归因时间窗兜底（未标定——见[限制](#limitations)）。 |
+| `cleanSampleFloor` | number | `0.6` | 纯净占比低于该值时，`zctx_status` 报告「归因可信度不足」而不是渲染回本表。 |
+| `observe.enabled` | boolean | `true` | 观测账本总开关（装上即开始记）。 |
+| `observe.attemptCapture` | boolean | `false` | 同时记录失败尝试的用量（非持久，仅进程内存）。 |
+| `preflightMode` | string | `"observe"` | `'off' \| 'observe' \| 'enforce'`——见 [Preflight 预检（S1）](#preflight-s1)。 |
+| `preflightMarginRatio` | number | `0.9` | Preflight 命中裕度（未标定——见[限制](#limitations)）。 |
+| `providers` | provider[] | `[]` | S2 路由声明（见 [zctx 路由](#zctx-router)）；零路由 = adapter 面保持合法 keep-alive。经 profile overlay patch 配置。 |
 
 与设置项无关的一条独立约束：上下文窗口低于 32768 token 时，整个自动面（nudge + 引擎门）保持关闭——这是估算公式的法定域。工具仍可用；status 会渲染明确的说明行。
 
@@ -139,6 +191,8 @@ dsh plugin add github:zsagi1368/dsh-zcontext
 - **没有线缆级兜底。** 折叠只走官方 surface replace 通道。没有请求改写、没有 fetch 代理、没有提示词级截断兜底；通道不可用时，本插件不会退化成 hack 方案。
 - **跨 checkpoint 吸收要求边界对齐。** 折叠窗口吸收更早折叠的 checkpoint 时，窗口必须恰为 `[checkpoint, checkpoint]`；更宽的跨 checkpoint 窗口会被以明确理由拒收。
 - **单会话范围。** `zctx_recall` 与台账都是每会话独立的；不做跨会话检索。
+- **估算器阈值未标定。** `attributionTimeWindowMs=90000`、`cleanSampleFloor=0.6`、`preflightMarginRatio=0.9` 是设计默认值，待真机标定；chars/3 估算器对高密度 CJK 的低估风险是已知隐患。`zctx_status` 会渲染校准统计，作为日后调整的依据——在此之前，`preflightMode: 'enforce'` 仅作 opt-in 高级用法。
+- **wire 域账本只覆盖 zctx 路由会话，且对象级哈希对 harness 边界之下全盲。** harness 域归一化前缀哈希只看得到 harness 事件——pi-ai 或传输栈在该边界之下做的一切（序列化、供应商特有封帧）对它们不可见；wire 域字节哈希看得到真实字节，但只存在于 S2 路由驱动的请求上。这是 v0.2.0 观测能力的诚实天花板，是声明出来的，不是糊过去的。
 
 <a id="security"></a>
 ## 安全
@@ -166,13 +220,13 @@ dsh plugin add github:zsagi1368/dsh-zcontext
 pnpm install
 pnpm build          # tsdown → lib/（产物入库，探针按字节锁定）
 pnpm lint           # tsc --noEmit，预期零错
-pnpm test           # vitest 全套（193 例），含真实官方 session 钉
+pnpm test           # vitest 全套（424 例），含真实官方 session 钉
 ```
 
 仓内验证探针：
 
 ```sh
-node scripts/probe-artifact.mjs             # 对构建产物跑 5 组探针
-node scripts/verify-activation-surface.mjs  # A4 激活面断言（8 组）
-node scripts/smoke-real-loader.mjs          # A6 真机冒烟（zDSH-main 缺席时相应部分 SKIP）
+node scripts/probe-artifact.mjs             # 对构建产物跑 6 组探针
+node scripts/verify-activation-surface.mjs  # 激活面断言（10 组）
+node scripts/smoke-real-loader.mjs          # 真机冒烟（3 条；zDSH-main 缺席时相应部分 SKIP）
 ```
