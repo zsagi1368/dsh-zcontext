@@ -18,6 +18,11 @@
  *     survives the official suppressRuntimeContext filter that drops
  *     non-required contributions, system-prompt/src/index.ts:627-628)
  *   - `commands.register`   → the `/zctx` command
+ *   - `llm/stream`          → the read-only cache-observe listener (v0.2.0
+ *     V2, RES-observe-route a.2/a.3): per-attempt request snapshots +
+ *     prefix-break classification land in the per-session store's
+ *     process-memory ledgers; attemptCapture is opt-in (`observe.attemptCapture`).
+ *     Strictly observational — never short-circuits (the V4 preflight boundary).
  *
  * The nudge context provider is a PURE function of (pressure, budget,
  * ranges): it contributes '' (nothing on the wire) unless a threshold was
@@ -45,6 +50,8 @@ import type { ConfigSchemaLike, ZcontextConfig } from './config.ts'
 import { CCM_MIN_CONTEXT_WINDOW, foldableRanges } from './fold-engine.ts'
 import { buildGuidanceSection } from './guidance.ts'
 import { nudgeContextText } from './nudge.ts'
+import { ObserveListener } from './observe.ts'
+import type { ObserveStoreAccess } from './observe.ts'
 import { FoldStore } from './store.ts'
 import {
   buildZctxTools,
@@ -187,6 +194,8 @@ export class ZcontextPlugin extends ServiceBase {
   private readonly lastPressure = new WeakMap<object, number>()
   private readonly liveSessions = new Set<object>()
   private readonly runtime: ZctxToolRuntime
+  /** The observe face's listener; undefined when the face is off (config or capability). */
+  private observe: ObserveListener | undefined
   private warnedWindowFailure = false
 
   constructor(ctx: HostContextLike, config: Partial<ZcontextConfig> = {}) {
@@ -210,6 +219,7 @@ export class ZcontextPlugin extends ServiceBase {
     this.wireGuidanceFace()
     this.wireNudgeFace()
     this.wireCommandFace()
+    this.wireObserveFace()
   }
 
   // -- face wiring -----------------------------------------------------------
@@ -227,6 +237,11 @@ export class ZcontextPlugin extends ServiceBase {
     })
     ctx.on('session/disposed', (session: unknown) => {
       this.liveSessions.delete(session as object)
+      // The observe listener keeps per-session state keyed by session ID
+      // (process memory); a disposed session's entry must not leak past the
+      // session's lifetime (its store dies with the WeakMap key anyway).
+      const id = (session as { id?: unknown }).id
+      if (typeof id === 'string') this.observe?.forgetSession(id)
     })
     ctx.on('session/event', (session: unknown, event: unknown) => {
       const s = session as SessionLike
@@ -287,6 +302,70 @@ export class ZcontextPlugin extends ServiceBase {
       return
     }
     ctx.commands.register(buildZctxCommand(this.runtime))
+  }
+
+  /**
+   * The llm/stream observe face (v0.2.0 V2): a strictly read-only waterfall
+   * listener whose per-attempt request snapshots + prefix-break records land
+   * in the per-session store's process-memory ledgers (the store's
+   * absorbRequestSnapshot / absorbCapturedAttemptUsage receive ports).
+   *
+   * Same capability-probe discipline as the five faces above: a deliberate
+   * config switch logs info, a missing capability logs warn, and neither
+   * ever breaks boot. The face needs BOTH the event bus (the registration
+   * surface — official hosts register via `ctx.on('llm/stream', …)`, see the
+   * llm Events declaration at llm/src/index.ts:76-78) AND the llm runtime
+   * (the waterfall owner: without it no `llm/stream` event ever fires).
+   * @internal
+   */
+  private wireObserveFace(): void {
+    const { ctx } = this
+    if (!this.config['observe.enabled']) {
+      ctx.logger?.info?.('dsh-zcontext: observe face disabled by config (observe.enabled=false)')
+      return
+    }
+    if (typeof ctx.on !== 'function') {
+      ctx.logger?.warn?.('dsh-zcontext: ctx.on unavailable — observe face skipped (no bus to register the llm/stream listener on)')
+      return
+    }
+    if (ctx.llm === undefined) {
+      ctx.logger?.warn?.('dsh-zcontext: llm service unavailable — observe face skipped (cache observation rides the llm/stream waterfall)')
+      return
+    }
+    const llm = ctx.llm
+    const listener = new ObserveListener({
+      resolveSession: (sessionId) => this.resolveWatchedSession(sessionId),
+      // The per-session store registry is the single store authority: a
+      // watched session's store is created lazily (the attach scan rebuilds
+      // the header chain + reset ledger from history), so the snapshot and
+      // exemption-window semantics hold from the FIRST observed request.
+      storeFor: (session): ObserveStoreAccess | undefined => this.storeFor(session as SessionLike),
+      // Official ModelInfo (modalities / toolUpdate capability) passes
+      // through for the projection gating; failures degrade inside the
+      // listener (cached undefined, warn-once sink discipline).
+      resolveModelInfo: async (provider, model) => llm.resolveModelInfo(provider, model),
+      logger: ctx.logger,
+      attemptCapture: this.config['observe.attemptCapture'],
+    })
+    this.observe = listener
+    ctx.on('llm/stream', listener.onStream)
+  }
+
+  /**
+   * The observe listener's watched-session resolution (criterion 3): a
+   * session ID maps to its live session object when the plugin saw the
+   * session through the feed (official Session carries `id: SessionId`,
+   * core/session/src/index.ts:420, and the agent loop fills
+   * GenerateOptions.sessionId from it — agent-loop/src/agent.ts:718).
+   * Unseen/disposed IDs resolve undefined → not watched.
+   * @internal
+   */
+  private resolveWatchedSession(sessionId: string): SessionLike | undefined {
+    for (const session of this.liveSessions) {
+      const id = (session as { id?: unknown }).id
+      if (typeof id === 'string' && id === sessionId) return session as SessionLike
+    }
+    return undefined
   }
 
   // -- runtime internals -----------------------------------------------------

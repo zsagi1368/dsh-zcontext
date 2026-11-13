@@ -356,6 +356,16 @@ export class ObserveListener {
     return state
   }
 
+  /**
+   * Drop one session's listener state (the plugin wires this to the
+   * session/disposed feed): the state is process memory keyed by session ID
+   * and must not outlive the session it belongs to. The session's own store
+   * dies with the host reference; this map is the only cross-session holder.
+   */
+  forgetSession(sessionId: string): void {
+    this.stateBySession.delete(sessionId)
+  }
+
   /** Fail-soft sink invocation: a store fault warns once and never breaks the stream. @internal */
   private sink(write: () => void): void {
     try {

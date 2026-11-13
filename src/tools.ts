@@ -342,11 +342,18 @@ export interface TokenMeterLike {
 
 /** Structural llm runtime subset used by the status/window resolution. */
 export interface LlmRuntimeLike {
-  resolveModelInfo(
-    provider: string,
-    model: string,
-    signal?: AbortSignal,
-  ): Promise<{ context?: { contextWindow?: number }; defaultMaxTokens?: number }>
+  resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<{
+    context?: { contextWindow?: number }
+    defaultMaxTokens?: number
+    /**
+     * Official ModelInfo pass-through (llm/src/index.ts:180) consumed by the
+     * observe listener's projection gating (v0.2.0 V2); undefined = unknown
+     * modalities → image projection honestly skipped.
+     */
+    inputModalities?: readonly string[]
+    /** Official ModelInfo pass-through (llm/src/index.ts:184); undefined = unsupported route. */
+    toolUpdate?: 'in-history' | 'addition-only'
+  }>
 }
 
 /**
