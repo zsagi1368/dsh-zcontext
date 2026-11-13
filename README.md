@@ -228,5 +228,6 @@ Repository-internal verification probes:
 ```sh
 node scripts/probe-artifact.mjs             # 6 probe groups against the built lib
 node scripts/verify-activation-surface.mjs  # activation-surface assertions (10 groups)
+node scripts/probe-host-imports.mjs         # host-export reachability (16 probes; skips when zDSH-main is absent)
 node scripts/smoke-real-loader.mjs          # real-machine smoke (3 probes; skips parts when zDSH-main is absent)
 ```

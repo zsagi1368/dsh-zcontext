@@ -1,0 +1,76 @@
+{
+  "block": "V6",
+  "task": "ZCTX v0.2.0 V6 终审 — R5 四条[建议]+V1-A 顺手闭合 → 版本 0.2.0+CHANGELOG 定稿+lib 重建 → 探针扩展（surface 10/artifact 6/smoke 3）→ README 双语 → 治理终态（closure 65 条）",
+  "range": "dec0bcc (R5 顺手闭合) / c935277 governance increment / e733ad1 release face / 6d835b1 probe extensions / 80c43d5 README bilingual / abbb8b2 governance terminal — 有效审查区间 dec0bcc^..abbb8b2（6 提交，+1045/-165 行，最大单提交 276 行，小步纪律成立）",
+  "reviewer": "reviewer-R6 (independent subagent; reviewer ≠ V6 coder)",
+  "date": "2026-11-13",
+  "verdict": "通过 (总分 99 ≥ 98) → V6 波次放行；0 条 [阻断]；1 条 [建议] V6-1（README 开发节探针清单遗漏 probe-host-imports.mjs，建议随 B7 发布提交一并修）；最终验收剩余唯一未完成判据 = B7 发布门（Mimosa 深扫+推送+tag v0.2.0+台账，owner=主线，推送需用户 §8.1 确认）",
+  "total": 99,
+  "threshold": 98,
+  "scores": {
+    "correctness": 25,
+    "completeness": 19,
+    "consistency": 20,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 10
+  },
+  "verification_trio_reviewer_run": {
+    "build": "pnpm build → tsdown 988.84 kB (7 files) EXIT=0；git status --porcelain lib/ 为空 = 入库 lib 与重建字节一致（亲验 2026-11-13）",
+    "test": "pnpm test → vitest 22 files 424/424 passed EXIT=0（轨迹 419+5 新例 = store-attribution 2 + adapter-plugin 1 + adapter-providers 1 + store-observe 1，与 dec0bcc 声称吻合；adapter-zctx 仅 fixture 补 maxTokens）",
+    "lint": "pnpm lint → tsc --noEmit 零错 EXIT=0（build→test→tsc 顺序，Z19）",
+    "probes": "四探针全 EXIT=0：probe-artifact 6/0/0（P6 实跑输出 missingMaxTokensViolation=true constructionFailLoud=true）+ verify-activation-surface 10/0（A9 schema validate({}) 实调 issues=none；A10 maxRetries sites=1）+ smoke-real-loader 3/0/0（R3 实跑无 SKIP，7 composed rows ok）+ probe-host-imports 16/0/0；U2 报告重生成仅时间戳差异（19:37→20:13Z），已 git checkout 还原入库态（沿 REVIEW-V3V4/V5 先例）",
+    "closure_machine_count": "node 遍历 closure.json → 65 items / 64 verified + 1 open（W5-A6-INSTALL user_approved_deferred，v0.1.0 基线遗留，phase=post-merge，by design）；disposition 词表零违规（fixed/user_approved_deferred 全合法）；V6-A..V6-I 九条全 fixed/verified；V5-1→V6-A、V5-2→V6-B、V5-3→V6-C、V5-4→V6-D、V1-A→V6-E 映射经 source 字段逐条核对；V3-1 原条目 V5-F（代码修复）+ V6-A（测试钉）双证据闭环",
+    "redline_check": "V6 触面核查：diff 文件清单实证 wire.ts/mapping/replay/context 零改动（R1/R6 面未触碰）；R4 单站点经 A10 node 直读重建 lib 复核 sites=1；R2 observe 默认经 A9 configDefaults+schema 双面钉；R7 经 A10 attributionHeaders 在位钉；R5 命名空间经 P6 route/displayName 逐字钉（zctx-openai-completions / 'zctx openai-completions'）"
+  },
+  "evidence": {
+    "correctness": [
+      "V5-1 真钉逻辑链实证：store.ts:1315 守卫行 `if (this.resetLog.length >= RESET_LEDGER_CAP) return true` + 调用点 store.ts:1242（resetBetween true → break 不升格）；at-cap 用例（64 resets 全在 seq 0..63、候选 seq 64/锚点 seq 65 之间无 retained reset）删守卫行必走插值→semi/interpolated/inputTokens 99→断言 estimated 变红；at-cap-1 用例（63）证明插值路径本身是活的、守卫恰在 cap 处分辨——两条同时绿 = 守卫行承重，『删行变红』声称成立（upgradeInterpolatedBefore :1225-1262 实读）",
+      "V5-2 官方语义对齐实证：官方 catalog.ts:933-936 实读（`entry.maxTokens ?? base?.maxTokens ?? request.defaultMaxTokens`，解析后非正整数→invalid() 进违规清单）——zctx 无 catalog base/defaultMaxTokens 兜底链（手写配置无 base 条目），REQUIRED=同一 fail-loud 语义的诚实形态；zctx-adapter.ts '?? 32768' 从 wire 面移除（materializePiModel 现 rides verbatim，:203-206 注释锚）；违规模型不入路由（测试钉 providers[0].models toHaveLength(0) + assertZctxProvidersResolvable throws）",
+      "V5-4 门序实证：plugin.ts:453-471 现门序 = loadSupportedProtocols（builtin 兜底 info）→ assertZctxProvidersResolvable 违规 warn 全清单+return → loadAdapterFaces 不可达 info+return → 注册；新测试钉宿主不可达（ZCTX_DSH_LLM 指向 MISSING.js）+坏配置 ⇒ warn 含 'family \"not-a-protocol\"'+'declares no models' 且 'not reachable' info 不出现——校验宿主无关性成立（协议表 builtin 兜底）",
+      "V1-A 处置核验：store.ts callConfigEquals JSDoc 声明官方 raw === 与本地提取的 NaN 分歧 + 官方 wire 不可达论证；store-observe.spec 专钉（两个 NaN 载体配置相等→零 reset 事件）；closure V6-E evidence 如实写明 'pinned-not-fixed path chosen'——分歧被文档化+钉死而非隐匿，关切（未声明的理论差异）实质闭合",
+      "R3 smoke 实跑亲证：真 CLI（zDSH-main apps/cli/lib/bin.js --profile web --patch overlay --dump-config）组合出 providers 七行（family/baseURL/id/contextWindow:128000/maxTokens:8192），诚实范围标签在探针输出内（'config-layer only — runtime registerConfigurableProviders needs a live llm runtime: post-merge full-install smoke'）；临时 overlay 目录 mkdtemp+zctx-v6-smoke- 前缀+tmpdir 根双重守卫清理（§5.1 同型自律）"
+    ],
+    "completeness": [
+      "卡面产物 1-7 全交付：README 双语（三能力块+七字段+两限制）/CHANGELOG 0.2.0 定稿/surface +A9+A10/artifact +P6/smoke +R3/closure 65 条终态/版本 0.2.0+lib 重建——逐条与 commit 80c43d5/6d835b1/e733ad1/c935277/abbb8b2 对得上",
+      "CHANGELOG 0.2.0 六要素齐：观测账本+S1 preflight+新设置七字段+S2 全量段（family=协议/寄生传输 R1/R4/R7/wire 账本/缓存旋钮/最小目录/text-only/config shape REQUIRED）+observe→enforce 迁移三条件+『Honest ceilings and calibration debt』节（90s/0.6/0.9 未标定/wire 仅 zctx 路由/对象哈希 harness 边界下盲区）",
+      "诚实天花板三处如实：README en/zh 限制节两条 + CHANGELOG 专节 + 探针输出内范围标签——wire 账本仅 zctx 路由/对象哈希盲区/阈值未标定均在用户可见面声明，非糊弄",
+      "[建议 V6-1 扣 1 分]：README en/zh 开发节『Repository-internal verification probes』清单列 3 个探针（artifact 6/surface 10/smoke 3）仍遗漏 scripts/probe-host-imports.mjs（16 组，四探针电池成员，治理与 scorecard 均按四探针口径引用）——V5 既有缺口（80c43d5^ 同样只列 3 个），但本波重写该节并逐项更新计数时未补一行；en/zh 两侧同缺（镜像一致故镜像核对不报差异）"
+    ],
+    "consistency": [
+      "版本面三处一致：package.json 0.2.0 = CHANGELOG [0.2.0] - 2026-11-13 = README『v0.2.0』多处行文；lib/index.d.ts 随 R5 闭合源重建（maxTokens 类型 REQUIRED 化）",
+      "双语镜像机械核对通过：15 个 <a id> 锚点两侧逐行一致（行号 8..216 全同）；数字 token 多重集 diff 为空（grep -oE '[0-9]+(\\.[0-9]+)?' 排序计数比对零差异）；九字段表+七字段表逐行镜像；zh 为自然中文技术文风非机翻（卡面净室/非机翻约束满足）",
+      "closure 与提交逐条对得上：V6-A..I evidence 均指向 dec0bcc/6d835b1/80c43d5/e733ad1 具体机制（非泛引）；checkpoint ZCTX-V6 四步（v6s1..v6s4-terminal）+history 终行（commits dec0bcc..80c43d5，终端提交自引用豁免为既定约定）+progress 五条时间线一致",
+      "RSI 纪律：Z20 经查已在 ~/.agents/rsi/INDEX.md 登记（2026-11-13 zctx V5 条目，含 heredoc 违规自纠记录）；本波 no-new-lesson 声明与『~2.6KB heredoc 边界披露+字节校验』一并如实记录于 progress [12:55]",
+      "README 探针计数与实盘一致：dev 节 424 tests / 6 组 / 10 组 / 3 条 = 亲验 424/424 + 6/10/3 全 PASS"
+    ],
+    "verifiability": [
+      "亲验全绿（本文件 verification_trio_reviewer_run，reviewer 本机实跑 2026-11-13）：build 988.84 kB 字节一致/424-424/tsc 零/四探针 6/10/3/16 全 EXIT=0/closure 65 条机器数",
+      "断言真钉抽查：A9 schema validate({}) 实调（非读常量）；A10 maxRetries sites=1 注释剥离后计数；P6 constructionFailLoud 断言错误消息含 '1 violation(s)'+'not a supported wire protocol'；R3 断言组合层 YAML 行文本（正则七查）",
+      "双语镜像两把机器尺：锚点行号全同 + 数字 token 多重集 diff 空（比 V5 的 anchor-by-anchor 更强）；限制条目 6/6、关键字段行 9/9 与 progress [12:50] 声称吻合",
+      "官方锚点实读：catalog.ts:933-936 maxTokens 语义本波亲读确认（非转引 V5 scorecard）"
+    ],
+    "safety_rollback": [
+      "V6 无新增 wire 面/无新增凭据面/无删除操作；全部改动 git 可回滚（六提交线性，工作树终态干净）；lib 入库且重建字节一致（回滚=git checkout 即得可运行产物）",
+      "R3 临时目录清理双守卫（tmpdir() 根 + zctx-v6-smoke- 前缀）——只删自建 mkdtemp 产物，§5.1 自建自收同型不变式在代码里而非注释里",
+      "V5-4 门序重排行为面安全：违规提前 return 的路径原样（warn+skipped+boot 不炸）；不可达路径 info 语义原样；测试钉断言 'not reachable' info 在违例并存时不出现（门序行为被钉死）",
+      "红线 R4/R2/R5/R7 在改动面（providers.ts/plugin.ts）上的表现均经探针或测试机器钉复核（见 redline_check）"
+    ],
+    "maintainability": [
+      "V5-3 统一注释为单一口径声明（'ONE unified statement' 指明三方一致点+optional 语义归属 user input）——消除 V5 的文档-代码-契约三方矛盾",
+      "V1-A JSDoc 把『官方 === 与本地提取的分歧』从隐式行为升格为文档化边界+专测——twin 分歧处理模式（document+pin，unreachable 论证随附）可作为后续 twin 的模板",
+      "探针扩展与既有结构同构：P6/A9/A10/R3 全部沿用 report(id, ok, detail) 骨架+组注释头+诚实 SKIP/范围标签惯例；无重复实现（A8 复用 probe-artifact 子进程的先例延续）",
+      "gate order 文档串随门序重排同步更新（plugin.ts:412-424 docstring 重排为实际顺序并标注 R5 V5-4）——注释与代码同批变更"
+    ]
+  },
+  "suggestions": [
+    {
+      "id": "V6-1",
+      "location": "README.md:226-228 与 README.zh.md 同位段（development 节 verification probes 清单）",
+      "problem": "探针清单列 probe-artifact(6)/verify-activation-surface(10)/smoke-real-loader(3) 三个，遗漏 scripts/probe-host-imports.mjs（16 组）——四探针电池在治理与 scorecard 按四个口径引用，README 只列三个；V5 既有缺口（本波 80c43d5^ 同样三条），但本波重写开发节并逐项更新其余三个计数，属重写时未补齐的一行",
+      "fix": "en/zh 两侧行内各加一行 `node scripts/probe-host-imports.mjs  # dsh-llm host-import reachability (16 groups)` 同款；建议随 B7 发布提交一并入库（文档与发布同批更新，§15）",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞 V6 块中间合入；修法一行×2 侧）"
+    }
+  ],
+  "fraud_check": "未发现造假：所有关键声称均亲验复跑——build 988.84 kB（与提交信息一致）、424/424（与 README/CHANGELOG/提交信息一致）、tsc 零、四探针 6/10/3/16（与 abbb8b2 提交信息一致）、closure 65 条（node 机器数，64 verified+1 by-design open）、锚点 15/15 行号全同、数字 token 多重集 diff 空、官方 catalog.ts:934-936 本波亲读（非转引）、R3 真跑无 SKIP 且输出含诚实范围标签；V6-A..I closure evidence 与实盘提交机制逐条对得上；U2 报告重生成仅时间戳已 git checkout 还原（沿上两轮先例），评审过程未修改任何业务代码/测试/配置/del。评分无自评（reviewer-R6 ≠ V6 coder）"
+}
