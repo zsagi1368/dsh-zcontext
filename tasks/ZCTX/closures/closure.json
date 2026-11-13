@@ -401,7 +401,67 @@
       "owner": "coder-v3",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "V4-A",
+      "source": "V4 card product 1-2 (S1 preflight): preflightMode tri-state + margin config + preflight.ts estimator/listener",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "commits 4b2b499 (config flat keys preflightMode default 'observe' / preflightMarginRatio 0.9 with R2 JSDoc + types PreflightMode/PreflightCalibrationRecord/PreflightImagePricing/PreflightOutcome) + 206e84d (preflight.ts: matchesMainChain criteria 1-3 reuse, chars/3 estimator over re-projected messages with official/fallback honesty, image pricing adapter vs PER_IMAGE_FALLBACK_TOKENS=2048 labeled paths, hit iff estimate > triggerLine x marginRatio, fail-soft unresolvable-window release F6.4, outermost separate listener, enforce short-circuit = exactly one terminal finish{kind:error,failure:{code:CONTEXT_WINDOW_EXCEEDED}} per official types.ts:452-464/41-62 read directly, R3 deps carry no llm runtime) + plugin wirePreflightFace registered before observe + index surface",
+      "owner": "coder-v4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V4-B",
+      "source": "V4 card product 3: calibration ledger (estimate vs real usage) + zctx_status estimator error statistics",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "store.absorbPreflightCalibration (64-cap, never session-logged, cleared with the other receive ports) + tools.ts preflightCalibrationStats (comparable = settled with billed input over the DISJOINT accounting input+cacheRead+cacheWrite, mean/worst signed error %, short-circuit count, honest basis line official vs official+local-fallback) + renderStatus segment 5 (mode line from config-owned runtime.preflightMode, empty/no-judged/not-comparable honest shapes) + preflight.spec lifecycle cases",
+      "owner": "coder-v4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V4-C",
+      "source": "V4 card acceptance: enforce unreachable under default configuration (R2 pin) + chunk-form pin + zero-mutation pin reuse + R3 pin",
+      "type": "card-product",
+      "disposition": "fixed",
+      "evidence": "preflight.spec: configDefaults.preflightMode === 'observe' pinned + validator roundtrip; enforce hit = exactly one chunk, next() never started (innerStarted false), LlmFailure carries message+code only (status/requestId honestly absent); zero-mutation pin across observe AND enforce firings (frozen tree byte-identity + reference identity); R3 structural pin (deps key set contains no stream/llm member, narrow helpers invoked exactly once) + plugin.spec enforce wiring pin (outermost short-circuit suppresses the inner observe listener: no snapshot for the short-circuited request)",
+      "owner": "coder-v4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V4-D",
+      "source": "V4 card 顺手闭合 (V3 handover): V2-A prepare catch swallows errors silently -> warn-once",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 4b2b499: observe.handleStream catch warns once per listener ('observe prepare failed (...); request snapshots stay off until the fault clears'), stream still passes through untouched; observe.spec V2-A case (warn once across two firings, snapshots stay off); tsc clean",
+      "owner": "coder-v4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V4-E",
+      "source": "V4 card ambiguity: product-1 JSDoc wording (估算命中阈值=triggerLine×margin) vs product-2 phrasing (估算 context+reserve(R_pess) > W×marginRatio) — differ by 0.1×R_pess",
+      "type": "contract-ambiguity",
+      "disposition": "fixed",
+      "evidence": "resolved toward product-1 (normative JSDoc contract) + F6.4 false-positive-cost bias (higher threshold = fewer false positives): hit iff estimate > triggerLine × marginRatio, declared in preflight.ts module docstring + judgeEstimate JSDoc + checkpoint v4s0 decision 3; flagged for reviewer confirmation",
+      "owner": "coder-v4",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V4-F",
+      "source": "V4 estimator robustness: walkMessage hit 'Cannot read properties of undefined (reading length)' on a non-JSON content (message-level stray block found while building the zero-mutation test)",
+      "type": "lesson-application",
+      "disposition": "fixed",
+      "evidence": "walkMessage + tool-schema loop guard stableStringify output with typeof raw === 'string' (JSON-unrepresentable values count 0 chars); documented in the walkMessage JSDoc; the fail-soft judgeRequest catch remains the second line of defense; RSI capture logged (see progress.md V4 entry + tasks/ZCTX/handoffs)",
+      "owner": "coder-v4",
+      "status": "verified",
+      "phase": "block"
     }
   ],
-  "updatedAt": "2026-11-13T18:10:00+08:00"
+  "updatedAt": "2026-11-13T19:20:00+08:00"
 }
