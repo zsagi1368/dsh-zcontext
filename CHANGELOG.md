@@ -3,9 +3,9 @@
 All notable changes to `dsh-zcontext` are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com); versioning follows SemVer.
 
-## [Unreleased] — 0.2.0 draft (V4 wave in progress; V5/V6 pending)
+## [0.2.0] - 2026-11-13
 
-### Added (v0.2.0 so far)
+### Added (v0.2.0)
 
 - **Observability ledger** (V1-V3, RES-observe-route): read-only `llm/stream`
   waterfall listener — per-attempt request snapshots (normalized hashes,
@@ -47,7 +47,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com); versioning follow
     once (per listener) instead of being swallowed silently.
 - New settings: `preflightMode='observe'`, `preflightMarginRatio=0.9`
   (估算器误差分布待真机标定后调整), `attributionTimeWindowMs=90000`,
-  `cleanSampleFloor=0.6`, `observe.enabled=true`, `observe.attemptCapture=false`.
+  `cleanSampleFloor=0.6`, `observe.enabled=true`, `observe.attemptCapture=false`,
+  and the structured `providers` section (below).
+
+### S2 zctx router (V5, RES-adapter-route §11b S2 — the thin adapter face)
+
+- **Custom providers under the official configurable-provider surface**: each
+  declared provider becomes the route `zctx-<family>` where **`family` IS the
+  wire protocol name** taken from the official `supportedProtocols()` union
+  (`openai-completions` | `openai-responses` | `anthropic-messages`, loaded
+  dynamically from the host lib with a labeled builtin fallback) — zero
+  invented protocol mapping; an unknown family is a construction-time
+  violation carrying the complete violation list.
+- **Parasitic pi-ai transport stack** (1.0.2, R8 anchor): stream chunks map
+  through the official llm-pi-ai implementations when their sources resolve,
+  through labeled self-replicated twins otherwise (provenance recorded on
+  every surface); two-path error delivery (thrown harness errors classified
+  through the official taxonomy incl. undici special cases; in-band stream
+  errors become `finish{kind:'error'}` chunks); `usage` strictly before
+  `finish`; R4 honored (`maxRetries: 0` — the agent recovery layer owns
+  retries); R7 honored (attribution headers ride EVERY request, one-shots
+  included, attribution wins case-insensitively); R1 honored (the adapter
+  never rewrites a request body — zero body mutation on the wire).
+- **Wire-domain ledger**: zctx-routed sessions additionally record byte-level
+  request hashes (`domain: 'wire'`) through two pass-through observation
+  points (an `onPayload` view that returns `undefined` constantly, and a
+  hashing wrapper around `fetch` that touches nothing). The dual-domain
+  ledger is honest about coverage: harness-domain rows cover every session;
+  wire-domain rows exist only where the zctx router actually drove the wire.
+- **Cache knobs**: `cacheRetention` (`'none' | 'short' | 'long'`) passes
+  through to pi-ai's StreamOptions (pi-ai owns the precedence: explicit >
+  env > default `'short'`; `'none'` disables cache markers); `cacheControlFormat`
+  (`'anthropic'`, the only legal value per the official GATE union) materializes
+  into the model compat — ONLY meaningful on the `openai-completions` family;
+  anywhere else it is refused at construction (dead config is dishonest config).
+- **Minimal directory registration** (`registerConfigurableProviders`): the
+  Models page mounts the `dsh-zcontext` namespace and shows each route's row
+  + credential badge + error field. Honest ceiling (U1 probe): page EDITING is
+  not available for a third-party settings namespace — the configuration
+  authority is the handwritten profile overlay patch; the page is
+  visibility-only.
+- **Text-only**: image/file content blocks are refused with
+  `UNSUPPORTED_CONTENT` before conversion (S2 is a text-only route; the three
+  image-budget knobs are deliberately NOT accepted — dead knobs are dishonest
+  config; `IMAGE_OFFLOAD_REQUIRED` is unreachable by construction).
+- **Config shape**: the structured `providers[]` settings section (schemastery
+  nested objects, volatile — the load-bearing anchor that makes the Models
+  page mount the namespace at all). Defaults to an empty declaration list
+  (zero routes = the adapter face stays a legal keep-alive). Each model
+  declares `id`, `contextWindow` (REQUIRED positive integer,
+  INVALID_MODEL_CONTEXT semantics) and `maxTokens` (REQUIRED positive integer,
+  official catalog.ts:934-936 semantics — a missing value is a construction
+  violation, never an invented default). Declared routes never mutate the
+  official ones: a route collision with an existing adapter keeps the old
+  route and logs (official DUPLICATE precedent).
 
 ### observe → enforce migration conditions (no-go condition 4 discipline)
 
@@ -68,6 +121,25 @@ following hold (真机标定前 enforce 是 opt-in 高级用法):
    `hit: true` should correlate with real provider overflow errors over the
    same window band; a hit-rate far above the true overflow rate is the
    false-positive signature — keep observe running until they reconcile.
+
+### Honest ceilings and calibration debt (v0.2.0, declared not hidden)
+
+- **Estimator thresholds are UNCALIBRATED**: `attributionTimeWindowMs=90000`,
+  `cleanSampleFloor=0.6`, and `preflightMarginRatio=0.9` are designed-in
+  defaults awaiting real-machine calibration (`zctx_status` renders the
+  calibration statistics that will justify adjusting them). The chars/3
+  estimator's underestimate risk on dense CJK is the known hazard.
+- **The wire-domain ledger covers ONLY zctx-routed sessions**: harness-domain
+  rows exist for every session the plugin watches; wire-domain byte hashes
+  exist only where the S2 router actually drove the request. Coverage is
+  labeled per row (`domain`), never inferred.
+- **Object-level prefix hashes are blind to the pi-ai domain**: the
+  harness-domain normalized hashes see harness events only — whatever pi-ai
+  or the transport stack does below the harness boundary (serialization,
+  provider-specific framing) is invisible to them. The wire-domain byte
+  hashes see the real bytes, but only for zctx-routed sessions (previous
+  bullet). This is the honest ceiling of v0.2.0's observability, not a
+  defect to be silently papered over.
 
 ## [0.1.0] - 2026-11-12
 

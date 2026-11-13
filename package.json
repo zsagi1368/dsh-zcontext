@@ -1,7 +1,7 @@
 {
   "name": "dsh-zcontext",
   "description": "Model-driven incremental context folding plugin for the DeepSeek Harness (official surface replace channel, cache-aware, compaction-compatible).",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

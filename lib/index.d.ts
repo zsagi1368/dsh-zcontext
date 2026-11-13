@@ -17,7 +17,9 @@
  *   - models: at least one per provider; ids non-empty and unique.
  *   - contextWindow: REQUIRED positive integer (INVALID_MODEL_CONTEXT
  *     semantics — F2.2 normalizeModelInfo index.ts:783-788).
- *   - maxTokens: positive integer when present (F2.2 :808-815 semantics).
+ *   - maxTokens: REQUIRED positive integer (official catalog.ts:934-936
+ *     semantics — a missing value is a CONSTRUCTION violation, never an
+ *     invented default; R5 V5-2 closure).
  *   - baseURL: absolute http(s) URL when present (redline R6 — HTTP(SSE)
  *     only; ws:// or other schemes are a violation, not a silent pass).
  *   - apiKeyEnv: non-empty string when present (a reference NAME — config
@@ -56,8 +58,11 @@ interface ZctxProviderModelConfig {
   readonly id: string;
   /** REQUIRED positive integer (INVALID_MODEL_CONTEXT semantics). */
   readonly contextWindow: number;
-  /** Positive integer when present. */
-  readonly maxTokens?: number;
+  /**
+   * REQUIRED positive integer (official catalog.ts:934-936 semantics — a
+   * missing value is a construction violation, never an invented default).
+   */
+  readonly maxTokens: number;
   /** Wire-spelling reasoning efforts: wireValue → pi-ai level; false = none. */
   readonly reasoningEfforts?: Readonly<Record<string, string>> | false;
 }
@@ -83,7 +88,8 @@ interface ResolvedZctxModel {
   readonly id: string;
   readonly name: string;
   readonly contextWindow: number;
-  readonly maxTokens?: number;
+  /** REQUIRED (validated positive integer; V5-2 no-invented-defaults). */
+  readonly maxTokens: number;
   readonly reasoningEfforts?: Readonly<Record<string, string>> | false;
 }
 /** The structured settings section shape (v5s5 wires the schemastery schema). */
@@ -2119,15 +2125,18 @@ declare class ZcontextPlugin extends ServiceBase {
    * route collision → the OFFICIAL conflict precedent applies — keep the
    * old route + error log, llm-pi-ai:310-316 — boot unaffected).
    *
-   * Face gates, each honest and none boot-breaking (五面降级先例):
+   * Face gates, each honest and none boot-breaking (五面降级先例), in gate
+   * order:
    *   - no providers declared (absent/empty section) → info, zero routes
    *     (legal keep-alive, F1.4).
    *   - llm runtime without registerAdapter → warn, skipped.
-   *   - host lib / pi-ai unreachable (faces undefined) → info, skipped —
-   *     the card constraint "宿主不可达→adapter 面整体不注册（fail-soft）".
    *   - config violations → the CONSTRUCTION fail-loud error (complete
    *     violation list, providers.ts) lands in a warn log, skipped — the
-   *     adapter contract is fail-loud while boot stays fail-soft.
+   *     adapter contract is fail-loud while boot stays fail-soft. This gate
+   *     runs BEFORE the reachability gate (R5 V5-4): validation is pure, so
+   *     a misconfigured section reports even when the host lib is absent.
+   *   - host lib / pi-ai unreachable (faces undefined) → info, skipped —
+   *     the card constraint "宿主不可达→adapter 面整体不注册（fail-soft）".
    *
    * The host faces load asynchronously, so the registration completes as a
    * fire-and-forget continuation after the synchronous constructor returns
