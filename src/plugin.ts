@@ -51,6 +51,12 @@
 
 import { createRequire } from 'node:module'
 
+import {
+  assertZctxProvidersResolvable,
+} from './adapter/providers.ts'
+import type { ResolvedZctxProvider } from './adapter/providers.ts'
+import { createZctxAdapterClass } from './adapter/zctx-adapter.ts'
+import { loadAdapterFaces, loadSupportedProtocols } from './adapter/host.ts'
 import { computeBudget } from './budget.ts'
 import { buildZctxCommand } from './command.ts'
 import { configDefaults, configSchema } from './config.ts'
@@ -212,6 +218,13 @@ export class ZcontextPlugin extends ServiceBase {
   private observe: ObserveListener | undefined
   /** The S1 preflight face's listener; undefined when preflightMode is 'off'. */
   private preflight: PreflightListener | undefined
+  /**
+   * The S2 adapter face's registration continuation (undefined when the face
+   * gated off synchronously). The constructor is synchronous (cordis), so
+   * the async registration is a tracked continuation: failures log honestly
+   * inside, never throw — and tests/status can await the settled state.
+   */
+  adapterRegistration: Promise<void> | undefined
   private warnedWindowFailure = false
 
   constructor(ctx: HostContextLike, config: Partial<ZcontextConfig> = {}) {
@@ -237,6 +250,7 @@ export class ZcontextPlugin extends ServiceBase {
     this.wireGuidanceFace()
     this.wireNudgeFace()
     this.wireCommandFace()
+    this.wireAdapterFace()
     this.wirePreflightFace()
     this.wireObserveFace()
   }
@@ -385,6 +399,84 @@ export class ZcontextPlugin extends ServiceBase {
     })
     this.preflight = listener
     ctx.on('llm/stream', listener.onStream)
+  }
+
+  /**
+   * The S2 adapter face (v0.2.0 V5, task card product 1; RES-adapter-route
+   * §11b 形态二): builds the zctx adapters over the fail-soft-loaded host
+   * faces and registers them with the llm runtime
+   * (`ctx.llm.registerAdapter`, F1.1 all-or-nothing; DUPLICATE_ADAPTER on any
+   * route collision → the OFFICIAL conflict precedent applies — keep the
+   * old route + error log, llm-pi-ai:310-316 — boot unaffected).
+   *
+   * Face gates, each honest and none boot-breaking (五面降级先例):
+   *   - no providers declared (absent/empty section) → info, zero routes
+   *     (legal keep-alive, F1.4).
+   *   - llm runtime without registerAdapter → warn, skipped.
+   *   - host lib / pi-ai unreachable (faces undefined) → info, skipped —
+   *     the card constraint "宿主不可达→adapter 面整体不注册（fail-soft）".
+   *   - config violations → the CONSTRUCTION fail-loud error (complete
+   *     violation list, providers.ts) lands in a warn log, skipped — the
+   *     adapter contract is fail-loud while boot stays fail-soft.
+   *
+   * The host faces load asynchronously, so the registration completes as a
+   * fire-and-forget continuation after the synchronous constructor returns
+   * (the warmWindow precedent); every failure inside logs and never throws.
+   * @internal
+   */
+  private wireAdapterFace(): void {
+    const { ctx } = this
+    const declared = this.config.providers ?? []
+    if (declared.length === 0) {
+      ctx.logger?.info?.('dsh-zcontext: adapter face: no providers declared — zero routes registered (declare zctx providers under the "providers" settings section)')
+      return
+    }
+    if (ctx.llm === undefined || typeof ctx.llm.registerAdapter !== 'function') {
+      ctx.logger?.warn?.('dsh-zcontext: llm runtime without registerAdapter — adapter face skipped')
+      return
+    }
+    const registerAdapter = ctx.llm.registerAdapter.bind(ctx.llm)
+    const logger = ctx.logger
+    this.adapterRegistration = (async () => {
+      try {
+        const faces = await loadAdapterFaces()
+        if (faces === undefined) {
+          logger?.info?.('dsh-zcontext: adapter face skipped — @deepseek-ai/dsh-llm or @earendil-works/pi-ai is not reachable from this install (fail-soft; boot unaffected)')
+          return
+        }
+        const { protocols, source } = await loadSupportedProtocols()
+        if (source === 'builtin') {
+          logger?.info?.('dsh-zcontext: the official supportedProtocols() union is unreachable — validating families against the builtin protocol list')
+        }
+        let resolved: readonly ResolvedZctxProvider[]
+        try {
+          resolved = assertZctxProvidersResolvable({ providers: declared }, protocols)
+        } catch (error: unknown) {
+          // Fail-loud at the adapter contract: the COMPLETE violation list
+          // reaches the log; boot continues without the face.
+          logger?.warn?.(error instanceof Error ? error.message : String(error))
+          return
+        }
+        const ZctxAdapter = createZctxAdapterClass(faces.host.LlmAdapter)
+        const adapter = new ZctxAdapter({
+          host: faces.host,
+          piAi: faces.piAi,
+          mapping: faces.mapping,
+          providers: resolved,
+          logger,
+        })
+        const routes = resolved.map((provider) => provider.route)
+        const registration = registerAdapter(routes, adapter)
+        logger?.info?.(
+          `dsh-zcontext: adapter face registered ${routes.join(', ')} (mapping: ${faces.mapping.source})`,
+        )
+        void registration
+      } catch (error: unknown) {
+        logger?.warn?.(
+          `dsh-zcontext: adapter face registration failed (${error instanceof Error ? error.message : String(error)}); boot continues without it`,
+        )
+      }
+    })()
   }
 
   /**

@@ -410,6 +410,14 @@ export interface LlmRuntimeLike {
   imageRequestPricing?(provider: string, model: string): {
     priceImages(images: readonly unknown[]): readonly { visualTokens: number; text: string }[]
   } | undefined
+  /**
+   * Official `ctx.llm.registerAdapter` (llm/src/index.ts:400-429), probed by
+   * the V5 adapter face (F1.1): registers the routes with an all-or-nothing
+   * validation (DUPLICATE_ADAPTER on any collision), captures the retry
+   * policy at registration, and returns the lifecycle handle the cordis
+   * effect owns. Optional: absent → the adapter face is not registrable.
+   */
+  registerAdapter?(providers: readonly string[], adapter: unknown): unknown
 }
 
 /**

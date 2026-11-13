@@ -200,16 +200,43 @@ async function loadHostLlmFace(): Promise<HostLlmFace | undefined> {
 // ---------------------------------------------------------------------------
 
 const PI_AI_SPECIFIER = '@earendil-works/pi-ai'
+const LLM_PI_AI_SPECIFIER = '@deepseek-ai/dsh-llm-pi-ai'
 
 /**
- * The wire protocols the adapter can serve. R6 (HTTP(SSE) only) and the
- * official llm-pi-ai PROTOCOLS table (llm-pi-ai/src/provider.ts:47-51) share
- * this list; the protocol NAMES are taken from the official union (the
- * coordinator A-ruling: family = protocol name, no invented mapping). An
- * unreachable protocol module resolves `undefined` at resolve time — the
- * face reports it honestly instead of faking the transport.
+ * The BUILTIN fallback protocol list (official llm-pi-ai PROTOCOLS table,
+ * llm-pi-ai/src/provider.ts:47-51). The AUTHORITATIVE gate is the official
+ * `supportedProtocols()` union loaded dynamically (coordinator A-ruling:
+ * "官方 union 单源对拍防漂移 — supportedProtocols() 动态取，宿主升级加协议
+ * 我们自动跟"); this constant is only the honest fallback when the
+ * llm-pi-ai lib cannot resolve.
  */
 export const KNOWN_PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages'] as const
+
+/**
+ * The wire-protocol union the config `family` values are validated against.
+ * Source of truth: the official llm-pi-ai lib's `supportedProtocols()` (its
+ * package main exports it — probed live); when that package is unreachable,
+ * the {@link KNOWN_PROTOCOLS} fallback applies with `source: 'builtin'` so
+ * callers can label the provenance honestly.
+ */
+export async function loadSupportedProtocols(): Promise<{ protocols: readonly string[]; source: 'official' | 'builtin' }> {
+  const override = process.env.ZCTX_DSH_LLM_PIAI
+  if (override === undefined || override === '') {
+    const mod = await importOptional(LLM_PI_AI_SPECIFIER)
+    if (mod !== undefined && typeof mod['supportedProtocols'] === 'function') {
+      return { protocols: (mod['supportedProtocols'] as () => readonly string[])(), source: 'official' }
+    }
+    return { protocols: KNOWN_PROTOCOLS, source: 'builtin' }
+  }
+  const libUrl = rootOverrideFileUrl(override, 'lib/index.js')
+  if (libUrl !== undefined) {
+    const mod = await importOptional(libUrl)
+    if (mod !== undefined && typeof mod['supportedProtocols'] === 'function') {
+      return { protocols: (mod['supportedProtocols'] as () => readonly string[])(), source: 'official' }
+    }
+  }
+  return { protocols: KNOWN_PROTOCOLS, source: 'builtin' }
+}
 
 function buildPiAiFace(mod: Record<string, unknown>, apiSpecifier: (protocol: string) => string): PiAiFace {
   const isContextOverflow = mod['isContextOverflow']
@@ -219,7 +246,11 @@ function buildPiAiFace(mod: Record<string, unknown>, apiSpecifier: (protocol: st
   return {
     isContextOverflow: isContextOverflow as PiAiFace['isContextOverflow'],
     loadApi: async (protocol: string) => {
-      if (!(KNOWN_PROTOCOLS as readonly string[]).includes(protocol)) return undefined
+      // Reachability IS the gate: the config family gate already restricts
+      // declarations to the OFFICIAL supportedProtocols union (dynamic, see
+      // loadSupportedProtocols), so a loadable api module is exactly the
+      // honest serve condition (R6: HTTP(SSE) protocols only exist here —
+      // WS transport is not part of the official hand-declared union).
       const apiMod = await importOptional(apiSpecifier(protocol))
       if (apiMod === undefined) return undefined
       const stream = apiMod['stream']

@@ -143,11 +143,15 @@ describe('plugin: face wiring', () => {
     expect(ctx.registeredSections).toHaveLength(0)
     expect(ctx.registeredContexts).toHaveLength(0)
     expect(ctx.registeredCommands).toHaveLength(0)
-    // Seven faces: session feed, tools, guidance, nudge, command, preflight,
-    // observe (both llm/stream faces probe ctx.on before the llm runtime, so
-    // the missing bus is what they report here).
+    // Seven WARN faces: session feed, tools, guidance, nudge, command,
+    // preflight, observe (both llm/stream faces probe ctx.on before the llm
+    // runtime, so the missing bus is what they report here). The V5 adapter
+    // face is the eighth: with no providers declared it logs an INFO
+    // "no providers declared" line (a deliberate config state, not a
+    // degradation) and never warns.
     expect(ctx.logLines.filter((l) => l.level === 'warn')).toHaveLength(7)
-    expect(ctx.logLines.every((l) => l.message.includes('skipped'))).toBe(true)
+    expect(ctx.logLines.filter((l) => l.level === 'warn').every((l) => l.message.includes('skipped'))).toBe(true)
+    expect(ctx.logLines.some((l) => l.message.includes('no providers declared'))).toBe(true)
   })
 })
 

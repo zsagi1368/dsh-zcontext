@@ -15,6 +15,8 @@
 
 import { createRequire } from 'node:module'
 
+import type { ZctxProviderConfig } from './adapter/providers.ts'
+
 /** Frozen plugin configuration contract (plan §3; every field is primitive). */
 export interface ZcontextConfig {
   /** Master switch; when false the plugin stays passive (official compaction remains the hard floor). */
@@ -95,14 +97,34 @@ export interface ZcontextConfig {
    * 待真机标定后调整 (calibration pending, plan §3).
    */
   preflightMarginRatio: number
+  /**
+   * The structured S2 adapter section (v0.2.0 V5, task card product 8; plan
+   * §3 structured-settings relaxation, official llm-pi-ai schemastery
+   * precedent config.ts:340-361): `providers[]` entries declare the routes
+   * the zctx adapters register — family/baseURL/apiKeyEnv/models[].id/
+   * contextWindow/maxTokens/reasoningEfforts (wire spelling).
+   *
+   * The `family` IS the wire protocol name, validated against the OFFICIAL
+   * llm-pi-ai `supportedProtocols()` union taken DYNAMICALLY (coordinator
+   * A-ruling 2026-11-13: zero invented mapping; route = `zctx-<family>`,
+   * redline R5; unknown family = construction-time fail-loud violation).
+   *
+   * VOLATILE (U1): the Models page only mounts a settings namespace whose
+   * Config carries a volatile field (settings describe volatileForm gate) —
+   * this section is the volatile anchor that makes the directory rows
+   * visible (visibility-only; page editing stays unavailable — U1 SKIP,
+   * config authority = the profile overlay patch). Absent section = zero
+   * providers = the adapter face registers nothing (legal keep-alive).
+   */
+  providers?: readonly ZctxProviderConfig[]
 }
 
-/** Primitive field kinds supported by the Config schema. */
-type PrimitiveKind = 'boolean' | 'number' | 'string'
+/** Primitive field kinds supported by the Config schema (plus the S2 providers section). */
+type PrimitiveKind = 'boolean' | 'number' | 'string' | 'providers'
 
 interface ConfigFieldSpec {
   readonly type: PrimitiveKind
-  readonly default: boolean | number | string
+  readonly default: boolean | number | string | readonly ZctxProviderConfig[]
 }
 
 /** Contractual defaults for every Config field (plan §3). */
@@ -145,6 +167,9 @@ const CONFIG_FIELD_SPECS = {
   'observe.attemptCapture': { type: 'boolean', default: configDefaults['observe.attemptCapture'] },
   preflightMode: { type: 'string', default: configDefaults.preflightMode },
   preflightMarginRatio: { type: 'number', default: configDefaults.preflightMarginRatio },
+  // The S2 structured section: schema default = an empty declaration list
+  // (zero routes = legal keep-alive). configDefaults omits it (optional).
+  providers: { type: 'providers', default: [] as readonly ZctxProviderConfig[] },
 } as const satisfies { readonly [K in keyof ZcontextConfig]: ConfigFieldSpec }
 
 /** `~standard.validate` issue shape (StandardSchemaV1 subset). */
@@ -168,6 +193,8 @@ interface StandardSchemaProps {
 /** Minimal structural surface of a schemastery schema node used here. */
 interface SchemasteryNode {
   default(value: unknown): SchemasteryNode
+  /** Marks the field volatile — REQUIRED for the Models page to mount the namespace at all (U1). */
+  volatile?(): SchemasteryNode
   readonly '~standard': StandardSchemaProps
 }
 
@@ -177,6 +204,9 @@ interface SchemasteryStatic {
   number(): SchemasteryNode
   string(): SchemasteryNode
   object(fields: Record<string, SchemasteryNode>): SchemasteryNode
+  array(node: SchemasteryNode): SchemasteryNode
+  dict(node: SchemasteryNode): SchemasteryNode
+  natural(): SchemasteryNode
 }
 
 const nodeRequire = createRequire(import.meta.url)
@@ -215,12 +245,14 @@ function createFailSoftConfigSchema(): ConfigSchemaLike {
         output[key] = spec.default
         continue
       }
-      const matches =
+        const matches =
         spec.type === 'boolean'
           ? typeof raw === 'boolean'
           : spec.type === 'number'
             ? typeof raw === 'number' && Number.isFinite(raw)
-            : typeof raw === 'string'
+            : spec.type === 'providers'
+              ? Array.isArray(raw)
+              : typeof raw === 'string'
       if (!matches) {
         return { issues: [{ message: `config.${key}: expected ${spec.type}` }] }
       }
@@ -235,9 +267,41 @@ function createFailSoftConfigSchema(): ConfigSchemaLike {
 function buildConfigSchemaWith(z: SchemasteryStatic): ConfigSchemaLike {
   const fields: Record<string, SchemasteryNode> = {}
   for (const [key, spec] of Object.entries(CONFIG_FIELD_SPECS)) {
-    const node =
-      spec.type === 'boolean' ? z.boolean() : spec.type === 'number' ? z.number() : z.string()
-    fields[key] = node.default(spec.default)
+    let node: SchemasteryNode
+    if (spec.type === 'boolean') {
+      node = z.boolean()
+    } else if (spec.type === 'number') {
+      node = z.number()
+    } else if (spec.type === 'providers') {
+      // The structured S2 section (card product 8): schemastery nested object
+      // array, official llm-pi-ai precedent (config.ts:340-361 z.dict(profile)
+      // — ours is the card's array spelling). VOLATILE is load-bearing (U1):
+      // without a volatile field the whole settings namespace never mounts
+      // and the Models-page directory rows stay invisible.
+      // Deep validation (contextWindow positive int, family in the official
+      // union, R6 baseURL) runs at adapter construction (providers.ts
+      // fail-loud) — the schema pins the SHAPE, the constructor pins the
+      // semantics.
+      const modelNode = z.object({
+        id: z.string(),
+        contextWindow: z.number(),
+        maxTokens: z.number(),
+        reasoningEfforts: z.dict(z.string()),
+      })
+      const providerNode = z.object({
+        family: z.string(),
+        baseURL: z.string(),
+        apiKeyEnv: z.string(),
+        models: z.array(modelNode),
+      })
+      node = z.array(providerNode)
+    } else {
+      node = z.string()
+    }
+    const defaulted = node.default(spec.default)
+    fields[key] = spec.type === 'providers' && typeof defaulted.volatile === 'function'
+      ? defaulted.volatile()
+      : defaulted
   }
   return z.object(fields)
 }

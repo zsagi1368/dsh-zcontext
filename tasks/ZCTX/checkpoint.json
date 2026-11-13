@@ -1,6 +1,6 @@
 {
   "task": "ZCTX-V5",
-  "updatedAt": "2026-11-13T21:55:00+08:00",
+  "updatedAt": "2026-11-13T22:05:00+08:00",
   "baseCommit": "2952692 (R4 joint-review terminal, V3=99/V4=98)",
   "steps": [
     {
@@ -27,8 +27,22 @@
         "tests/adapter-providers.spec.ts",
         "tests/adapter-host.spec.ts"
       ]
+    },
+    {
+      "id": "v5s2",
+      "name": "zctx-adapter class + plugin wiring + config structured section (products 1/3/8 — config section pulled forward from v5s5 because the wiring consumes it): zctx-adapter.ts (createZctxAdapterClass factory over the loaded abstract base — F2 member decisions JSDoc-noted: stream only-required, providerInfo displayName zctx <family>, providerRetryPolicy NOT overridden = official default policy per F1.5/F5.5, imageRequestPricing not overridden text-only, listModels from settings, resolveModel construction-gated contextWindow + reasoning efforts as distinct pi-ai levels in escalation order, prepareCall official snapshot freeze; stream pipeline = spec/model/credential one-capture freeze + consumer AbortController + pi-ai Model materialization (thinkingLevelMap from the wire dict, cost zeros honest) + text-only context twin + api.streamSimple options (maxRetries:0 R4 pin, apiKey, reasoning, temperature/maxTokens/sessionId passthrough, signal) + mapping.toStreamChunks; catch path = caller-abort ABORTED / LlmError passthrough / non-LlmError classified through the twin table into the official taxonomy); config.ts providers section (schemastery nested object array + VOLATILE — U1: the volatile field is load-bearing for the Models-page namespace mount — fail-soft validator structural pass-through, shape-only schema with semantics pinned at construction); plugin.ts wireAdapterFace (async continuation tracked as adapterRegistration — gates: no-providers info keep-alive / no-registerAdapter warn / faces-undefined info fail-soft / construction fail-loud warn with the COMPLETE violation list / DUPLICATE_ADAPTER runtime refusal = official keep-old-route precedent; never breaks boot). Tests +19 (407/407: adapter-zctx 14 — F2 members/UNKNOWN_MODEL+NO_ADAPTER/prepareCall freeze/pipeline over real twins with fake pi-ai face/maxRetries pin/apiKey chain+MISSING_CREDENTIAL/transport classification/in-band error finish/abort/image refusal/stop+protocol refusal/reasoning effort; adapter-plugin 5 — keep-alive/official-path real registration with route+face+mapping provenance/violation-list warn/DUPLICATE conflict/unreachable info). tsc zero.",
+      "status": "done",
+      "artifacts": [
+        "src/adapter/zctx-adapter.ts",
+        "src/config.ts",
+        "src/plugin.ts",
+        "src/tools.ts",
+        "tests/adapter-zctx.spec.ts",
+        "tests/adapter-plugin.spec.ts",
+        "tests/plugin.spec.ts"
+      ]
     }
   ],
-  "next": "v5s2 zctx-adapter class (stream + error two-paths + maxRetries=0 + resolveModel + prepareCall) + plugin wireAdapterFace fail-soft registration",
+  "next": "v5s3 wire ledger (onPayload/fetch transparency + attributionHeaders R7 + wire-domain sha256 snapshots)",
   "notes": "Ledger check FIRST ACTION done: INDEX hits Z15/Z18/Z19/heredoc-length/Z13/Z14/Z17/Z12 carried as check items. Anchor reads (R8): dsh-llm lib 68 exports incl. LlmAdapter/LlmError/isContextWindowExceededError/attributionHeaders; llm-pi-ai lib exports only PiAiAdapter/Config/apply/inject/name/recordKeyFor/supportedProtocols — toStreamChunks/mapUsage reachable via src/*.ts (node type-stripping probed OK), classifyPiAiError module-private (stream.ts:42) => self-replicate with honest label; pi-ai 1.0.2 dist types.d.ts pins onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144; api/anthropic-messages.js + api/openai-completions.js export stream/streamSimple directly (Models-collection skip, per coordinator note). COORDINATOR RULING (A): providers[].family = wire protocol name, values = official supportedProtocols union taken DYNAMICALLY from the host ('openai-completions'|'openai-responses'|'anthropic-messages'), route = zctx-<family>, zero mapping, unknown family construction-time fail-loud, displayName = 'zctx <family>'."
 }
