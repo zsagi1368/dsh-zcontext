@@ -291,7 +291,77 @@
       "owner": "coder-v1",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "V2-TYPES",
+      "source": "cards/V2-observe-hash.md product 1 (RES-observe-route a.1 row 5 + V1 handoff rulings)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 7425822: src/types.ts RequestSnapshot (honest projector/domain fields) / PrefixBreakRecord (reset-explained|unknown-break) / CapturedAttemptUsage (non-durable face) / ResetEventKind +series-restart (V1 handoff ruling 1); index re-exports extended; 211/211",
+      "owner": "coder-v2",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V2-HOST-LLM",
+      "source": "cards/V2-observe-hash.md product 1 (host-llm fail-soft loader + hash primitives)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 24c35d1: src/host-llm.ts lazy loader (official projectFilesToText/projectImagesForTextModel/projectToolUpdates/isAgentLoopRequest when host resolvable; labeled local-fallback structural twins otherwise, ZCTX_DSH_LLM override keeps probe convention) + src/hash.ts stableStringify/sha256; probe spec pins BOTH paths; 218/218",
+      "owner": "coder-v2",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V2-OBSERVE",
+      "source": "cards/V2-observe-hash.md product 2 (RES-observe-route a.2 item 2 + a.3 + §Q8)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 15f421b: src/observe.ts llm/stream waterfall listener — four main-chain criteria, per-attempt RequestSnapshot through injected sinks, detectPrefixBreak (~20-line mechanical piece, reset-explained vs unknown-break, domain harness), optional attemptCapture wrapper (abort-rethrow + inner-close pinned), zero-mutation pin on deep-frozen options, sink faults fail-soft warn-once; 239/239",
+      "owner": "coder-v2",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V2-STORE",
+      "source": "cards/V2-observe-hash.md product 3 (process-memory receive ports + series reset accounting)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 59efa43: src/store.ts absorbRequestSnapshot/absorbCapturedAttemptUsage (bounded 64/64/64 ledgers, attach clears, never session-logged per CARD-F a.1) + requestSnapshots/lastRequestSnapshot/prefixBreakEvents/capturedAttemptUsage getters; reason='series' headers account as series-restart reset (V1 handoff ruling 1); 246/246",
+      "owner": "coder-v2",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V2-CONFIG",
+      "source": "cards/V2-observe-hash.md product 4 (config switches)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 458b664: src/config.ts 'observe.enabled'=true / 'observe.attemptCapture'=false as flat primitive dotted keys (card name pin + v1 all-primitive contract kept per coordinator course correction); CONFIG_FIELD_SPECS satisfies pin auto-forced both rows; smoke.spec defaults pin extended",
+      "owner": "coder-v2",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V2-PLUGIN",
+      "source": "cards/V2-observe-hash.md product 4 (plugin wiring, c5)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 7574f25: src/plugin.ts wireObserveFace registers ObserveListener.onStream on ctx.on('llm/stream') (official Events face llm/src/index.ts:76-78; host-spec precedent compaction-basic.spec.ts:1560), capability-probed (config switch=info; missing ctx.on/llm=warn+skip, five-face precedent), snapshots route to the store receive ports via the plugin's single lazy-attach registry, watched-set=liveSessions on official Session.id (agent-loop/src/agent.ts:718); src/tools.ts LlmRuntimeLike gains official inputModalities/toolUpdate pass-through; src/observe.ts +forgetSession wired to session/disposed; tsc 0 + 252/252 + probe 5/5 + verify 8/8",
+      "owner": "coder-v2",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "V2-TESTS-LIB",
+      "source": "cards/V2-observe-hash.md products 4-5 (wiring cases) + acceptance (lib rebuilt, git clean)",
+      "type": "deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 95007cc (plugin.spec 6 wiring cases: registration+snapshot routing w/ honest local-fallback pin, no-llm skip warn, observe.enabled=false info-not-warn face-scoped, attemptCapture=true non-durable capture, unwatched-id criterion 3, dispose clears listener state via attemptSeq-restart pin; degrades pin 5->6 warns; llm/stream in listeners key set) + commit bc281d5 (lib rebuilt incl. the 59efa43 rebuild artifact left dirty, V2 card in-repo); pre-change originals backed up del/20261113-v2-c5-plugin-prechange (5 files, SHA-256 = HEAD blobs)",
+      "owner": "coder-v2",
+      "status": "verified",
+      "phase": "block"
     }
   ],
-  "updatedAt": "2026-11-12T13:40:00+08:00"
+  "updatedAt": "2026-11-13T09:10:00+08:00"
 }
