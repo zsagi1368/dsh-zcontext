@@ -3,6 +3,72 @@
 All notable changes to `dsh-zcontext` are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com); versioning follows SemVer.
 
+## [Unreleased] — 0.2.0 draft (V4 wave in progress; V5/V6 pending)
+
+### Added (v0.2.0 so far)
+
+- **Observability ledger** (V1-V3, RES-observe-route): read-only `llm/stream`
+  waterfall listener — per-attempt request snapshots (normalized hashes,
+  labeled `official`/`local-fallback` projector provenance), harness-domain
+  prefix-break classification against the reset ledger, reset-event ledger
+  (7/8 guardian classes + series-restart), three-state usage accounting
+  (measured/semi/estimated), fold→usage attribution engine (seq-order primary
+  key + time-window fallback, strong/retry/weak grades, 8-item noise
+  disposition), and the `zctx_status` three-segment upgrade (session summary,
+  repay table behind the clean-sample gate, recent folds with attribution
+  quality, reset digest). Opt-in faces: `observe.attemptCapture` (failed
+  attempts' usage, non-durable).
+- **S1 preflight** (V4, RES-adapter-route §11b S1 + F6.1-F6.4/F8.3): a second
+  `llm/stream` listener (registered OUTERMOST) that estimates the request's
+  context before the wire — chars/3 over the re-projected messages (the
+  official projection exports when the host is present, labeled fallback
+  twins otherwise), adapter `imageRequestPricing` for kept images or a
+  constant reserve (`PER_IMAGE_FALLBACK_TOKENS`, 待标定) with honest labels —
+  and judges it against the CCM trigger line:
+  **hit ⇔ estimate > triggerLine × preflightMarginRatio**.
+  - `preflightMode: 'off' | 'observe' | 'enforce'` — **default 'observe'**:
+    estimates are recorded into a process-memory calibration ledger (estimate
+    vs the real usage that follows) and `zctx_status` renders the estimator
+    error statistics that decide when enforce is safe to promote.
+  - `preflightMode: 'enforce'` (explicit opt-in): a hit short-circuits the
+    stream with exactly one terminal
+    `finish{kind:'error', failure:{code:'CONTEXT_WINDOW_EXCEEDED'}}` chunk
+    (official sanctioned short-circuit; the official compaction overflow
+    recovery chain owns everything after — compactIfNeeded + retry), saving
+    the doomed wire request.
+  - One-shot requests (`purpose: 'compaction' | 'session-title'`) are never
+    judged, so the compaction recovery's own calls can never be short-circuited.
+  - Redlines honored: R2 (enforce unreachable under the default
+    configuration — pinned by test), R3 (the listener's dependency surface
+    carries no llm runtime — the `ctx.llm.stream` self-call is structurally
+    unreachable), zero request mutation (frozen-tree pin reused across both
+    modes).
+  - V2-A closure: a fault in the observe listener's prepare phase now warns
+    once (per listener) instead of being swallowed silently.
+- New settings: `preflightMode='observe'`, `preflightMarginRatio=0.9`
+  (估算器误差分布待真机标定后调整), `attributionTimeWindowMs=90000`,
+  `cleanSampleFloor=0.6`, `observe.enabled=true`, `observe.attemptCapture=false`.
+
+### observe → enforce migration conditions (no-go condition 4 discipline)
+
+`preflightMode: 'enforce'` is an opt-in advanced usage until ALL of the
+following hold (真机标定前 enforce 是 opt-in 高级用法):
+
+1. **Estimator error distribution calibrated on real machines**: the
+   `zctx_status` preflight segment shows a comparable-sample count and
+   mean/worst error over the calibration ledger — promote only after a
+   representative sample (route/model/ContentForm coverage) shows the
+   estimate is not systematically UNDER the true wire cost in the hot band
+   (a chars/3 underestimate on dense CJK is the known risk).
+2. **False-positive cost accepted**: every preflight hit that the provider
+   would have accepted triggers one unnecessary compaction surface rewrite
+   (F6.4) — the margin (`preflightMarginRatio`, default 0.9) exists to bias
+   against that; lowering it is a deliberate, documented trade.
+3. **Observed short-circuits reconcile**: in observe mode, records with
+   `hit: true` should correlate with real provider overflow errors over the
+   same window band; a hit-rate far above the true overflow rate is the
+   false-positive signature — keep observe running until they reconcile.
+
 ## [0.1.0] - 2026-11-12
 
 First release: model-driven incremental context folding for the official DeepSeek Harness, riding the official surface-replace channel (coexists with `compaction-basic`, which remains the hard floor).
