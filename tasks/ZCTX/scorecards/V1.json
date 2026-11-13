@@ -1,0 +1,82 @@
+{
+  "block": "V1",
+  "task": "ZCTX v0.2.0 V1 波联审（CARD-R3-review-V1V2.md）— U1/U2 前置探针 + 五类观测契约 types + store 观测账本 + 两阈值 config",
+  "range": "8e82b1b (V1 types) / 168ef03 U2 probe / 8eb4e78 U1 probe / c763f21 config / 563a7a5 store / 91ab316 governance terminal — 审查区间 8e82b1b..91ab316（含区间起点 types 提交本体）",
+  "reviewer": "reviewer-R3 (independent subagent; reviewer ≠ coder)",
+  "date": "2026-11-13",
+  "verdict": "通过 (总分 99 ≥ 98) → 交主线放行中间合入；6 条 [建议] 登记最终验收台账",
+  "total": 99,
+  "threshold": 98,
+  "scores": {
+    "correctness": 25,
+    "completeness": 20,
+    "consistency": 20,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 9
+  },
+  "verification_trio_reviewer_run": {
+    "lint": "pnpm lint → tsc --noEmit, EXIT=0",
+    "test": "pnpm test → vitest 14 files, 252/252 passed, EXIT=0",
+    "build": "pnpm build → tsdown 538.68 kB, EXIT=0; git status --porcelain lib/ 为空 = 入库 lib 与重建字节一致（可复现产物）",
+    "probe_artifact": "node scripts/probe-artifact.mjs → 5 PASS 0 SKIP 0 FAIL EXIT=0",
+    "activation_surface": "node scripts/verify-activation-surface.mjs → 8 PASS 0 FAIL EXIT=0",
+    "host_imports": "node scripts/probe-host-imports.mjs → 16 PASS 0 SKIP 0 FAIL EXIT=0（U2 报告机器重生成与入库版逐字一致仅时间戳差异，已还原入库态）"
+  },
+  "evidence": {
+    "correctness": [
+      "单一 applyEvent 迁移三路共享：src/store.ts:734 定义；resync :529-551 与 attach 扫描 :724 均调用 —— tests/store-observe.spec.ts:402-437 双制度 feed==scan 钉 + :439-464 resync gap 修复钉，实跑绿",
+      "callConfigEquals 本地孪生逐字段等价：src/store.ts stopEquals+callConfigEquals vs 官方 G:/000Github/zDSH/zDSH-main/packages/llm/llm/src/call-config.ts:67-77 —— provider/model/reasoningEffort/temperature/maxTokens 恒等 + stop undefined 语义与逐元素比较完全同构（官方 LlmCallConfig 本就不含 tools/adapterDefaults，tools 由 store 独立 toolsEquals 比对，adapterDefaults 按 §Q6 仅作 header 字段缓存不参与变更分类 = 与官方变更检测归属一致）",
+      "UsageRecord 诚实缺席语义（缺席不改写 0）：src/store.ts extractUsageRecord vs 官方 llm/src/types.ts:166-189 DISJOINT 口径；tests/store-observe.spec.ts:85-110 全字段 + estimated 缺席钉",
+      "9 类 ResetEvent 逐类测试 + fail-soft header 异常（tests/store-observe.spec.ts:114-398）+ 事件时间传播与缺席不置 0（:466-491）"
+    ],
+    "completeness": [
+      "a.1 表全量落地：RouteHeader/LlmCallConfigLike/AdapterDefaultsLike、ResetEvent(9-kind)、UsageRecord(state 三态 V3 预留)、FoldUsageAttribution、ObservabilitySnapshot —— 提交 8e82b1b src/types.ts +211 行",
+      "两阈值 config 按 plan §3 冻结：attributionTimeWindowMs=90000（§Q4.2 rule 4）+ cleanSampleFloor=0.6（§Q7.3），JSDoc 标注待真机标定 —— src/config.ts c763f21",
+      "U2 探针 16 PASS 0 SKIP（reports/probes/U2-host-imports.md，亲跑复现）；U1 SKIP 裁定含 GO 条件与宿主侧 layoutOf 上游请求项（reports/probes/U1-models-ui.md）",
+      "oneShotExempt 类显式声明归 V2 listener（src/types.ts ResetEventKind 文档注释）—— 非遗漏，为声明性延迟"
+    ],
+    "consistency": [
+      "官方锚点复读一致：request/header 形状 session/src/types.ts:388-395；MockSession 非表面事件不入表面列 = 官方 session/src/types.ts:486-490 纪律（tests/helpers/mock-session.ts SURFACE_EVENT_TYPES）",
+      "红线零接触：grep src/ 无 registerAdapter/ctx.llm.stream/.fetch 命中 —— R1/R3 保全，R2/R4-R8 本波无面",
+      "零宿主运行时 imports 纪律保持（store duck-typing；孪生语义由探针 G4 钉住）"
+    ],
+    "verifiability": [
+      "三绿+三探针全部 reviewer 亲跑（见 verification_trio）",
+      "U2 报告可复现：探针重跑输出与入库报告除运行时间戳外逐字一致"
+    ],
+    "safety_rollback": [
+      "零删除/零覆盖业务文件；governance 终态 91ab316 closure.json 29 items 全 fixed/verified、0 OPEN（node 机数复核：disposition 仅 fixed/user_approved_deferred，后者为 v0.1.0 基线遗留 W5-A6-INSTALL 非本波）",
+      "lib 重建字节一致（git status 干净）—— 产物可回滚=git HEAD"
+    ],
+    "maintainability": [
+      "模块文档与单一迁移设计清晰（store.ts 头注释 + applyEvent 收敛）",
+      "-1 理由：routeHeaders/resetLog 会话内无界（V1 diff 无 cap；attach 清空但会话生命周期内随 header/change 事件线性增长），且 routeHeaderChain()/resetEvents() 每次全量拷贝 —— V2 observe prepare() 每请求调用 resetEvents()（observe.ts:254），O(resets)/请求模式已定型；建议 V3 聚合消费时加 cap 或消费指针（详见 REVIEW-V1V2.md 建议 V1-B）"
+    ]
+  },
+  "attack_directions": {
+    "1_callConfigEquals_twin": "等价成立。逐字段对照官方 call-config.ts:67-77 全同（6 字段 + stop 尾语义）；tools/adapterDefaults 非官方 LlmCallConfig 成员不属该比较面；tools 另有 toolsEquals（sorted-key JSON 结构比较，键序无关测试钉 :180-213）。残余差异：孪生在 extractCallConfig 预清洗阶段丢弃非有限值（官方对原始 NaN 判不等）——JSON 事件域内不可达，登记为建议 V1-A",
+    "6_single_applyEvent": "真覆盖。attach 扫描/onEvent feed/resync 三路均过 applyEvent（store.ts:734/:551/:724），测试含双制度 feed==scan 全等钉 + resync gap 修复 + V2 series 单迁移钉（store-observe.spec.ts:524-537）",
+    "7_redlines": "R1-R8 本波零接触全保全：无 adapter 面（R1/R4/R5/R6/R7 n/a）、无 preflight enforce 代码（R2）、listener 无 ctx.llm.stream 自调（R3，grep 零命中）、无 pi-ai 耦合仅探针脚本级（R8）",
+    "8_probe_quality": "U2 G3 十导出清单 = 官方 index.ts:40-58 实际导出面中后波所需集合（error.ts:25/:108、attribution.ts:64、content.ts 投影三件、call-config.ts 三件），无漏测后波依赖项；U1 file:line 抽查可复现（ProviderEditor.tsx layoutOf ≈:142-146、submitDisabled unknown 门 ≈:513-527 实读吻合）"
+  },
+  "suggestions": [
+    {
+      "id": "V1-A",
+      "severity": "建议",
+      "location": "src/store.ts extractCallConfig/stopEquals vs call-config.ts:71-73",
+      "issue": "孪生比较发生在预清洗后的 config 上（非有限数值被丢弃→缺席），官方对原始值比较（NaN≠NaN 判不等）；探针 G4 仅钉 same/model-diff/stop-diff/stop-len 四例，未钉非有限值路径",
+      "fix": "探针 G4 增补一例非有限值语义钉（或孪生处加注释声明 JSON 事件域边界），使孪生-官方对拍矩阵显式完整",
+      "disposition": "OPEN → 待主线按 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    },
+    {
+      "id": "V1-B",
+      "severity": "建议",
+      "location": "src/store.ts routeHeaders/resetLog（V1 无 cap）+ routeHeaderChain()/resetEvents() 全量拷贝",
+      "issue": "会话生命周期内随 request/header 与 replace 事件线性增长无上界（usage 64/anomaly 256 有界，此二者无）；V2 observe prepare() 每请求 resetEvents() 全拷贝（observe.ts:254）成 O(resets)/请求",
+      "fix": "V3 聚合接入时为 resetLog 加 cap 或改为消费指针增量接口；至少在 store 文档注明会话生命周期界",
+      "disposition": "OPEN → 待主线按 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    }
+  ],
+  "fraud_check": "未发现造假：探针报告与亲跑输出一致；测试断言与实现语义对得上（逐条抽验 store-observe 25 用例可复现）；提交信息与 diff 内容吻合"
+}

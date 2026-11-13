@@ -1,0 +1,100 @@
+{
+  "block": "V2",
+  "task": "ZCTX v0.2.0 V2 波联审（CARD-R3-review-V1V2.md）— types 契约 + host-llm fail-soft 双路径 + observe listener（四判据/快照/前缀单调/attemptCapture）+ store 接收口 + c5 接线",
+  "range": "7425822 (V2 types) / 24c35d1 host-llm / 15f421b observe / 59efa43 store / 458b664 config / 7574f25 plugin / 95007cc tests / bc281d5 lib rebuild / 5092987 governance terminal — 审查区间 7425822..5092987（含区间起点 types 提交本体）",
+  "reviewer": "reviewer-R3 (independent subagent; reviewer ≠ coder)",
+  "date": "2026-11-13",
+  "verdict": "通过 (总分 99 ≥ 98) → 交主线放行中间合入；6 条 [建议] 登记最终验收台账（V1 两条 + V2 四条，去重后清单见 REVIEW-V1V2.md）",
+  "total": 99,
+  "threshold": 98,
+  "scores": {
+    "correctness": 25,
+    "completeness": 20,
+    "consistency": 20,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 9
+  },
+  "verification_trio_reviewer_run": {
+    "lint": "pnpm lint → tsc --noEmit, EXIT=0",
+    "test": "pnpm test → vitest 14 files, 252/252 passed, EXIT=0（observe 21 / host-llm 7 / plugin 19 / store-observe 25）",
+    "build": "pnpm build → tsdown 538.68 kB, EXIT=0; git status --porcelain lib/ 为空 = 入库 lib 与重建字节一致",
+    "probe_artifact": "node scripts/probe-artifact.mjs → 5 PASS 0 SKIP 0 FAIL EXIT=0",
+    "activation_surface": "node scripts/verify-activation-surface.mjs → 8 PASS 0 FAIL EXIT=0",
+    "host_imports": "node scripts/probe-host-imports.mjs → 16 PASS 0 SKIP 0 FAIL EXIT=0"
+  },
+  "evidence": {
+    "correctness": [
+      "四判据逐条实现且有逐条测试：observe.ts:236-288（isAgentLoopRequest 可选官方 import / purpose 缺席 / watched-sessionId 匹配 / 豁免窗）；tests/observe.spec.ts:128-198 一判据一用例",
+      "豁免窗语义：consumedResets 消费指针 + attach 清空自愈（observe.ts:255）+ explainedBy 结转给下一快照作 break 归类（:256-263, :284-285）—— tests :168-178 与 :299-328（fold 形态序列钉 reset-explained length-shrink）",
+      "detectPrefixBreak 与 guardian verifyMonotonic messages 部分同构：shrink 优先定 mode + 逐位首异定 breakIndex（observe.ts:154-185）vs cache-guardian.ts:451-476（G:/000Github/zDSH/zDSH-wt/zDSH-go/packages/llm/llm-pi-ai/src/cache-guardian.ts 实读）",
+      "attemptCapture 通道：chunk 逐个原样 yield、abort rethrow（:406-408）、消费者 early-return 经 for-await 契约关停 inner（tests :405-412 innerClosed 钉）、outcome 由 signal.aborted/finishKind 推导（tests :379-393）；豁免请求捕获 attemptSeq=0 有钉（tests :395-403）",
+      "sink 故障 fail-soft warn-once 且流不破（observe.ts:370-381; tests :414-425）"
+    ],
+    "completeness": [
+      "卡面产物 1-5 全交付：types（7425822 RequestSnapshot/PrefixBreakRecord/CapturedAttemptUsage/SnapshotProjector + series-restart）、host-llm（24c35d1）、observe（15f421b）、store 接收口（59efa43）、config 开关（458b664）、plugin c5 接线（7574f25）、tests（95007cc）",
+      "64/64/64 有界 + attach 清空 + forgetSession 全部有测试钉：store-observe.spec.ts:574-577（66→64）、:595-597、:600-622；plugin.spec dispose → attemptSeq 重起钉（:333-495 区段第 6 例）",
+      "attemptCapture 默认 false（config.ts + smoke.spec 默认钉 + observe.spec default-OFF 用例）"
+    ],
+    "consistency": [
+      "官方 waterfall 面签名吻合：llm/src/index.ts:78 '(options, next) => AsyncIterable' vs ObserveStreamListener；listener 恒调 next() 从不短路（observe.ts:219-233 两分支均 yield* next()）",
+      "只读纪律三重验证：(a) 官方投影函数实读非变异（content.ts projectFilesToText/projectToolUpdates 返回原引用或浅拷贝）；(b) fallback 孪生逐函数核对非变异（host-llm.ts:126-238）；(c) 零变异钉测试深冻结 + 深比较 + 引用同一性（observe.spec:200-227）",
+      "诚实域标注：缺任一导出整面降级 local-fallback（host-llm.ts:269-282，混合标注会被低估的设计正确）；快照 projector 字段与 U2 探针/双路径测试一致（observe.spec official 路径 projector='official' 钉 :428-453）",
+      "guardian 豁免窗同构声明成立（请求粒度消费指针；guardian seq 豁免窗 cache-guardian.ts:489-509 语义对照）—— 差异处（插件对 unknown-replace/series-restart 也豁免 vs guardian 白名单全成员要求）已在本评分登记为有据偏离：插件 unknown-replace 仅在观测到真实 surfaceOp replace 时入账 = 真断裂证据",
+      "config 平铺点键保持 v1 全 primitive 契约（V1 阈值字段先例）"
+    ],
+    "verifiability": [
+      "三绿+三探针全部 reviewer 亲跑（见 verification_trio）；有界性 66→64 机器钉；官方路径 WeakSet 拒绝未标记形似对象 + markAgentLoopRequest 放行（observe.spec:429-453 实跑宿主 lib）"
+    ],
+    "safety_rollback": [
+      "进程内账永不入会话日志（CARD-F a.1；store 接收口注释 + never session-logged 钉）；store.attach 清空全部三个新账（store-observe.spec:600-622）；plugin session/disposed → forgetSession 接线（plugin.ts:239-243）",
+      "RSI 收口带 pre-change 备份（del/20261113-v2-c5-rsi-index-prechange，RESTORE.md 在盘）；closure.json 36 items 0 OPEN（node 机数复核）"
+    ],
+    "maintainability": [
+      "模块文档、诚实标注、失败软化设计清晰；观察域/盲区（domain:'harness' pi-ai 域不可见）写进类型文档（types.ts:659-690）",
+      "-1 理由：prepare() 故障静默吞掉无 warn（observe.ts:221-225 catch→plan=undefined 无日志；系统性快照失败将无声关闭观测面）；modelInfoCache 进程级无界（provider\\0model 负结果也缓存）；detectPrefixBreak 不比较 systemHash/toolsHash（guardian 冻结段语义差异，规格 a.3 有意收窄但 PrefixBreakRecord 文档未声明该维度）——合并为建议 V2-A/V2-B/V2-C"
+    ]
+  },
+  "attack_directions": {
+    "2_readonly_discipline": "真钉住。listener 内无隐性写路径：快照构造走 stableValue 纯读重建（hash.ts:29-38 不触碰原对象）；官方/fallback 投影均为返回原引用或浅拷贝的纯函数（实读核验）；零变异钉在深冻结树上深比较且断言引用未换（observe.spec:200-227 含 attemptCapture=true 失败路径）。残余：该钉跑在 fallback projector 下，官方路径变异面靠官方实现源码核验背书 —— 见建议 V2-D",
+    "3_prefix_mechanism": "与 guardian verifyMonotonic messages 部分同构（shrink/逐位首异/先收缩优先）；豁免窗=请求粒度消费指针，guardian '<' 保守边界对应插件「reset 在两请求之间到达即豁免」无歧义态；system/tools 段未纳入 break 检测 = 规格 a.3 有意收窄（reset 台账+豁免窗承接）—— 登记建议 V2-B",
+    "4_bounded_ledgers": "跨会话泄漏面闭合：64/64/64 cap 测试钉（66→64）；attach 清空三账；watched 集清理=liveSessions delete + forgetSession(id)（plugin.ts:237-243）；attemptSeq 重起钉证明无残留（plugin.spec 第 6 例）。残余：modelInfoCache 进程级无界（实际受路由数约束）—— 见建议 V2-C",
+    "5_dual_path_honesty": "成立。判定条件=import 拒绝即整面 fallback 且快照带 local-fallback 标注（host-llm.ts:322-333 永不 throw；缺单导出整面降级防混合低估）；U2 探针钉官方路径在盘可用，双路径测试实跑官方 lib（WeakSet 拒绝未标记对象）；宿主在盘但 bare specifier 不可解析时会诚实走 fallback 标注而非误标 official",
+    "7_redlines": "R1-R8 本波零接触全保全（无 adapter/preflight/enforce/wire 面；observe listener 无 ctx.llm.stream 自调 —— grep src/ 零命中；R8 pi-ai 耦合未引入，仅探针级 dsh-llm 投影导出且 U2 对拍 1.0.2 宿主构建）"
+  },
+  "suggestions": [
+    {
+      "id": "V2-A",
+      "severity": "建议",
+      "location": "src/observe.ts:221-225（handleStream prepare catch）",
+      "issue": "prepare() 抛错被静默吞掉（plan=undefined 无任何日志）——系统性快照失败（如异常消息形态导致 stableStringify 循环引用抛错）会让观测面无声失效，与 sink 故障 warn-once 的诚实标准不一致",
+      "fix": "prepare catch 分支加与 sink() 同款 warn-once（观测失效可见化，不改变 fail-soft 行为）",
+      "disposition": "OPEN → 待主线按 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    },
+    {
+      "id": "V2-B",
+      "severity": "建议",
+      "location": "src/observe.ts detectPrefixBreak（:154-185）vs cache-guardian.ts:451-462",
+      "issue": "快照采集了 systemHash/toolsHash 但 break 检测不比较（guardian 将 system/tools 视为冻结段，任何变更即非单调）；规格 a.3 有意收窄到「messages 部分同构」且 system/tools 变更由 reset 台账+豁免窗承接，但 PrefixBreakRecord 文档未声明该维度缺口，V3 聚合易误读",
+      "fix": "在 PrefixBreakRecord/detectPrefixBreak 文档补一行「system/tools 维度不在 break 检测域，由 reset 台账承接」；或 V3 增补冻结段比较",
+      "disposition": "OPEN → 待主线按 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    },
+    {
+      "id": "V2-C",
+      "severity": "建议",
+      "location": "src/observe.ts:194 modelInfoCache",
+      "issue": "进程级模型信息缓存无界（provider\\0model 键，负结果亦缓存），无失效/清空路径；实际受路由数约束风险低，但与 64/64/64 有界纪律不对称",
+      "fix": "加简单 cap（如 256 条 LRU 语义）或文档声明界由路由集合约束",
+      "disposition": "OPEN → 待主线按 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    },
+    {
+      "id": "V2-D",
+      "severity": "建议",
+      "location": "tests/observe.spec.ts:200-227（零变异钉）",
+      "issue": "深冻结零变异钉仅在 fallback projector 下运行；official 路径的只读性靠官方投影实现源码核验背书（本评分已实读 content.ts 证实非变异），无机器钉",
+      "fix": "宿主在盘环境下将零变异钉测试以 ZCTX_DSH_LLM 覆盖再跑一遍（测试级增强，非产品缺陷）",
+      "disposition": "OPEN → 待主线按 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    }
+  ],
+  "fraud_check": "未发现造假：提交信息声称的测试数（239/246→252）与实跑一致；探针报告可机器复现；guardian 锚点实读吻合；官方导出面与 G3 清单对得上"
+}
