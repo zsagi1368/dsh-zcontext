@@ -545,16 +545,35 @@ interface FoldUsageAttribution {
   readonly retryCount: number;
   /** The attributed assistant/message was an interrupted prefix (§Q4.3 noise 7). */
   readonly interrupted?: true;
+  /**
+   * §Q4.2 rule 4 time-window fallback marker (V3): the seq chain between the
+   * fold commit and the attributed message was BROKEN (store resync gap —
+   * retained events do not cover the whole span), so the association degraded
+   * to `T_M − T_F ≤ attributionTimeWindowMs 且同 turn`. Such associations are
+   * honesty-capped at quality 'weak' (purity is unverifiable on a broken
+   * chain) and therefore never enter the fold account (总账 only).
+   */
+  readonly timeWindow?: true;
 }
 /** Three-state accounting grade of a usage record (§Q7.2). */
 type UsageRecordState = 'measured' | 'semi' | 'estimated';
 /**
+ * Which semi path graded a usage record (V3; RES-observe-route §Q7.2 rule 2).
+ * `interpolated` = usage absent but a same-turn later measured sample exists
+ * with no route/system-section reset in between → input-side fields carried
+ * over from that anchor sample. `meterAnchored` = usage absent but the
+ * official tokenMeter (injected through {@link MeterAnchorLike}) projected
+ * the request's input side → inputTokens carries that anchor; cache fields
+ * stay ABSENT (the meter cannot know provider cache state — 缺席不反推).
+ */
+type UsageRecordSemiKind = 'interpolated' | 'meterAnchored';
+/**
  * One request's three-state usage ledger entry (RES-observe-route a.1 row 1:
  * UsageSample + inputTokens/outputTokens/totalTokens/state/attribution).
- * `state: 'semi'` is reserved for the V3 interpolation/meter-anchor paths;
+ * `state: 'semi'` is filled by the V3 paths ({@link UsageRecordSemiKind});
  * the V1 store emits only 'measured' (usage object present) and 'estimated'
- * (absent). `attribution` stays undefined until the V3 attribution engine
- * fills it.
+ * (absent — absence is never reverse-inferred into cache support, §Q2.3).
+ * `attribution` is filled by the V3 attribution engine.
  */
 interface UsageRecord extends UsageSample {
   /** Un-cached input tokens (official TokenUsage disjoint accounting, llm/src/types.ts:167-173). */
@@ -565,6 +584,8 @@ interface UsageRecord extends UsageSample {
   readonly totalTokens?: number;
   /** The three-state grade of this record. */
   readonly state: UsageRecordState;
+  /** Which semi path graded this record; present exactly when state is 'semi'. */
+  readonly semiKind?: UsageRecordSemiKind;
   /** Fold attribution, when the V3 engine bound this sample to a fold. */
   readonly attribution?: FoldUsageAttribution;
 }
@@ -582,6 +603,15 @@ interface BreakevenTableRow {
   readonly breakevenTurns: number;
   /** Attribution quality of the row's best sample. */
   readonly quality: 'strong' | 'retry' | 'weak';
+  /**
+   * V3 repay-event detection (§Q7.3, price-weighted domain): true when the
+   * session has run at least max(1, ⌈breakevenTurns⌉) assistant/messages after
+   * the fold commit — the first such message is the repay event. Absent from
+   * a row means the detection input was unavailable (treated as not repaid).
+   */
+  readonly repaid?: boolean;
+  /** Seq of the repay-event assistant/message; present exactly when repaid is true. */
+  readonly repayEventSeq?: number;
 }
 /** The reset-ledger digest row: one kind with its entry count. */
 interface ResetSummaryRow {
@@ -652,6 +682,14 @@ interface PrefixBreakResetRef {
  * blind spot (honest domain boundary, RES-observe-route §Q5.2): pi-ai wire
  * rewrites (bit reordering, system folding, effort synthesis, breakpoint
  * shifts) are invisible at the object level — `domain: 'harness'` pins that.
+ *
+ * Deliberate narrowing (V2-B closure, R3 review; spec a.3 as written): break
+ * detection compares the MESSAGE-LIST hashes only — the snapshot's
+ * `systemHash`/`toolsHash` are collected for audit but do NOT participate;
+ * system-section and toolset changes are the reset ledger's territory
+ * (`system-section-change` / `toolset-change` / `sampling-change` classes +
+ * the exemption window), so V3 aggregation must not read this record as a
+ * statement about the system or tools segments.
  */
 interface PrefixBreakRecord {
   /** Always 'harness' — object-level hashes cover the harness domain only. */
@@ -707,6 +745,102 @@ interface CapturedAttemptUsage {
   /** Unix epoch ms of the capture. */
   readonly time: number;
 }
+/**
+ * Injected meter-anchor interface for the V3 `meterAnchored` semi path
+ * (RES-observe-route §Q7.2 rule 2b: usage absent but the official tokenMeter
+ * is injectable → its surface projection anchors the request's input side;
+ * the card freezes that this path goes through INJECTION, never a host
+ * import inside the pure core). Implemented by the plugin over the official
+ * TokenMeasurement surface nodes (token-meter/src/types.ts:31-56).
+ */
+interface MeterAnchorLike {
+  /**
+   * Input-side token anchor for the request that produced the message at
+   * `seq`: the summed token price of the surface nodes positioned before the
+   * message's own node, per the meter's route-priced projection. Undefined
+   * when the meter cannot see the message's node (surface moved on, meter
+   * unavailable) — the record then stays honestly 'estimated'.
+   */
+  inputAnchor(seq: number): number | undefined;
+}
+/** Structural fold-ledger view the aggregation consumes (store-shaped). */
+interface AttributionFoldEntry {
+  readonly foldId: string;
+  readonly checkpointSeq: number;
+  readonly tokensBefore: number;
+  readonly tokensAfter: number;
+}
+/** Input of {@link buildObservabilitySnapshot} (the store's ledger views). */
+interface SnapshotAggregationInput {
+  /** The bounded usage-record ledger (oldest first, three-state graded). */
+  readonly usageRecords: readonly UsageRecord[];
+  /** Lifetime three-state counters (attach-scoped, cap-independent). */
+  readonly threeState: ThreeStateCounts;
+  /** Fold-ledger entries (any status; attribution decides fold-account membership). */
+  readonly foldEntries: readonly AttributionFoldEntry[];
+  /** The fold-attribution ledger (foldId → association), any quality. */
+  readonly foldAttributions: readonly FoldUsageAttribution[];
+  /** The cache-reset ledger (digest input). */
+  readonly resetEvents: readonly ResetEvent[];
+  /** Assistant/message seqs ascending (repay-event detection input). */
+  readonly assistantMessageSeqs: readonly number[];
+}
+/** Input of {@link classifyFoldAttribution} — one F→M association attempt. */
+interface ClassifyAttributionInput {
+  /** The fold's id (FoldRecord.foldId). */
+  readonly foldId: string;
+  /** Seq of the fold commit (surfaceOp replace) event. */
+  readonly foldSeq: number;
+  /** Commit time of the fold event, when the event carried one. */
+  readonly foldTime?: number;
+  /**
+   * The turn open at the fold commit (nearest turn/start at-or-before the
+   * fold seq), when the log carries turn markers. Undefined when unknown —
+   * the same-turn check then relies on window boundary events only.
+   */
+  readonly foldTurn?: number;
+  /** Seq of the candidate attribution target (assistant/message). */
+  readonly messageSeq: number;
+  /** Commit time of the message event, when the event carried one. */
+  readonly messageTime?: number;
+  /** The message's `data.turn` (official assistant/message envelope). */
+  readonly messageTurn?: number;
+  /** The message's `data.step` (official assistant/message envelope). */
+  readonly messageStep?: number;
+  /** The message's `data.interrupted === true` (§Q4.3 noise 7). */
+  readonly messageInterrupted?: boolean;
+  /**
+   * Retained events STRICTLY between foldSeq and messageSeq, ascending. The
+   * engine derives chain completeness itself: the seqs must exactly cover
+   * [foldSeq + 1, messageSeq − 1] — any missing seq is a resync gap and
+   * triggers the time-window fallback.
+   */
+  readonly windowEvents: readonly SessionEventLike[];
+  /** Config attributionTimeWindowMs (the fallback window; never hardcoded). */
+  readonly timeWindowMs: number;
+}
+/**
+ * Classify ONE fold→message association (§Q4.2 rules 2-4; the module JSDoc
+ * carries the 8-noise disposition table). Returns undefined when the
+ * association fails: the message lacks its official turn/step envelope, or
+ * the broken-chain fallback (time window + same turn) does not pass.
+ */
+declare function classifyFoldAttribution(input: ClassifyAttributionInput): FoldUsageAttribution | undefined;
+/** Billed input of one usage record (§Q7.2 rule 1: input + read + write). */
+declare function billedInputTokens(record: UsageRecord): number | undefined;
+/**
+ * Clean-sample ratio (§Q7.3): strong / (strong + retry + weak) over the fold
+ * attribution ledger; 0 when no fold was ever attributed (no evidence = no
+ * confidence).
+ */
+declare function cleanSampleRatio(foldAttributions: readonly FoldUsageAttribution[]): number;
+/**
+ * Aggregate the observability snapshot (RES-observe-route a.1 row 6) from the
+ * store's ledger views. Pure: no store/host access. The fold account
+ * (breakevenTable) admits only folds whose attribution quality is
+ * strong/retry — weak associations stay in the total ledger (§Q4.2 rule 3).
+ */
+declare function buildObservabilitySnapshot(input: SnapshotAggregationInput): ObservabilitySnapshot;
 /**
  * Estimate the token cost of a text with the CCM L0 chars/3 estimator. It is
  * a conservative ceiling only within the estimator's calibrated ASCII-dense
@@ -888,6 +1022,23 @@ declare class FoldStore {
   /** Bounded non-durable captured-attempt-usage ledger (V2 receive port; never session-logged). */
   private readonly captureLog;
   private readonly anomaliesLog;
+  /** Fold-attribution ledger: foldId → its first-post-fold association (any quality). */
+  private readonly foldAttributionLog;
+  /** Ascending seqs of every consumed event (window binary-search index). */
+  private readonly eventSeqList;
+  /** Ascending seqs of assistant/message events (repay-event detection input). */
+  private readonly assistantMessageSeqs;
+  /** Parallel arrays of turn/start markers (seqs + the turn they opened). */
+  private readonly turnStartSeqs;
+  private readonly turnStartTurns;
+  /** Seq of the previous assistant/message (attribution candidate boundary). */
+  private lastAssistantMessageSeq;
+  /** Lifetime three-state counters (attach-scoped; cap-independent, §Q7.3). */
+  private threeState;
+  /** Injected meter anchor for the `meterAnchored` semi path (§Q7.2 rule 2b). */
+  private meterAnchor;
+  /** Config attributionTimeWindowMs (§Q4.2 rule 4 fallback; config-owned value). */
+  private attributionTimeWindowMs;
   private compactionStartSeq;
   private endSeedSeq;
   private lastSeq;
@@ -958,6 +1109,26 @@ declare class FoldStore {
   absorbCapturedAttemptUsage(record: CapturedAttemptUsage): void;
   /** The bounded usage-record ledger, oldest first (V1 observability). */
   usageRecords(): readonly UsageRecord[];
+  /**
+   * Inject the meter anchor for the `meterAnchored` semi path (§Q7.2 rule 2b:
+   * THROUGH INJECTION — the store never imports the host). Called once at
+   * store creation by the plugin; `undefined` keeps every usage-less request
+   * honestly 'estimated'.
+   */
+  setMeterAnchor(anchor: MeterAnchorLike | undefined): void;
+  /**
+   * Set the attribution time-window fallback from config
+   * (attributionTimeWindowMs; never hardcoded — plan §3 threshold discipline).
+   */
+  setAttributionTimeWindowMs(ms: number): void;
+  /** The fold-attribution ledger (foldId → association), commit order. */
+  foldAttributions(): readonly FoldUsageAttribution[];
+  /**
+   * The aggregated observability snapshot for zctx_status (a.1 row 6): pure
+   * aggregation over the store's ledger views (attribution.ts
+   * buildObservabilitySnapshot). On-demand — status is user-invoked.
+   */
+  observabilitySnapshot(): ObservabilitySnapshot;
   /** True while a `compaction/start` bracket is durably open (mutex). */
   compactionActive(): boolean;
   /** Record one anomaly in the bounded ledger (honest, never throws). */
@@ -992,10 +1163,59 @@ declare class FoldStore {
    * @internal
    */
   private classifyReplaceReset;
-  /** Append one reset ledger entry (evidence text is caller-owned). @internal */
+  /**
+   * Append one reset ledger entry (evidence text is caller-owned). V1-B
+   * closure: bounded ledger (oldest dropped). The observe listener's
+   * exemption window consumes resets by SEQ pointer, so the shift never
+   * mis-aligns it (store-observe spec pins 66→64).
+   * @internal
+   */
   private recordReset;
   /** Demote active folds whose checkpoint is shadowed by this replace. @internal */
   private shadowActiveCheckpoints;
+  /**
+   * One assistant/message: build the usage record, grade the semi paths, fill
+   * the fold attribution (nearest preceding fold commit), then maintain the
+   * lifetime three-state counters and the interpolated retro-upgrade.
+   * Runs inside the shared applyEvent transition — attach scan, live feed,
+   * and resync rebuilds all attribute identically by construction.
+   * @internal
+   */
+  private applyAssistantMessage;
+  /**
+   * Attribute one assistant/message against every fold commit since the
+   * previous assistant/message (§Q4.2: F's target = the FIRST M after F —
+   * folds before the previous message were already given their first M; later
+   * steps after this message are 维持账, noise ③). The nearest candidate's
+   * association binds the record (batch folds: the last commit before M is
+   * the clean window; earlier commits carry another replace in theirs and
+   * grade weak on their own associations).
+   * @internal
+   */
+  private attributeMessage;
+  /** Fail-soft meter-anchor probe: a meter fault degrades to estimated. @internal */
+  private tryMeterAnchor;
+  /**
+   * The `interpolated` semi path (§Q7.2 rule 2a): a measured anchor arrived;
+   * usage-less estimated records EARLIER in the same turn — with no reset
+   * entry between them and the anchor (conservative superset of "no
+   * route/system-section change") — carry the anchor's input-side fields over
+   * (absent stays absent, §Q2.3). Walking backwards stops at the first
+   * measured record (its own arrival already upgraded what it could), a turn
+   * change, an unknown turn, or a reset entry.
+   * @internal
+   */
+  private upgradeInterpolatedBefore;
+  /** First index in eventSeqList whose seq is strictly above `seq`. @internal */
+  private firstIndexAbove;
+  /** Retained events strictly between `from` and `to`, ascending. @internal */
+  private windowEventsBetween;
+  /** The turn open at `seq` (nearest turn/start at-or-before), when logged. @internal */
+  private turnOpenAt;
+  /** The `data.turn` of the retained event at one seq, when well-formed. @internal */
+  private messageTurnAt;
+  /** True when a reset-ledger entry sits strictly between the two seqs. @internal */
+  private resetBetween;
   /** Local surface replay from the retained log (fallback when no live surface). @internal */
   private replaySurfaceNodes;
   /** Build one SurfaceNode from a retained event. @internal */
@@ -1199,6 +1419,17 @@ interface LoggerLike {
 interface TokenMeterLike {
   measure(session: SessionLike): {
     readonly totalTokens: number;
+    /**
+     * Official TokenMeasurement surface nodes pass-through (additive, V3;
+     * token-meter/src/types.ts:31-56): the route-priced per-node projection
+     * the meter-anchor interface sums for the `meterAnchored` semi path.
+     * Undefined when the host meter predates the node projection — the
+     * anchor then honestly reports unavailability.
+     */
+    readonly nodes?: readonly {
+      readonly seq: number;
+      readonly tokens: number;
+    }[];
   };
 }
 /** Structural llm runtime subset used by the status/window resolution. */
@@ -1223,6 +1454,12 @@ interface ZctxToolRuntime {
   readonly logger?: LoggerLike;
   readonly tokenMeter?: TokenMeterLike;
   readonly llm?: LlmRuntimeLike;
+  /**
+   * Config cleanSampleFloor (V3 status gate, §Q7.3 诚实纪律): the renderer
+   * withholds repay conclusions when the clean-sample ratio falls below it.
+   * Config-owned value — never hardcoded here.
+   */
+  readonly cleanSampleFloor: number;
   /** Per-session store registry (lazy create + attach, feed-maintained). */
   storeFor(session: SessionLike): FoldStore;
   /** Validator config resolved for this session (window from cache when known). */
@@ -1337,6 +1574,17 @@ declare class ZcontextPlugin extends ServiceBase {
   private resolveWatchedSession;
   /** Per-session store registry: lazy create + attach (resume-restore scan). @internal */
   private storeFor;
+  /**
+   * The V3 meter-anchor interface over the official tokenMeter (§Q7.2 rule
+   * 2b): for the request that produced the message at `seq`, the input-side
+   * anchor is the summed route-priced tokens of the surface nodes positioned
+   * BEFORE the message's own node (official TokenMeasurement.nodes,
+   * token-meter/src/types.ts:31-56). Unavailable faces (no meter, no node
+   * projection, node not on the current surface, non-positive sum, meter
+   * fault) report undefined so the record stays honestly 'estimated'.
+   * @internal
+   */
+  private meterAnchorFor;
   /** Validator config for one session (context window from the cache when known). @internal */
   private validatorConfig;
   /**
@@ -1400,5 +1648,5 @@ declare function buildZctxCommand(runtime: ZctxToolRuntime): ZctxCommandDefiniti
  */
 /** Plugin identity exported for loader probes. */
 declare const name = "dsh-zcontext";
-export { type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, type ParamSpec, type PrefixBreakRecord, type PrefixBreakResetRef, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type RouteHeader, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordState, type UsageSample, type UsageSnapshot, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, buildGuidanceSection, buildZctxCommand, buildZctxTools, ccmWindowGate, computeBreakevenReport, computeBudget, configDefaults, configSchema, crossedThresholds, estimateTokens, fold, foldableRanges, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, resolveDefineTool, unfold, validateFold };
+export { type AttributionFoldEntry, type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type ClassifyAttributionInput, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, type MeterAnchorLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, type ParamSpec, type PrefixBreakRecord, type PrefixBreakResetRef, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type RouteHeader, type SnapshotAggregationInput, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordSemiKind, type UsageRecordState, type UsageSample, type UsageSnapshot, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, billedInputTokens, buildGuidanceSection, buildObservabilitySnapshot, buildZctxCommand, buildZctxTools, ccmWindowGate, classifyFoldAttribution, cleanSampleRatio, computeBreakevenReport, computeBudget, configDefaults, configSchema, crossedThresholds, estimateTokens, fold, foldableRanges, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, resolveDefineTool, unfold, validateFold };
 //# sourceMappingURL=index.d.ts.map
