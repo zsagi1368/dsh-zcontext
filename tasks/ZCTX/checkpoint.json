@@ -1,6 +1,6 @@
 {
   "task": "ZCTX-V5",
-  "updatedAt": "2026-11-13T21:30:00+08:00",
+  "updatedAt": "2026-11-13T21:55:00+08:00",
   "baseCommit": "2952692 (R4 joint-review terminal, V3=99/V4=98)",
   "steps": [
     {
@@ -12,8 +12,23 @@
         "src/tools.ts",
         "tests/preflight.spec.ts"
       ]
+    },
+    {
+      "id": "v5s1",
+      "name": "adapter skeleton (src/adapter/ new directory, 5 modules): host.ts (three fail-soft lazy loaders with per-process memoization + resetForTest — ZCTX_DSH_LLM/ZCTX_PIAI/ZCTX_DSH_LLM_PIAI overrides, directory-override dist/index.js resolution, fileURLToPath not pathname — Windows /G: drive bug caught in-process, KNOWN_PROTOCOLS = official union gate, all-or-nothing faces), providers.ts (A-ruling pure resolution: family===protocol from the official union, route zctx-<family> R5, displayName zctx-<family> verbatim, construction fail-loud COMPLETE violation list — family/models/contextWindow INVALID_MODEL_CONTEXT/maxTokens/R6 ws+non-http baseURL/apiKeyEnv rules; assertZctxProvidersResolvable throws one error with the full list), map.ts (event-mapping twins: mapUsage F5.6 three-count + cache-only-nonzero, classifyPiAiError port of the module-private stream.ts:42-68 table incl. undici terminated/Premature-close, mapStopReason overflow-double-classifier + EMPTY_RESPONSE + pending/deferred PI_AI_ERROR, toStreamChunks 7-shape port with usage-before-finish + raw-JSON tool args + STREAM_CLOSED, toPiReplayState emit twin), replay.ts (consume twin: readReplayState versioned validation + foreignAssistant dsh-foreign neutral + replayedAssistant signature recombination + INVALID_REPLAY_STATE one-message degrade), context.ts (text-only history conversion twin: system split, deferLoading tool filter, tool-name recovery, developer tool-addition resolution, image/file invariant throws; string-content defensive normalization), twins.ts (assembly with injected pi-ai isContextOverflow). SCOPE: history conversion is ALWAYS the twin (official context.ts pulls dsh-attachment transitively; text-only scope rejects images before conversion — honest boundary). tsc zero + 388/388 (333 baseline + 55).",
+      "status": "done",
+      "artifacts": [
+        "src/adapter/host.ts",
+        "src/adapter/providers.ts",
+        "src/adapter/map.ts",
+        "src/adapter/replay.ts",
+        "src/adapter/context.ts",
+        "src/adapter/twins.ts",
+        "tests/adapter-providers.spec.ts",
+        "tests/adapter-host.spec.ts"
+      ]
     }
   ],
-  "next": "v5s1 adapter skeleton + resolveModel (LlmAdapter optional import, fail-soft registration, A-ruling family=protocol union)",
+  "next": "v5s2 zctx-adapter class (stream + error two-paths + maxRetries=0 + resolveModel + prepareCall) + plugin wireAdapterFace fail-soft registration",
   "notes": "Ledger check FIRST ACTION done: INDEX hits Z15/Z18/Z19/heredoc-length/Z13/Z14/Z17/Z12 carried as check items. Anchor reads (R8): dsh-llm lib 68 exports incl. LlmAdapter/LlmError/isContextWindowExceededError/attributionHeaders; llm-pi-ai lib exports only PiAiAdapter/Config/apply/inject/name/recordKeyFor/supportedProtocols — toStreamChunks/mapUsage reachable via src/*.ts (node type-stripping probed OK), classifyPiAiError module-private (stream.ts:42) => self-replicate with honest label; pi-ai 1.0.2 dist types.d.ts pins onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144; api/anthropic-messages.js + api/openai-completions.js export stream/streamSimple directly (Models-collection skip, per coordinator note). COORDINATOR RULING (A): providers[].family = wire protocol name, values = official supportedProtocols union taken DYNAMICALLY from the host ('openai-completions'|'openai-responses'|'anthropic-messages'), route = zctx-<family>, zero mapping, unknown family construction-time fail-loud, displayName = 'zctx <family>'."
 }
