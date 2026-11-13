@@ -125,10 +125,15 @@ describe('plugin: face wiring', () => {
     expect(context.required).toBe(true)
     expect(context.interpolate).toBe(false)
     expect(typeof context.text).toBe('function')
-    // Command + session feed.
+    // Command + session feed + observe face (v0.2.0 V2: the sixth face).
     expect(ctx.registeredCommands).toHaveLength(1)
     expect((ctx.registeredCommands[0] as { name: string }).name).toBe('zctx')
-    expect([...ctx.listeners.keys()].sort()).toEqual(['session/created', 'session/disposed', 'session/event'])
+    expect([...ctx.listeners.keys()].sort()).toEqual([
+      'llm/stream',
+      'session/created',
+      'session/disposed',
+      'session/event',
+    ])
   })
 
   it('degrades face by face when host services are missing', () => {
@@ -138,8 +143,10 @@ describe('plugin: face wiring', () => {
     expect(ctx.registeredSections).toHaveLength(0)
     expect(ctx.registeredContexts).toHaveLength(0)
     expect(ctx.registeredCommands).toHaveLength(0)
-    // Five faces: session feed, tools, guidance, nudge, command.
-    expect(ctx.logLines.filter((l) => l.level === 'warn')).toHaveLength(5)
+    // Six faces: session feed, tools, guidance, nudge, command, observe
+    // (the observe face probes ctx.on before the llm runtime, so the missing
+    // bus is what it reports here).
+    expect(ctx.logLines.filter((l) => l.level === 'warn')).toHaveLength(6)
     expect(ctx.logLines.every((l) => l.message.includes('skipped'))).toBe(true)
   })
 })
@@ -324,5 +331,165 @@ describe('plugin: tools reach the session through exec.agent', () => {
     const reply = await statusTool.execute({}, { agent: { session } })
     expect(reply).toContain('window: ~100000 tokens (50.0% of 200000)')
     expect(reply).toContain('trigger line ')
+  })
+})
+
+describe('plugin: observe face (llm/stream wiring, v0.2.0 V2 c5)', () => {
+  /**
+   * Attach an official-shaped session id (official Session carries
+   * `id: SessionId`, core/session/src/index.ts:420; the agent loop fills
+   * GenerateOptions.sessionId from it — agent-loop/src/agent.ts:718). The
+   * mock has none of its own, so the wiring tests pin one on.
+   */
+  function withId(session: MockSession, id: string): MockSession {
+    return Object.assign(session, { id }) as MockSession
+  }
+
+  /** A main-chain-shaped llm/stream request (the criterion-1 heuristic passes). */
+  function loopRequest(sessionId: string): Record<string, unknown> {
+    return {
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      sessionId,
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+    }
+  }
+
+  /** Fire the REGISTERED llm/stream listener (the real registration artifact). */
+  async function runRegistered(
+    ctx: MockCtx,
+    options: Record<string, unknown>,
+    chunks: readonly unknown[],
+  ): Promise<unknown[]> {
+    const listener = ctx.listeners.get('llm/stream')![0] as
+      (options: unknown, next: () => AsyncIterable<unknown>) => AsyncIterable<unknown>
+    const inner = async function* () {
+      for (const chunk of chunks) yield chunk
+    }
+    const consumed: unknown[] = []
+    for await (const chunk of listener(options, () => inner())) consumed.push(chunk)
+    return consumed
+  }
+
+  function storeOf(plugin: ZcontextPlugin, session: MockSession): FoldStore {
+    const store = (plugin as unknown as { stores: WeakMap<object, FoldStore> }).stores.get(session)
+    expect(store).toBeInstanceOf(FoldStore)
+    return store!
+  }
+
+  const OK_CHUNKS = [
+    { type: 'text-delta', index: 0, text: 'hi' },
+    { type: 'usage', usage: { inputTokens: 10, outputTokens: 2 } },
+    { type: 'finish', reason: { kind: 'stop' } },
+  ]
+
+  it('registers the llm/stream listener and routes snapshots into the session store (attemptCapture default off)', async () => {
+    const ctx = mockCtx()
+    const plugin = new ZcontextPlugin(ctx)
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(1)
+    // The observed session must be watched: created through the feed with an
+    // id the request carries.
+    const session = withId(seedConversation().session, 'sess-1')
+    ctx.emit('session/created', session)
+    const consumed = await runRegistered(ctx, loopRequest('sess-1'), OK_CHUNKS)
+    // Read-only discipline at the wiring level: chunks pass through in order.
+    expect(consumed).toEqual(OK_CHUNKS)
+    // The snapshot landed in the per-session store's process-memory ledger
+    // (lazy store creation through the plugin's single registry authority;
+    // no session-log writes — CARD-F a.1).
+    const snapshots = storeOf(plugin, session).requestSnapshots()
+    expect(snapshots).toHaveLength(1)
+    expect(snapshots[0].sessionId).toBe('sess-1')
+    expect(snapshots[0].attemptSeq).toBe(1)
+    // Honest projector labeling: without the host lib the fallback twin runs.
+    expect(snapshots[0].projector).toBe('local-fallback')
+    // attemptCapture default OFF: the usage chunk above was NOT captured.
+    expect(storeOf(plugin, session).capturedAttemptUsage()).toHaveLength(0)
+  })
+
+  it('without the llm service the observe face is skipped with a warn (five-face precedent)', () => {
+    const ctx = mockCtx({ llm: undefined })
+    new ZcontextPlugin(ctx)
+    expect(ctx.listeners.has('llm/stream')).toBe(false)
+    expect(
+      ctx.logLines.some(
+        (l) => l.level === 'warn' && l.message.includes('llm service unavailable') && l.message.includes('observe face skipped'),
+      ),
+    ).toBe(true)
+    // The other faces stay live — the probe is per-face.
+    expect(ctx.registeredTools).toHaveLength(4)
+    expect(ctx.listeners.has('session/event')).toBe(true)
+  })
+
+  it('observe.enabled=false registers nothing and logs the choice as info, not warn', () => {
+    const ctx = mockCtx()
+    new ZcontextPlugin(ctx, { 'observe.enabled': false })
+    expect(ctx.listeners.has('llm/stream')).toBe(false)
+    expect(
+      ctx.logLines.some((l) => l.level === 'info' && l.message.includes('observe.enabled=false')),
+    ).toBe(true)
+    expect(ctx.logLines.some((l) => l.message.includes('observe face skipped'))).toBe(false)
+    // Face-scoped switch: every other face stays registered.
+    expect(ctx.registeredTools).toHaveLength(4)
+    expect(ctx.registeredSections).toHaveLength(1)
+    expect(ctx.registeredContexts).toHaveLength(1)
+    expect(ctx.registeredCommands).toHaveLength(1)
+    expect(ctx.listeners.has('session/event')).toBe(true)
+  })
+
+  it('observe.attemptCapture=true records failed-attempt usage into the non-durable ledger', async () => {
+    const ctx = mockCtx()
+    const plugin = new ZcontextPlugin(ctx, { 'observe.attemptCapture': true })
+    const session = withId(seedConversation().session, 'sess-1')
+    ctx.emit('session/created', session)
+    const chunks = [
+      { type: 'usage', usage: { inputTokens: 11, outputTokens: 3, cacheReadTokens: 90 } },
+      { type: 'finish', reason: { kind: 'error', failure: { message: 'boom' } } },
+    ]
+    const consumed = await runRegistered(ctx, loopRequest('sess-1'), chunks)
+    expect(consumed).toEqual(chunks)
+    const captures = storeOf(plugin, session).capturedAttemptUsage()
+    expect(captures).toHaveLength(1)
+    expect(captures[0]).toMatchObject({
+      sessionId: 'sess-1',
+      attemptSeq: 1,
+      outcome: 'error',
+      nonDurable: true,
+      usage: { inputTokens: 11, outputTokens: 3, cacheReadTokens: 90 },
+    })
+  })
+
+  it('unwatched session ids pass through with no snapshot (criterion 3 at the wiring level)', async () => {
+    const ctx = mockCtx()
+    const plugin = new ZcontextPlugin(ctx)
+    // No session/created: the id resolves to nothing watched.
+    const consumed = await runRegistered(ctx, loopRequest('ghost-9'), OK_CHUNKS)
+    expect(consumed).toEqual(OK_CHUNKS)
+    // Once the id becomes watched (created through the feed), the SAME id's
+    // first request snapshots as attemptSeq 1 — proof the unwatched firing
+    // absorbed nothing into any ledger.
+    const session = withId(new MockSession(), 'ghost-9')
+    ctx.emit('session/created', session)
+    await runRegistered(ctx, loopRequest('ghost-9'), OK_CHUNKS)
+    const snapshots = storeOf(plugin, session).requestSnapshots()
+    expect(snapshots).toHaveLength(1)
+    expect(snapshots[0].attemptSeq).toBe(1)
+  })
+
+  it('session/disposed clears the observe listener state (a re-created id restarts its attempt seq)', async () => {
+    const ctx = mockCtx()
+    const plugin = new ZcontextPlugin(ctx)
+    const session = withId(seedConversation().session, 'sess-1')
+    ctx.emit('session/created', session)
+    await runRegistered(ctx, loopRequest('sess-1'), OK_CHUNKS)
+    expect(storeOf(plugin, session).requestSnapshots()[0].attemptSeq).toBe(1)
+    ctx.emit('session/disposed', session)
+    // Re-create the same id: the listener state was dropped with the session,
+    // so the fresh state's attemptSeq restarts at 1 (a leak would continue at 2).
+    ctx.emit('session/created', session)
+    await runRegistered(ctx, loopRequest('sess-1'), OK_CHUNKS)
+    const snapshots = storeOf(plugin, session).requestSnapshots()
+    expect(snapshots).toHaveLength(2)
+    expect(snapshots[1].attemptSeq).toBe(1)
   })
 })
