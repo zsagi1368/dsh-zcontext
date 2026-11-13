@@ -461,7 +461,17 @@
       "owner": "coder-v4",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "V4-G",
+      "source": "final-battery re-run found smoke.spec config pin red after the lib rebuild (Z19: vitest imported the STALE V3 artifact in the earlier green run)",
+      "type": "lesson-application",
+      "disposition": "fixed",
+      "evidence": "smoke.spec pin literal +preflightMode/preflightMarginRatio (conscious contract update, Z19 discipline build->test->tsc->probe); two consecutive green runs against the fresh lib (332/332, tsc clean, probe-artifact 5/5, verify-activation-surface exit 0); smoke.spec pre-change backed up in del/20261113-v4-preflight-prechange (SHA-256 vs 62d6889 OK); Z19 registered in zDSH-LESSONS.md + INDEX capture row",
+      "owner": "coder-v4",
+      "status": "verified",
+      "phase": "block"
     }
   ],
-  "updatedAt": "2026-11-13T19:20:00+08:00"
+  "updatedAt": "2026-11-13T20:00:00+08:00"
 }
