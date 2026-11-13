@@ -20,6 +20,7 @@ R1 adapter 层零 body 改写（折叠归 surface 层）；R2 preflight enforce 
 ## 3. 关键设计冻结
 
 - 配置：新增 structured settings 段（schemastery 嵌套——v1 全 primitive 约束放宽，官方 llm-pi-ai 先例）：`providers[]`（family/baseURL/apiKeyEnv/models[].id/contextWindow/maxTokens/reasoningEfforts）+ `preflightMode` + `observe.enabled` + 归因阈值（attributionTimeWindowMs=90000/cleanSampleFloor=0.6，待标定标注）。
+  - **§3.1 追加裁定（V5 执行者请裁，2026-11-13）**：`family` 语义=**pi-ai wire 协议名直取**（官方 supportedProtocols union：'openai-completions'|'openai-responses'|'anthropic-messages'），路由名=zctx-<family>，协议零映射，未知 family 构造期 fail-loud；displayName='zctx <family>'。淘汰 B（发明规格外映射表，违 C5 谨慎证据）与 C（字段清单放宽无必要——A 语义即协议，字段名保持 plan 冻结的 family）。
 - 双域账本：harness 域（对象哈希，全路由覆盖）+ wire 域（字节哈希，仅 zctx 路由会话覆盖）——台账 schema 带 `domain` 字段，诚实标注覆盖范围。
 - 归因：seq 序+turn/step 主键+时间窗兜底；三态定级+质量三级（strong/retry/weak）；纯净占比 <floor 时 status 显示"归因可信度不足"（诚实纪律）。
 - 短路形态：S1 命中=enforce 模式下 yield finish error chunk（官方 sanctioned，index.ts:66-70 文档）；observe 模式只记台账不短路。
