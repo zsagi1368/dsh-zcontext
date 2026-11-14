@@ -393,3 +393,52 @@ describe('FoldStore V3: observabilitySnapshot assembly (a.1 row 6)', () => {
     expect(snapshot.resetSummary).toEqual([{ kind: 'compaction', count: 1 }])
   })
 })
+
+describe('FoldStore V3: resume/series headers across an attribution window (P3 SM-04 / P3-T3 pins)', () => {
+  /**
+   * P3 SM-04 decision pins (AUD-state-machines §3): the V3 frozen rule set
+   * lists ONLY `reason:'change'` as a weak factor (attribution.ts:218-219,
+   * :273; rule 3, attribution.ts:23-27). These pins FREEZE that decision for
+   * the other two header reasons with the rationale:
+   *   - `resume` = restart/fork-seed boundary — the folded summary survives
+   *     in the REBUILT context, so "who consumed the reclaim" attribution
+   *     remains defensible: strong.
+   *   - `series` = the producer's self-admitted message-series discontinuity
+   *     WITHOUT a surface replacement — a replace would be caught by the
+   *     otherReplace factor anyway; a pure series crossing keeps the fold's
+   *     first-post-fold M as the honest consumption witness: strong.
+   * If a future wave wants these downgraded to weak, that is a RULE CHANGE
+   * (§10 control), not a test edit: these pins must be consciously flipped.
+   */
+
+  it('F → request/header(resume) → M: attribution stays strong (restart boundary keeps the summary on-context)', () => {
+    const session = buildAttributionSession()
+    const store = new FoldStore()
+    store.attach(session)
+    const off = session.onAppend((event) => store.onEvent(session, event))
+    session.append('request/header', {
+      header: { config: { provider: 'deepseek', model: 'deepseek-chat' } },
+      reason: 'resume',
+    })
+    session.append('assistant/message', assistantPayload(1, 1, { inputTokens: 50, cacheReadTokens: 30 }))
+    off()
+    expect(store.usageRecords()[1]?.attribution).toMatchObject({ foldId: 'f1', quality: 'strong' })
+    // The reset ledger DID record the restart boundary (both ledgers co-exist).
+    expect(store.resetEvents().some((r) => r.kind === 'session-recovery')).toBe(true)
+  })
+
+  it('F → request/header(series, no replace) → M: attribution stays strong (no surface replacement to blame)', () => {
+    const session = buildAttributionSession()
+    const store = new FoldStore()
+    store.attach(session)
+    const off = session.onAppend((event) => store.onEvent(session, event))
+    session.append('request/header', {
+      header: { config: { provider: 'deepseek', model: 'deepseek-chat' } },
+      reason: 'series',
+    })
+    session.append('assistant/message', assistantPayload(1, 1, { inputTokens: 50, cacheReadTokens: 30 }))
+    off()
+    expect(store.usageRecords()[1]?.attribution).toMatchObject({ foldId: 'f1', quality: 'strong' })
+    expect(store.resetEvents().some((r) => r.kind === 'series-restart')).toBe(true)
+  })
+})
