@@ -41,3 +41,22 @@
 {"ts":"2026-11-13T22:45:00+08:00","task":"ZCTX-V5","step":"v5s6-terminal","commits":[],"summary":"terminal battery green: build 984.97 kB + 419/419 + tsc zero + 4 probes exit 0; R1-R8 audit clean; closure 56 items 0 new OPEN"}
 {"ts": "2026-11-13T12:55:00+08:00", "task": "ZCTX-V6", "step": "v6s4-terminal", "commits": ["dec0bcc", "c935277", "e733ad1", "6d835b1", "80c43d5"], "summary": "terminal battery green: 0.2.0 + lib 988.84 kB + 424/424 + tsc zero + probes 6/10/3/16; R5 four + V1-A fixed/verified; closure 65 items 1 by-design deferred; README en/zh mirror verified"}
 {"ts": "2026-11-14T07:58:00-08:00", "task": "ZCTX-P0", "step": "p0s4-terminal", "commits": ["b289f04", "5174b93", "b650c73"], "summary": "P0 terminal: inject six-key fix + mock host cordis discipline + probe-real-mount 5/5; battery build+429/429+tsc0+five probes exit 0; closure 69 items all closed except W5-A6-INSTALL (user_approved_deferred by design); RSI Z21/Z22 captured"}
+{"ts":"2026-11-14T00:20:00-08:00","task":"ZCTX-P3","step":"p3s1-sm01","commits":["f01b5cd"],"summary":"SM-01 guard + true-duplicate rewrite + 6 pins; removal check 6-red; 435/435 + tsc 0 + build 997.07 kB"}
+{"ts":"2026-11-14T00:50:00-08:00","task":"ZCTX-P3","step":"p3s2-sm02","commits":["614028a"],"summary":"SM-02 amount validation + observability fail-soft; 5+1 pins; removal check 4-red; 441/441 + tsc 0 + build 1.00 MB"}
+{"ts":"2026-11-14T01:10:00-08:00","task":"ZCTX-P3","step":"p3s3-hf01","commits":["see git log"],"summary":"HF-01 option (a): defensive-mirror contract + imageCount wire observability; pin + removal check; 442/442"}
+{"ts":"2026-11-14T01:30:00-08:00","task":"ZCTX-P3","step":"p3s4-hf02","commits":["see git log"],"summary":"HF-02 five-key inject + five-stub probe; 443/443"}
+{"ts":"2026-11-14T01:45:00-08:00","task":"ZCTX-P3","step":"p3s5-z19","commits":["see git log"],"summary":"Z19 explicit chain; stale scenario structurally excluded; 443/443"}
+{"ts":"2026-11-14T02:00:00-08:00","task":"ZCTX-P3","step":"p3s6-repro-reverse","commits":[],"summary":"4-script reverse verification: exits 1/1/1/0 (hf01 REPRO = option-a expected); conversions recorded"}
+{"ts":"2026-11-14T02:15:00-08:00","task":"ZCTX-P3","step":"p3s7-r1-sm03","commits":[],"summary":"SM-03 breaker + 2 pins; 445/445"}
+{"ts":"2026-11-14T02:30:00-08:00","task":"ZCTX-P3","step":"p3s8-r4-sm06","commits":[],"summary":"SM-06 defensive demotion; 447/447"}
+{"ts":"2026-11-14T02:50:00-08:00","task":"ZCTX-P3","step":"p3s9-r3-sm05","commits":[],"summary":"SM-05 clamp; 448/448"}
+{"ts":"2026-11-14T03:05:00-08:00","task":"ZCTX-P3","step":"p3s10-r5-sm12","commits":[],"summary":"SM-12 normalization + pin; 449/449"}
+{"ts":"2026-11-14T03:15:00-08:00","task":"ZCTX-P3","step":"p3s11-r2-sm04","commits":[],"summary":"SM-04 decision pins; 451/451"}
+{"ts":"2026-11-14T03:35:00-08:00","task":"ZCTX-P3","step":"p3s12-r7-hf04","commits":[],"summary":"HF-04 containment; 454/454"}
+{"ts":"2026-11-14T03:50:00-08:00","task":"ZCTX-P3","step":"p3s13-r13-hf15","commits":[],"summary":"HF-15 register containment; 457/457"}
+{"ts":"2026-11-14T04:05:00-08:00","task":"ZCTX-P3","step":"p3s14-r8-hf05","commits":[],"summary":"HF-05 outer guard; 458/458"}
+{"ts":"2026-11-14T04:15:00-08:00","task":"ZCTX-P3","step":"p3s15-r11-hf08","commits":[],"summary":"HF-08 pre-check; 459/459"}
+{"ts":"2026-11-14T04:30:00-08:00","task":"ZCTX-P3","step":"p3s16-r12-hf13","commits":[],"summary":"HF-13 undefined path; 460/460"}
+{"ts":"2026-11-14T04:45:00-08:00","task":"ZCTX-P3","step":"p3s17-r6r9r10","commits":[],"summary":"docs trio; 460/460"}
+{"ts":"2026-11-14T05:00:00-08:00","task":"ZCTX-P3","step":"p3s18-r15r16","commits":[],"summary":"R15+R16 hygiene; 461/461"}
+{"ts": "2026-11-14T05:30:00-08:00", "task": "ZCTX-P3", "step": "p3s19-terminal", "commits": ["f01b5cd", "614028a", "219f7ff", "c9ed41f", "83e966e", "9f940b5", "23e15ff", "1d6a804", "c78133f", "937dad8", "0c621c1", "cf22369", "bc567f3", "92cf972", "555aa2d", "1021e3d", "0effbb6", "ac3c3ef"], "summary": "P3 terminal: full frozen list closed (5 must + 16 harden + 9 pins + S1 v0.3); battery 471/471 + tsc 0 + five probes exit 0; four-must repro reverse 1/1/1/0; closure 98 items"}

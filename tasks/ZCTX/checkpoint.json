@@ -1,50 +1,249 @@
 {
- "task": "ZCTX-P0",
- "updatedAt": "2026-11-14T07:58:00-08:00",
- "baseCommit": "7f5a3d7 (v0.2.0 merge ledger terminal, 424/424)",
+ "task": "ZCTX-P3",
+ "updatedAt": "2026-11-14T05:30:00-08:00",
+ "baseCommit": "391990f (P0 terminal baseline, 429/429, five probes green)",
  "steps": [
   {
-   "id": "p0s1",
-   "name": "inject fix commit b289f04: static inject = ['tools','systemPrompt','commands','llm','tokenMeter','sessions'] — all six keys read-verified against the provider registration names on the anchor tree (tools=core/tools/src/index.ts:850, systemPrompt=core/system-prompt/src/index.ts:442, commands=interaction/commands/src/index.ts:277, llm=llm/llm/src/index.ts:354, tokenMeter=llm/token-meter/src/index.ts:111, sessions=session-controller client/sessions/service.ts:282); ctx.logger (context.ts:81 own prop) and ctx.on (mixin accessor) exempt; smoke inject pin []->six keys; lib rebuilt in-commit; ground truth on the vendored cordis: the get-trap fiber walk only walks the ANCESTOR chain (reflect.ts:148-165), sibling-fiber services are invisible without inject, wrong key (session) -> silent PENDING proven",
+   "id": "p3s0",
+   "name": "wave start: registry check (INDEX hits Z15 tsc-first / Z18 stringify-undefined / Z19 stale-artifact — all carried as execution checks; heredoc>3KB redline: all long content via Write/Edit); card + REPORT-FULL-AUDIT frozen list + AUD-state-machines + AUD-host-faces + four E-repro scripts read; §5 wave backup del/20261114-p3-audit-fixes-prechange (33 files = HEAD blobs, SHA-256 spot-check 3/3 OK, RESTORE.md in place)",
+   "status": "done",
+   "artifacts": [
+    "del/20261114-p3-audit-fixes-prechange"
+   ],
+   "notes": [
+    "HF-01 decision (P3-M3, three-way choice per AUD-host-faces §1.2): option (a) ACCEPT the placeholder path — rationale: (b) text-only UI declaration is probe-proven unavailable for third-party settingsNs (U1, D2 §1.2 '此路受限'); (c) placeholder-text feature detection is unreliable and explicitly NOT recommended by the audit; (a) keeps the UNSUPPORTED_CONTENT gate as a defensive mirror, downgrades the contract text (zctx-adapter header + gate block + README), and adds imageCount observability on wire records. Consequence stated honestly: the HF-01 repro script's mechanical checks (①-④) stay REPRO after (a) because the runtime mechanism is intentionally unchanged — option (a) changes the CONTRACT + observability, so its acceptance is the contract-downgrade + pinned imageCount field, not behavioral NO-REPRO. Recorded here and restated in the wave report.",
+    "Z19 decision (P3-M5, two-way choice per card): explicit chain \"test\": \"tsdown && vitest run\" over an npm pretest hook — rationale: pnpm does not run pre/post scripts unless enable-pre-post-scripts=true (.npmrc), so a pretest hook would silently leave the gap open for pnpm users; the explicit chain is runner-agnostic (npm/pnpm/yarn) and self-documenting."
+   ]
+  },
+  {
+   "id": "p3s1-sm01",
+   "name": "SM-01 commit f01b5cd: applyEvent entry idempotency/monotonicity guard (P3-M1 + P3-R14 same-fix) — true duplicates (seq in eventsBySeq) and out-of-order fresh seqs (below frontier) dropped with honest anomalies; store.spec.ts:289 mislabeled test rewritten per audit §1.4 (listener wired + real re-delivery + guard pin) + 6 P3-T1 pins; removal check 6-red-then-green; battery 997.07 kB / tsc 0 / 435/435",
+   "status": "done",
+   "artifacts": [
+    "src/store.ts",
+    "tests/store.spec.ts",
+    "lib"
+   ],
+   "evidence": "commit f01b5cd; removal-check transcript in progress.md"
+  },
+  {
+   "id": "p3s2-sm02",
+   "name": "SM-02 commit 614028a: extractCheckpointSource Number.isFinite + non-negative (twin-aligned) with droppedAmounts anomaly reporting + renderStatus segments 1-4 fail-soft wrapper (STATUS_OBS_SNAPSHOT_FAILED); +5 P3-T4 ingestion pins + 1 renderStatus fail-soft pin; removal check 4-red; battery 1.00 MB / tsc 0 / 441/441",
+   "status": "done",
+   "artifacts": [
+    "src/store.ts",
+    "src/tools.ts",
+    "src/texts.ts",
+    "tests/store-observe.spec.ts",
+    "tests/tools.spec.ts",
+    "lib"
+   ],
+   "evidence": "commit 614028a; removal-check transcript in progress.md"
+  },
+  {
+   "id": "p3s3-hf01",
+   "name": "HF-01 commit: option (a) accepted — gate comment contract downgraded to defensive mirror (adapter header + gate block + README honesty note); WireSnapshot.imageCount + wire identity passthrough + adapter-zctx pin (imageCount===0 on image-free path); gate behavior unchanged; removal check 1-red; battery 442/442",
+   "status": "done",
+   "artifacts": [
+    "src/adapter/zctx-adapter.ts",
+    "src/adapter/wire.ts",
+    "src/types.ts",
+    "README.md",
+    "tests/adapter-zctx.spec.ts",
+    "lib"
+   ],
+   "evidence": "removal-check transcript in progress.md; ruling rationale in p3s0 notes"
+  },
+  {
+   "id": "p3s4-hf02",
+   "name": "HF-02 commit: inject six->five keys ('sessions' removed — declared-but-never-read, silent PENDING blocker); smoke/plugin.spec pins updated + activation pin; probe-real-mount five stubs with G3 as the real-cordis no-sessions pin (5/5 exit 0); battery 443/443",
    "status": "done",
    "artifacts": [
     "src/plugin.ts",
-    "tests/smoke.spec.ts",
-    "lib"
-   ]
-  },
-  {
-   "id": "p0s2",
-   "name": "mock host discipline commit 5174b93: tests/helpers/mock-host.ts implements the vendor ReflectService.get semantics (reflect.ts:136-165) as a Proxy — special props / own props / inject-declared store resolution / declared-but-absent belt undefined / else the exact device throw; service stubs moved off the target into a store (fiber.store mirror); inject read LIVE from ZcontextPlugin.inject (self-lock); three spec mocks rerouted; +5 negative pins = 429/429; removal check: inject reverted to [] turns 30 tests red, restore green; self-caught: git checkout restore under autocrlf put CRLF into src/plugin.ts -> rebuilt sourcemap embedded CRLF sourcesContent (+1550B) — normalized to LF, rebuilt, lib byte-identical to committed (Z22 candidate)",
-   "status": "done",
-   "artifacts": [
-    "tests/helpers/mock-host.ts",
     "tests/plugin.spec.ts",
-    "tests/adapter-plugin.spec.ts",
-    "tests/smoke.spec.ts"
-   ]
-  },
-  {
-   "id": "p0s3",
-   "name": "probe-real-mount commit b650c73: real vendored cordis 4.0.5-alpha.1 (Z20 discipline: fileURLToPath + statSync isDirectory entry resolution; node_modules copy as fallback) + six Service-form stubs each providing from its OWN plugin fiber (the real host topology) + mounts the BUILT lib/index.js. G1 reachability with explicit SKIP; G2 negative control (inject-less ctx.llm read MUST throw the exact device error — topology drift guard); G3 default-config mount crosses every boot-time access point (constructor tokenMeter/llm death site, 4 tools, guidance section, nudge required:true, command, session feed 3 listeners, 2 llm/stream listeners counted on the real EventsService._hooks registry) with the dsh-zcontext lookup as the PENDING guard for wrong keys; G4 providers-declared mount crosses registerAdapter + registerConfigurableProviders. 5/5 PASS 0 SKIP 0 FAIL exit 0, report reports/probes/P0-real-mount.md. Self-caught during authoring: stubs without explicit super(ctx,name) constructors auto-called super(ctx, config) -> all six provided under '[object Object]' -> silent PENDING (Z21 candidate)",
-   "status": "done",
-   "artifacts": [
+    "tests/smoke.spec.ts",
     "scripts/probe-real-mount.mjs",
-    "reports/probes/P0-real-mount.md"
-   ]
+    "lib"
+   ],
+   "evidence": "probe-real-mount 5/5 PASS exit 0 on rebuilt lib; report timestamp diff restored per precedent"
   },
   {
-   "id": "p0s4-terminal",
-   "name": "sweep + terminal battery: src ctx service accesses ALL inside the declared six (tools.ts/preflight.ts/zctx-adapter.ts grep hits are comment lines only; no destructuring/this.ctx forms); logger/on/reflect exempt by real cordis semantics; final battery green on the normalized state: build 992.98 kB 7 files, vitest 429/429 (424 baseline + 5 discipline pins), tsc -b --force 0 errors, five probes exit 0 (surface 10/10, artifact 6/6, host-imports 16/16, smoke-real-loader 3/3, real-mount 5/5), U2/P0-real-mount report timestamp-only diffs restored, clean tree (only the coordinator's plan/card untracked); closure +P0-A..P0-D all fixed/verified (65->69); RSI capture Z21/Z22 into ZDSH-LESSONS.md + INDEX with del/ backups",
+   "id": "p3s5-z19",
+   "name": "Z19 commit: scripts.test = tsdown && vitest run (explicit chain; pretest rejected — pnpm pre/post needs enable-pre-post-scripts) + README dev block; stale-scenario verified (pending src change -> build runs first, 443/443 green)",
    "status": "done",
    "artifacts": [
+    "package.json",
+    "README.md"
+   ],
+   "evidence": "npm test transcript in progress.md; ruling in p3s0 notes"
+  },
+  {
+   "id": "p3s6-repro-reverse",
+   "name": "E-repro reverse verification (real exit codes): sm01/sm02/hf02 exit 1 = NO-REPRO (defects closed; control-group REPRO lines are the scripts' harness-health design); hf01 exit 0 = REPRO as predicted under option (a) — mechanism intentionally unchanged, fix is contract+observability. Conversion: SM-01/SM-02 pins in-repo; HF-02 = smoke five-key pin + plugin.spec activation pin + probe G3 five-stub; HF-01 = imageCount pin + existing product-6 refusal pin",
+   "status": "done",
+   "artifacts": [
+    "tests/store.spec.ts",
+    "tests/store-observe.spec.ts",
+    "tests/tools.spec.ts",
+    "tests/smoke.spec.ts",
+    "tests/plugin.spec.ts",
+    "scripts/probe-real-mount.mjs"
+   ],
+   "evidence": "four-script transcripts in progress.md; exits 1/1/1/0"
+  },
+  {
+   "id": "p3s7-r1-sm03",
+   "name": "P3b-R1 SM-03: scanUpTo 16-consecutive-unreadable breaker + 2 pins; removal check (threshold 1e6) 2-red; 445/445",
+   "status": "done",
+   "artifacts": [
+    "src/store.ts",
+    "tests/store.spec.ts",
+    "lib"
+   ],
+   "evidence": "removal transcript in progress.md"
+  },
+  {
+   "id": "p3s8-r4-sm06",
+   "name": "P3b-R4 SM-06: unfold-span demotion + unknown-foldId anomaly + 2 direct-injection pins; removal 2-red; 447/447",
+   "status": "done",
+   "artifacts": [
+    "src/store.ts",
+    "tests/store.spec.ts",
+    "lib"
+   ],
+   "evidence": "removal transcript in progress.md"
+  },
+  {
+   "id": "p3s9-r3-sm05",
+   "name": "P3b-R3 SM-05: validatorConfig domain clamp (clamp-vs-TypeError ruling in commit) + 1 strengthened pin; removal check red after pin fix (window-cache blindness self-caught); 448/448",
+   "status": "done",
+   "artifacts": [
+    "src/plugin.ts",
+    "tests/plugin.spec.ts",
+    "lib"
+   ],
+   "evidence": "removal transcript in progress.md"
+  },
+  {
+   "id": "p3s10-r5-sm12",
+   "name": "P3b-R5 SM-12: validateFold entry non-finite contextWindow normalization + behavior pin (finite-window discriminator); removal check n/a by design (noted in commit); 449/449",
+   "status": "done",
+   "artifacts": [
+    "src/validator.ts",
+    "tests/validator.spec.ts",
+    "lib"
+   ],
+   "evidence": "battery 449/449"
+  },
+  {
+   "id": "p3s11-r2-sm04",
+   "name": "P3b-R2 SM-04: resume/series attribution decision pins x2 (strong frozen with rationale; rule-change-consciousness documented); 451/451",
+   "status": "done",
+   "artifacts": [
+    "tests/store-attribution.spec.ts"
+   ],
+   "evidence": "battery 451/451"
+  },
+  {
+   "id": "p3s12-r7-hf04",
+   "name": "P3b-R7 HF-04: tool/command fail-soft containment + == null checks + 5 pins; 454/454",
+   "status": "done",
+   "artifacts": [
+    "src/tools.ts",
+    "src/command.ts",
+    "src/texts.ts",
+    "tests/tools.spec.ts",
+    "tests/plugin.spec.ts",
+    "lib"
+   ],
+   "evidence": "battery 454/454"
+  },
+  {
+   "id": "p3s13-r13-hf15",
+   "name": "P3b-R13 HF-15: per-face register try->warn + refusal pin; removal via HEAD revert 1-red; 457/457",
+   "status": "done",
+   "artifacts": [
+    "src/plugin.ts",
+    "tests/plugin.spec.ts",
+    "lib"
+   ],
+   "evidence": "removal transcript in progress.md"
+  },
+  {
+   "id": "p3s14-r8-hf05",
+   "name": "P3b-R8 HF-05: outer-layer session/event guard + 1 pin; removal (HEAD revert) 1-red; re-apply self-caught after backup overwrote the patch; 458/458",
+   "status": "done",
+   "artifacts": [
+    "src/plugin.ts",
+    "tests/plugin.spec.ts",
+    "lib"
+   ],
+   "evidence": "removal transcript in progress.md"
+  },
+  {
+   "id": "p3s15-r11-hf08",
+   "name": "P3b-R11 HF-08: messages array pre-check INVALID_REQUEST + 4-shape pin; 459/459",
+   "status": "done",
+   "artifacts": [
+    "src/adapter/zctx-adapter.ts",
+    "tests/adapter-zctx.spec.ts",
+    "lib"
+   ],
+   "evidence": "battery 459/459"
+  },
+  {
+   "id": "p3s16-r12-hf13",
+   "name": "P3b-R12 HF-13: buildPiAiFace undefined path + committed-fixture pin; removal (HEAD revert) 1-red; 460/460",
+   "status": "done",
+   "artifacts": [
+    "src/adapter/host.ts",
+    "tests/adapter-host.spec.ts",
+    "tests/fixtures/hf13-piai",
+    "lib"
+   ],
+   "evidence": "removal transcript in progress.md"
+  },
+  {
+   "id": "p3s17-r6r9r10",
+   "name": "P3b-R6/R9/R10 docs trio (HF-03/06/07); behavior unchanged; 460/460",
+   "status": "done",
+   "artifacts": [
+    "src/preflight.ts",
+    "src/adapter/map.ts",
+    "README.md"
+   ],
+   "evidence": "battery 460/460"
+  },
+  {
+   "id": "p3s18-r15r16",
+   "name": "P3b-R15+R16: export hygiene (orphan deleted + 12 types narrowed, 126 surface verified) + deepFreeze; 2 pins; R16 removal 1-red; 461/461",
+   "status": "done",
+   "artifacts": [
+    "src/config.ts",
+    "src/guidance.ts",
+    "src/host-llm.ts",
+    "src/observe.ts",
+    "src/plugin.ts",
+    "src/tools.ts",
+    "src/types.ts",
+    "tests/smoke.spec.ts",
+    "tests/guidance.spec.ts",
+    "lib"
+   ],
+   "evidence": "surface count 126 via export-list parse; removal transcript in progress.md"
+  },
+  {
+   "id": "p3s19-terminal",
+   "name": "P3 terminal: 18 commits covering the full frozen list (5 must-fix incl. option-(a)/Z19 rulings in p3s0 notes, 12 hardening commits, 1 P3c batch) + T6 probe report; battery 1.01 MB / 471/471 / tsc 0 / five probes exit 0; four-must reverse verification 1/1/1/0 exits; REPORT-FULL-AUDIT §8 receipt appended; closure 98 items (only pre-existing W5-A6-INSTALL open)",
+   "status": "done",
+   "artifacts": [
+    "reports/audits/REPORT-FULL-AUDIT.md",
     "tasks/ZCTX/closures/closure.json",
-    "tasks/ZCTX/progress.md",
-    "tasks/ZCTX/checkpoint.json",
-    "tasks/ZCTX/checkpoint-history.jsonl",
-    "del/20261114-p0-inject-prechange"
-   ]
+    "reports/probes/P3-T6-boot-timing.md",
+    "tasks/ZCTX/progress.md"
+   ],
+   "evidence": "git log f01b5cd..ac3c3ef; probe transcripts in progress.md"
   }
  ],
- "next": "P0 terminal — awaiting reviewer scorecard (>=98) then orchestrator disposition; P1 drift recon and P2 patch-design are coordinator-owned waves"
+ "next": "P3 terminal — awaiting reviewer scorecard (>=98); S1 v0.3 registration + W5-A6-INSTALL are mainline-owned"
 }

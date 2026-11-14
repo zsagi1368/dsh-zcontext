@@ -1,708 +1,1012 @@
 {
-  "items": [
-    {
-      "id": "W2-F1",
-      "source": "REVIEW-W1W2.md §二 (W2-F2-F1)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit ecb5857: src/budget.ts degenerate-window guard + tests/budget.spec.ts W=0/W=1 throw + 32k exact pin; budget 27/27, nudge 16/16",
-      "owner": "coder-w2-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W2-F2",
-      "source": "REVIEW-W1W2.md §二 (W2-F2-F2)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit abfacf0: tests/validator.spec.ts whole-surface-under-floor case (floor 30000 > Σ23200, exactly 1 reason, last 0 messages / 30000 tokens); validator 33/33",
-      "owner": "coder-w2-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W2-F3",
-      "source": "REVIEW-W1W2.md §二 (W2-F2-F3)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit 1c87952: fill() defined in src/texts.ts; validator.ts/nudge.ts import from texts; lint 0, 61/61 affected suites",
-      "owner": "coder-w2-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W2-F4",
-      "source": "REVIEW-W1W2.md §二 (W2-F2-F4)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit 5a86cc4: fmtNum single return String(Math.round(x*1000)/1000); validator 33/33, output byte-identical",
-      "owner": "coder-w2-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W2-F5",
-      "source": "REVIEW-W1W2.md §二 (W2-F2-F5)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit e2565b1: types.ts isUser derived-invariant comment; budget.ts estimateTokens comment aligned to CCM L0 ASCII-dense domain; lint 0",
-      "owner": "coder-w2-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W3-S1",
-      "source": "cards/W3-W4-engine-wiring.md W3 §1",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 9ee6619: src/store.ts (attach scan rebuild + session/event incremental + S6 usage ledger + surfaceNodes view + compaction mutex state + anomaly ledger); tests/store.spec.ts 16/16",
-      "owner": "coder-w3w4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W3-S2",
-      "source": "cards/W3-W4-engine-wiring.md W3 §2",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 9ee6619: src/fold-engine.ts (validator -> subrange pair closure -> compaction mutex -> generation snapshot -> per-entry commits -> fail-soft verify; unfold B1 single-node; CCM 32768 engine gate distinct from budget F1); tests/fold-engine.spec.ts 29/29 incl. S5 real session 4 tests + official foldSurface replay cross-check",
-      "owner": "coder-w3w4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W4-S1",
-      "source": "cards/W3-W4-engine-wiring.md W4 §1",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 1486df4: src/tools.ts 4 tools all defineTool-wrapped (lazy host require + fail-soft shim), zctx_fold args={content:string required} + lenient parser aligned to parseCompressInput semantics, no isConcurrencySafe (S8); tests/tools.spec.ts 21/21",
-      "owner": "coder-w3w4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W4-S2",
-      "source": "cards/W3-W4-engine-wiring.md W4 §2-3",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 1486df4: src/plugin.ts ZcontextPlugin extends cordis Service (lazy require + structural shim), capability-probed 5 faces, nudge required:true (B2 suppression test), /zctx command; tests/plugin.spec.ts 12/12; smoke.spec adapted (backup del/20261112-w4-index-smoke-prechange/)",
-      "owner": "coder-w3w4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W4-S3",
-      "source": "cards/W3-W4-engine-wiring.md 验收 probe + 协调指令 5",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 1486df4: artifact probe on lib/index.js — 14 exports + face wiring (4 tools/1 section/1 required context/1 command/3 listeners) + end-to-end fold+status through built artifact + no-isConcurrencySafe; vitest 189/189, tsc zero errors, build green",
-      "owner": "coder-w3w4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W3W4-RSI",
-      "source": "AGENTS.md §17/§2.3 RSI 收口",
-      "type": "lesson",
-      "disposition": "fixed",
-      "evidence": "ZDSH-LESSONS.md Z15 (nested helper import depth: vitest green != type-closed) + Z16 (super() throw TDZ: probe before extends + shim); capture log in ~/.agents/rsi/INDEX.md; backup del/20261112-w4-rsi-lessons-prechange/",
-      "owner": "coder-w3w4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W3-R1",
-      "source": "REVIEW-W3W4.md [阻断] W3-1 (checkpoint 载荷偏离官方 user/message 契约)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit 4293a58: tests-first deriveEventMessage pins (real-mode fold+unfold assert projected role==='user' + content array, 4 例真跑 executed); src/fold-engine.ts fold(:287 区)/unfold(:432 区) 去信封提交裸 UserMessage {id,role,content,source} 镜像 createUserMessage(region.ts:410-413); mock-session msg.user 裸消息化+msg.system 补 turn/step; 真实模式夹具官方形态统一; store 双形态提取器零改动。修复前 4 例形态断言先红(4293a58 前 vitest 4 failed)修复后全绿。产物级探针 P5 经官方 deriveEventMessage 投影 fold/unfold 均 role=user content=array (scripts/probe-artifact.mjs 5/5 PASS)",
-      "owner": "coder-w3w4-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W3-R2",
-      "source": "REVIEW-W3W4.md [建议] W3-2 (跨 checkpoint 吸收不可达 + shadowed 过滤不变式依赖)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit b6f359c (文档化路线, 最小改面): validator.ts 模块头 check a/d + 规则 d 处 + contiguity 守卫注释写明可达域(吸收需边界对齐 [checkpoint,checkpoint]); texts.ts REASON_RANGE_DISCONTIGUOUS 扩展提示句(评审探针 B2 复跑实证新文案生效); fold-engine.ts 数字过滤处就近钉不变式依赖注释; fold-engine.spec.ts 新增 2 测试: 跨 checkpoint 窗拒收钉(B2 S1/S2 形态)+双域扫描不变式钉(validator 接受窗 numericFilter ≡ positionalSlice, 单调面 6+ / 折叠后非单调面 2+)",
-      "owner": "coder-w3w4-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W4-R1",
-      "source": "REVIEW-W3W4.md [建议] W4-1 (zctx_unfold 死参数 latest)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit ec8eb12: 删除 tools.ts latest 参数声明(描述文案已含缺省语义); tools.spec.ts 新增 unfold 参数集精确断言 {foldId}(无 required 键, shim 空集省略语义)",
-      "owner": "coder-w3w4-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W4-R2",
-      "source": "REVIEW-W3W4.md [建议] W4-2 (B2 官方过滤测试自证循环)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit c1b6c2f: 删除 officialFilterKeeps 循环自证; 改直接断言 context.required===true + 官方行号注记(system-prompt/src/index.ts:667/:682 filter entry.required===true); 抑制态 '' no-op 真实行为测试保留",
-      "owner": "coder-w3w4-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W4-R3",
-      "source": "REVIEW-W3W4.md [建议] W4-3 (closure 自报产物探针无入库载体)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit 338e3ae: scripts/probe-artifact.mjs 入库, node 直跑可复现, 5 组探针: P1 30 导出+身份 / P2 接线 4/1/1/1/3(required=true) / P3 S8 无 isConcurrencySafe / P4 lib 工具面端到端 fold(裸 UserMessage checkpoint)+status / P5 真实官方 session W3-1 投影钉+W3-2 拒收钉(ZCTX_OFFICIAL_SESSION 可覆盖, 缺席显式 SKIP)。终验输出: 5 PASS, 0 SKIP, 0 FAIL",
-      "owner": "coder-w3w4-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W4-R4",
-      "source": "REVIEW-W3W4.md [建议] W4-4 (nudge provider 忽略 AssembleContext + 全局最近会话假设)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit 3c15e7c: plugin.ts text provider 按官方 PromptContext.text 契约接收 AssembleContext(system-prompt/src/index.ts:42-50/:85); 会话归属优先 assembly.agent.session / scope.session(官方 assembleContextFor agent/src/dispatch.ts:174 传 agent+scope=agent; Agent.session agent-loop/src/agent.ts:127), 不可达时回退最近创建会话(注释声明局限); plugin.spec.ts 双会话判别测试(A 归属渲染 A 的 span, B 空表, fallback 声明路径)",
-      "owner": "coder-w3w4-rework",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W5-S1",
-      "source": "cards/W5-docs-verify.md 产物 1 + plan §2 A4/A5",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit d72ec36: scripts/verify-activation-surface.mjs 8 组断言(A1 Z3 lib 在盘+git ls-tree / A2 package.json 安装门含无 prepare/install 钩子+无 dsh.client+peerDeps cordis>=4+engines / A3 Z7 import lib 身份+Config+四工具名 / A4 patch yml 逐行解析 insert id/name / A5 checkpoint 特征串 zctx-fold/zctx-unfold/required / A6 S8 剥注释扫代码+运行期 offenders=0 / A7 B2 required:true / A8 probe-artifact 子断言复用), node 直读全程无 grep; 实测 8 PASS 0 FAIL exit 0",
-      "owner": "coder-w5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W5-S2",
-      "source": "cards/W5-docs-verify.md 产物 2 + plan §2 A7",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit ec0d3ac: README.md + README.zh.md 双语原创非机翻镜像(独立成文), 12 个显式 HTML 锚点 en/zh 完全一致(TOC 链接零悬坠机械核对), H2 12/12 节对齐, 设置表 9/9 行, 四工具名/required:true/UNKNOWN_TOOL/32768/isConcurrencySafe/billion-context 致谢等关键事实逐项双语核对通过; 内容覆盖是什么/为什么/净室声明与致谢/安装/四工具真实参数形态/与官方 compaction 共存硬底/设置项表/行为三件(PTC 直呼受限/nudge required:true 含义/unfold 单节点重物化线缆代价)/限制/安全/开发",
-      "owner": "coder-w5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W5-S3",
-      "source": "cards/W5-docs-verify.md 产物 3+4 + plan §2 A7",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 4584526: SECURITY.md(威胁模型: 资产表/零网络/零遥测/会话数据本地/模型伪造防御六层=原生回执+服务端验证器+官方通道+compaction 互斥+exclusive barrier+宽容解析严格提交/fail-soft) + CHANGELOG.md 0.1.0 完整条目(Added 十项=四工具/指导段/nudge/命令/设置页/验证器/零独立存储/缓存记账/安装面/三个验证脚本; Behavior 三件; Limitations 四件; Security); 改前原件备份 del/20261112-w5-docs-prechange/(SHA-256 与 HEAD blob 一致)",
-      "owner": "coder-w5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W5-S5",
-      "source": "cards/W5-docs-verify.md 产物 5 + plan §2 A6 (真机冒烟-已执行部分)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit c12911e: scripts/smoke-real-loader.mjs 真机探针实测 2 PASS 0 SKIP 0 FAIL — R1 真 app-boot loader(packages/boot/app-boot/lib) loadOverlayPatches 解析本仓 cordis.patch.yml + composeEntries 组合出 {id:dsh-zcontext,name:dsh-zcontext}; R2 真 CLI(apps/cli/lib/bin.js v0.2.1-alpha.2) --dump-config --patch 组合树 1237 行含我们的 dsh-zcontext 行为最后一层 + 无 --patch 负对照(1234 行无 dsh-zcontext); 另 probe-artifact.mjs P5 已是真实官方 session lib 挂载探针(5/5 PASS)。临时 DSH_HOME 用后即删(mkdtemp+前缀校验删除)",
-      "owner": "coder-w5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W5-A6-INSTALL",
-      "source": "plan §2 A6 (真机冒烟-安装与完整启动挂载部分)",
-      "type": "deferred-step",
-      "disposition": "user_approved_deferred",
-      "evidence": "隔离环境真实安装(dsh plugin add 经 pnpm 装入活跃 profile)+完整 harness 启动挂载本插件模块: 需 registry 安装 workspace 发布的 bundle 与 LLM 运行时, 本环境不可跑; 方案门 plan §2 A6 行预授权此 fallback(owner=主线、触发条件=用户桌面环境可用、复核日期=发布后一周、证据=本计划行); 已执行的真件探针见 W5-S5(真 loader 组合+真 CLI dump-config+真 session lib 挂载投影), 激活面断言见 W5-S1",
-      "owner": "mainline",
-      "status": "open",
-      "phase": "post-merge",
-      "trigger": "用户桌面环境可跑完整 harness + 插件已发布后一周",
-      "reviewDate": "2026-11-19"
-    },
-    {
-      "id": "W5-RSI",
-      "source": "AGENTS.md §17/§2.3 RSI 收口",
-      "type": "lesson",
-      "disposition": "fixed",
-      "evidence": "ZDSH-LESSONS.md Z17(打包产物保留注释——「产物内不含 X」全文断言必须先剥注释再扫, 运行期构造断言才是权威口径; W5 A6 组首轮假红实证, 剥注释后 codeTextClean=true); ~/.agents/rsi/INDEX.md 捕获日志新增 zctx W5 行; 开工查册命中 Z13/Z14/A14/A25 未复燃(全程 Write/Edit 无 heredoc、node 直读无 grep); 备份 del/20261112-w5-rsi-lessons-prechange/(两册改前件 SHA-256 核对一致)",
-      "owner": "coder-w5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "W5-GOV",
-      "source": "cards/W5-docs-verify.md 产物 6 (governance 收尾)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "closure.json 全量核对 24 条: 23 条 block 全 closed(fixed+verified, 实测 phase=block 计数 23), 1 条 post-merge user_approved_deferred(W5-A6-INSTALL, owner=主线/触发=用户桌面环境/复核日期=2026-11-19), 0 条 OPEN-阻塞; R2 复审产物(REVIEW-W3W4 复审节+W3=99/W4=100 scorecards)入库 commit d5c5ceb; progress.md/checkpoint.json/checkpoint-history.jsonl W5 终态更新",
-      "owner": "coder-w5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V1-U2-PROBE",
-      "source": "cards/V1-probes-store.md item 1 (RES-adapter-route U2)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 168ef03: scripts/probe-host-imports.mjs (G1 reachability / G2 ESM import liveness / G3 10 named-export assertions + spelling pin / G4 callConfigEquals live semantics + CONTEXT_WINDOW_EXCEEDED_CODE literal) — 16 PASS 0 SKIP 0 FAIL exit 0; machine report reports/probes/U2-host-imports.md",
-      "owner": "coder-v1",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V1-U1-PROBE",
-      "source": "cards/V1-probes-store.md item 2 (RES-adapter-route U1)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 8eb4e78: reports/probes/U1-models-ui.md — read-only source investigation with file:line anchors; verdict SKIP for the card question (directory entries reach the data plane, but ProviderEditor.layoutOf pins llm-deepseek/llm-pi-ai and disables Apply for unknown layouts; visibility additionally needs a volatile Config field — settings describe volatileForm gate); GO conditions + unresolved items registered in the report §4",
-      "owner": "coder-v1",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V1-TYPES",
-      "source": "cards/V1-probes-store.md item 3 (RES-observe-route a.1 table)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 8e82b1b: src/types.ts RouteHeader/LlmCallConfigLike/LlmCallConfigAdapterDefaultsLike/ResetEvent(9-kind union per §Q6 mapping)/FoldUsageAttribution/UsageRecord(state)/ThreeStateCounts+BreakevenTableRow+ResetSummaryRow+ObservabilitySnapshot; UsageSample moved to types.ts and re-exported from store.ts (W3 surface unchanged, 193/193); SessionEventLike +time? (official session/src/types.ts:499); index.ts type exports added; lib d.ts carries all new names",
-      "owner": "coder-v1",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V1-CONFIG",
-      "source": "cards/V1-probes-store.md item 5 (plan §3 design freeze)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit c763f21: src/config.ts attributionTimeWindowMs=90000 + cleanSampleFloor=0.6 (both JSDoc 待真机标定); CONFIG_FIELD_SPECS satisfies pin keeps the schema table honest; smoke.spec defaults pin extended; tsc 0 + 193/193 + build green",
-      "owner": "coder-v1",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V1-STORE",
-      "source": "cards/V1-probes-store.md item 4 (RES-observe-route a.1/a.2)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 563a7a5: src/store.ts request/header chain + cache-reset ledger (per-category classification incl. local callConfigEquals twin, bracket-aware replace classification) + UsageRecord full-token upgrade; one shared applyEvent transition for attach/feed/resync; tests/store-observe.spec.ts 18 cases (per-kind 9 kinds, dual-regime feed==scan, resync gap repair, event-time propagation); 211/211 (12 files); probe-artifact 5/5; verify-activation-surface 8/8",
-      "owner": "coder-v1",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-TYPES",
-      "source": "cards/V2-observe-hash.md product 1 (RES-observe-route a.1 row 5 + V1 handoff rulings)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 7425822: src/types.ts RequestSnapshot (honest projector/domain fields) / PrefixBreakRecord (reset-explained|unknown-break) / CapturedAttemptUsage (non-durable face) / ResetEventKind +series-restart (V1 handoff ruling 1); index re-exports extended; 211/211",
-      "owner": "coder-v2",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-HOST-LLM",
-      "source": "cards/V2-observe-hash.md product 1 (host-llm fail-soft loader + hash primitives)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 24c35d1: src/host-llm.ts lazy loader (official projectFilesToText/projectImagesForTextModel/projectToolUpdates/isAgentLoopRequest when host resolvable; labeled local-fallback structural twins otherwise, ZCTX_DSH_LLM override keeps probe convention) + src/hash.ts stableStringify/sha256; probe spec pins BOTH paths; 218/218",
-      "owner": "coder-v2",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-OBSERVE",
-      "source": "cards/V2-observe-hash.md product 2 (RES-observe-route a.2 item 2 + a.3 + §Q8)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 15f421b: src/observe.ts llm/stream waterfall listener — four main-chain criteria, per-attempt RequestSnapshot through injected sinks, detectPrefixBreak (~20-line mechanical piece, reset-explained vs unknown-break, domain harness), optional attemptCapture wrapper (abort-rethrow + inner-close pinned), zero-mutation pin on deep-frozen options, sink faults fail-soft warn-once; 239/239",
-      "owner": "coder-v2",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-STORE",
-      "source": "cards/V2-observe-hash.md product 3 (process-memory receive ports + series reset accounting)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 59efa43: src/store.ts absorbRequestSnapshot/absorbCapturedAttemptUsage (bounded 64/64/64 ledgers, attach clears, never session-logged per CARD-F a.1) + requestSnapshots/lastRequestSnapshot/prefixBreakEvents/capturedAttemptUsage getters; reason='series' headers account as series-restart reset (V1 handoff ruling 1); 246/246",
-      "owner": "coder-v2",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-CONFIG",
-      "source": "cards/V2-observe-hash.md product 4 (config switches)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 458b664: src/config.ts 'observe.enabled'=true / 'observe.attemptCapture'=false as flat primitive dotted keys (card name pin + v1 all-primitive contract kept per coordinator course correction); CONFIG_FIELD_SPECS satisfies pin auto-forced both rows; smoke.spec defaults pin extended",
-      "owner": "coder-v2",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-PLUGIN",
-      "source": "cards/V2-observe-hash.md product 4 (plugin wiring, c5)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 7574f25: src/plugin.ts wireObserveFace registers ObserveListener.onStream on ctx.on('llm/stream') (official Events face llm/src/index.ts:76-78; host-spec precedent compaction-basic.spec.ts:1560), capability-probed (config switch=info; missing ctx.on/llm=warn+skip, five-face precedent), snapshots route to the store receive ports via the plugin's single lazy-attach registry, watched-set=liveSessions on official Session.id (agent-loop/src/agent.ts:718); src/tools.ts LlmRuntimeLike gains official inputModalities/toolUpdate pass-through; src/observe.ts +forgetSession wired to session/disposed; tsc 0 + 252/252 + probe 5/5 + verify 8/8",
-      "owner": "coder-v2",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-TESTS-LIB",
-      "source": "cards/V2-observe-hash.md products 4-5 (wiring cases) + acceptance (lib rebuilt, git clean)",
-      "type": "deliverable",
-      "disposition": "fixed",
-      "evidence": "commit 95007cc (plugin.spec 6 wiring cases: registration+snapshot routing w/ honest local-fallback pin, no-llm skip warn, observe.enabled=false info-not-warn face-scoped, attemptCapture=true non-durable capture, unwatched-id criterion 3, dispose clears listener state via attemptSeq-restart pin; degrades pin 5->6 warns; llm/stream in listeners key set) + commit bc281d5 (lib rebuilt incl. the 59efa43 rebuild artifact left dirty, V2 card in-repo); pre-change originals backed up del/20261113-v2-c5-plugin-prechange (5 files, SHA-256 = HEAD blobs)",
-      "owner": "coder-v2",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V1-B",
-      "source": "REVIEW-V1V2.md §4 [建议] V1-B (routeHeaders/resetLog session-unbounded)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit 9e7ec51: ROUTE_HEADER_LEDGER_CAP/RESET_LEDGER_CAP=64 (oldest dropped, cap value declared in comment) + store-attribution.spec 66→64 pins both ledgers; companion: observe.ts exemption window moved to a SEQ consumption pointer (index pointer would mis-align after cap shift) — observe.spec 22/22",
-      "owner": "coder-v3",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-B",
-      "source": "REVIEW-V1V2.md §4 [建议] V2-B (systemHash/toolsHash collected but not break-compared — spec a.3 deliberate narrowing undocumented)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit 9e7ec51: documentation-only (non-behavioral) — detectPrefixBreak JSDoc + PrefixBreakRecord type doc both declare the deliberate message-list-only narrowing (system/tools = reset-ledger territory + §Q5.2 pi-ai blind spot) with RES-observe-route a.3 reference; tsc clean, no behavior delta",
-      "owner": "coder-v3",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-C",
-      "source": "REVIEW-V1V2.md §4 [建议] V2-C (modelInfoCache process-unbounded incl. negative results)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit 9e7ec51: MODEL_INFO_CACHE_CAP=64 (insertion-order eviction of the oldest route, cap value + re-resolution semantics declared in comment); observe.spec 22/22 green with the bounded cache",
-      "owner": "coder-v3",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V2-D",
-      "source": "REVIEW-V1V2.md §4 [建议] V2-D (zero-mutation pin ran only under the fallback projector)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit ec8f311: observe.spec official-path describe gains the full zero-mutation pin (deep-frozen tree byte-identity + reference identity + attemptCapture under the OFFICIAL projector via ZCTX_DSH_LLM host-build override, honest skip when absent — SKIPPED mechanism same as the probe); ran LIVE on this machine (22/22, no skip)",
-      "owner": "coder-v3",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V4-A",
-      "source": "V4 card product 1-2 (S1 preflight): preflightMode tri-state + margin config + preflight.ts estimator/listener",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "commits 4b2b499 (config flat keys preflightMode default 'observe' / preflightMarginRatio 0.9 with R2 JSDoc + types PreflightMode/PreflightCalibrationRecord/PreflightImagePricing/PreflightOutcome) + 206e84d (preflight.ts: matchesMainChain criteria 1-3 reuse, chars/3 estimator over re-projected messages with official/fallback honesty, image pricing adapter vs PER_IMAGE_FALLBACK_TOKENS=2048 labeled paths, hit iff estimate > triggerLine x marginRatio, fail-soft unresolvable-window release F6.4, outermost separate listener, enforce short-circuit = exactly one terminal finish{kind:error,failure:{code:CONTEXT_WINDOW_EXCEEDED}} per official types.ts:452-464/41-62 read directly, R3 deps carry no llm runtime) + plugin wirePreflightFace registered before observe + index surface",
-      "owner": "coder-v4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V4-B",
-      "source": "V4 card product 3: calibration ledger (estimate vs real usage) + zctx_status estimator error statistics",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "store.absorbPreflightCalibration (64-cap, never session-logged, cleared with the other receive ports) + tools.ts preflightCalibrationStats (comparable = settled with billed input over the DISJOINT accounting input+cacheRead+cacheWrite, mean/worst signed error %, short-circuit count, honest basis line official vs official+local-fallback) + renderStatus segment 5 (mode line from config-owned runtime.preflightMode, empty/no-judged/not-comparable honest shapes) + preflight.spec lifecycle cases",
-      "owner": "coder-v4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V4-C",
-      "source": "V4 card acceptance: enforce unreachable under default configuration (R2 pin) + chunk-form pin + zero-mutation pin reuse + R3 pin",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "preflight.spec: configDefaults.preflightMode === 'observe' pinned + validator roundtrip; enforce hit = exactly one chunk, next() never started (innerStarted false), LlmFailure carries message+code only (status/requestId honestly absent); zero-mutation pin across observe AND enforce firings (frozen tree byte-identity + reference identity); R3 structural pin (deps key set contains no stream/llm member, narrow helpers invoked exactly once) + plugin.spec enforce wiring pin (outermost short-circuit suppresses the inner observe listener: no snapshot for the short-circuited request)",
-      "owner": "coder-v4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V4-D",
-      "source": "V4 card 顺手闭合 (V3 handover): V2-A prepare catch swallows errors silently -> warn-once",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit 4b2b499: observe.handleStream catch warns once per listener ('observe prepare failed (...); request snapshots stay off until the fault clears'), stream still passes through untouched; observe.spec V2-A case (warn once across two firings, snapshots stay off); tsc clean",
-      "owner": "coder-v4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V4-E",
-      "source": "V4 card ambiguity: product-1 JSDoc wording (估算命中阈值=triggerLine×margin) vs product-2 phrasing (估算 context+reserve(R_pess) > W×marginRatio) — differ by 0.1×R_pess",
-      "type": "contract-ambiguity",
-      "disposition": "fixed",
-      "evidence": "resolved toward product-1 (normative JSDoc contract) + F6.4 false-positive-cost bias (higher threshold = fewer false positives): hit iff estimate > triggerLine × marginRatio, declared in preflight.ts module docstring + judgeEstimate JSDoc + checkpoint v4s0 decision 3; flagged for reviewer confirmation",
-      "owner": "coder-v4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V4-F",
-      "source": "V4 estimator robustness: walkMessage hit 'Cannot read properties of undefined (reading length)' on a non-JSON content (message-level stray block found while building the zero-mutation test)",
-      "type": "lesson-application",
-      "disposition": "fixed",
-      "evidence": "walkMessage + tool-schema loop guard stableStringify output with typeof raw === 'string' (JSON-unrepresentable values count 0 chars); documented in the walkMessage JSDoc; the fail-soft judgeRequest catch remains the second line of defense; RSI capture logged (see progress.md V4 entry + tasks/ZCTX/handoffs)",
-      "owner": "coder-v4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V4-G",
-      "source": "final-battery re-run found smoke.spec config pin red after the lib rebuild (Z19: vitest imported the STALE V3 artifact in the earlier green run)",
-      "type": "lesson-application",
-      "disposition": "fixed",
-      "evidence": "smoke.spec pin literal +preflightMode/preflightMarginRatio (conscious contract update, Z19 discipline build->test->tsc->probe); two consecutive green runs against the fresh lib (332/332, tsc clean, probe-artifact 5/5, verify-activation-surface exit 0); smoke.spec pre-change backed up in del/20261113-v4-preflight-prechange (SHA-256 vs 62d6889 OK); Z19 registered in zDSH-LESSONS.md + INDEX capture row",
-      "owner": "coder-v4",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V5-A",
-      "source": "V5 task card products 1/2 (adapter skeleton + chunk mapping): ZctxAdapter extends LlmAdapter via fail-optional host face, 7-shape chunk protocol with usage-before-finish, official mapping reuse (official-pi-ai-mapping) with labeled zctx-mapping twins fallback",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "src/adapter/{host,providers,map,replay,context,twins,zctx-adapter}.ts; tests/adapter-providers.spec.ts (48) + adapter-zctx.spec.ts (16) + adapter-host.spec.ts (7) — official mapping source pinned live on the reference machine (adapter-host OFFICIAL case); classifyPiAiError twins-only (module-private upstream stream.ts:42) honestly documented",
-      "owner": "coder-v5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V5-B",
-      "source": "V5 card product 3 (error two paths): throw LlmError official taxonomy vs in-band error finish chunks; SDK maxRetries=0 (R4); caller abort → ABORTED",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "zctx-adapter.ts catch path (abort/LlmError passthrough/twin-table classification) + streamSimple options maxRetries:0; tests: TRANSPORT classification, in-band SERVER finish, ABORTED upgrade, R4 pin (capture.options.maxRetries === 0)",
-      "owner": "coder-v5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V5-C",
-      "source": "V5 card product 4 (wire ledger, R7): onPayload+custom fetch pass-through, wire-domain sha256 snapshots, attributionHeaders on every request",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "src/adapter/wire.ts (R1 undefined-constant onPayload; fetch hashes init.body with byteLength; requestHeaders attribution-wins merge port of official adapter.ts:215-223); types.ts WireSnapshot; store absorbWireSnapshot 64-cap; tests/adapter-wire.spec.ts (7) + adapter-zctx wire-integration case (session-bound triples / one-shot headers-only)",
-      "owner": "coder-v5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V5-D",
-      "source": "V5 card products 5/6 (cache knobs + image budget): cacheRetention passthrough + cacheControlFormat compat materialization with construction-gated dead-config refusal; image refusal UNSUPPORTED_CONTENT as the honest S2 boundary",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "providers.ts cache-knob validation matrix test + adapter-zctx passthrough pins (options.cacheRetention verbatim, model.compat {cacheControlFormat}); the three F5.7 image knobs deliberately NOT in config (JSDoc honest boundary: knobs with no consumer are dead config; IMAGE_OFFLOAD_REQUIRED unreachable by construction)",
-      "owner": "coder-v5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V5-E",
-      "source": "V5 card products 7/8 (minimal directory + config structured section): registerConfigurableProviders visibility-only with U1 honesty; providers[] schemastery section with VOLATILE namespace-mount anchor (config section pulled forward from v5s5 — the wiring consumes it)",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "plugin.ts directory block (settingsNs=dsh-zcontext, positional settingsPath, declared:true, U1 honesty log lines); config.ts providers schema (schemastery nested + volatile; fail-soft pass-through; configDefaults providers:[] aligned); adapter-plugin.spec directory cases (entries shape pin, missing-face warn, DUPLICATE_DIRECTORY refusal keeps the adapter)",
-      "owner": "coder-v5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V5-F",
-      "source": "R4 joint-review three closures (card 顺手闭合): V3-1 resetBetween cap guard, V4-1 calibration stats fallback-row exclusion, V4-2 official-projector execution pin",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "store.ts resetBetween (>=RESET_LEDGER_CAP → stop-walk unknown); tools.ts preflightCalibrationStats fallbackRows exclusion with honest basis line; preflight.spec official-path describe (host-on-disk SKIPPED convention + two-path estimate divergence); stats pin updated (comparable 2)",
-      "owner": "coder-v5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V5-G",
-      "source": "redlines R1-R8 audit for the V5 wave (card 验收: 红线逐条核对)",
-      "type": "acceptance-pin",
-      "disposition": "fixed",
-      "evidence": "grep audit clean: R1 onPayload undefined-constant (no payload returns in src/adapter); R2 preflightMode default observe untouched (smoke pin); R3 zero ctx.llm references in src/adapter (only the JSDoc prohibition); R4 single maxRetries:0 site + test pin; R5 zctx- prefix only (zctxRouteOf); R6 no transport option ever passed + ws/non-http baseURL construction violations; R7 attributionHeaders on every streamSimple call incl. ledger-less one-shots; R8 pi-ai 1.0.2 dist anchors read live (types.d.ts onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144) and documented in JSDoc",
-      "owner": "coder-v5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V5-H",
-      "source": "final battery (card 验收: vitest 全绿 + tsc 零错 + build 绿 + 三探针 exit 0 + 干净树)",
-      "type": "acceptance-pin",
-      "disposition": "fixed",
-      "evidence": "build tsdown 984.97 kB (7 files, lib committed per Z3); 419/419 against the fresh lib; tsc --noEmit zero; probe-artifact 5/5 + verify-activation-surface 8/8 + smoke-real-loader 2/2 + U2 host-imports 16/16 all exit 0; smoke config pin +providers:[] conscious Z19 amendment",
-      "owner": "coder-v5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V5-I",
-      "source": "coordinator A-ruling integration (family = wire protocol name, official supportedProtocols union taken dynamically, zero invented mapping, unknown family construction fail-loud)",
-      "type": "decision-application",
-      "disposition": "fixed",
-      "evidence": "providers.ts A-ruling JSDoc + validation; host.ts loadSupportedProtocols (official lib supportedProtocols() with KNOWN_PROTOCOLS builtin fallback + honest builtin label); displayName zctx <family> verbatim; tests pin route/displayName/protocol identity",
-      "owner": "coder-v5",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-A",
-      "source": "REVIEW-V5.md §4 [建议] V5-1 (store.ts:1297 resetBetween cap-guard 无专钉; 连带闭合 V3-1 测试分支, REVIEW-V5 §6.2)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit dec0bcc: store-attribution.spec new describe (2 boundary pins) — at cap (64) the interpolation walk stops conservatively (estimated stays estimated, semiKind absent) even though NO retained reset sits between candidate and anchor; at cap-1 (63) the same shape upgrades to semi/interpolated with the anchor input carried over. Deleting the guard line turns test 1 red (walk would upgrade). 424/424 + tsc zero",
-      "owner": "coder-v6",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-B",
-      "source": "REVIEW-V5.md §4 [建议] V5-2 (zctx-adapter.ts:201 maxTokens 缺省静默发明 32768; 修法二选一, 选 a 官方对齐 fail-loud)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit dec0bcc: providers.ts maxTokens now REQUIRED positive integer at the construction gate (official catalog.ts:934-936 semantics — missing value = construction violation with the complete list, never an invented default); zctx-adapter.ts materializePiModel rides the declaration verbatim (?? 32768 removed); new dedicated test (missing maxTokens = violation, violating model never reaches the resolved route, assertZctxProvidersResolvable throws); fixtures updated to declare maxTokens; 424/424 + tsc zero",
-      "owner": "coder-v6",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-C",
-      "source": "REVIEW-V5.md §4 [建议] V5-3 (config.ts:175 注释与 configDefaults.providers=[] 与 smoke 契约钉三方矛盾)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit dec0bcc: config.ts CONFIG_FIELD_SPECS providers comment rewritten as ONE unified statement — schema default/configDefaults/smoke pin all carry the EMPTY declaration list; \"optional\" applies only to user input; zero routes = legal keep-alive",
-      "owner": "coder-v6",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-D",
-      "source": "REVIEW-V5.md §4 [建议] V5-4 (plugin.ts wireAdapterFace 违规检查在可达性门之后 — 校验不依赖宿主)",
-      "type": "review-finding",
-      "disposition": "fixed",
-      "evidence": "commit dec0bcc: plugin.ts wireAdapterFace reorders gates — loadSupportedProtocols + assertZctxProvidersResolvable now run BEFORE loadAdapterFaces (pure resolution, builtin fallback), so a misconfigured section reports the COMPLETE violation list even on host-absent installs; new pin test (unreachable faces + bad config => warn carries family/model violations, reachability info NOT logged); doc comment gate order updated; 424/424 + tsc zero",
-      "owner": "coder-v6",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-E",
-      "source": "V1-A (callConfigEquals 非有限值理论差异; 终验前处置 — coordinator 卡面: 最简处置=测试钉死当前语义+JSDoc 声明边界, 或修齐)",
-      "type": "card-ambiguity",
-      "disposition": "fixed",
-      "evidence": "commit dec0bcc: pinned-not-fixed path chosen (unreachable on the official wire — host normalizes controls before dispatch, a header snapshot never carries NaN). store.ts callConfigEquals JSDoc declares the boundary (official raw === says NaN-carrying configs differ; local extraction drops non-finite -> both (absent) -> equal); store-observe.spec new pin: two NaN-carrier change headers produce zero resets, chain of 2",
-      "owner": "coder-v6",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-F",
-      "source": "V6 card product 1-2 + plan B6: README bilingual update (three new capability blocks + limitations update, en/zh mirror) + CHANGELOG 0.2.0 finalized",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "commits e733ad1 (CHANGELOG 0.2.0: S2 wave appended in full + Honest ceilings and calibration debt section) + 80c43d5 (README en/zh: observability-ledger / preflight-s1 / zctx-router sections, settings +7 v0.2.0 fields, limitations +2 honest-ceiling entries, 424 tests + probes 6/10/3); mirror verified anchor-by-anchor (identical anchor lines 28-217) and fact-count-matched (6/6 limitation bullets, 9/9 key-number lines)",
-      "owner": "coder-v6",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-G",
-      "source": "V6 card products 3-4 + plan B5: verify-activation-surface + probe-artifact extensions (card assertion list)",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "commit 6d835b1: verify-activation-surface +A9 (preflightMode observe default R2, providers [] unified default in configDefaults AND schema output V5-3, observe switches) +A10 (adapter export face functional, KNOWN_PROTOCOLS official union, R4 maxRetries:0 single code site, R7 attributionHeaders — node direct reads) 8->10 groups; probe-artifact +P6 (S2 exports functional, route/displayName pins, missing-maxTokens construction violation V5-2, assertZctxProvidersResolvable fail-loud) 5->6 groups; all exit 0 against the fresh lib",
-      "owner": "coder-v6",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-H",
-      "source": "V6 card product 5 + plan B4: smoke-real-loader zctx provider directory smoke (capability-reach -> real run, not SKIPPED)",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "commit 6d835b1: smoke-real-loader +R3 — a user-style profile overlay patch carrying providers (family/baseURL/models/contextWindow/maxTokens) composes through the REAL loader CLI dump-config (7 composed rows asserted); honest scope label in the probe output: config-layer only, runtime registerConfigurableProviders needs a live llm runtime -> stays with the post-merge full-install smoke (plan A6). 3/3 PASS exit 0",
-      "owner": "coder-v6",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-I",
-      "source": "V6 card product 7 + acceptance: version 0.2.0 + final battery + terminal governance",
-      "type": "acceptance-pin",
-      "disposition": "fixed",
-      "evidence": "commits e733ad1 (version 0.2.0 + lib rebuilt 988.84 kB 7 files) + 6d835b1 + 80c43d5; final battery green: build -> 424/424 vitest -> tsc --noEmit zero; four probes exit 0 (probe-artifact 6/6, verify-activation-surface 10/10, smoke-real-loader 3/3, probe-host-imports 16/16 with U2 report timestamp-only diff restored to the committed state); closure 65 items, only W5-A6-INSTALL user_approved_deferred (v0.1.0 baseline, post-merge) open-by-design",
-      "owner": "coder-v6",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "P0-A",
-      "source": "P0-inject-fix.md 根因 + plan §0：static inject 缺失 → 真机 cannot get property tokenMeter without inject",
-      "type": "root-cause",
-      "disposition": "fixed",
-      "evidence": "commit b289f04: 六键声明（逐键实读提供方：tools:850/systemPrompt:442/commands:277/llm:354/tokenMeter:111/sessions:282）+ smoke 钉测六键；probe-real-mount G3 默认配置全触达（构造=越过 236/237 死点）5/5 exit 0",
-      "owner": "coder-p0",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "P0-B",
-      "source": "P0-inject-fix.md product 2：mock 宿主升级为 cordis get-trap 同语义强制",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "commit 5174b93: tests/helpers/mock-host.ts 真语义 Proxy（特殊属性/自有属性/store/inject 缺失 belt/其余抛设备错误）+ 三 spec 改道 + 5 负例钉测；摘除即红：inject 摘回 []→30/40 红；429/429 全绿",
-      "owner": "coder-p0",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "P0-C",
-      "source": "P0-inject-fix.md product 3：probe-real-mount 真 vendored cordis fiber+六服务桩断言 apply 全触达",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "commit b650c73: G1 可达性（SKIP 明示）/G2 负对照（inject=[] 直访抛设备错误，防拓扑漂宽容）/G3 全触达+PENDING 守卫/G4 providers 声明态 registerAdapter+directory；5 PASS 0 SKIP 0 FAIL exit 0；报告 reports/probes/P0-real-mount.md；错误键静默 PENDING 机制实证",
-      "owner": "coder-p0",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "P0-D",
-      "source": "P0-inject-fix.md product 4：grep 全 src ctx.<prop> 直访收编",
-      "type": "card-product",
-      "disposition": "fixed",
-      "evidence": "git grep 全 sweep：src 真代码访问仅 plugin.ts（tools.ts/preflight.ts/zctx-adapter.ts 命中均为注释行）；llm/tools/systemPrompt/commands/tokenMeter 全在六键声明内；logger=context.ts:81 自有属性、on=mixin accessor 属非服务面无需声明；无解构/this.ctx 形态直访；probe-real-mount G3/G4 运行时证据覆盖 236/237/292/305/315/333/374/437/560 全部触达",
-      "owner": "coder-p0",
-      "status": "verified",
-      "phase": "block"
-    },
-    {
-      "id": "V6-1",
-      "source": "REVIEW-V6",
-      "type": "suggestion",
-      "disposition": "fixed",
-      "verified": true,
-      "evidence": "commit d8d2f5a 双语探针清单补 probe-host-imports 行（REVIEW-V6 V6-1）",
-      "owner": "mainline",
-      "status": "closed",
-      "phase": "block"
-    }
-  ],
-  "updatedAt": "2026-11-13"
+ "items": [
+  {
+   "id": "W2-F1",
+   "source": "REVIEW-W1W2.md §二 (W2-F2-F1)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit ecb5857: src/budget.ts degenerate-window guard + tests/budget.spec.ts W=0/W=1 throw + 32k exact pin; budget 27/27, nudge 16/16",
+   "owner": "coder-w2-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W2-F2",
+   "source": "REVIEW-W1W2.md §二 (W2-F2-F2)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit abfacf0: tests/validator.spec.ts whole-surface-under-floor case (floor 30000 > Σ23200, exactly 1 reason, last 0 messages / 30000 tokens); validator 33/33",
+   "owner": "coder-w2-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W2-F3",
+   "source": "REVIEW-W1W2.md §二 (W2-F2-F3)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit 1c87952: fill() defined in src/texts.ts; validator.ts/nudge.ts import from texts; lint 0, 61/61 affected suites",
+   "owner": "coder-w2-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W2-F4",
+   "source": "REVIEW-W1W2.md §二 (W2-F2-F4)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit 5a86cc4: fmtNum single return String(Math.round(x*1000)/1000); validator 33/33, output byte-identical",
+   "owner": "coder-w2-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W2-F5",
+   "source": "REVIEW-W1W2.md §二 (W2-F2-F5)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit e2565b1: types.ts isUser derived-invariant comment; budget.ts estimateTokens comment aligned to CCM L0 ASCII-dense domain; lint 0",
+   "owner": "coder-w2-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W3-S1",
+   "source": "cards/W3-W4-engine-wiring.md W3 §1",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 9ee6619: src/store.ts (attach scan rebuild + session/event incremental + S6 usage ledger + surfaceNodes view + compaction mutex state + anomaly ledger); tests/store.spec.ts 16/16",
+   "owner": "coder-w3w4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W3-S2",
+   "source": "cards/W3-W4-engine-wiring.md W3 §2",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 9ee6619: src/fold-engine.ts (validator -> subrange pair closure -> compaction mutex -> generation snapshot -> per-entry commits -> fail-soft verify; unfold B1 single-node; CCM 32768 engine gate distinct from budget F1); tests/fold-engine.spec.ts 29/29 incl. S5 real session 4 tests + official foldSurface replay cross-check",
+   "owner": "coder-w3w4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W4-S1",
+   "source": "cards/W3-W4-engine-wiring.md W4 §1",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 1486df4: src/tools.ts 4 tools all defineTool-wrapped (lazy host require + fail-soft shim), zctx_fold args={content:string required} + lenient parser aligned to parseCompressInput semantics, no isConcurrencySafe (S8); tests/tools.spec.ts 21/21",
+   "owner": "coder-w3w4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W4-S2",
+   "source": "cards/W3-W4-engine-wiring.md W4 §2-3",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 1486df4: src/plugin.ts ZcontextPlugin extends cordis Service (lazy require + structural shim), capability-probed 5 faces, nudge required:true (B2 suppression test), /zctx command; tests/plugin.spec.ts 12/12; smoke.spec adapted (backup del/20261112-w4-index-smoke-prechange/)",
+   "owner": "coder-w3w4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W4-S3",
+   "source": "cards/W3-W4-engine-wiring.md 验收 probe + 协调指令 5",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 1486df4: artifact probe on lib/index.js — 14 exports + face wiring (4 tools/1 section/1 required context/1 command/3 listeners) + end-to-end fold+status through built artifact + no-isConcurrencySafe; vitest 189/189, tsc zero errors, build green",
+   "owner": "coder-w3w4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W3W4-RSI",
+   "source": "AGENTS.md §17/§2.3 RSI 收口",
+   "type": "lesson",
+   "disposition": "fixed",
+   "evidence": "ZDSH-LESSONS.md Z15 (nested helper import depth: vitest green != type-closed) + Z16 (super() throw TDZ: probe before extends + shim); capture log in ~/.agents/rsi/INDEX.md; backup del/20261112-w4-rsi-lessons-prechange/",
+   "owner": "coder-w3w4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W3-R1",
+   "source": "REVIEW-W3W4.md [阻断] W3-1 (checkpoint 载荷偏离官方 user/message 契约)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit 4293a58: tests-first deriveEventMessage pins (real-mode fold+unfold assert projected role==='user' + content array, 4 例真跑 executed); src/fold-engine.ts fold(:287 区)/unfold(:432 区) 去信封提交裸 UserMessage {id,role,content,source} 镜像 createUserMessage(region.ts:410-413); mock-session msg.user 裸消息化+msg.system 补 turn/step; 真实模式夹具官方形态统一; store 双形态提取器零改动。修复前 4 例形态断言先红(4293a58 前 vitest 4 failed)修复后全绿。产物级探针 P5 经官方 deriveEventMessage 投影 fold/unfold 均 role=user content=array (scripts/probe-artifact.mjs 5/5 PASS)",
+   "owner": "coder-w3w4-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W3-R2",
+   "source": "REVIEW-W3W4.md [建议] W3-2 (跨 checkpoint 吸收不可达 + shadowed 过滤不变式依赖)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit b6f359c (文档化路线, 最小改面): validator.ts 模块头 check a/d + 规则 d 处 + contiguity 守卫注释写明可达域(吸收需边界对齐 [checkpoint,checkpoint]); texts.ts REASON_RANGE_DISCONTIGUOUS 扩展提示句(评审探针 B2 复跑实证新文案生效); fold-engine.ts 数字过滤处就近钉不变式依赖注释; fold-engine.spec.ts 新增 2 测试: 跨 checkpoint 窗拒收钉(B2 S1/S2 形态)+双域扫描不变式钉(validator 接受窗 numericFilter ≡ positionalSlice, 单调面 6+ / 折叠后非单调面 2+)",
+   "owner": "coder-w3w4-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W4-R1",
+   "source": "REVIEW-W3W4.md [建议] W4-1 (zctx_unfold 死参数 latest)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit ec8eb12: 删除 tools.ts latest 参数声明(描述文案已含缺省语义); tools.spec.ts 新增 unfold 参数集精确断言 {foldId}(无 required 键, shim 空集省略语义)",
+   "owner": "coder-w3w4-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W4-R2",
+   "source": "REVIEW-W3W4.md [建议] W4-2 (B2 官方过滤测试自证循环)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit c1b6c2f: 删除 officialFilterKeeps 循环自证; 改直接断言 context.required===true + 官方行号注记(system-prompt/src/index.ts:667/:682 filter entry.required===true); 抑制态 '' no-op 真实行为测试保留",
+   "owner": "coder-w3w4-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W4-R3",
+   "source": "REVIEW-W3W4.md [建议] W4-3 (closure 自报产物探针无入库载体)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit 338e3ae: scripts/probe-artifact.mjs 入库, node 直跑可复现, 5 组探针: P1 30 导出+身份 / P2 接线 4/1/1/1/3(required=true) / P3 S8 无 isConcurrencySafe / P4 lib 工具面端到端 fold(裸 UserMessage checkpoint)+status / P5 真实官方 session W3-1 投影钉+W3-2 拒收钉(ZCTX_OFFICIAL_SESSION 可覆盖, 缺席显式 SKIP)。终验输出: 5 PASS, 0 SKIP, 0 FAIL",
+   "owner": "coder-w3w4-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W4-R4",
+   "source": "REVIEW-W3W4.md [建议] W4-4 (nudge provider 忽略 AssembleContext + 全局最近会话假设)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit 3c15e7c: plugin.ts text provider 按官方 PromptContext.text 契约接收 AssembleContext(system-prompt/src/index.ts:42-50/:85); 会话归属优先 assembly.agent.session / scope.session(官方 assembleContextFor agent/src/dispatch.ts:174 传 agent+scope=agent; Agent.session agent-loop/src/agent.ts:127), 不可达时回退最近创建会话(注释声明局限); plugin.spec.ts 双会话判别测试(A 归属渲染 A 的 span, B 空表, fallback 声明路径)",
+   "owner": "coder-w3w4-rework",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W5-S1",
+   "source": "cards/W5-docs-verify.md 产物 1 + plan §2 A4/A5",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit d72ec36: scripts/verify-activation-surface.mjs 8 组断言(A1 Z3 lib 在盘+git ls-tree / A2 package.json 安装门含无 prepare/install 钩子+无 dsh.client+peerDeps cordis>=4+engines / A3 Z7 import lib 身份+Config+四工具名 / A4 patch yml 逐行解析 insert id/name / A5 checkpoint 特征串 zctx-fold/zctx-unfold/required / A6 S8 剥注释扫代码+运行期 offenders=0 / A7 B2 required:true / A8 probe-artifact 子断言复用), node 直读全程无 grep; 实测 8 PASS 0 FAIL exit 0",
+   "owner": "coder-w5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W5-S2",
+   "source": "cards/W5-docs-verify.md 产物 2 + plan §2 A7",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit ec0d3ac: README.md + README.zh.md 双语原创非机翻镜像(独立成文), 12 个显式 HTML 锚点 en/zh 完全一致(TOC 链接零悬坠机械核对), H2 12/12 节对齐, 设置表 9/9 行, 四工具名/required:true/UNKNOWN_TOOL/32768/isConcurrencySafe/billion-context 致谢等关键事实逐项双语核对通过; 内容覆盖是什么/为什么/净室声明与致谢/安装/四工具真实参数形态/与官方 compaction 共存硬底/设置项表/行为三件(PTC 直呼受限/nudge required:true 含义/unfold 单节点重物化线缆代价)/限制/安全/开发",
+   "owner": "coder-w5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W5-S3",
+   "source": "cards/W5-docs-verify.md 产物 3+4 + plan §2 A7",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 4584526: SECURITY.md(威胁模型: 资产表/零网络/零遥测/会话数据本地/模型伪造防御六层=原生回执+服务端验证器+官方通道+compaction 互斥+exclusive barrier+宽容解析严格提交/fail-soft) + CHANGELOG.md 0.1.0 完整条目(Added 十项=四工具/指导段/nudge/命令/设置页/验证器/零独立存储/缓存记账/安装面/三个验证脚本; Behavior 三件; Limitations 四件; Security); 改前原件备份 del/20261112-w5-docs-prechange/(SHA-256 与 HEAD blob 一致)",
+   "owner": "coder-w5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W5-S5",
+   "source": "cards/W5-docs-verify.md 产物 5 + plan §2 A6 (真机冒烟-已执行部分)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit c12911e: scripts/smoke-real-loader.mjs 真机探针实测 2 PASS 0 SKIP 0 FAIL — R1 真 app-boot loader(packages/boot/app-boot/lib) loadOverlayPatches 解析本仓 cordis.patch.yml + composeEntries 组合出 {id:dsh-zcontext,name:dsh-zcontext}; R2 真 CLI(apps/cli/lib/bin.js v0.2.1-alpha.2) --dump-config --patch 组合树 1237 行含我们的 dsh-zcontext 行为最后一层 + 无 --patch 负对照(1234 行无 dsh-zcontext); 另 probe-artifact.mjs P5 已是真实官方 session lib 挂载探针(5/5 PASS)。临时 DSH_HOME 用后即删(mkdtemp+前缀校验删除)",
+   "owner": "coder-w5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W5-A6-INSTALL",
+   "source": "plan §2 A6 (真机冒烟-安装与完整启动挂载部分)",
+   "type": "deferred-step",
+   "disposition": "user_approved_deferred",
+   "evidence": "隔离环境真实安装(dsh plugin add 经 pnpm 装入活跃 profile)+完整 harness 启动挂载本插件模块: 需 registry 安装 workspace 发布的 bundle 与 LLM 运行时, 本环境不可跑; 方案门 plan §2 A6 行预授权此 fallback(owner=主线、触发条件=用户桌面环境可用、复核日期=发布后一周、证据=本计划行); 已执行的真件探针见 W5-S5(真 loader 组合+真 CLI dump-config+真 session lib 挂载投影), 激活面断言见 W5-S1",
+   "owner": "mainline",
+   "status": "open",
+   "phase": "post-merge",
+   "trigger": "用户桌面环境可跑完整 harness + 插件已发布后一周",
+   "reviewDate": "2026-11-19"
+  },
+  {
+   "id": "W5-RSI",
+   "source": "AGENTS.md §17/§2.3 RSI 收口",
+   "type": "lesson",
+   "disposition": "fixed",
+   "evidence": "ZDSH-LESSONS.md Z17(打包产物保留注释——「产物内不含 X」全文断言必须先剥注释再扫, 运行期构造断言才是权威口径; W5 A6 组首轮假红实证, 剥注释后 codeTextClean=true); ~/.agents/rsi/INDEX.md 捕获日志新增 zctx W5 行; 开工查册命中 Z13/Z14/A14/A25 未复燃(全程 Write/Edit 无 heredoc、node 直读无 grep); 备份 del/20261112-w5-rsi-lessons-prechange/(两册改前件 SHA-256 核对一致)",
+   "owner": "coder-w5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "W5-GOV",
+   "source": "cards/W5-docs-verify.md 产物 6 (governance 收尾)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "closure.json 全量核对 24 条: 23 条 block 全 closed(fixed+verified, 实测 phase=block 计数 23), 1 条 post-merge user_approved_deferred(W5-A6-INSTALL, owner=主线/触发=用户桌面环境/复核日期=2026-11-19), 0 条 OPEN-阻塞; R2 复审产物(REVIEW-W3W4 复审节+W3=99/W4=100 scorecards)入库 commit d5c5ceb; progress.md/checkpoint.json/checkpoint-history.jsonl W5 终态更新",
+   "owner": "coder-w5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V1-U2-PROBE",
+   "source": "cards/V1-probes-store.md item 1 (RES-adapter-route U2)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 168ef03: scripts/probe-host-imports.mjs (G1 reachability / G2 ESM import liveness / G3 10 named-export assertions + spelling pin / G4 callConfigEquals live semantics + CONTEXT_WINDOW_EXCEEDED_CODE literal) — 16 PASS 0 SKIP 0 FAIL exit 0; machine report reports/probes/U2-host-imports.md",
+   "owner": "coder-v1",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V1-U1-PROBE",
+   "source": "cards/V1-probes-store.md item 2 (RES-adapter-route U1)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 8eb4e78: reports/probes/U1-models-ui.md — read-only source investigation with file:line anchors; verdict SKIP for the card question (directory entries reach the data plane, but ProviderEditor.layoutOf pins llm-deepseek/llm-pi-ai and disables Apply for unknown layouts; visibility additionally needs a volatile Config field — settings describe volatileForm gate); GO conditions + unresolved items registered in the report §4",
+   "owner": "coder-v1",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V1-TYPES",
+   "source": "cards/V1-probes-store.md item 3 (RES-observe-route a.1 table)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 8e82b1b: src/types.ts RouteHeader/LlmCallConfigLike/LlmCallConfigAdapterDefaultsLike/ResetEvent(9-kind union per §Q6 mapping)/FoldUsageAttribution/UsageRecord(state)/ThreeStateCounts+BreakevenTableRow+ResetSummaryRow+ObservabilitySnapshot; UsageSample moved to types.ts and re-exported from store.ts (W3 surface unchanged, 193/193); SessionEventLike +time? (official session/src/types.ts:499); index.ts type exports added; lib d.ts carries all new names",
+   "owner": "coder-v1",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V1-CONFIG",
+   "source": "cards/V1-probes-store.md item 5 (plan §3 design freeze)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit c763f21: src/config.ts attributionTimeWindowMs=90000 + cleanSampleFloor=0.6 (both JSDoc 待真机标定); CONFIG_FIELD_SPECS satisfies pin keeps the schema table honest; smoke.spec defaults pin extended; tsc 0 + 193/193 + build green",
+   "owner": "coder-v1",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V1-STORE",
+   "source": "cards/V1-probes-store.md item 4 (RES-observe-route a.1/a.2)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 563a7a5: src/store.ts request/header chain + cache-reset ledger (per-category classification incl. local callConfigEquals twin, bracket-aware replace classification) + UsageRecord full-token upgrade; one shared applyEvent transition for attach/feed/resync; tests/store-observe.spec.ts 18 cases (per-kind 9 kinds, dual-regime feed==scan, resync gap repair, event-time propagation); 211/211 (12 files); probe-artifact 5/5; verify-activation-surface 8/8",
+   "owner": "coder-v1",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-TYPES",
+   "source": "cards/V2-observe-hash.md product 1 (RES-observe-route a.1 row 5 + V1 handoff rulings)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 7425822: src/types.ts RequestSnapshot (honest projector/domain fields) / PrefixBreakRecord (reset-explained|unknown-break) / CapturedAttemptUsage (non-durable face) / ResetEventKind +series-restart (V1 handoff ruling 1); index re-exports extended; 211/211",
+   "owner": "coder-v2",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-HOST-LLM",
+   "source": "cards/V2-observe-hash.md product 1 (host-llm fail-soft loader + hash primitives)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 24c35d1: src/host-llm.ts lazy loader (official projectFilesToText/projectImagesForTextModel/projectToolUpdates/isAgentLoopRequest when host resolvable; labeled local-fallback structural twins otherwise, ZCTX_DSH_LLM override keeps probe convention) + src/hash.ts stableStringify/sha256; probe spec pins BOTH paths; 218/218",
+   "owner": "coder-v2",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-OBSERVE",
+   "source": "cards/V2-observe-hash.md product 2 (RES-observe-route a.2 item 2 + a.3 + §Q8)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 15f421b: src/observe.ts llm/stream waterfall listener — four main-chain criteria, per-attempt RequestSnapshot through injected sinks, detectPrefixBreak (~20-line mechanical piece, reset-explained vs unknown-break, domain harness), optional attemptCapture wrapper (abort-rethrow + inner-close pinned), zero-mutation pin on deep-frozen options, sink faults fail-soft warn-once; 239/239",
+   "owner": "coder-v2",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-STORE",
+   "source": "cards/V2-observe-hash.md product 3 (process-memory receive ports + series reset accounting)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 59efa43: src/store.ts absorbRequestSnapshot/absorbCapturedAttemptUsage (bounded 64/64/64 ledgers, attach clears, never session-logged per CARD-F a.1) + requestSnapshots/lastRequestSnapshot/prefixBreakEvents/capturedAttemptUsage getters; reason='series' headers account as series-restart reset (V1 handoff ruling 1); 246/246",
+   "owner": "coder-v2",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-CONFIG",
+   "source": "cards/V2-observe-hash.md product 4 (config switches)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 458b664: src/config.ts 'observe.enabled'=true / 'observe.attemptCapture'=false as flat primitive dotted keys (card name pin + v1 all-primitive contract kept per coordinator course correction); CONFIG_FIELD_SPECS satisfies pin auto-forced both rows; smoke.spec defaults pin extended",
+   "owner": "coder-v2",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-PLUGIN",
+   "source": "cards/V2-observe-hash.md product 4 (plugin wiring, c5)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 7574f25: src/plugin.ts wireObserveFace registers ObserveListener.onStream on ctx.on('llm/stream') (official Events face llm/src/index.ts:76-78; host-spec precedent compaction-basic.spec.ts:1560), capability-probed (config switch=info; missing ctx.on/llm=warn+skip, five-face precedent), snapshots route to the store receive ports via the plugin's single lazy-attach registry, watched-set=liveSessions on official Session.id (agent-loop/src/agent.ts:718); src/tools.ts LlmRuntimeLike gains official inputModalities/toolUpdate pass-through; src/observe.ts +forgetSession wired to session/disposed; tsc 0 + 252/252 + probe 5/5 + verify 8/8",
+   "owner": "coder-v2",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-TESTS-LIB",
+   "source": "cards/V2-observe-hash.md products 4-5 (wiring cases) + acceptance (lib rebuilt, git clean)",
+   "type": "deliverable",
+   "disposition": "fixed",
+   "evidence": "commit 95007cc (plugin.spec 6 wiring cases: registration+snapshot routing w/ honest local-fallback pin, no-llm skip warn, observe.enabled=false info-not-warn face-scoped, attemptCapture=true non-durable capture, unwatched-id criterion 3, dispose clears listener state via attemptSeq-restart pin; degrades pin 5->6 warns; llm/stream in listeners key set) + commit bc281d5 (lib rebuilt incl. the 59efa43 rebuild artifact left dirty, V2 card in-repo); pre-change originals backed up del/20261113-v2-c5-plugin-prechange (5 files, SHA-256 = HEAD blobs)",
+   "owner": "coder-v2",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V1-B",
+   "source": "REVIEW-V1V2.md §4 [建议] V1-B (routeHeaders/resetLog session-unbounded)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit 9e7ec51: ROUTE_HEADER_LEDGER_CAP/RESET_LEDGER_CAP=64 (oldest dropped, cap value declared in comment) + store-attribution.spec 66→64 pins both ledgers; companion: observe.ts exemption window moved to a SEQ consumption pointer (index pointer would mis-align after cap shift) — observe.spec 22/22",
+   "owner": "coder-v3",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-B",
+   "source": "REVIEW-V1V2.md §4 [建议] V2-B (systemHash/toolsHash collected but not break-compared — spec a.3 deliberate narrowing undocumented)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit 9e7ec51: documentation-only (non-behavioral) — detectPrefixBreak JSDoc + PrefixBreakRecord type doc both declare the deliberate message-list-only narrowing (system/tools = reset-ledger territory + §Q5.2 pi-ai blind spot) with RES-observe-route a.3 reference; tsc clean, no behavior delta",
+   "owner": "coder-v3",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-C",
+   "source": "REVIEW-V1V2.md §4 [建议] V2-C (modelInfoCache process-unbounded incl. negative results)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit 9e7ec51: MODEL_INFO_CACHE_CAP=64 (insertion-order eviction of the oldest route, cap value + re-resolution semantics declared in comment); observe.spec 22/22 green with the bounded cache",
+   "owner": "coder-v3",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V2-D",
+   "source": "REVIEW-V1V2.md §4 [建议] V2-D (zero-mutation pin ran only under the fallback projector)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit ec8f311: observe.spec official-path describe gains the full zero-mutation pin (deep-frozen tree byte-identity + reference identity + attemptCapture under the OFFICIAL projector via ZCTX_DSH_LLM host-build override, honest skip when absent — SKIPPED mechanism same as the probe); ran LIVE on this machine (22/22, no skip)",
+   "owner": "coder-v3",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V4-A",
+   "source": "V4 card product 1-2 (S1 preflight): preflightMode tri-state + margin config + preflight.ts estimator/listener",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "commits 4b2b499 (config flat keys preflightMode default 'observe' / preflightMarginRatio 0.9 with R2 JSDoc + types PreflightMode/PreflightCalibrationRecord/PreflightImagePricing/PreflightOutcome) + 206e84d (preflight.ts: matchesMainChain criteria 1-3 reuse, chars/3 estimator over re-projected messages with official/fallback honesty, image pricing adapter vs PER_IMAGE_FALLBACK_TOKENS=2048 labeled paths, hit iff estimate > triggerLine x marginRatio, fail-soft unresolvable-window release F6.4, outermost separate listener, enforce short-circuit = exactly one terminal finish{kind:error,failure:{code:CONTEXT_WINDOW_EXCEEDED}} per official types.ts:452-464/41-62 read directly, R3 deps carry no llm runtime) + plugin wirePreflightFace registered before observe + index surface",
+   "owner": "coder-v4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V4-B",
+   "source": "V4 card product 3: calibration ledger (estimate vs real usage) + zctx_status estimator error statistics",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "store.absorbPreflightCalibration (64-cap, never session-logged, cleared with the other receive ports) + tools.ts preflightCalibrationStats (comparable = settled with billed input over the DISJOINT accounting input+cacheRead+cacheWrite, mean/worst signed error %, short-circuit count, honest basis line official vs official+local-fallback) + renderStatus segment 5 (mode line from config-owned runtime.preflightMode, empty/no-judged/not-comparable honest shapes) + preflight.spec lifecycle cases",
+   "owner": "coder-v4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V4-C",
+   "source": "V4 card acceptance: enforce unreachable under default configuration (R2 pin) + chunk-form pin + zero-mutation pin reuse + R3 pin",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "preflight.spec: configDefaults.preflightMode === 'observe' pinned + validator roundtrip; enforce hit = exactly one chunk, next() never started (innerStarted false), LlmFailure carries message+code only (status/requestId honestly absent); zero-mutation pin across observe AND enforce firings (frozen tree byte-identity + reference identity); R3 structural pin (deps key set contains no stream/llm member, narrow helpers invoked exactly once) + plugin.spec enforce wiring pin (outermost short-circuit suppresses the inner observe listener: no snapshot for the short-circuited request)",
+   "owner": "coder-v4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V4-D",
+   "source": "V4 card 顺手闭合 (V3 handover): V2-A prepare catch swallows errors silently -> warn-once",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit 4b2b499: observe.handleStream catch warns once per listener ('observe prepare failed (...); request snapshots stay off until the fault clears'), stream still passes through untouched; observe.spec V2-A case (warn once across two firings, snapshots stay off); tsc clean",
+   "owner": "coder-v4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V4-E",
+   "source": "V4 card ambiguity: product-1 JSDoc wording (估算命中阈值=triggerLine×margin) vs product-2 phrasing (估算 context+reserve(R_pess) > W×marginRatio) — differ by 0.1×R_pess",
+   "type": "contract-ambiguity",
+   "disposition": "fixed",
+   "evidence": "resolved toward product-1 (normative JSDoc contract) + F6.4 false-positive-cost bias (higher threshold = fewer false positives): hit iff estimate > triggerLine × marginRatio, declared in preflight.ts module docstring + judgeEstimate JSDoc + checkpoint v4s0 decision 3; flagged for reviewer confirmation",
+   "owner": "coder-v4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V4-F",
+   "source": "V4 estimator robustness: walkMessage hit 'Cannot read properties of undefined (reading length)' on a non-JSON content (message-level stray block found while building the zero-mutation test)",
+   "type": "lesson-application",
+   "disposition": "fixed",
+   "evidence": "walkMessage + tool-schema loop guard stableStringify output with typeof raw === 'string' (JSON-unrepresentable values count 0 chars); documented in the walkMessage JSDoc; the fail-soft judgeRequest catch remains the second line of defense; RSI capture logged (see progress.md V4 entry + tasks/ZCTX/handoffs)",
+   "owner": "coder-v4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V4-G",
+   "source": "final-battery re-run found smoke.spec config pin red after the lib rebuild (Z19: vitest imported the STALE V3 artifact in the earlier green run)",
+   "type": "lesson-application",
+   "disposition": "fixed",
+   "evidence": "smoke.spec pin literal +preflightMode/preflightMarginRatio (conscious contract update, Z19 discipline build->test->tsc->probe); two consecutive green runs against the fresh lib (332/332, tsc clean, probe-artifact 5/5, verify-activation-surface exit 0); smoke.spec pre-change backed up in del/20261113-v4-preflight-prechange (SHA-256 vs 62d6889 OK); Z19 registered in zDSH-LESSONS.md + INDEX capture row",
+   "owner": "coder-v4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V5-A",
+   "source": "V5 task card products 1/2 (adapter skeleton + chunk mapping): ZctxAdapter extends LlmAdapter via fail-optional host face, 7-shape chunk protocol with usage-before-finish, official mapping reuse (official-pi-ai-mapping) with labeled zctx-mapping twins fallback",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "src/adapter/{host,providers,map,replay,context,twins,zctx-adapter}.ts; tests/adapter-providers.spec.ts (48) + adapter-zctx.spec.ts (16) + adapter-host.spec.ts (7) — official mapping source pinned live on the reference machine (adapter-host OFFICIAL case); classifyPiAiError twins-only (module-private upstream stream.ts:42) honestly documented",
+   "owner": "coder-v5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V5-B",
+   "source": "V5 card product 3 (error two paths): throw LlmError official taxonomy vs in-band error finish chunks; SDK maxRetries=0 (R4); caller abort → ABORTED",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "zctx-adapter.ts catch path (abort/LlmError passthrough/twin-table classification) + streamSimple options maxRetries:0; tests: TRANSPORT classification, in-band SERVER finish, ABORTED upgrade, R4 pin (capture.options.maxRetries === 0)",
+   "owner": "coder-v5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V5-C",
+   "source": "V5 card product 4 (wire ledger, R7): onPayload+custom fetch pass-through, wire-domain sha256 snapshots, attributionHeaders on every request",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "src/adapter/wire.ts (R1 undefined-constant onPayload; fetch hashes init.body with byteLength; requestHeaders attribution-wins merge port of official adapter.ts:215-223); types.ts WireSnapshot; store absorbWireSnapshot 64-cap; tests/adapter-wire.spec.ts (7) + adapter-zctx wire-integration case (session-bound triples / one-shot headers-only)",
+   "owner": "coder-v5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V5-D",
+   "source": "V5 card products 5/6 (cache knobs + image budget): cacheRetention passthrough + cacheControlFormat compat materialization with construction-gated dead-config refusal; image refusal UNSUPPORTED_CONTENT as the honest S2 boundary",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "providers.ts cache-knob validation matrix test + adapter-zctx passthrough pins (options.cacheRetention verbatim, model.compat {cacheControlFormat}); the three F5.7 image knobs deliberately NOT in config (JSDoc honest boundary: knobs with no consumer are dead config; IMAGE_OFFLOAD_REQUIRED unreachable by construction)",
+   "owner": "coder-v5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V5-E",
+   "source": "V5 card products 7/8 (minimal directory + config structured section): registerConfigurableProviders visibility-only with U1 honesty; providers[] schemastery section with VOLATILE namespace-mount anchor (config section pulled forward from v5s5 — the wiring consumes it)",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "plugin.ts directory block (settingsNs=dsh-zcontext, positional settingsPath, declared:true, U1 honesty log lines); config.ts providers schema (schemastery nested + volatile; fail-soft pass-through; configDefaults providers:[] aligned); adapter-plugin.spec directory cases (entries shape pin, missing-face warn, DUPLICATE_DIRECTORY refusal keeps the adapter)",
+   "owner": "coder-v5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V5-F",
+   "source": "R4 joint-review three closures (card 顺手闭合): V3-1 resetBetween cap guard, V4-1 calibration stats fallback-row exclusion, V4-2 official-projector execution pin",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "store.ts resetBetween (>=RESET_LEDGER_CAP → stop-walk unknown); tools.ts preflightCalibrationStats fallbackRows exclusion with honest basis line; preflight.spec official-path describe (host-on-disk SKIPPED convention + two-path estimate divergence); stats pin updated (comparable 2)",
+   "owner": "coder-v5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V5-G",
+   "source": "redlines R1-R8 audit for the V5 wave (card 验收: 红线逐条核对)",
+   "type": "acceptance-pin",
+   "disposition": "fixed",
+   "evidence": "grep audit clean: R1 onPayload undefined-constant (no payload returns in src/adapter); R2 preflightMode default observe untouched (smoke pin); R3 zero ctx.llm references in src/adapter (only the JSDoc prohibition); R4 single maxRetries:0 site + test pin; R5 zctx- prefix only (zctxRouteOf); R6 no transport option ever passed + ws/non-http baseURL construction violations; R7 attributionHeaders on every streamSimple call incl. ledger-less one-shots; R8 pi-ai 1.0.2 dist anchors read live (types.d.ts onPayload:80/fetch:69/maxRetries:103/transport:139/cacheRetention:144) and documented in JSDoc",
+   "owner": "coder-v5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V5-H",
+   "source": "final battery (card 验收: vitest 全绿 + tsc 零错 + build 绿 + 三探针 exit 0 + 干净树)",
+   "type": "acceptance-pin",
+   "disposition": "fixed",
+   "evidence": "build tsdown 984.97 kB (7 files, lib committed per Z3); 419/419 against the fresh lib; tsc --noEmit zero; probe-artifact 5/5 + verify-activation-surface 8/8 + smoke-real-loader 2/2 + U2 host-imports 16/16 all exit 0; smoke config pin +providers:[] conscious Z19 amendment",
+   "owner": "coder-v5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V5-I",
+   "source": "coordinator A-ruling integration (family = wire protocol name, official supportedProtocols union taken dynamically, zero invented mapping, unknown family construction fail-loud)",
+   "type": "decision-application",
+   "disposition": "fixed",
+   "evidence": "providers.ts A-ruling JSDoc + validation; host.ts loadSupportedProtocols (official lib supportedProtocols() with KNOWN_PROTOCOLS builtin fallback + honest builtin label); displayName zctx <family> verbatim; tests pin route/displayName/protocol identity",
+   "owner": "coder-v5",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-A",
+   "source": "REVIEW-V5.md §4 [建议] V5-1 (store.ts:1297 resetBetween cap-guard 无专钉; 连带闭合 V3-1 测试分支, REVIEW-V5 §6.2)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit dec0bcc: store-attribution.spec new describe (2 boundary pins) — at cap (64) the interpolation walk stops conservatively (estimated stays estimated, semiKind absent) even though NO retained reset sits between candidate and anchor; at cap-1 (63) the same shape upgrades to semi/interpolated with the anchor input carried over. Deleting the guard line turns test 1 red (walk would upgrade). 424/424 + tsc zero",
+   "owner": "coder-v6",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-B",
+   "source": "REVIEW-V5.md §4 [建议] V5-2 (zctx-adapter.ts:201 maxTokens 缺省静默发明 32768; 修法二选一, 选 a 官方对齐 fail-loud)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit dec0bcc: providers.ts maxTokens now REQUIRED positive integer at the construction gate (official catalog.ts:934-936 semantics — missing value = construction violation with the complete list, never an invented default); zctx-adapter.ts materializePiModel rides the declaration verbatim (?? 32768 removed); new dedicated test (missing maxTokens = violation, violating model never reaches the resolved route, assertZctxProvidersResolvable throws); fixtures updated to declare maxTokens; 424/424 + tsc zero",
+   "owner": "coder-v6",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-C",
+   "source": "REVIEW-V5.md §4 [建议] V5-3 (config.ts:175 注释与 configDefaults.providers=[] 与 smoke 契约钉三方矛盾)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit dec0bcc: config.ts CONFIG_FIELD_SPECS providers comment rewritten as ONE unified statement — schema default/configDefaults/smoke pin all carry the EMPTY declaration list; \"optional\" applies only to user input; zero routes = legal keep-alive",
+   "owner": "coder-v6",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-D",
+   "source": "REVIEW-V5.md §4 [建议] V5-4 (plugin.ts wireAdapterFace 违规检查在可达性门之后 — 校验不依赖宿主)",
+   "type": "review-finding",
+   "disposition": "fixed",
+   "evidence": "commit dec0bcc: plugin.ts wireAdapterFace reorders gates — loadSupportedProtocols + assertZctxProvidersResolvable now run BEFORE loadAdapterFaces (pure resolution, builtin fallback), so a misconfigured section reports the COMPLETE violation list even on host-absent installs; new pin test (unreachable faces + bad config => warn carries family/model violations, reachability info NOT logged); doc comment gate order updated; 424/424 + tsc zero",
+   "owner": "coder-v6",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-E",
+   "source": "V1-A (callConfigEquals 非有限值理论差异; 终验前处置 — coordinator 卡面: 最简处置=测试钉死当前语义+JSDoc 声明边界, 或修齐)",
+   "type": "card-ambiguity",
+   "disposition": "fixed",
+   "evidence": "commit dec0bcc: pinned-not-fixed path chosen (unreachable on the official wire — host normalizes controls before dispatch, a header snapshot never carries NaN). store.ts callConfigEquals JSDoc declares the boundary (official raw === says NaN-carrying configs differ; local extraction drops non-finite -> both (absent) -> equal); store-observe.spec new pin: two NaN-carrier change headers produce zero resets, chain of 2",
+   "owner": "coder-v6",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-F",
+   "source": "V6 card product 1-2 + plan B6: README bilingual update (three new capability blocks + limitations update, en/zh mirror) + CHANGELOG 0.2.0 finalized",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "commits e733ad1 (CHANGELOG 0.2.0: S2 wave appended in full + Honest ceilings and calibration debt section) + 80c43d5 (README en/zh: observability-ledger / preflight-s1 / zctx-router sections, settings +7 v0.2.0 fields, limitations +2 honest-ceiling entries, 424 tests + probes 6/10/3); mirror verified anchor-by-anchor (identical anchor lines 28-217) and fact-count-matched (6/6 limitation bullets, 9/9 key-number lines)",
+   "owner": "coder-v6",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-G",
+   "source": "V6 card products 3-4 + plan B5: verify-activation-surface + probe-artifact extensions (card assertion list)",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "commit 6d835b1: verify-activation-surface +A9 (preflightMode observe default R2, providers [] unified default in configDefaults AND schema output V5-3, observe switches) +A10 (adapter export face functional, KNOWN_PROTOCOLS official union, R4 maxRetries:0 single code site, R7 attributionHeaders — node direct reads) 8->10 groups; probe-artifact +P6 (S2 exports functional, route/displayName pins, missing-maxTokens construction violation V5-2, assertZctxProvidersResolvable fail-loud) 5->6 groups; all exit 0 against the fresh lib",
+   "owner": "coder-v6",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-H",
+   "source": "V6 card product 5 + plan B4: smoke-real-loader zctx provider directory smoke (capability-reach -> real run, not SKIPPED)",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "commit 6d835b1: smoke-real-loader +R3 — a user-style profile overlay patch carrying providers (family/baseURL/models/contextWindow/maxTokens) composes through the REAL loader CLI dump-config (7 composed rows asserted); honest scope label in the probe output: config-layer only, runtime registerConfigurableProviders needs a live llm runtime -> stays with the post-merge full-install smoke (plan A6). 3/3 PASS exit 0",
+   "owner": "coder-v6",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-I",
+   "source": "V6 card product 7 + acceptance: version 0.2.0 + final battery + terminal governance",
+   "type": "acceptance-pin",
+   "disposition": "fixed",
+   "evidence": "commits e733ad1 (version 0.2.0 + lib rebuilt 988.84 kB 7 files) + 6d835b1 + 80c43d5; final battery green: build -> 424/424 vitest -> tsc --noEmit zero; four probes exit 0 (probe-artifact 6/6, verify-activation-surface 10/10, smoke-real-loader 3/3, probe-host-imports 16/16 with U2 report timestamp-only diff restored to the committed state); closure 65 items, only W5-A6-INSTALL user_approved_deferred (v0.1.0 baseline, post-merge) open-by-design",
+   "owner": "coder-v6",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P0-A",
+   "source": "P0-inject-fix.md 根因 + plan §0：static inject 缺失 → 真机 cannot get property tokenMeter without inject",
+   "type": "root-cause",
+   "disposition": "fixed",
+   "evidence": "commit b289f04: 六键声明（逐键实读提供方：tools:850/systemPrompt:442/commands:277/llm:354/tokenMeter:111/sessions:282）+ smoke 钉测六键；probe-real-mount G3 默认配置全触达（构造=越过 236/237 死点）5/5 exit 0",
+   "owner": "coder-p0",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P0-B",
+   "source": "P0-inject-fix.md product 2：mock 宿主升级为 cordis get-trap 同语义强制",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "commit 5174b93: tests/helpers/mock-host.ts 真语义 Proxy（特殊属性/自有属性/store/inject 缺失 belt/其余抛设备错误）+ 三 spec 改道 + 5 负例钉测；摘除即红：inject 摘回 []→30/40 红；429/429 全绿",
+   "owner": "coder-p0",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P0-C",
+   "source": "P0-inject-fix.md product 3：probe-real-mount 真 vendored cordis fiber+六服务桩断言 apply 全触达",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "commit b650c73: G1 可达性（SKIP 明示）/G2 负对照（inject=[] 直访抛设备错误，防拓扑漂宽容）/G3 全触达+PENDING 守卫/G4 providers 声明态 registerAdapter+directory；5 PASS 0 SKIP 0 FAIL exit 0；报告 reports/probes/P0-real-mount.md；错误键静默 PENDING 机制实证",
+   "owner": "coder-p0",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P0-D",
+   "source": "P0-inject-fix.md product 4：grep 全 src ctx.<prop> 直访收编",
+   "type": "card-product",
+   "disposition": "fixed",
+   "evidence": "git grep 全 sweep：src 真代码访问仅 plugin.ts（tools.ts/preflight.ts/zctx-adapter.ts 命中均为注释行）；llm/tools/systemPrompt/commands/tokenMeter 全在六键声明内；logger=context.ts:81 自有属性、on=mixin accessor 属非服务面无需声明；无解构/this.ctx 形态直访；probe-real-mount G3/G4 运行时证据覆盖 236/237/292/305/315/333/374/437/560 全部触达",
+   "owner": "coder-p0",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "V6-1",
+   "source": "REVIEW-V6",
+   "type": "suggestion",
+   "disposition": "fixed",
+   "verified": true,
+   "evidence": "commit d8d2f5a 双语探针清单补 probe-host-imports 行（REVIEW-V6 V6-1）",
+   "owner": "mainline",
+   "status": "closed",
+   "phase": "block"
+  },
+  {
+   "id": "P3-M1+R14",
+   "source": "REPORT-FULL-AUDIT §5.1 P3-M1 + §5.2 P3-R14（同修标注）",
+   "type": "audit-must",
+   "disposition": "fixed",
+   "evidence": "f01b5cd: applyEvent 幂等/单调双分支守卫 + store.spec.ts:289 误标测试真修复（监听+真重复投递钉）+ 6 P3-T1 钉；摘除即红 6 红；E-repro sm01 exit 1 NO-REPRO",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-M2",
+   "source": "REPORT-FULL-AUDIT §5.1 P3-M2",
+   "type": "audit-must",
+   "disposition": "fixed",
+   "evidence": "614028a: extractCheckpointSource Number.isFinite+非负（twin 对齐）+ droppedAmounts anomaly + renderStatus 观测段 fail-soft（STATUS_OBS_SNAPSHOT_FAILED）；+6 钉（对照+三态+tokensAfter+render 钉）；摘除即红 4 红；E-repro sm02 exit 1",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-M3",
+   "source": "REPORT-FULL-AUDIT §5.1 P3-M3（方案 a 裁决 checkpoint p3s0）",
+   "type": "audit-must",
+   "disposition": "fixed",
+   "evidence": "219f7ff: 方案 (a) 裁决（checkpoint p3s0 notes）——拒图门契约降级为防御镜像（zctx-adapter 头注/门注/README）+ WireSnapshot.imageCount + 钉测；摘除即红 1 红；E-repro hf01 exit 0=机制有意保持（方案 a），验收按契约+可观察性达成",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-M4",
+   "source": "REPORT-FULL-AUDIT §5.1 P3-M4",
+   "type": "audit-must",
+   "disposition": "fixed",
+   "evidence": "c9ed41f: inject 六键→五键；smoke 五键钉 + plugin.spec 无 sessions 激活钉 + probe-real-mount 五桩（G3=真 cordis 无 sessions 激活，5/5 exit 0）；E-repro hf02 exit 1",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-M5",
+   "source": "REPORT-FULL-AUDIT §5.1 P3-M5",
+   "type": "audit-must",
+   "disposition": "fixed",
+   "evidence": "83e966e: scripts.test=\"tsdown && vitest run\"（显式链裁决 p3s0）；stale 场景验证（src 改动后 npm test 先 Build complete 后 vitest 443/443）",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R1",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R1（SM-03）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "9f940b5: SCAN_UNREADABLE_BREAKER=16 熔断 + scan-breaker-tripped anomaly；+2 钉（trip@16 墙钟界 + resume 有界）；摘除即红（阈值 1e6 安全变体）2 红",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R2",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R2（SM-04）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "937dad8: resume/series 归因质量决策钉 ×2（strong 固化+理由注释+reset 台账并存断言；降级=§10 规则变更须自觉翻钉）",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R3",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R3（SM-05）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "1d6a804: validatorConfig 单漏斗 domain clamp（clamp vs TypeError 裁决在 commit）；+1 强化钉（六极值+warmWindow 后 check f/net-shrink 激活）；摘除即红 1 红",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R4",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R4（SM-06）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "23e15ff: unfold-span 防御性降级（absorbed+zctx-unfold-span）+ unknown-fold-unfold anomaly；+2 direct-injection 钉；摘除即红 2 红",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R5",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R5（SM-12）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "c78133f: validateFold 入口 non-finite contextWindow → undefined（诚实跳路径 by construction）；+1 钉（有限 20000 窗口活跃拒绝 + NaN≡undefined 行为固化）；摘除即红 n/a（守卫可观察行为=钉住的前行为，commit 注明）",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R6+R9+R10",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R6/R9/R10（HF-03/06/07 文档三件）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "1021e3d: HF-03 README no-hot-reload + HF-06 preflight 模块 doc/README enforce 两句（maxOverflowRetries 预算+retryableCodes 交互）+ HF-07 mapUsageTwins parity 分歧登记；行为零变更",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R7",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R7（HF-04）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "0c621c1: 四工具 execute try 包裹（TOOL_EXECUTION_FAILED）+ /zctx 顶层 containment（dispatch 拆分）+ 全部判空 == null；+5 钉",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R8",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R8（HF-05）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "bc567f3: session/event 外层 event.type 裸读守卫；+1 钉（malformed 不抛+后续好事件照常折叠）；摘除即红 1 红",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R11",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R11（HF-08）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "92cf972: options.messages Array.isArray 前验（INVALID_REQUEST 归类）+ imageCount guard 收敛；+1 钉（四病态形态）",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R12",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R12（HF-13）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "555aa2d: buildPiAiFace isContextOverflow 缺失 → undefined（rejected memoized promise 消除+Z20 日志口径）；提交式 fixture + 1 钉；摘除即红 1 红",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R13",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R13（HF-15）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "cf22369: 四面 register try→warn（缺席/抛错双态降级声明更新）；+1 钉（refusing register 不破 boot）；摘除即红（HEAD 还原）1 红",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R15",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R15（导出卫生）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "0effbb6: GUIDANCE_TITLE 孤儿删除（guidance.spec 钉不复活）+ 12 类型收窄；lib/index.d.ts 导出清单精确解析=126 不回归",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-R16",
+   "source": "REPORT-FULL-AUDIT §5.2 P3-R16（providers 深冻结）",
+   "type": "audit-harden",
+   "disposition": "fixed",
+   "evidence": "0effbb6: configDefaults deepFreeze（共享 providers:[] 数组结构不可变）；+1 smoke 钉；摘除即红（HEAD 还原）1 红",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-T2",
+   "source": "REPORT-FULL-AUDIT §5.3 P3-T2（SM-09）",
+   "type": "audit-pin",
+   "disposition": "fixed",
+   "evidence": "ac3c3ef: 8 形态逐形态 compactionActive() 钉（2/3/5/7/8 原缺失）",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-T5",
+   "source": "REPORT-FULL-AUDIT §5.3 P3-T5（SM-13）",
+   "type": "audit-pin",
+   "disposition": "fixed",
+   "evidence": "ac3c3ef: unfold 重展开 absorbed 内层 checkpoint 渲染语义钉（[user]+summary，非 marker 非原文）",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-T6",
+   "source": "REPORT-FULL-AUDIT §5.3 P3-T6（HF-09 探针验证项）",
+   "type": "audit-pin",
+   "disposition": "fixed",
+   "evidence": "ac3c3ef: 探针报告 reports/probes/P3-T6-boot-timing.md——源码级时序：restore 会话 detached 零活动窗口 + agent-loop publish 先 announce 后 llm 调用（agent-loop:659-671）→ 惰性 watching 不需要；live 实测随 W5-A6-INSTALL",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-T7",
+   "source": "REPORT-FULL-AUDIT §5.3 P3-T7（HF-10）",
+   "type": "audit-pin",
+   "disposition": "fixed",
+   "evidence": "ac3c3ef: renderStatus adapter 健康段（state/routes/mapping/settled）+ runtime.adapterHealth 钩子；+3 钉",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-T8",
+   "source": "REPORT-FULL-AUDIT §5.3 P3-T8（HF-11）",
+   "type": "audit-pin",
+   "disposition": "fixed",
+   "evidence": "ac3c3ef: 非法 preflightMode warn-once + observe 回退；+1 钉",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-T9",
+   "source": "REPORT-FULL-AUDIT §5.3 P3-T9（HF-12）",
+   "type": "audit-pin",
+   "disposition": "fixed",
+   "evidence": "ac3c3ef: reasoningEfforts 值域构造门（合法 pi-ai levels/false/非 mapping）+ apiKeyEnv/efforts 违规值不进 spec；+4 钉",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block",
+   "verified": true
+  },
+  {
+   "id": "P3-T1",
+   "source": "REPORT-FULL-AUDIT §5.3 P3-T1（与 P3-M1 钉测合并执行）",
+   "type": "audit-pin",
+   "disposition": "duplicate",
+   "evidence": "随 P3-M1（f01b5cd）六钉落地，不独立验收（清单原文允许合并）",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block"
+  },
+  {
+   "id": "P3-T3",
+   "source": "REPORT-FULL-AUDIT §5.3 P3-T3（与 P3-M3? 无关——与 SM-04 钉合并）",
+   "type": "audit-pin",
+   "disposition": "duplicate",
+   "evidence": "随 P3-R2（937dad8）决策钉 ×2 落地，不独立验收",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block"
+  },
+  {
+   "id": "P3-T4",
+   "source": "REPORT-FULL-AUDIT §5.3 P3-T4（与 P3-M2 钉测合并执行）",
+   "type": "audit-pin",
+   "disposition": "duplicate",
+   "evidence": "随 P3-M2（614028a）三态+对照+孪生钉落地，不独立验收",
+   "owner": "coder-p3",
+   "status": "closed",
+   "phase": "block"
+  },
+  {
+   "id": "P3-S1",
+   "source": "REPORT-FULL-AUDIT §5.4 P3-S1（texts.ts 收敛）",
+   "type": "audit-structure",
+   "disposition": "user_approved_deferred",
+   "evidence": "任务卡口径：P3-结构项（texts 收敛）登记 v0.3 不做；触发条件=下次新增任何工具/schema/错误文案时必做；owner=主线；复核=v0.3 排期",
+   "owner": "mainline",
+   "status": "closed",
+   "phase": "block"
+  }
+ ],
+ "updatedAt": "2026-11-14T05:30:00-08:00"
 }
