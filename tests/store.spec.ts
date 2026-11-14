@@ -433,6 +433,65 @@ describe('FoldStore: idempotency/monotonicity guard (P3 SM-01 / P3-T1 pins)', ()
   })
 })
 
+describe('FoldStore: unfold-span defensive demotion (P3 SM-06, mock direct injection)', () => {
+  /** A crafted replace event that bypasses the mock session's surface guards. */
+  function crafted(
+    seq: number,
+    kind: 'zctx-fold' | 'zctx-unfold',
+    foldId: string,
+    startSeq: number,
+    endSeq: number,
+  ): SessionEventLike {
+    return {
+      seq,
+      type: 'user/message',
+      time: 1000,
+      data: {
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: kind === 'zctx-fold' ? `summary ${foldId}` : 'materialized' }],
+          source: { kind, foldId },
+        },
+      },
+      surfaceOp: { op: 'replace', startSeq, endSeq },
+      sourceEventSeqs: [startSeq],
+    }
+  }
+
+  it('demotes an active checkpoint lying INSIDE an unfolded span (no permanent phantom)', () => {
+    const store = new FoldStore()
+    const session = new MockSession()
+    session.append('user/message', msg.user('u1'))
+    store.attach(session)
+    // Malformed direct injections: f1 claims span [0..5] while only node 0
+    // exists; f2 then commits a checkpoint (seq 2) INSIDE that span. The
+    // official commit-time defenses never see this shape — the store must
+    // keep the invariant itself when the unfold consumes the span.
+    store.onEvent(session, crafted(1, 'zctx-fold', 'f1', 0, 5))
+    store.onEvent(session, crafted(2, 'zctx-fold', 'f2', 2, 2))
+    expect(store.foldMap.get('f1')).toBeDefined()
+    expect(store.foldMap.get('f2')).toBeDefined() // both active pre-unfold
+    store.onEvent(session, crafted(3, 'zctx-unfold', 'f1', 1, 1))
+    expect(store.ledgerEntries().find((e) => e.foldId === 'f1')?.status).toBe('unfolded')
+    // The inner active checkpoint is demoted, NOT left as a phantom whose seq
+    // no future transition can ever reach.
+    const f2 = store.ledgerEntries().find((e) => e.foldId === 'f2')
+    expect(f2?.status).toBe('absorbed')
+    expect(f2?.shadowedByKind).toBe('zctx-unfold-span')
+    expect([...store.foldMap.keys()]).toEqual([])
+  })
+
+  it('an unfold naming an unknown foldId records an anomaly instead of vanishing', () => {
+    const store = new FoldStore()
+    const session = new MockSession()
+    session.append('user/message', msg.user('u1'))
+    store.attach(session)
+    store.onEvent(session, crafted(1, 'zctx-unfold', 'f-ghost', 0, 0))
+    expect(store.ledgerEntries()).toHaveLength(0)
+    expect(store.anomalies().some((a) => a.kind === 'unknown-fold-unfold' && a.seq === 1)).toBe(true)
+  })
+})
+
 describe('FoldStore: anomaly ledger', () => {
   it('records and bounds anomalies honestly', () => {
     const store = new FoldStore()

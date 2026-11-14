@@ -1035,6 +1035,36 @@ export class FoldStore {
       const entry = this.ledger.get(checkpoint.foldId)
       if (entry !== undefined && entry.status === 'active') {
         this.ledger.set(checkpoint.foldId, { ...entry, status: 'unfolded' })
+        // P3 SM-06 defensive demotion: any OTHER fold whose checkpoint event
+        // sits INSIDE the unfolded span must not survive as active — the
+        // unfold's single-node replacement just consumed that checkpoint
+        // node (materialize B1), so an active survivor would be a PERMANENT
+        // phantom: its seq can never appear in any later replace's position
+        // slice again, so no transition could ever clear it. Unreachable in
+        // the official flow (the surface superset check + validator check a
+        // demote such checkpoints at commit time); this keeps the invariant
+        // honest even when one of those upstream defenses weakens or a mock
+        // injects a malformed span.
+        for (const [innerId, inner] of this.ledger) {
+          if (innerId === checkpoint.foldId) continue
+          if (inner.status !== 'active') continue
+          if (inner.checkpointSeq >= entry.startSeq && inner.checkpointSeq <= entry.endSeq) {
+            this.ledger.set(innerId, {
+              ...inner,
+              status: 'absorbed',
+              shadowedBySeq: event.seq,
+              shadowedByKind: 'zctx-unfold-span',
+            })
+          }
+        }
+      } else if (entry === undefined) {
+        // P3 SM-06: an unfold naming an unknown foldId used to vanish
+        // silently — record it honestly (fail-soft, bounded ledger).
+        this.recordAnomaly(
+          'unknown-fold-unfold',
+          `zctx-unfold at seq ${event.seq} names unknown foldId "${checkpoint.foldId}"`,
+          event.seq,
+        )
       }
       return
     }
