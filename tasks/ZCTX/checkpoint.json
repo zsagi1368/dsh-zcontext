@@ -1,81 +1,100 @@
 {
- "task": "ZCTX-P4",
- "updatedAt": "2026-11-14T11:50:00-08:00",
- "baseCommit": "d9bd4fd (P3-r1 terminal, 472/472, five probes green, review 99 pass)",
- "steps": [
-  {
-   "id": "p4s0",
-   "name": "wave start: registry check (INDEX hits Z19/Z15/Z22/Z23/Z24/A43 carried as execution checks); card P4-patcher.md + plan §3 + RES-install-surface + VERIFY-P (12/12, 2 corrections absorbed) + RES-adapter-route F7 read; real-machine read-only anchor derivation (lib/index.js sha e956da3d… re-verified live; call-site+definition anchors count=1 each); @electron/asar 4.3.2 sources read for pickle/integrity format; §5 backup del/20261114-p4-patcher-prechange (12 files + RESTORE.md)",
-   "status": "done",
-   "artifacts": [
-    "del/20261114-p4-patcher-prechange"
-   ],
-   "notes": [
-    "fixture smoke built in scratch (temp dir, not committed); asar win32 path-sep pitfall (@electron/asar Filesystem.getNode splits on path.sep) handled via nativeAsarPath; official extractFile FS cache pitfall handled via cache-free positional reads + uncacheAll before official-API post-verify"
-   ]
-  },
-  {
-   "id": "p4s1-governance",
-   "name": "commit 1d6956f: P3-r1 review verdict artifacts + P4 card into git (reviewer handoff item)",
-   "status": "done",
-   "artifacts": [
-    "tasks/ZCTX/handoffs/REVIEW-P3.md",
-    "tasks/ZCTX/scorecards/P3.json",
-    "tasks/ZCTX/cards/P4-patcher.md"
-   ],
-   "evidence": "commit 1d6956f"
-  },
-  {
-   "id": "p4s2-patcher",
-   "name": "commit 7c4a3d8: patcher core (zctx-patch.mjs patch/restore/status + .d.mts + README + @electron/asar devDep) — version gate, idempotence, anchor-hash gate, anchor uniqueness, backup-first (sibling zctx-backup/<ts>/ + RESTORE.md, hash-verified), surgical single-file splice, official-API post-verify + witness integrity + size accounting, marker write",
-   "status": "done",
-   "artifacts": [
-    "patcher/zctx-patch.mjs",
-    "patcher/zctx-patch.d.mts",
-    "patcher/README.md",
-    "package.json",
-    "pnpm-lock.yaml"
-   ],
-   "evidence": "commit 7c4a3d8; fixture smoke all-green in scratch"
-  },
-  {
-   "id": "p4s3-bridge",
-   "name": "commit eefe2a5: plugin bridge (src/patch-bridge.ts wireOptions receiver + plugin.ts wirePatchFace mount + tools/texts zctx_status patch segment dual-source + host.ts loadAdapterFaces success-only memoize) + lib rebuild same-batch (Z19)",
-   "status": "done",
-   "artifacts": [
-    "src/patch-bridge.ts",
-    "src/plugin.ts",
-    "src/adapter/host.ts",
-    "src/texts.ts",
-    "src/tools.ts",
-    "lib"
-   ],
-   "evidence": "commit eefe2a5; G4 regression root-caused (eager memoized load poisoned by the first mount env-less) and fixed; probe-real-mount 5/5 after rebuild"
-  },
-  {
-   "id": "p4s4-tests",
-   "name": "commit ac80a3e: tests/patcher.spec.ts (14) + tests/patch-bridge.spec.ts (16) + verify-activation-surface A11 patcher-face assertions (12)",
-   "status": "done",
-   "artifacts": [
-    "tests/patcher.spec.ts",
-    "tests/patch-bridge.spec.ts",
-    "scripts/verify-activation-surface.mjs"
-   ],
-   "evidence": "commit ac80a3e"
-  },
-  {
-   "id": "p4s5-terminal",
-   "name": "terminal battery: npm test 502/502 (24 files) + tsc 0 + five probes exit 0 (artifact 6/6, host-imports 16/16, real-mount 5/5, smoke-real-loader 3/3, verify-surface 11/11) + lib diff attributed to src changes (Z19/Z22) + probe-report timestamp diffs restored per precedent + CHANGELOG P4 section + closure +P4-A..I",
-   "status": "done",
-   "artifacts": [
-    "CHANGELOG.md",
-    "tasks/ZCTX/closures/closure.json",
-    "tasks/ZCTX/progress.md"
-   ],
-   "notes": [
-    "real-machine patch/restore implemented but NOT executed (W5-A6-INSTALL umbrella, post-merge); zero writes to H:AiAgent or C:UsersZS.dsh during the wave (read-only extraction into machine temp only)"
-   ]
-  }
- ],
- "next": "W5-A6-INSTALL umbrella (post-merge): real-machine patch execution + full-install smoke"
+  "task": "ZCTX-P4",
+  "updatedAt": "2026-11-14T12:24:00-08:00",
+  "baseCommit": "d9bd4fd (P3-r1 terminal, 472/472, five probes green, review 99 pass)",
+  "steps": [
+    {
+      "id": "p4s0",
+      "name": "wave start: registry check (INDEX hits Z19/Z15/Z22/Z23/Z24/A43 carried as execution checks); card P4-patcher.md + plan §3 + RES-install-surface + VERIFY-P (12/12, 2 corrections absorbed) + RES-adapter-route F7 read; real-machine read-only anchor derivation (lib/index.js sha e956da3d… re-verified live; call-site+definition anchors count=1 each); @electron/asar 4.3.2 sources read for pickle/integrity format; §5 backup del/20261114-p4-patcher-prechange (12 files + RESTORE.md)",
+      "status": "done",
+      "artifacts": [
+        "del/20261114-p4-patcher-prechange"
+      ],
+      "notes": [
+        "fixture smoke built in scratch (temp dir, not committed); asar win32 path-sep pitfall (@electron/asar Filesystem.getNode splits on path.sep) handled via nativeAsarPath; official extractFile FS cache pitfall handled via cache-free positional reads + uncacheAll before official-API post-verify"
+      ]
+    },
+    {
+      "id": "p4s1-governance",
+      "name": "commit 1d6956f: P3-r1 review verdict artifacts + P4 card into git (reviewer handoff item)",
+      "status": "done",
+      "artifacts": [
+        "tasks/ZCTX/handoffs/REVIEW-P3.md",
+        "tasks/ZCTX/scorecards/P3.json",
+        "tasks/ZCTX/cards/P4-patcher.md"
+      ],
+      "evidence": "commit 1d6956f"
+    },
+    {
+      "id": "p4s2-patcher",
+      "name": "commit 7c4a3d8: patcher core (zctx-patch.mjs patch/restore/status + .d.mts + README + @electron/asar devDep) — version gate, idempotence, anchor-hash gate, anchor uniqueness, backup-first (sibling zctx-backup/<ts>/ + RESTORE.md, hash-verified), surgical single-file splice, official-API post-verify + witness integrity + size accounting, marker write",
+      "status": "done",
+      "artifacts": [
+        "patcher/zctx-patch.mjs",
+        "patcher/zctx-patch.d.mts",
+        "patcher/README.md",
+        "package.json",
+        "pnpm-lock.yaml"
+      ],
+      "evidence": "commit 7c4a3d8; fixture smoke all-green in scratch"
+    },
+    {
+      "id": "p4s3-bridge",
+      "name": "commit eefe2a5: plugin bridge (src/patch-bridge.ts wireOptions receiver + plugin.ts wirePatchFace mount + tools/texts zctx_status patch segment dual-source + host.ts loadAdapterFaces success-only memoize) + lib rebuild same-batch (Z19)",
+      "status": "done",
+      "artifacts": [
+        "src/patch-bridge.ts",
+        "src/plugin.ts",
+        "src/adapter/host.ts",
+        "src/texts.ts",
+        "src/tools.ts",
+        "lib"
+      ],
+      "evidence": "commit eefe2a5; G4 regression root-caused (eager memoized load poisoned by the first mount env-less) and fixed; probe-real-mount 5/5 after rebuild"
+    },
+    {
+      "id": "p4s4-tests",
+      "name": "commit ac80a3e: tests/patcher.spec.ts (14) + tests/patch-bridge.spec.ts (16) + verify-activation-surface A11 patcher-face assertions (12)",
+      "status": "done",
+      "artifacts": [
+        "tests/patcher.spec.ts",
+        "tests/patch-bridge.spec.ts",
+        "scripts/verify-activation-surface.mjs"
+      ],
+      "evidence": "commit ac80a3e"
+    },
+    {
+      "id": "p4s5-terminal",
+      "name": "terminal battery: npm test 502/502 (24 files) + tsc 0 + five probes exit 0 (artifact 6/6, host-imports 16/16, real-mount 5/5, smoke-real-loader 3/3, verify-surface 11/11) + lib diff attributed to src changes (Z19/Z22) + probe-report timestamp diffs restored per precedent + CHANGELOG P4 section + closure +P4-A..I",
+      "status": "done",
+      "artifacts": [
+        "CHANGELOG.md",
+        "tasks/ZCTX/closures/closure.json",
+        "tasks/ZCTX/progress.md"
+      ],
+      "notes": [
+        "real-machine patch/restore implemented but NOT executed (W5-A6-INSTALL umbrella, post-merge); zero writes to H:AiAgent or C:UsersZS.dsh during the wave (read-only extraction into machine temp only)"
+      ]
+    },
+    {
+      "id": "p4r1-terminal",
+      "name": "P4-r1 rework round 1 (REVIEW-P4 six items): P4-5 b8fc433 / P4-1 4c2d55c / P4-2 c232186 / P4-3 31f7001 / P4-B1+P4-4 ba3b448; removal-to-red verified for P4-1/P4-2/P4-3; terminal battery npm test 507/507 + tsc 0 + five probes exit 0 (A11 new label) + clean tree",
+      "status": "done",
+      "artifacts": [
+        "patcher/zctx-patch.mjs",
+        "patcher/zctx-patch.d.mts",
+        "tests/patcher.spec.ts",
+        "scripts/verify-activation-surface.mjs",
+        "tasks/ZCTX/closures/closure.json",
+        "tasks/ZCTX/handoffs/REVIEW-P4.md",
+        "tasks/ZCTX/scorecards/P4.json",
+        "del/20261114-p4-r1-prechange/RESTORE.md"
+      ],
+      "notes": [
+        "closure machine count 113 -> 116 (fixed/verified 111, closed 4, open 1 = W5-A6-INSTALL mainline-owned); P0-4 evidence honestly notes 391990f (plan/card commit) + 33854a1 (audit chain cited by P3-r1 review)",
+        "no src/ touch -> lib untouched; npm test rebuild leaves git status clean (Z19 no stale-artifact face)"
+      ]
+    }
+  ],
+  "next": "re-review of P4-r1 per REVIEW-P4 checklist (reviewer-P4), then W5-A6-INSTALL umbrella (post-merge): real-machine patch execution + full-install smoke"
 }
