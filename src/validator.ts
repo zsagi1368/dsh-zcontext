@@ -135,6 +135,16 @@ export function validateFold(input: ValidateFoldInput): FoldValidationResult {
   const config = input.config
   const reasons: string[] = []
 
+  // P3 SM-12: a non-finite contextWindow (NaN) passed the `!== undefined`
+  // gate and silently disabled check f below (`foldedTokens > NaN` is always
+  // false) while ccmWindowGate reported legal:true (its contract: cannot
+  // judge -> don't declare). Normalize at the entry: a non-finite window IS
+  // an unknown window — the existing honest skip path (check f off, ccmGate
+  // silent) is exactly what undefined already produces.
+  const effectiveConfig = config.contextWindow !== undefined && !Number.isFinite(config.contextWindow)
+    ? { ...config, contextWindow: undefined }
+    : config
+
   // ---- a. window existence / contiguity / node-0 precheck -----------------
   if (startSeq > endSeq) {
     reasons.push(fill(REASON_RANGE_INVERTED, { start: startSeq, end: endSeq }))
@@ -376,16 +386,16 @@ export function validateFold(input: ValidateFoldInput): FoldValidationResult {
     )
   }
   if (
-    config.contextWindow !== undefined &&
+    effectiveConfig.contextWindow !== undefined &&
     inRange.length > 0 &&
-    foldedTokens > config.maxFoldFraction * config.contextWindow
+    foldedTokens > effectiveConfig.maxFoldFraction * effectiveConfig.contextWindow
   ) {
     reasons.push(
       fill(REASON_WINDOW_TOO_LARGE, {
         start: startSeq,
         end: endSeq,
         tokens: foldedTokens,
-        maxPct: fmtNum(config.maxFoldFraction * 100),
+        maxPct: fmtNum(effectiveConfig.maxFoldFraction * 100),
       }),
     )
   }

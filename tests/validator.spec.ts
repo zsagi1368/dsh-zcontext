@@ -484,3 +484,20 @@ describe('validator: g. atomicity + structural input', () => {
     ).toThrow(TypeError)
   })
 })
+
+describe('validator: non-finite contextWindow (P3 SM-12)', () => {
+  it('treats a NaN contextWindow as an unknown window: check f skips, fold admitted (honest skip path)', () => {
+    // foldedTokens = 14400 > 0.6 * 20000 = 12000, so a FINITE 20000 window
+    // rejects via check f — proving the gate actively reads the window.
+    const finite = validateFold(baseInput({ config: { ...baseConfig, contextWindow: 20000 } }))
+    expect(finite.ok).toBe(false)
+    expect(finite.ok ? '' : finite.reasons.join(' ')).toContain('window')
+    // NaN passed `!== undefined` pre-P3 and silently disabled check f
+    // (`foldedTokens > NaN` is always false). The P3 guard normalizes it to
+    // undefined — the same honest unknown-window skip, now by construction.
+    const nan = validateFold(baseInput({ config: { ...baseConfig, contextWindow: Number.NaN } }))
+    expect(nan.ok).toBe(true)
+    const absent = validateFold(baseInput({ config: { ...baseConfig, contextWindow: undefined } }))
+    expect(absent.ok).toBe(true)
+  })
+})
