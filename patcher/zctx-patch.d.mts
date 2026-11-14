@@ -140,7 +140,12 @@ export async function statusAsar(args: {
   asarPath: string
   asarExists: boolean
   shellVersion?: string
-  anchorHit?: 'match (pristine)' | 'mismatch (drift)' | 'unknown'
+  anchorHit?: 'official-unchanged' | 'official-drifted' | 'patched-exact' | 'patched-drifted' | 'unknown'
+  /**
+   * Action guidance for the non-healthy anchor states (P4-r1 P4-3: the state
+   * label and the action guidance are separate strings, never merged).
+   */
+  guidance?: string
   targetSha256?: string
   patched?: boolean | 'unknown'
   marker?: { readonly state: 'present' | 'absent' | 'unknown'; readonly path: string; readonly version?: string; readonly timestamp?: string; readonly reason?: string }

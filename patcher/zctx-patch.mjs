@@ -913,8 +913,22 @@ function readRestoreHash(dir) {
 }
 
 /**
- * STATUS — strictly read-only. No gates, no writes; reports version, anchor
- * hit, patch presence (stub count), marker, backups, and the lock face.
+ * STATUS — strictly read-only. No gates, no writes; reports version, the
+ * three-state anchor discrimination (state wording + separate action
+ * guidance), patch presence (stub count), marker, backups, and the lock face.
+ *
+ * anchorHit states (P4-r1 P4-3; mapping from the old two labels):
+ *   'official-unchanged' — stub absent, hash == pinned pristine
+ *                          (was 'match (pristine)')
+ *   'official-drifted'   — stub absent, hash != pinned pristine: official
+ *                          update moved the file (was 'mismatch (drift)' —
+ *                          correct semantics there, renamed for coherence)
+ *   'patched-exact'      — stub present, file byte-identical to
+ *                          patchText(pristine).text (the old label here was
+ *                          'mismatch (drift)' — the P4-3 bug: the EXPECTED
+ *                          post-patch state read as an error)
+ *   'patched-drifted'    — stub present but the file no longer matches the
+ *                          expected patched content (patched, then modified)
  */
 export async function statusAsar(options) {
   const {
@@ -945,8 +959,33 @@ export async function statusAsar(options) {
       const text = target.toString('utf8')
       const sha = sha256Hex(target)
       report.targetSha256 = sha
-      report.anchorHit = sha === supportedEntry.targetSha256 ? 'match (pristine)' : 'mismatch (drift)'
-      report.patched = countOccurrences(text, supportedEntry.anchors.stubMarker) > 0
+      const stubCount = countOccurrences(text, supportedEntry.anchors.stubMarker)
+      report.patched = stubCount > 0
+      // Three-state anchor discrimination (P4-r1 P4-3): the label names the
+      // STATE only; action guidance lives in `guidance` — never merged into
+      // one string (the old single 'mismatch (drift)' label conflated "the
+      // expected post-patch state" with "the official moved beyond the pinned
+      // anchor set", whose actions are opposite).
+      if (stubCount > 0) {
+        // Patched archive: compare against the EXPECTED patched state, not
+        // the pristine hash. Exactness proof without the pristine bytes:
+        // removing the one inserted segment must reconstruct the pinned
+        // pristine hash — the stub is the ONLY thing patchText changes, so
+        // reconstruction equality proves the file is byte-identical to
+        // patchText(pristine).text (marker-independent, so the P4-r1 P4-2
+        // crash window still reports honestly).
+        report.anchorHit = reconstructedPristineSha(text, supportedEntry) === supportedEntry.targetSha256
+          ? 'patched-exact'
+          : 'patched-drifted'
+        if (report.anchorHit === 'patched-drifted') {
+          report.guidance = 'the patched target no longer matches the expected patched content — restore from a backup, then re-patch'
+        }
+      } else if (sha === supportedEntry.targetSha256) {
+        report.anchorHit = 'official-unchanged'
+      } else {
+        report.anchorHit = 'official-drifted'
+        report.guidance = 'official update changed the target beyond the pinned anchor set — refresh the patcher anchor set first, then patch'
+      }
     } catch (error) {
       report.anchorHit = 'unknown'
       report.patched = 'unknown'
@@ -965,6 +1004,19 @@ export async function statusAsar(options) {
   report.lock = { path: lockPath, exists: existsSync(lockPath) }
   report.appRunning = probeAppRunning()
   return report
+}
+
+/**
+ * SHA-256 of the text with the one inserted patch segment removed — equals
+ * the pinned pristine hash IFF the file is byte-identical to
+ * patchText(pristine).text. undefined when the segment does not occur exactly
+ * once (exactness unprovable → the caller reports drifted). @internal
+ */
+function reconstructedPristineSha(text, entry) {
+  const segment = `${entry.anchors.callSite}\n${entry.stubIndent}${entry.stub}`
+  if (countOccurrences(text, segment) !== 1) return undefined
+  // Function-form replacement: no `$`-pattern substitution semantics.
+  return sha256Hex(Buffer.from(text.replace(segment, () => entry.anchors.callSite), 'utf8'))
 }
 
 /** Read the patch marker (the plugin reads the same file the same way). @internal */

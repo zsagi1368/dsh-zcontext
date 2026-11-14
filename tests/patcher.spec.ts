@@ -414,7 +414,8 @@ describe('statusAsar: read-only dual-state report', () => {
     const fixture = await createFixture()
     const before = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
     expect(before.shellVersion).toBe('0.2.2-rc.3')
-    expect(before.anchorHit).toBe('match (pristine)')
+    expect(before.anchorHit).toBe('official-unchanged')
+    expect(before.guidance).toBeUndefined()
     expect(before.patched).toBe(false)
     expect(before.marker?.state).toBe('absent')
     expect(before.backups).toHaveLength(0)
@@ -424,6 +425,8 @@ describe('statusAsar: read-only dual-state report', () => {
     expect(patched.ok).toBe(true)
     const after = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
     expect(after.patched).toBe(true)
+    expect(after.anchorHit).toBe('patched-exact')
+    expect(after.guidance).toBeUndefined()
     expect(after.marker?.state).toBe('present')
     expect(after.marker?.version).toBe('0.2.2-rc.3')
     expect(after.backups).toHaveLength(1)
@@ -574,5 +577,67 @@ describe('P4-r1 P4-1: before-target witness at a nonzero offset', () => {
     expect(result.steps.find((step) => step.name === 'post-verify')?.status).toBe('ok')
     // The witness bytes are untouched at their original (unshifted) position.
     expect(freshExtract(fixture.asarPath, 'zz-first.bin').toString('utf8')).toBe(PRE_TARGET_CONTENT)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// P4-r1 P4-3: status anchorHit three-state discrimination (state wording and
+// action guidance are separate strings; a correctly patched archive must NOT
+// read as "drift" — the old single 'mismatch (drift)' label conflated the
+// expected post-patch state with an official update, whose actions differ).
+// ---------------------------------------------------------------------------
+
+/** Replace the target file inside the asar with arbitrary text (test tamper). */
+function overwriteTargetText(fixture: Fixture, newText: string): void {
+  const spliced = spliceAsar({
+    asarPath: fixture.asarPath,
+    targetPath: TARGET_PATH,
+    entry: fixture.entry,
+    patchedText: newText,
+  })
+  writeFileSync(fixture.asarPath, spliced.buffer)
+}
+
+describe('P4-r1 P4-3: status anchorHit three-state discrimination', () => {
+  it('reports patched-exact for a correctly patched archive — even with the marker missing (reconstruction proof is marker-independent)', async () => {
+    const fixture = await createFixture()
+    const patched = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(patched.ok).toBe(true)
+    const status = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(status.patched).toBe(true)
+    expect(status.anchorHit).toBe('patched-exact')
+    expect(status.guidance).toBeUndefined()
+
+    // Crash window (P4-r1 P4-2): stub live, marker absent — exactness is
+    // proven from the bytes (removing the inserted segment reconstructs the
+    // pinned pristine hash), not from the marker.
+    rmSync(fixture.markerPath)
+    const noMarker = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(noMarker.patched).toBe(true)
+    expect(noMarker.anchorHit).toBe('patched-exact')
+    expect(noMarker.marker?.state).toBe('absent')
+  })
+
+  it('reports patched-drifted when the patched file was modified after patching (action: restore)', async () => {
+    const fixture = await createFixture()
+    const patched = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(patched.ok).toBe(true)
+    const expectedPatched = patchText(FIXTURE_LIB, fixture.entry).text as string
+    overwriteTargetText(fixture, `${expectedPatched}\n// tampered after patch\n`)
+
+    const status = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(status.patched).toBe(true)
+    expect(status.anchorHit).toBe('patched-drifted')
+    expect(status.guidance).toContain('restore')
+  })
+
+  it('reports official-drifted for an unpatched archive whose target moved beyond the pinned anchor set', async () => {
+    const fixture = await createFixture()
+    overwriteTargetText(fixture, `${FIXTURE_LIB}\n// official update edit (no stub)\n`)
+
+    const status = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(status.patched).toBe(false)
+    expect(status.anchorHit).toBe('official-drifted')
+    expect(status.guidance).toContain('anchor set')
   })
 })
