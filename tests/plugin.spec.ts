@@ -109,12 +109,14 @@ describe('mock host: cordis get-trap inject discipline (v0.2.1 P0)', () => {
     // The regression lock: with `static inject = []` (the v0.2.0 state) each
     // of these reads threw on the real device at the first millisecond of
     // apply (plugin.ts constructor lines). The mock must reproduce each one.
-    for (const key of ['tools', 'systemPrompt', 'commands', 'llm', 'tokenMeter', 'sessions']) {
+    // P3 HF-02: 'sessions' left the declaration (declared-but-never-read) —
+    // the cordis-semantics loop covers the five keys the plugin consumes.
+    for (const key of ['tools', 'systemPrompt', 'commands', 'llm', 'tokenMeter']) {
       const ctx = disciplinedCtx<HostContextLike>({
         target: { logger: undefined, on: undefined, reflect: { provide: () => undefined } },
         store: {
           tools: {}, systemPrompt: {}, commands: {},
-          tokenMeter: {}, llm: {}, sessions: {},
+          tokenMeter: {}, llm: {},
         },
         inject: [],
       })
@@ -122,6 +124,20 @@ describe('mock host: cordis get-trap inject discipline (v0.2.1 P0)', () => {
         `cannot get property "${key}" without inject`,
       )
     }
+  })
+
+  it('P3 HF-02: the plugin activates with NO sessions service anywhere in the store', () => {
+    // mockCtx's store stubs are exactly the five declared keys — 'sessions'
+    // is deliberately absent. On a REAL cordis host the P2-era six-key
+    // declaration turned the unused sessions dependency into a silent PENDING
+    // boot blocker (E-repro HF-02 3/3); the mock belt (declared-but-absent ->
+    // undefined) would have masked it, which is why probe-real-mount G3 pins
+    // the same five-stub shape against the REAL vendored cordis as well.
+    const ctx = mockCtx()
+    new ZcontextPlugin(ctx, {})
+    expect(ctx.registeredTools).toHaveLength(4)
+    expect(ctx.registeredSections).toHaveLength(1)
+    expect(ctx.registeredCommands).toHaveLength(1)
   })
 
   it('declared services resolve from the store; non-service surface needs no declaration', () => {

@@ -6,7 +6,7 @@
 // without inject") never reproduced under plain-object mocks — the mock host
 // did not implement the cordis get-trap inject discipline. This probe mounts
 // the BUILT plugin (lib/index.js, the shipped artifact) into a REAL vendored
-// cordis container — real Context, real fiber, real inject resolution, six
+// cordis container — real Context, real fiber, real inject resolution, five
 // service stubs in the OFFICIAL provider shape (`class X extends Service`
 // with `super(ctx, '<name>')`, so each service is provided by its OWN plugin
 // fiber — the same topology as the real host, where the get-trap fiber walk
@@ -31,7 +31,7 @@
 //       reproduces the device failure mode (guards against the topology
 //       silently drifting permissive, e.g. stubs provided on the root fiber).
 //   G3  real mount, default config: our plugin (from lib/) applies with all
-//       six services provided and crosses EVERY boot-time service access
+//       five declared services provided and crosses EVERY boot-time service access
 //       point — the constructor tokenMeter/llm reads (the v0.2.0 death
 //       site), the tools face (4 registrations), the guidance section, the
 //       nudge context (required: true), the /zctx command, the session feed
@@ -144,7 +144,9 @@ if (cordis !== undefined && PLUGIN_REACHABLE) {
 }
 
 // ---------------------------------------------------------------------------
-// Shared mount scaffold — six stubs in the OFFICIAL provider shape.
+// Shared mount scaffold — five stubs in the OFFICIAL provider shape
+// (P3 HF-02: 'sessions' left the inject declaration — declared-but-never-read;
+// the sixth stub is gone, and G3 doubles as the no-sessions activation pin).
 // ---------------------------------------------------------------------------
 
 /** Wait until `predicate()` holds (plugin application is synchronous but the
@@ -241,18 +243,14 @@ function mountContainer() {
     }
   }
 
-  class SessionsStub extends Service {
-    constructor(ctx) {
-      super(ctx, 'sessions')
-    }
-  }
-
+  // P3 HF-02: NO sessions stub — the plugin declares five keys and consumes
+  // five keys. If anyone reintroduces a declared-but-unread key, G3 goes
+  // FAIL with "plugin PENDING" (the dsh-zcontext lookup is the guard).
   root.plugin(ToolsStub, {})
   root.plugin(SystemPromptStub, {})
   root.plugin(CommandsStub, {})
   root.plugin(LlmStub, {})
   root.plugin(TokenMeterStub, {})
-  root.plugin(SessionsStub, {})
   return { root, recorded }
 }
 

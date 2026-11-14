@@ -211,17 +211,28 @@ export class ZcontextPlugin extends ServiceBase {
    *   - `commands`     interaction/commands/src/index.ts:277 `super(ctx, 'commands')`
    *   - `llm`          llm/llm/src/index.ts:354            `super(ctx, 'llm')`
    *   - `tokenMeter`   llm/token-meter/src/index.ts:111    `super(ctx, 'tokenMeter')`
-   *   - `sessions`     session-controller client/sessions/service.ts:282 `provide('sessions', this)`
+   *
+   * P3 HF-02 (AUD-host-faces §8): the v0.2.1 declaration also listed
+   * `'sessions'` — a DECLARED-BUT-NEVER-READ key (grep across src: zero
+   * `ctx.sessions` consumers; session access goes through the `session/*`
+   * event feed and the tool/preflight/adapter faces' own session args). A
+   * declared hard dependency with no consumer turns the official
+   * session-controller service into a silent boot blocker (PENDING), which
+   * contradicts the read-verified discipline above — the key was removed
+   * (E-repro HF-02 3/3: five keys present, no sessions → the plugin stayed
+   * PENDING until a sessions stub was added; after removal it mounts).
    *
    * The official convention is `BasicCompactionEngine.inject =
-   * ['llm', 'tokenMeter', 'sessions']` (compaction-basic/src/index.ts:114).
+   * ['llm', 'tokenMeter', 'sessions']` (compaction-basic/src/index.ts:114) —
+   * the official engine READS its sessions dependency, which is exactly the
+   * difference: declare what you consume, consume what you declare.
    * Without this declaration the constructor's `ctx.tokenMeter`/`ctx.llm`
    * reads throw `cannot get property "X" without inject`
    * (vendor/cordis/src/reflect.ts:144) — the v0.2.0 real-device failure.
    * `ctx.logger` (own Context property, cordis context.ts:81) and `ctx.on`
    * (mixin accessor) need no declaration.
    */
-  static inject: string[] = ['tools', 'systemPrompt', 'commands', 'llm', 'tokenMeter', 'sessions']
+  static inject: string[] = ['tools', 'systemPrompt', 'commands', 'llm', 'tokenMeter']
   static Config: ConfigSchemaLike = configSchema
 
   /** Host context (structural duck-type; capability-probed per face). */
