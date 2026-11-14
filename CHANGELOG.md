@@ -3,6 +3,132 @@
 All notable changes to `dsh-zcontext` are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com); versioning follows SemVer.
 
+## [0.2.1] - 2026-11-14
+
+Hardening release with no new features. Two waves: **P0** (the real-device
+boot failure found in v0.2.1 verification) and **P3** (the full-repository
+audit wave). The audit authority lives in-repo: `reports/audits/REPORT-FULL-AUDIT.md`
+(the frozen fix list §5 + the disposition receipt §8) with its four domain
+audits (`AUD-architecture.md`, `AUD-state-machines.md`, `AUD-host-faces.md`,
+`AUD-verification-replay.md`). Terminal battery: 471/471 vitest (429 baseline
++ 42 new pins), `tsc --noEmit` zero errors, five repo probes green, and the
+four audit E-replay scripts re-run post-fix (SM-01/SM-02/HF-02 exit 1 =
+NO-REPRO; HF-01 exit 0 = option (a) intentionally keeps the mechanism — its
+acceptance is the contract downgrade + `imageCount`, recorded in three
+consistent places, never reported as a fake NO-REPRO).
+
+### Fixed (v0.2.1)
+
+- **P0 — real-device boot failure** (`cannot get property "tokenMeter"
+  without inject`): the plugin read `ctx` services without declaring
+  `static inject`, and the real cordis get-trap only resolves inject-declared
+  keys across sibling plugin fibers — so the plugin never constructed on a
+  real device while every plain-object mock passed. `static inject` now
+  declares the consumed services (five keys after HF-02 below; a wrong key is
+  a silent PENDING, so the declared set is read-verified against real `ctx`
+  access), the mock host enforces the same get-trap semantics (mocks can no
+  longer pass where the device fails), and `scripts/probe-real-mount.mjs`
+  mounts the BUILT `lib/index.js` into a real vendored cordis container (G1
+  reachability, G2 device-failure negative control, G3 real mount crossing
+  every boot-time access point, G4 adapter face with a providers declaration).
+- **SM-01 — fold-store `applyEvent` idempotency/monotonicity guards** (audit
+  E-replay 5/5: fold revival, compaction-bracket reopen, count inflation,
+  cascade replay, monotonicity break): duplicate deliveries (`seq <= lastSeq`
+  with an already-seen seq) return early; an unseen lower seq records an
+  anomaly instead of replaying; the legal first-delivery form
+  (`seq == lastSeq`) is preserved. `store.spec.ts:289` was a mislabeled test
+  that actually delivered once — rewritten as a true duplicate-delivery pin
+  (listener wired, the same event object redelivered, three no-regression
+  assertions); removal-check verified: dropping the guard turns exactly the
+  7 dependent pins red.
+- **SM-02 — checkpoint amount validation + status fail-soft** (E-replay 4/4:
+  ±Infinity/NaN/negative flowed into the breakeven math and `zctx_status`
+  threw irrecoverably on a poisoned log): `extractCheckpointSource` uses
+  `Number.isFinite` + non-negative (twin-aligned with `extractUsageRecord`),
+  poisoned amounts drop into `droppedAmounts` anomalies, and the status
+  render wraps the observability segment in a fail-soft guard (the honest
+  withheld line instead of a throw; a control-group strong row does not
+  regress).
+- **HF-01 — image-gate contract downgraded to a defensive mirror + wire
+  `imageCount`** (E-replay 7/7; option (a) of the audit's three-way choice,
+  ruling recorded in the P3 checkpoint): the official runtime projects images
+  to placeholder text BEFORE the adapter is dispatched
+  (`inputModalities: ['text']`), so the refusal gate is unreachable on the
+  official path — a routed image request completes with the model seeing
+  placeholder text and no failure signal. The gate stays as the honest
+  backstop for direct-adapter calls (behavior unchanged, still pinned);
+  `WireSnapshot.imageCount` (0 on the official path) makes the boundary
+  observable; README/config narrative downgraded accordingly.
+- **HF-02 — the declared-but-never-read `sessions` inject key removed** (E
+  replay 3/3, causal closure: a wrong key leaves the plugin silently PENDING):
+  `static inject` is five keys now; smoke/plugin pins updated;
+  probe-real-mount G3 doubles as the real-cordis no-sessions-key activation
+  pin.
+- **Z19 — the build is chained into the test script** (`"test": "tsdown &&
+  vitest run"`, `&&` fail-fast): tests that import `lib/index.js` can no
+  longer pin a stale artifact — the build now runs FIRST by script, not by
+  human discipline (a pretest hook was rejected: pnpm does not run pre/post
+  scripts by default).
+
+### Reinforced (v0.2.1 — audit §5.2, 16 items; 15 fixed + 1 co-fixed with SM-01)
+
+- **R1/SM-03** — `scanUpTo` consecutive-unreadable breaker (bounded,
+  fail-soft with an anomaly trail).
+- **R2/SM-04** — resume/series cross-window strong attribution pinned with a
+  decision note (spec-frozen semantics; pins, not behavior change).
+- **R3/SM-05** — validator-config domain clamp at the single funnel
+  (non-negative token fields, `0 < maxFoldFraction ≤ 1`, summary floor ≤
+  ceiling (inverted values swapped), `netShrinkTolerance ≥ 1`).
+- **R4/SM-06** — unfold-span defensive demotion + unknown-foldId anomaly
+  (a weakened defense can no longer leave phantom active folds).
+- **R5/SM-12** — non-finite `contextWindow` normalized at the validateFold
+  entry (the engine gate skips honestly instead of judging NaN).
+- **R6/HF-03** — no-hot-reload declaration (the adapter rides the host llm
+  fiber; provider/config changes take effect after a host restart).
+- **R7/HF-04** — four-tool/command fail-soft containment (`== null` session
+  checks, `TOOL_EXECUTION_FAILED` wrapper text, /zctx top-level try).
+- **R8/HF-05** — outer session/event handler guard (malformed payloads feed
+  nothing and log no uncaught noise).
+- **R9/HF-06** — preflight enforce host-interaction facts documented (one
+  `maxOverflowRetries` budget per short-circuit; keep
+  `CONTEXT_WINDOW_EXCEEDED` out of `retryableCodes` on zctx sessions).
+- **R10/HF-07** — map-twins parity divergence documented (undefined usage:
+  twins return zero vs the official throw — the more lenient path, guarded
+  downstream).
+- **R11/HF-08** — non-array `messages` classified `INVALID_REQUEST`, not
+  `UNKNOWN`.
+- **R12/HF-13** — `buildPiAiFace` degrades to undefined instead of throwing
+  (a missing `isContextOverflow` is the face-absent path).
+- **R13/HF-15** — per-face register containment (absence AND refusal both
+  degrade to warn-and-skip; the plugin still loads).
+- **R14** — seq guard, co-fixed with SM-01 (not independently closed).
+- **R15** — export hygiene: the `GUIDANCE_TITLE` orphan alias deleted, 12
+  file-local types narrowed; the lib export surface pinned at 126 items.
+- **R16** — `configDefaults` deep-frozen (no shared mutable `providers`
+  array instance).
+
+### Blind-spot pins (v0.2.1 — audit §5.3, 9 items; pins/probes only)
+
+- **T1** — true duplicate/out-of-order delivery (merged into SM-01's pins).
+- **T2** — the eight compaction-bracket shapes, pinned shape by shape.
+- **T3** — resume/series attribution-quality decision pins (merged into
+  SM-04/R2).
+- **T4** — non-finite tokensBefore/After ingestion rejection (merged into
+  SM-02's pins).
+- **T5** — unfold re-expansion of an absorbed inner checkpoint renders
+  `[user]` + summary text, never the marker or the raw content.
+- **T6** — boot-timing probe report (`reports/probes/P3-T6-boot-timing.md`):
+  lazy watching is NOT needed — a restored session announces inside its first
+  run's publish protocol, before any llm activity (evidence anchor corrected
+  to `core/session/src/index.ts:596-620 fromRestore` in the P3-r1 review
+  round); live install measurement stays with the W5-A6-INSTALL ledger item.
+- **T7** — `zctx_status` adapter health segment (routes + mapping source +
+  registration settled state).
+- **T8** — an illegal `preflightMode` value warns once and falls back to
+  observe.
+- **T9** — reasoning-effort value-domain gate at construction + violation
+  hygiene (an illegal level never echoes into the offered specs).
+
 ## [0.2.0] - 2026-11-13
 
 ### Added (v0.2.0)
@@ -87,10 +213,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com); versioning follow
   not available for a third-party settings namespace — the configuration
   authority is the handwritten profile overlay patch; the page is
   visibility-only.
-- **Text-only**: image/file content blocks are refused with
-  `UNSUPPORTED_CONTENT` before conversion (S2 is a text-only route; the three
-  image-budget knobs are deliberately NOT accepted — dead knobs are dishonest
-  config; `IMAGE_OFFLOAD_REQUIRED` is unreachable by construction).
+- **Text-only**: no image/file content rides the wire on a zctx route — the
+  official runtime projects image blocks to placeholder text BEFORE the
+  adapter is dispatched (`inputModalities: ['text']`). The adapter's own
+  `UNSUPPORTED_CONTENT` gate is a defensive mirror for direct-adapter calls
+  (the three image-budget knobs are deliberately NOT accepted — dead knobs
+  are dishonest config; `IMAGE_OFFLOAD_REQUIRED` is unreachable by
+  construction). Narrative amended in 0.2.1: the original "refused before
+  conversion" wording described a gate the official path never reaches (P3
+  HF-01); every wire-ledger row carries `imageCount` pinning what reached the
+  adapter boundary.
 - **Config shape**: the structured `providers[]` settings section (schemastery
   nested objects, volatile — the load-bearing anchor that makes the Models
   page mount the namespace at all). Defaults to an empty declaration list

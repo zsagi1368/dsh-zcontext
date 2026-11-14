@@ -232,4 +232,5 @@ node scripts/probe-artifact.mjs             # 对构建产物跑 6 组探针
 node scripts/verify-activation-surface.mjs  # 激活面断言（10 组）
 node scripts/probe-host-imports.mjs         # 宿主导出可达性（16 条；zDSH-main 缺席时 SKIP）
 node scripts/smoke-real-loader.mjs          # 真机冒烟（3 条；zDSH-main 缺席时相应部分 SKIP）
+node scripts/probe-real-mount.mjs           # 构建产物挂进真实 vendored cordis 容器（4 组 / 5 查，含真机故障负对照）
 ```

@@ -233,4 +233,5 @@ node scripts/probe-artifact.mjs             # 6 probe groups against the built l
 node scripts/verify-activation-surface.mjs  # activation-surface assertions (10 groups)
 node scripts/probe-host-imports.mjs         # host-export reachability (16 probes; skips when zDSH-main is absent)
 node scripts/smoke-real-loader.mjs          # real-machine smoke (3 probes; skips parts when zDSH-main is absent)
+node scripts/probe-real-mount.mjs           # real vendored-cordis mount of the built lib (4 groups / 5 checks, incl. the device-failure negative control)
 ```
