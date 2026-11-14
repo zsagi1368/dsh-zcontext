@@ -254,6 +254,35 @@ describe('FoldStore: compaction mutex state', () => {
     expect(store.compactionActive()).toBe(false)
   })
 
+  it('matches the official semantics on ALL EIGHT bracket shapes (P3 SM-09 pins, audit table §4)', () => {
+    // The audit's twin table (store.ts:863-869 vs official region.ts:308-320)
+    // — forms 2/3/5/7/8 had no pin before P3; all eight now assert
+    // compactionActive() so a drift from inspectCompactionEntryState turns
+    // red per-shape instead of via an integration accident.
+    const forms: { name: string; events: string[]; active: boolean }[] = [
+      { name: '1: start, no end', events: ['start'], active: true },
+      { name: '2: double start, no end (later start owns the lock)', events: ['start', 'start'], active: true },
+      { name: '3: start, end, start, no end', events: ['start', 'end', 'start'], active: true },
+      { name: '4: start, end-seed after it (ended lifecycle)', events: ['start', 'seed'], active: false },
+      { name: '5: start, end-seed, later start (seed < start)', events: ['start', 'seed', 'start'], active: true },
+      { name: '6: start, end, end-seed', events: ['start', 'end', 'seed'], active: false },
+      { name: '7: orphan end (no start)', events: ['end'], active: false },
+      { name: '8: start, end-seed, start, end-seed (latest seed >= latest start)', events: ['start', 'seed', 'start', 'seed'], active: false },
+    ]
+    for (const form of forms) {
+      const store = new FoldStore()
+      const session = new MockSession()
+      store.attach(session)
+      for (const kind of form.events) {
+        if (kind === 'start') session.append('compaction/start', { compactionId: 'c' })
+        else if (kind === 'end') session.append('compaction/end', { compactionId: 'c', outcome: 'complete' })
+        else session.append('session/end-seed', { inherited: true })
+      }
+      store.resync()
+      expect(store.compactionActive(), `form ${form.name}`).toBe(form.active)
+    }
+  })
+
   it('matches the official end-seed lifecycle boundary semantics', () => {
     const store = new FoldStore()
     const session = new MockSession()

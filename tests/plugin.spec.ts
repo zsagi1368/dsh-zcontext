@@ -293,6 +293,18 @@ describe('plugin: face wiring', () => {
     expect(reply).toMatch(/^Folded seqs/)
   })
 
+  it('P3 HF-11: an illegal preflightMode warns once and runs as observe', () => {
+    const ctx = mockCtx()
+    new ZcontextPlugin(ctx, { preflightMode: 'enforcae' } as never)
+    expect(
+      ctx.logLines.some((l) => l.level === 'warn' && l.message.includes("preflightMode \"enforcae\" is not one of")),
+    ).toBe(true)
+    // The fallback is the observe behavior: the preflight listener still
+    // registers (llm/stream = preflight + observe = 2, same as legal observe);
+    // the mode-dependent short-circuit difference is pinned in preflight.spec.
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(2)
+  })
+
   it('P3 HF-15: a REFUSING register degrades the face (warn), never breaks boot', () => {
     // The official tools.register throws on output-shape violations,
     // unsupported JSON schemas, and reserved names (tools/src/index.ts:

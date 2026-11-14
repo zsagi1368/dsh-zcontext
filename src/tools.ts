@@ -41,6 +41,8 @@ import {
   STATUS_ANOMALIES_EMPTY,
   STATUS_ANOMALIES_HEADER,
   STATUS_ANOMALY_ROW,
+  STATUS_ADAPTER_HEADER,
+  STATUS_ADAPTER_LINE,
   STATUS_BUDGET_HEADER,
   STATUS_BUDGET_ROW,
   STATUS_CCM_BELOW_DOMAIN,
@@ -464,6 +466,18 @@ export interface ZctxToolRuntime {
   storeFor(session: SessionLike): FoldStore
   /** Validator config resolved for this session (window from cache when known). */
   validatorConfig(session: SessionLike): ValidatorConfig
+  /**
+   * Adapter-face health view (P3 HF-10): what the status segment renders —
+   * the registration state, the registered routes, the mapping source, and
+   * whether the registration continuation settled. Optional for
+   * backward-compatible test runtimes (absent → the segment is skipped).
+   */
+  readonly adapterHealth?: () => {
+    readonly state: string
+    readonly routes: readonly string[]
+    readonly mappingSource?: string
+    readonly settled: boolean
+  }
 }
 
 /**
@@ -873,6 +887,22 @@ export async function renderStatus(runtime: ZctxToolRuntime, session: SessionLik
       )
     }
     lines.push(fill(STATUS_PREFLIGHT_BASIS, { basis: stats.basis }))
+  }
+
+  // Segment 6 (P3 HF-10): the adapter face's health — the registration
+  // state, its routes, and the mapping source, rendered as FACTS. Absent
+  // hook (older test runtimes) → the segment is honestly skipped.
+  if (runtime.adapterHealth !== undefined) {
+    const health = runtime.adapterHealth()
+    lines.push(fill(STATUS_ADAPTER_HEADER, {}))
+    lines.push(
+      fill(STATUS_ADAPTER_LINE, {
+        state: health.state,
+        routes: health.routes.length > 0 ? health.routes.join(', ') : '(none)',
+        mapping: health.mappingSource ?? 'n/a',
+        settled: health.settled ? 'settled' : 'in progress',
+      }),
+    )
   }
 
   // ---- degraded rows first-class ----------------------------------------------

@@ -257,6 +257,18 @@ export class ZcontextPlugin extends ServiceBase {
    * inside, never throw — and tests/status can await the settled state.
    */
   adapterRegistration: Promise<void> | undefined
+  /**
+   * The adapter face's health view (P3 HF-10 status segment): the state the
+   * registration continuation last reached + its routes + the mapping source.
+   * Set synchronously by wireAdapterFace (every gate records), refined by the
+   * async continuation. `adapterFaceSettled` flips true when the continuation
+   * resolves (the status segment renders it as a fact).
+   */
+  private adapterFaceHealth: { state: string; routes: readonly string[]; mappingSource?: string } = {
+    state: 'not wired',
+    routes: [],
+  }
+  private adapterFaceSettled = true
   private warnedWindowFailure = false
 
   constructor(ctx: HostContextLike, config: Partial<ZcontextConfig> = {}) {
@@ -271,6 +283,7 @@ export class ZcontextPlugin extends ServiceBase {
       preflightMode: this.config.preflightMode,
       storeFor: (session) => this.storeFor(session),
       validatorConfig: (session) => this.validatorConfig(session),
+      adapterHealth: () => ({ ...this.adapterFaceHealth, settled: this.adapterFaceSettled }),
     }
 
     if (!this.config.enabled) {
@@ -440,6 +453,14 @@ export class ZcontextPlugin extends ServiceBase {
       ctx.logger?.info?.('dsh-zcontext: preflight face disabled by config (preflightMode=off)')
       return
     }
+    if (mode !== 'observe' && mode !== 'enforce') {
+      // P3 HF-11: an illegal mode (e.g. a 'enforcae' typo) used to run
+      // silently as observe — warn-once (symmetric with the margin
+      // warn-once in preflight.ts), then continue in the observe fallback.
+      ctx.logger?.warn?.(
+        `dsh-zcontext: preflightMode "${String(mode)}" is not one of 'off'|'observe'|'enforce' — running as observe (warn-once)`,
+      )
+    }
     if (typeof ctx.on !== 'function') {
       ctx.logger?.warn?.('dsh-zcontext: ctx.on unavailable — preflight face skipped (no bus to register the llm/stream listener on)')
       return
@@ -505,10 +526,12 @@ export class ZcontextPlugin extends ServiceBase {
     const declared = this.config.providers ?? []
     if (declared.length === 0) {
       ctx.logger?.info?.('dsh-zcontext: adapter face: no providers declared — zero routes registered (declare zctx providers under the "providers" settings section)')
+      this.adapterFaceHealth = { state: 'off (no providers declared)', routes: [] }
       return
     }
     if (ctx.llm === undefined || typeof ctx.llm.registerAdapter !== 'function') {
       ctx.logger?.warn?.('dsh-zcontext: llm runtime without registerAdapter — adapter face skipped')
+      this.adapterFaceHealth = { state: 'skipped (llm runtime without registerAdapter)', routes: [] }
       return
     }
     const registerAdapter = ctx.llm.registerAdapter.bind(ctx.llm)
@@ -518,6 +541,7 @@ export class ZcontextPlugin extends ServiceBase {
     const logger = ctx.logger
     const settingsNs = SERVICE_NAME
     this.adapterRegistration = (async () => {
+      this.adapterFaceSettled = false
       try {
         // R5 V5-4: config validation runs BEFORE the host reachability gate —
         // the resolution is pure (the protocol union with a builtin fallback),
@@ -535,11 +559,13 @@ export class ZcontextPlugin extends ServiceBase {
           // Fail-loud at the adapter contract: the COMPLETE violation list
           // reaches the log; boot continues without the face.
           logger?.warn?.(error instanceof Error ? error.message : String(error))
+          this.adapterFaceHealth = { state: 'skipped (config violations)', routes: [] }
           return
         }
         const faces = await loadAdapterFaces()
         if (faces === undefined) {
           logger?.info?.('dsh-zcontext: adapter face skipped — @deepseek-ai/dsh-llm or @earendil-works/pi-ai is not reachable from this install (fail-soft; boot unaffected)')
+          this.adapterFaceHealth = { state: 'skipped (host lib unreachable)', routes: [] }
           return
         }
         const ZctxAdapter = createZctxAdapterClass(faces.host.LlmAdapter)
@@ -563,6 +589,7 @@ export class ZcontextPlugin extends ServiceBase {
         logger?.info?.(
           `dsh-zcontext: adapter face registered ${routes.join(', ')} (mapping: ${faces.mapping.source})`,
         )
+        this.adapterFaceHealth = { state: 'registered', routes, mappingSource: faces.mapping.source }
         void registration
 
         // Minimal directory (product 7; U1 SKIP → VISIBILITY-ONLY): the
@@ -602,6 +629,9 @@ export class ZcontextPlugin extends ServiceBase {
         logger?.warn?.(
           `dsh-zcontext: adapter face registration failed (${error instanceof Error ? error.message : String(error)}); boot continues without it`,
         )
+        this.adapterFaceHealth = { state: 'failed (registration threw)', routes: [] }
+      } finally {
+        this.adapterFaceSettled = true
       }
     })()
   }

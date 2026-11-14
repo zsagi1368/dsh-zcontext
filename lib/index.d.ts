@@ -2038,6 +2038,18 @@ interface ZctxToolRuntime {
   storeFor(session: SessionLike): FoldStore;
   /** Validator config resolved for this session (window from cache when known). */
   validatorConfig(session: SessionLike): ValidatorConfig;
+  /**
+   * Adapter-face health view (P3 HF-10): what the status segment renders —
+   * the registration state, the registered routes, the mapping source, and
+   * whether the registration continuation settled. Optional for
+   * backward-compatible test runtimes (absent → the segment is skipped).
+   */
+  readonly adapterHealth?: () => {
+    readonly state: string;
+    readonly routes: readonly string[];
+    readonly mappingSource?: string;
+    readonly settled: boolean;
+  };
 }
 /**
  * Render the full status report. Every host face is capability-probed and
@@ -2150,6 +2162,15 @@ declare class ZcontextPlugin extends ServiceBase {
    * inside, never throw — and tests/status can await the settled state.
    */
   adapterRegistration: Promise<void> | undefined;
+  /**
+   * The adapter face's health view (P3 HF-10 status segment): the state the
+   * registration continuation last reached + its routes + the mapping source.
+   * Set synchronously by wireAdapterFace (every gate records), refined by the
+   * async continuation. `adapterFaceSettled` flips true when the continuation
+   * resolves (the status segment renders it as a fact).
+   */
+  private adapterFaceHealth;
+  private adapterFaceSettled;
   private warnedWindowFailure;
   constructor(ctx: HostContextLike, config?: Partial<ZcontextConfig>);
   /** session/event feed: maintain live stores + warm the window cache. @internal */

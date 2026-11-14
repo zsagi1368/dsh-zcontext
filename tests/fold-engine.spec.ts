@@ -324,6 +324,39 @@ describe('fold-engine: nested absorption (mock mode)', () => {
   })
 })
 
+describe('fold-engine: unfold re-expands an absorbed inner checkpoint as its summary (P3 SM-13 pin)', () => {
+  it('renders the inner checkpoint as [user] + summary text, never as a marker or original content', () => {
+    // Outer fold f2 absorbs inner fold f1; unfolding f2 re-materializes f1's
+    // CHECKPOINT EVENT. materialize one-layer semantics: a checkpoint source
+    // NOT in foldMap (absorbed -> non-active) renders as a plain user block
+    // carrying its summary text — a future change to "recursive expansion"
+    // (original content) or "marker rendering" would silently alter what the
+    // model sees after an unfold, so it is pinned here.
+    const { session } = seedConversation()
+    const store = wiredStore(session)
+    expect(fold(session, store, midWindowSubmission(), engineConfig()).ok).toBe(true)
+    const second = fold(session, store, {
+      range: { startSeq: 9, endSeq: 9 },
+      summaries: [{ startSeq: 9, endSeq: 9, text: 'The file listing turn, condensed again.' }],
+    }, engineConfig())
+    expect(second.ok).toBe(true)
+    const unfolded = unfold(session, store, 'f10')
+    expect(unfolded.ok).toBe(true)
+    if (!unfolded.ok) return
+    const event = session.log[unfolded.committed[0].checkpointSeq]
+    const text = (event.data as { content: { type: string; text: string }[] })
+      .content.map((b) => b.text).join('\n')
+    // [user] + the INNER fold's summary (the f1 checkpoint event's own text —
+    // midWindowSubmission's summary wording)…
+    expect(text).toContain('[user]')
+    expect(text).toContain('Files listed: a.sql, b.ts, c.md')
+    // …NOT the [folded block f9] marker (f1 is absorbed, not active)…
+    expect(text).not.toContain('[folded block f9]')
+    // …and NOT the original span content (one-layer expansion, no recursion).
+    expect(text).not.toContain('list the files')
+  })
+})
+
 describe('fold-engine: W3-2 reachable domain + slice-equivalence invariant', () => {
   /**
    * Post-fold surface [0,1,2,9,6,7,8] — numerically NON-monotonic (the

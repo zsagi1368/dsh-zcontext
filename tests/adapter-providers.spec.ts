@@ -596,3 +596,68 @@ describe('adapter context twin: text-only history conversion', () => {
     expect(() => toPiContextTextOnly({ provider: 'p' }, DEPS)).toThrowError(/requires GenerateOptions\.messages/)
   })
 })
+
+describe('P3 HF-12: reasoningEfforts value domain + violation-path spec hygiene', () => {
+  const base = {
+    family: 'anthropic-messages',
+    baseURL: 'https://gateway.example/v1',
+    models: [],
+  }
+
+  it('an illegal level value enters the violation list and never reaches the spec', () => {
+    const { providers, violations } = resolveZctxProviders({
+      providers: [{
+        ...base,
+        models: [{
+          id: 'm1',
+          contextWindow: 200000,
+          maxTokens: 8192,
+          reasoningEfforts: { balanced: 'turbo' }, // illegal level
+        }],
+      }],
+    }, ['anthropic-messages'])
+    expect(violations.some((v) => v.includes('reasoningEfforts values must be legal pi-ai levels'))).toBe(true)
+    expect(violations.some((v) => v.includes('"balanced"->"turbo"'))).toBe(true)
+    expect(providers[0]?.models[0]?.reasoningEfforts).toBeUndefined() // not carried raw
+  })
+
+  it('legal levels, the false spelling, and an absent field all resolve cleanly', () => {
+    // One provider per family (the duplicate-family gate) — three MODELS.
+    const { providers, violations } = resolveZctxProviders({
+      providers: [{
+        ...base,
+        models: [
+          { id: 'm1', contextWindow: 200000, maxTokens: 8192, reasoningEfforts: { fast: 'low', deep: 'high' } },
+          { id: 'm2', contextWindow: 200000, maxTokens: 8192, reasoningEfforts: false },
+          { id: 'm3', contextWindow: 200000, maxTokens: 8192 },
+        ],
+      }],
+    }, ['anthropic-messages'])
+    expect(violations).toEqual([])
+    expect(providers[0]?.models[0]?.reasoningEfforts).toEqual({ fast: 'low', deep: 'high' })
+    expect(providers[0]?.models[1]?.reasoningEfforts).toBe(false)
+    expect(providers[0]?.models[2]?.reasoningEfforts).toBeUndefined()
+  })
+
+  it('a non-mapping reasoningEfforts shape violates (the direct-consumer path the schema cannot guard)', () => {
+    const { violations } = resolveZctxProviders({
+      providers: [{
+        ...base,
+        models: [{ id: 'm1', contextWindow: 200000, maxTokens: 8192, reasoningEfforts: 'low' as never }],
+      }],
+    }, ['anthropic-messages'])
+    expect(violations.some((v) => v.includes('reasoningEfforts must be a mapping'))).toBe(true)
+  })
+
+  it('an invalid apiKeyEnv is violated AND its raw value never reaches the spec', () => {
+    const { providers, violations } = resolveZctxProviders({
+      providers: [{
+        ...base,
+        apiKeyEnv: '' as never, // invalid: empty name
+        models: [{ id: 'm1', contextWindow: 200000, maxTokens: 8192 }],
+      }],
+    }, ['anthropic-messages'])
+    expect(violations.some((v) => v.includes('apiKeyEnv must be a non-empty'))).toBe(true)
+    expect(providers[0]?.apiKeyEnv).toBeUndefined() // P3: the raw invalid value no longer rides the spec
+  })
+})

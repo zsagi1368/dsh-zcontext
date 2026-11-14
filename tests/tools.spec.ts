@@ -325,6 +325,52 @@ describe('tools: the four zctx tools (shim-defined)', () => {
   })
 })
 
+describe('tools: status adapter health segment (P3 HF-10)', () => {
+  const base = (): { session: MockSession; routed: MockSession } => {
+    const { session } = seedConversation()
+    ;(session as unknown as { requestHeader?: () => unknown }).requestHeader = () => ({
+      config: { provider: 'deepseek', model: 'test-model' },
+    })
+    return { session, routed: session }
+  }
+
+  it('renders the registered state with routes + mapping source + settled', async () => {
+    const { session } = base()
+    const runtime = testRuntime({
+      adapterHealth: () => ({
+        state: 'registered',
+        routes: ['zctx-anthropic-messages'],
+        mappingSource: 'official-pi-ai-mapping',
+        settled: true,
+      }),
+    })
+    const status = await renderStatus(runtime, session)
+    expect(status).toContain('Adapter face (S2 zctx router):')
+    expect(status).toContain('state: registered')
+    expect(status).toContain('routes: zctx-anthropic-messages')
+    expect(status).toContain('mapping: official-pi-ai-mapping')
+    expect(status).toContain('registration settled')
+  })
+
+  it('renders the skipped state (no providers) and the in-progress settle fact', async () => {
+    const { session } = base()
+    const runtime = testRuntime({
+      adapterHealth: () => ({ state: 'off (no providers declared)', routes: [], settled: false }),
+    })
+    const status = await renderStatus(runtime, session)
+    expect(status).toContain('state: off (no providers declared)')
+    expect(status).toContain('routes: (none)')
+    expect(status).toContain('registration in progress')
+  })
+
+  it('absent adapterHealth hook -> the segment is honestly skipped (legacy runtimes)', async () => {
+    const { session } = base()
+    const runtime = testRuntime()
+    const status = await renderStatus(runtime, session)
+    expect(status).not.toContain('Adapter face (S2 zctx router):')
+  })
+})
+
 describe('tools: hostile session shapes degrade to the honest text (P3 HF-04)', () => {
   /** A session whose eventAt throws the moment the store scans it. */
   function hostileSession(): unknown {

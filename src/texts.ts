@@ -323,6 +323,10 @@ export const STATUS_CCM_BELOW_DOMAIN =
 export const STATUS_METER_UNAVAILABLE =
   'token meter unavailable: window estimate is a rough chars/3 figure, not a measurement'
 
+export const STATUS_ADAPTER_HEADER = 'Adapter face (S2 zctx router):'
+
+export const STATUS_ADAPTER_LINE = '  state: {{state}} / routes: {{routes}} / mapping: {{mapping}} / registration {{settled}}'
+
 export const STATUS_BUDGET_HEADER = 'Budget (CCM v2.3):'
 
 export const STATUS_BUDGET_ROW = '  - {{label}}: {{tokens}} tokens'

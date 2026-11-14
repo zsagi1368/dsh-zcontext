@@ -117,6 +117,16 @@ function isPositiveInt(value: unknown): value is number {
 }
 
 /**
+ * The legal pi-ai thinking levels (P3 HF-12 construction gate). Kept LOCAL —
+ * providers.ts is the zero-import pure validation layer; the escalation ORDER
+ * twin lives in zctx-adapter.ts (THINKING_LEVEL_ORDER). The two lists must
+ * stay in sync: changing one without the other is a spec-level drift.
+ */
+const LEGAL_PI_AI_LEVELS: ReadonlySet<string> = new Set([
+  'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
+])
+
+/**
  * Resolve and validate the whole providers section at once. Returns the
  * resolved specs AND the complete violation list (构造期 fail-loud 列清单 —
  * the caller throws with the FULL list, never one-at-a-time). Empty/absent
@@ -185,12 +195,38 @@ export function resolveZctxProviders(
         )
         return
       }
+      // P3 HF-12: value-domain gate at construction — an illegal level used
+      // to flow into materializePiModel's thinkingLevelMap and only surface
+      // at request time. `false` stays legal (the type's "no efforts"
+      // spelling); every map value must be a legal pi-ai level, and a map
+      // with violations does NOT reach the spec (same honesty as apiKeyEnv).
+      let reasoningEfforts: Readonly<Record<string, string>> | false | undefined
+      const rawEfforts = model.reasoningEfforts
+      if (rawEfforts === false) {
+        reasoningEfforts = false
+      } else if (rawEfforts !== undefined && rawEfforts !== null) {
+        if (typeof rawEfforts !== 'object' || Array.isArray(rawEfforts)) {
+          violations.push(`${modelLabel} ("${id}"): reasoningEfforts must be a mapping of wire value -> pi-ai level, or false`)
+        } else {
+          const entries = Object.entries(rawEfforts as Record<string, unknown>)
+          const illegal = entries.filter(([, level]) => !LEGAL_PI_AI_LEVELS.has(String(level)))
+          if (illegal.length > 0) {
+            violations.push(
+              `${modelLabel} ("${id}"): reasoningEfforts values must be legal pi-ai levels `
+                + `([${[...LEGAL_PI_AI_LEVELS].join(', ')}]); illegal: `
+                + illegal.map(([wire, level]) => `"${String(wire)}"->"${String(level)}"`).join(', '),
+            )
+          } else {
+            reasoningEfforts = Object.fromEntries(entries.map(([wire, level]) => [wire, String(level)]))
+          }
+        }
+      }
       models.push({
         id,
         name: id,
         contextWindow: model.contextWindow,
         maxTokens: model.maxTokens,
-        ...(model.reasoningEfforts !== undefined ? { reasoningEfforts: model.reasoningEfforts } : {}),
+        ...(reasoningEfforts !== undefined ? { reasoningEfforts } : {}),
       })
     })
     let baseURL: string | undefined
@@ -214,8 +250,13 @@ export function resolveZctxProviders(
         }
       }
     }
-    if (provider.apiKeyEnv !== undefined && (typeof provider.apiKeyEnv !== 'string' || provider.apiKeyEnv === '')) {
-      violations.push(`${label}: apiKeyEnv must be a non-empty environment variable NAME when present`)
+    let apiKeyEnv: string | undefined
+    if (provider.apiKeyEnv !== undefined) {
+      if (typeof provider.apiKeyEnv === 'string' && provider.apiKeyEnv !== '') {
+        apiKeyEnv = provider.apiKeyEnv
+      } else {
+        violations.push(`${label}: apiKeyEnv must be a non-empty environment variable NAME when present`)
+      }
     }
     // Cache knobs (card product 5, F4.6): cacheRetention joins the pi-ai
     // StreamOptions passthrough; cacheControlFormat has exactly ONE legal
@@ -246,7 +287,7 @@ export function resolveZctxProviders(
       displayName: zctxDisplayNameOf(family),
       protocol: family,
       ...(baseURL !== undefined ? { baseURL } : {}),
-      ...(provider.apiKeyEnv !== undefined ? { apiKeyEnv: provider.apiKeyEnv } : {}),
+      ...(apiKeyEnv !== undefined ? { apiKeyEnv } : {}),
       models,
       ...(cacheRetention !== undefined ? { cacheRetention } : {}),
       ...(cacheControlFormat !== undefined ? { cacheControlFormat } : {}),
