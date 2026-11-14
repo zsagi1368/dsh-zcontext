@@ -14,7 +14,7 @@ import { renderFoldReply, renderUnfoldReply, fold, unfold } from './fold-engine.
 import type { FoldSessionLike } from './fold-engine.ts'
 import { parseFoldContent, renderStatus } from './tools.ts'
 import type { ZctxToolRuntime } from './tools.ts'
-import { REASON_NO_ACTIVE_FOLDS, STATUS_NO_SESSION } from './texts.ts'
+import { fill, REASON_NO_ACTIVE_FOLDS, STATUS_NO_SESSION, TOOL_EXECUTION_FAILED } from './texts.ts'
 import type { FoldStore } from './store.ts'
 import type { SessionLike, ToolRunContextLike } from './types.ts'
 
@@ -56,9 +56,35 @@ async function handleZctxCommand(
     readonly signal?: AbortSignal
   },
 ): Promise<ZctxCommandResult> {
+  // P3 HF-04: top-level containment — the official command executor's
+  // behavior on a handler throw was never verified (D2 §10 ③), so the
+  // handler honors its own fail-soft contract: a hostile session shape
+  // (eventAt throwing, a non-iterable surface) or any engine error comes
+  // back as an honest {kind:'error'} text, never a throw.
+  try {
+    return await dispatchZctxCommand(runtime, invocation)
+  } catch (error: unknown) {
+    return {
+      kind: 'error',
+      text: fill(TOOL_EXECUTION_FAILED, {
+        detail: error instanceof Error ? error.message : String(error),
+      }),
+    }
+  }
+}
+
+/** The dispatch body (called inside the handler's containment). @internal */
+async function dispatchZctxCommand(
+  runtime: ZctxToolRuntime,
+  invocation: {
+    readonly agent?: ToolRunContextLike['agent']
+    readonly rawInput: string
+    readonly signal?: AbortSignal
+  },
+): Promise<ZctxCommandResult> {
   const session = invocation.agent?.session
-  if (session === undefined) {
-    return { kind: 'error', text: STATUS_NO_SESSION }
+  if (session == null) {
+    return { kind: 'error', text: STATUS_NO_SESSION } // P3 HF-04: null too, not just undefined
   }
   const raw = invocation.rawInput.trim()
   if (raw === '' || raw === 'status') {

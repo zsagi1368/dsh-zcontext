@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FoldStore } from '../src/store.ts'
+import { STATUS_NO_SESSION } from '../src/texts.ts'
 import { NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, ZcontextPlugin } from '../src/plugin.ts'
 import type { HostContextLike } from '../src/plugin.ts'
 import type { SessionEventLike, SessionLike } from '../src/types.ts'
@@ -437,6 +438,34 @@ describe('plugin: /zctx command dispatch', () => {
     const badFold = await command.handler({ agent: { session }, rawInput: 'fold nothing usable here' })
     expect(badFold).toMatchObject({ kind: 'error' })
     expect(badFold.text).toContain('parsed 0 valid fold ranges')
+  })
+
+  it('P3 HF-04: a hostile session (eventAt throwing) degrades to an honest error result, never a throw', async () => {
+    const ctx = mockCtx()
+    new ZcontextPlugin(ctx)
+    const command = commandOf(ctx)
+    const hostile = {
+      seq: 5,
+      eventAt: () => {
+        throw new TypeError('eventAt exploded (hostile host)')
+      },
+    } as unknown as SessionLike
+    const status = await command.handler({ agent: { session: hostile }, rawInput: '' })
+    expect(status.kind).toBe('error')
+    expect(status.text).toContain('zctx tool execution failed')
+    expect(status.text).toContain('eventAt exploded')
+    const folded = await command.handler({ agent: { session: hostile }, rawInput: FOLD_CONTENT })
+    expect(folded.kind).toBe('error')
+    expect(folded.text).toContain('zctx tool execution failed')
+  })
+
+  it('P3 HF-04: session = null (not just undefined) reaches the honest no-session error', async () => {
+    const ctx = mockCtx()
+    new ZcontextPlugin(ctx)
+    const command = commandOf(ctx)
+    const result = await command.handler({ agent: { session: null as unknown as SessionLike }, rawInput: '' })
+    expect(result).toMatchObject({ kind: 'error' })
+    expect(result.text).toBe(STATUS_NO_SESSION)
   })
 
   it('errors honestly without a session', async () => {

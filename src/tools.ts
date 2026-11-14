@@ -51,6 +51,7 @@ import {
   STATUS_FOLD_ROW,
   STATUS_METER_UNAVAILABLE,
   STATUS_NO_SESSION,
+  TOOL_EXECUTION_FAILED,
   STATUS_OBS_BREAKEVEN_EMPTY,
   STATUS_OBS_SNAPSHOT_FAILED,
   STATUS_OBS_BREAKEVEN_HEADER,
@@ -919,12 +920,21 @@ export function buildZctxTools(
       // The engine commits through the writable-session contract; the official
       // Session satisfies it (asserted again at the engine boundary).
       const session = exec?.agent?.session as FoldSessionLike | undefined
-      if (session === undefined) return STATUS_NO_SESSION
+      if (session == null) return STATUS_NO_SESSION // P3 HF-04: null too, not just undefined
       const parsed = parseFoldContent(args.content)
       if (!parsed.ok) return parsed.reason
-      const store = runtime.storeFor(session)
-      const result = fold(session, store, parsed, runtime.validatorConfig(session))
-      return renderFoldReply(result)
+      // P3 HF-04: a hostile session shape (eventAt throwing, a non-iterable
+      // surface) used to cross the boundary as an internal TypeError — the
+      // honest string result is the contract.
+      try {
+        const store = runtime.storeFor(session)
+        const result = fold(session, store, parsed, runtime.validatorConfig(session))
+        return renderFoldReply(result)
+      } catch (error: unknown) {
+        return fill(TOOL_EXECUTION_FAILED, {
+          detail: error instanceof Error ? error.message : String(error),
+        })
+      }
     },
   })
 
@@ -939,21 +949,28 @@ export function buildZctxTools(
     output: textOutput,
     async execute(args, exec) {
       const session = exec?.agent?.session as FoldSessionLike | undefined
-      if (session === undefined) return STATUS_NO_SESSION
-      const store = runtime.storeFor(session)
-      // Explicit id → honest per-id answer even when the ledger is empty.
-      let foldId: string | undefined
-      if (typeof args.foldId === 'string' && args.foldId.length > 0) {
-        if (!store.foldMap.has(args.foldId)) {
-          return `no active fold matches foldId ${args.foldId}`
+      if (session == null) return STATUS_NO_SESSION // P3 HF-04: null too, not just undefined
+      // P3 HF-04: hostile session shapes degrade to the honest string result.
+      try {
+        const store = runtime.storeFor(session)
+        // Explicit id → honest per-id answer even when the ledger is empty.
+        let foldId: string | undefined
+        if (typeof args.foldId === 'string' && args.foldId.length > 0) {
+          if (!store.foldMap.has(args.foldId)) {
+            return `no active fold matches foldId ${args.foldId}`
+          }
+          foldId = args.foldId
+        } else {
+          foldId = resolveUnfoldTarget(store)
+          if (foldId === undefined) return REASON_NO_ACTIVE_FOLDS
         }
-        foldId = args.foldId
-      } else {
-        foldId = resolveUnfoldTarget(store)
-        if (foldId === undefined) return REASON_NO_ACTIVE_FOLDS
+        const result = unfold(session, store, foldId)
+        return renderUnfoldReply(foldId, result)
+      } catch (error: unknown) {
+        return fill(TOOL_EXECUTION_FAILED, {
+          detail: error instanceof Error ? error.message : String(error),
+        })
       }
-      const result = unfold(session, store, foldId)
-      return renderUnfoldReply(foldId, result)
     },
   })
 
@@ -973,31 +990,38 @@ export function buildZctxTools(
     output: textOutput,
     async execute(args, exec) {
       const session = exec?.agent?.session
-      if (session === undefined) return STATUS_NO_SESSION
-      const store = runtime.storeFor(session)
+      if (session == null) return STATUS_NO_SESSION // P3 HF-04: null too, not just undefined
       if (typeof args.query !== 'string') return 'invalid arguments: query: expected string'
       const limit = typeof args.limit === 'number' && Number.isFinite(args.limit) && args.limit >= 0
         ? Math.floor(args.limit)
         : DEFAULT_RECALL_LIMIT
-      const corpus = buildRecallCorpus(store)
-      const hits = recall(args.query, corpus, limit)
-      if (hits.length === 0) return fill(RECALL_REPLY_EMPTY, { query: args.query })
-      const lines = [
-        fill(RECALL_REPLY_HEADER, { query: args.query, count: hits.length, total: corpus.length }),
-      ]
-      for (const hit of hits) {
-        lines.push(
-          fill(RECALL_REPLY_ROW, {
-            kind: hit.kind,
-            foldId: hit.foldId,
-            start: hit.range.startSeq,
-            end: hit.range.endSeq,
-            score: hit.score,
-            excerpt: hit.excerpt,
-          }),
-        )
+      // P3 HF-04: hostile session shapes degrade to the honest string result.
+      try {
+        const store = runtime.storeFor(session)
+        const corpus = buildRecallCorpus(store)
+        const hits = recall(args.query, corpus, limit)
+        if (hits.length === 0) return fill(RECALL_REPLY_EMPTY, { query: args.query })
+        const lines = [
+          fill(RECALL_REPLY_HEADER, { query: args.query, count: hits.length, total: corpus.length }),
+        ]
+        for (const hit of hits) {
+          lines.push(
+            fill(RECALL_REPLY_ROW, {
+              kind: hit.kind,
+              foldId: hit.foldId,
+              start: hit.range.startSeq,
+              end: hit.range.endSeq,
+              score: hit.score,
+              excerpt: hit.excerpt,
+            }),
+          )
+        }
+        return lines.join('\n')
+      } catch (error: unknown) {
+        return fill(TOOL_EXECUTION_FAILED, {
+          detail: error instanceof Error ? error.message : String(error),
+        })
       }
-      return lines.join('\n')
     },
   })
 
@@ -1010,8 +1034,17 @@ export function buildZctxTools(
     output: textOutput,
     async execute(_args, exec) {
       const session = exec?.agent?.session
-      if (session === undefined) return STATUS_NO_SESSION
-      return renderStatus(runtime, session)
+      if (session == null) return STATUS_NO_SESSION // P3 HF-04: null too, not just undefined
+      // P3 HF-04: a snapshot failure inside renderStatus degrades honestly
+      // (SM-02 wrapper); a hostile session shape during storeFor/attach
+      // degrades to the honest string result here.
+      try {
+        return await renderStatus(runtime, session)
+      } catch (error: unknown) {
+        return fill(TOOL_EXECUTION_FAILED, {
+          detail: error instanceof Error ? error.message : String(error),
+        })
+      }
     },
   })
 

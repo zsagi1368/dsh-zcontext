@@ -325,6 +325,49 @@ describe('tools: the four zctx tools (shim-defined)', () => {
   })
 })
 
+describe('tools: hostile session shapes degrade to the honest text (P3 HF-04)', () => {
+  /** A session whose eventAt throws the moment the store scans it. */
+  function hostileSession(): unknown {
+    return {
+      seq: 5,
+      eventAt: () => {
+        throw new TypeError('eventAt exploded (hostile host)')
+      },
+    }
+  }
+
+  it('zctx_fold: eventAt throwing -> TOOL_EXECUTION_FAILED text, never a throw', async () => {
+    const [foldTool] = buildZctxTools(resolveDefineTool(), testRuntime())
+    const reply = await foldTool.execute(
+      { content: 'fold 0..2\nsummary text long enough to pass the floor check.' },
+      { agent: { session: hostileSession() as SessionLike } },
+    )
+    expect(reply).toContain('zctx tool execution failed')
+    expect(reply).toContain('eventAt exploded')
+  })
+
+  it('zctx_status: eventAt throwing -> TOOL_EXECUTION_FAILED text, never a throw', async () => {
+    const [, , , statusTool] = buildZctxTools(resolveDefineTool(), testRuntime())
+    const reply = await statusTool.execute({}, { agent: { session: hostileSession() as SessionLike } })
+    expect(reply).toContain('zctx tool execution failed')
+    expect(reply).toContain('eventAt exploded')
+  })
+
+  it('session = null (not just undefined) reaches the honest no-session text (all four tools)', async () => {
+    const tools = buildZctxTools(resolveDefineTool(), testRuntime())
+    const argsFor = (name: string): Record<string, unknown> =>
+      name === 'zctx_fold' ? { content: 'x' } : name === 'zctx_recall' ? { query: 'x' } : {}
+    for (const tool of tools) {
+      const name = (tool as unknown as { name: string }).name
+      const reply = await (tool as unknown as { execute: (a: unknown, e: unknown) => Promise<string> }).execute(
+        argsFor(name),
+        { agent: { session: null as unknown as SessionLike } },
+      )
+      expect(reply, `${name} must reach the session check before anything else`).toBe(STATUS_NO_SESSION)
+    }
+  })
+})
+
 describe('tools: status token figures are estimates, not measurements', () => {
   it('keeps estimateTokens as the estimator behind fold accounting', () => {
     expect(estimateTokens('abc')).toBe(1)

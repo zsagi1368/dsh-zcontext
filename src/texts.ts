@@ -353,6 +353,9 @@ export const STATUS_USAGE_ESTIMATED =
 
 export const STATUS_USAGE_NONE = 'cache usage: no assistant requests observed yet'
 
+export const TOOL_EXECUTION_FAILED =
+  'zctx tool execution failed: {{detail}} — the ledger state is unchanged (fail-soft); inspect via zctx_status'
+
 export const STATUS_NO_SESSION = 'zctx: no live session is reachable from this call site'
 
 export const STATUS_PARTIAL_PREFIX = 'status rendered in degraded mode:'
