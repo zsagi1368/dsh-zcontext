@@ -700,7 +700,7 @@
    "verified": true,
    "evidence": "commit d8d2f5a 双语探针清单补 probe-host-imports 行（REVIEW-V6 V6-1）",
    "owner": "mainline",
-   "status": "closed",
+   "status": "verified",
    "phase": "block"
   },
   {
@@ -710,7 +710,7 @@
    "disposition": "fixed",
    "evidence": "f01b5cd: applyEvent 幂等/单调双分支守卫 + store.spec.ts:289 误标测试真修复（监听+真重复投递钉）+ 6 P3-T1 钉；摘除即红 6 红；E-repro sm01 exit 1 NO-REPRO",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -721,7 +721,7 @@
    "disposition": "fixed",
    "evidence": "614028a: extractCheckpointSource Number.isFinite+非负（twin 对齐）+ droppedAmounts anomaly + renderStatus 观测段 fail-soft（STATUS_OBS_SNAPSHOT_FAILED）；+6 钉（对照+三态+tokensAfter+render 钉）；摘除即红 4 红；E-repro sm02 exit 1",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -732,7 +732,7 @@
    "disposition": "fixed",
    "evidence": "219f7ff: 方案 (a) 裁决（checkpoint p3s0 notes）——拒图门契约降级为防御镜像（zctx-adapter 头注/门注/README）+ WireSnapshot.imageCount + 钉测；摘除即红 1 红；E-repro hf01 exit 0=机制有意保持（方案 a），验收按契约+可观察性达成",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -743,7 +743,7 @@
    "disposition": "fixed",
    "evidence": "c9ed41f: inject 六键→五键；smoke 五键钉 + plugin.spec 无 sessions 激活钉 + probe-real-mount 五桩（G3=真 cordis 无 sessions 激活，5/5 exit 0）；E-repro hf02 exit 1",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -754,7 +754,7 @@
    "disposition": "fixed",
    "evidence": "83e966e: scripts.test=\"tsdown && vitest run\"（显式链裁决 p3s0）；stale 场景验证（src 改动后 npm test 先 Build complete 后 vitest 443/443）",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -765,7 +765,7 @@
    "disposition": "fixed",
    "evidence": "9f940b5: SCAN_UNREADABLE_BREAKER=16 熔断 + scan-breaker-tripped anomaly；+2 钉（trip@16 墙钟界 + resume 有界）；摘除即红（阈值 1e6 安全变体）2 红",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -776,7 +776,7 @@
    "disposition": "fixed",
    "evidence": "937dad8: resume/series 归因质量决策钉 ×2（strong 固化+理由注释+reset 台账并存断言；降级=§10 规则变更须自觉翻钉）",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -787,7 +787,7 @@
    "disposition": "fixed",
    "evidence": "1d6a804: validatorConfig 单漏斗 domain clamp（clamp vs TypeError 裁决在 commit）；+1 强化钉（六极值+warmWindow 后 check f/net-shrink 激活）；摘除即红 1 红",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -798,7 +798,7 @@
    "disposition": "fixed",
    "evidence": "23e15ff: unfold-span 防御性降级（absorbed+zctx-unfold-span）+ unknown-fold-unfold anomaly；+2 direct-injection 钉；摘除即红 2 红",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -809,7 +809,7 @@
    "disposition": "fixed",
    "evidence": "c78133f: validateFold 入口 non-finite contextWindow → undefined（诚实跳路径 by construction）；+1 钉（有限 20000 窗口活跃拒绝 + NaN≡undefined 行为固化）；摘除即红 n/a（守卫可观察行为=钉住的前行为，commit 注明）",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -820,7 +820,7 @@
    "disposition": "fixed",
    "evidence": "1021e3d: HF-03 README no-hot-reload + HF-06 preflight 模块 doc/README enforce 两句（maxOverflowRetries 预算+retryableCodes 交互）+ HF-07 mapUsageTwins parity 分歧登记；行为零变更",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -831,7 +831,7 @@
    "disposition": "fixed",
    "evidence": "0c621c1: 四工具 execute try 包裹（TOOL_EXECUTION_FAILED）+ /zctx 顶层 containment（dispatch 拆分）+ 全部判空 == null；+5 钉",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -842,7 +842,7 @@
    "disposition": "fixed",
    "evidence": "bc567f3: session/event 外层 event.type 裸读守卫；+1 钉（malformed 不抛+后续好事件照常折叠）；摘除即红 1 红",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -853,7 +853,7 @@
    "disposition": "fixed",
    "evidence": "92cf972: options.messages Array.isArray 前验（INVALID_REQUEST 归类）+ imageCount guard 收敛；+1 钉（四病态形态）",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -864,7 +864,7 @@
    "disposition": "fixed",
    "evidence": "555aa2d: buildPiAiFace isContextOverflow 缺失 → undefined（rejected memoized promise 消除+Z20 日志口径）；提交式 fixture + 1 钉；摘除即红 1 红",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -875,7 +875,7 @@
    "disposition": "fixed",
    "evidence": "cf22369: 四面 register try→warn（缺席/抛错双态降级声明更新）；+1 钉（refusing register 不破 boot）；摘除即红（HEAD 还原）1 红",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -886,7 +886,7 @@
    "disposition": "fixed",
    "evidence": "0effbb6: GUIDANCE_TITLE 孤儿删除（guidance.spec 钉不复活）+ 12 类型收窄；lib/index.d.ts 导出清单精确解析=126 不回归",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -897,7 +897,7 @@
    "disposition": "fixed",
    "evidence": "0effbb6: configDefaults deepFreeze（共享 providers:[] 数组结构不可变）；+1 smoke 钉；摘除即红（HEAD 还原）1 红",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -908,7 +908,7 @@
    "disposition": "fixed",
    "evidence": "ac3c3ef: 8 形态逐形态 compactionActive() 钉（2/3/5/7/8 原缺失）",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -919,7 +919,7 @@
    "disposition": "fixed",
    "evidence": "ac3c3ef: unfold 重展开 absorbed 内层 checkpoint 渲染语义钉（[user]+summary，非 marker 非原文）",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -930,7 +930,7 @@
    "disposition": "fixed",
    "evidence": "ac3c3ef: 探针报告 reports/probes/P3-T6-boot-timing.md——源码级时序：restore 会话 detached 零活动窗口 + agent-loop publish 先 announce 后 llm 调用（agent-loop:659-671）→ 惰性 watching 不需要；live 实测随 W5-A6-INSTALL",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -941,7 +941,7 @@
    "disposition": "fixed",
    "evidence": "ac3c3ef: renderStatus adapter 健康段（state/routes/mapping/settled）+ runtime.adapterHealth 钩子；+3 钉",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -952,7 +952,7 @@
    "disposition": "fixed",
    "evidence": "ac3c3ef: 非法 preflightMode warn-once + observe 回退；+1 钉",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -963,7 +963,7 @@
    "disposition": "fixed",
    "evidence": "ac3c3ef: reasoningEfforts 值域构造门（合法 pi-ai levels/false/非 mapping）+ apiKeyEnv/efforts 违规值不进 spec；+4 钉",
    "owner": "coder-p3",
-   "status": "closed",
+   "status": "verified",
    "phase": "block",
    "verified": true
   },
@@ -1008,5 +1008,5 @@
    "phase": "block"
   }
  ],
- "updatedAt": "2026-11-14T05:30:00-08:00"
+ "updatedAt": "2026-11-14T12:10:00-08:00"
 }
