@@ -238,11 +238,16 @@ export async function loadSupportedProtocols(): Promise<{ protocols: readonly st
   return { protocols: KNOWN_PROTOCOLS, source: 'builtin' }
 }
 
-function buildPiAiFace(mod: Record<string, unknown>, apiSpecifier: (protocol: string) => string): PiAiFace {
+function buildPiAiFace(mod: Record<string, unknown>, apiSpecifier: (protocol: string) => string): PiAiFace | undefined {
+  // P3 HF-13: a pi-ai build missing isContextOverflow is an UNUSABLE face,
+  // not a boot failure — return undefined (the same face-absent path as an
+  // unresolvable module). The old throw escaped inside loadAdapterFaces's
+  // memoized IIFE: (a) it falsified the "never a throw" contract below,
+  // (b) the REJECTED promise stayed memoized for the process lifetime, and
+  // (c) the failure surfaced through the generic catch warn instead of the
+  // honest unreachable info path (Z20 logging discipline).
   const isContextOverflow = mod['isContextOverflow']
-  if (typeof isContextOverflow !== 'function') {
-    throw new TypeError('pi-ai root module is missing isContextOverflow')
-  }
+  if (typeof isContextOverflow !== 'function') return undefined
   return {
     isContextOverflow: isContextOverflow as PiAiFace['isContextOverflow'],
     loadApi: async (protocol: string) => {
@@ -393,8 +398,10 @@ let cached: Promise<AdapterFaces | undefined> | undefined
 
 /**
  * Load all three faces once per process. `undefined` = the adapter face is
- * NOT registrable (host lib or pi-ai unreachable) — the wiring logs honestly
- * and skips the face; this is never a throw.
+ * NOT registrable (host lib unreachable, pi-ai unreachable, or a pi-ai build
+ * missing isContextOverflow — all the same "face absent" honest path) — the
+ * wiring logs honestly and skips the face; this is never a throw and never a
+ * permanently-memoized rejection (P3 HF-13).
  */
 export function loadAdapterFaces(): Promise<AdapterFaces | undefined> {
   cached ??= (async () => {

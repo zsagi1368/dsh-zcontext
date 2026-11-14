@@ -12,6 +12,8 @@
 
 import { afterAll, describe, expect, it } from 'vitest'
 
+import { join } from 'node:path'
+
 import { KNOWN_PROTOCOLS, loadAdapterFaces, resetAdapterFacesForTest } from '../src/adapter/host.ts'
 
 const HOST_LLM = 'G:/000Github/zDSH/zDSH-main/packages/llm/llm/lib/index.js'
@@ -66,6 +68,21 @@ describe('adapter host faces: fail-soft loading', () => {
     expect(await faces.piAi.loadApi('not-a-protocol')).toBeUndefined()
     expect(await faces.piAi.loadApi('openai-completions')).toBeTypeOf('object')
     expect(await faces.piAi.loadApi('anthropic-messages')).toBeTypeOf('object')
+  })
+
+  it('P3 HF-13: a pi-ai build missing isContextOverflow degrades to undefined (never a rejected memoized promise)', async () => {
+    if (!hostOnDisk()) return // honest skip: no host llm on this machine
+    process.env.ZCTX_DSH_LLM = HOST_LLM
+    // Committed fixture: a pi-ai-shaped package whose root module exports
+    // nothing — isContextOverflow missing (the HF-13 attack shape).
+    process.env.ZCTX_PIAI = join(import.meta.dirname ?? '.', 'fixtures', 'hf13-piai')
+    delete process.env.ZCTX_DSH_LLM_PIAI
+    resetAdapterFacesForTest()
+    const faces = await loadAdapterFaces()
+    expect(faces).toBeUndefined()
+    // The memoized value stays a FULFILLED promise resolving to undefined —
+    // a rejected memo used to poison every later call for the process life.
+    await expect(loadAdapterFaces()).resolves.toBeUndefined()
   })
 
   it('KNOWN_PROTOCOLS is the official supportedProtocols union (A-ruling zero-mapping gate)', () => {

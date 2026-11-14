@@ -2406,8 +2406,10 @@ declare function loadSupportedProtocols(): Promise<{
 }>;
 /**
  * Load all three faces once per process. `undefined` = the adapter face is
- * NOT registrable (host lib or pi-ai unreachable) — the wiring logs honestly
- * and skips the face; this is never a throw.
+ * NOT registrable (host lib unreachable, pi-ai unreachable, or a pi-ai build
+ * missing isContextOverflow — all the same "face absent" honest path) — the
+ * wiring logs honestly and skips the face; this is never a throw and never a
+ * permanently-memoized rejection (P3 HF-13).
  */
 declare function loadAdapterFaces(): Promise<AdapterFaces | undefined>;
 /** Where one wire observation lands (the per-session store's wire ledger). */
