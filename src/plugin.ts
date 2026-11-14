@@ -682,15 +682,38 @@ export class ZcontextPlugin extends ServiceBase {
   /** Validator config for one session (context window from the cache when known). @internal */
   private validatorConfig(session: SessionLike): ValidatorConfig {
     const window = this.windowCache.get(session as object)
+    // P3 SM-05 clamp (single funnel for every config source — host schema,
+    // fail-soft shim, direct constructor): the config schema pins SHAPE and
+    // finiteness only, so extreme values used to silently flip guards off or
+    // into conservative DoS. Clamped to the honest domains here:
+    //   - token counts ≥ 0 (a negative keepRecent* used to disable tail
+    //     protection entirely; 0 is the documented "disabled" value),
+    //   - 0 < maxFoldFraction ≤ 1 (≤0 rejected every fold; >1 is meaningless),
+    //   - summaryFloor ≤ summaryCeiling (an inverted band rejected EVERY
+    //     summary — swapped back into a sane band),
+    //   - netShrinkTolerance ≥ 1 (≤0 made the net-shrink gate reject all).
+    const config = this.config
+    const clampNonNegative = (value: number): number =>
+      Number.isFinite(value) && value >= 0 ? value : 0
+    const maxFoldFraction = Number.isFinite(config.maxFoldFraction) && config.maxFoldFraction > 0
+      ? Math.min(config.maxFoldFraction, 1)
+      : configDefaults.maxFoldFraction
+    const summaryFloorChars = clampNonNegative(config.summaryFloorChars)
+    const summaryCeilingChars = clampNonNegative(config.summaryCeilingChars)
+    const [floor, ceiling] = summaryFloorChars <= summaryCeilingChars
+      ? [summaryFloorChars, summaryCeilingChars]
+      : [summaryCeilingChars, summaryFloorChars]
     return {
       keepRecentMessages: 0,
-      keepRecentTokens: this.config.keepRecentTokens,
-      protectionFloorTokens: this.config.protectionFloorTokens,
-      minFoldableTokens: this.config.minFoldableTokens,
-      maxFoldFraction: this.config.maxFoldFraction,
-      summaryFloorChars: this.config.summaryFloorChars,
-      summaryCeilingChars: this.config.summaryCeilingChars,
-      netShrinkTolerance: this.config.netShrinkTolerance,
+      keepRecentTokens: clampNonNegative(config.keepRecentTokens),
+      protectionFloorTokens: clampNonNegative(config.protectionFloorTokens),
+      minFoldableTokens: clampNonNegative(config.minFoldableTokens),
+      maxFoldFraction,
+      summaryFloorChars: floor,
+      summaryCeilingChars: ceiling,
+      netShrinkTolerance: Number.isFinite(config.netShrinkTolerance) && config.netShrinkTolerance >= 1
+        ? config.netShrinkTolerance
+        : 1,
       ...(window !== undefined ? { contextWindow: window } : {}),
     }
   }

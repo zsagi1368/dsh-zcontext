@@ -126,6 +126,45 @@ describe('mock host: cordis get-trap inject discipline (v0.2.1 P0)', () => {
     }
   })
 
+  it('P3 SM-05: extreme validator config values clamp at the single funnel (guards never silently flip off)', async () => {
+    // A legal fold that every clamp below must still admit: pre-fix, each
+    // extreme silently DoS-ed or disabled its guard (AUD-state-machines §5).
+    // A FRESH session per extreme — a successful fold rewrites the surface
+    // (checkpoint node replaces the range), which would un-anchor later runs.
+    const content = 'fold 2..6\nThree files found: a.sql, b.ts and c.md listed with sizes.'
+    // minFoldableTokens: 0 in every case so the ~45-token range clears the
+    // qualification line and each extreme exercises ITS OWN guard only.
+    // protectionFloorTokens: 0 everywhere except the clamp case — the 5000
+    // default protects the whole ~68-token fixture surface and would mask
+    // the guard each extreme is meant to exercise.
+    const extremes = [
+      { minFoldableTokens: 0, keepRecentTokens: -5, protectionFloorTokens: -5 },
+      { minFoldableTokens: 0, protectionFloorTokens: 0, maxFoldFraction: -1 },
+      { minFoldableTokens: 0, protectionFloorTokens: 0, maxFoldFraction: 7 },
+      { minFoldableTokens: 0, protectionFloorTokens: 0, summaryFloorChars: 20000, summaryCeilingChars: 10 }, // inverted band
+      { minFoldableTokens: 0, protectionFloorTokens: 0, netShrinkTolerance: 0 },
+      { minFoldableTokens: -100, protectionFloorTokens: 0 }, // clamped to 0 -> the small fold is admitted
+    ]
+    for (const extreme of extremes) {
+      const { session } = seedConversation()
+      // Route the session + fire session/created so warmWindow fills the
+      // window cache (200000) — without it check f (maxFoldFraction) and the
+      // net-shrink gate are context-blind and the extremes would not bite.
+      ;(session as unknown as { requestHeader?: () => unknown }).requestHeader = () => ({
+        config: { provider: 'deepseek', model: 'test-model' },
+      })
+      const ctx = mockCtx()
+      new ZcontextPlugin(ctx, extreme as never)
+      ctx.emit('session/created', session)
+      await new Promise((resolve) => setTimeout(resolve, 0)) // fire-and-forget window resolution settles
+      const foldTool = ctx.registeredTools[0] as { execute: (args: unknown, exec: unknown) => Promise<string> }
+      const reply = await foldTool.execute({ content }, { agent: { session } })
+      expect(reply, `extreme config ${JSON.stringify(extreme)} must not reject the fold`).toMatch(
+        /^Folded seqs \d+.*\d+/, // honest success, not a conservative rejection storm
+      )
+    }
+  })
+
   it('P3 HF-02: the plugin activates with NO sessions service anywhere in the store', () => {
     // mockCtx's store stubs are exactly the five declared keys — 'sessions'
     // is deliberately absent. On a REAL cordis host the P2-era six-key
