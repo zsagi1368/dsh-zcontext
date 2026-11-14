@@ -380,7 +380,7 @@ let zctx
         patcherText.includes("'patch'") && patcherText.includes("'restore'") && patcherText.includes("'status'"),
       'stub marker = globalThis.__zctxPatch__ (patch/plugin contract)':
         patcherText.includes('globalThis.__zctxPatch__'),
-      'anchor set in册: rc.3 pinned': patcherText.includes("'0.2.2-rc.3'"),
+      'anchor set registered: rc.3 pinned': patcherText.includes("'0.2.2-rc.3'"),
       'anchor hash = real pristine lib SHA-256 (e956da3d…, P2 [F16]/VERIFY-P #8)':
         patcherText.includes('e956da3d7300e1426e13e14f47e6f981dd1ca345633a406568ee5058ad93e9d8'),
       'target path pinned': patcherText.includes('dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js'),
@@ -399,7 +399,7 @@ let zctx
   } catch (error) {
     detail = `threw: ${error instanceof Error ? error.message : String(error)}`
   }
-  report('A11 P4 patcher face: tool on disk + anchor set in册 + bridge receiver', ok, detail)
+  report('A11 P4 patcher face: tool on disk + anchor set registered + bridge receiver', ok, detail)
 }
 
 // ---------------------------------------------------------------------------
