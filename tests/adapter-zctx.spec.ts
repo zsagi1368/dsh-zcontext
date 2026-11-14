@@ -16,6 +16,7 @@ import type { AdapterLoggerLike, ZctxAdapterDeps, ZctxAdapterFace } from '../src
 import { createZctxAdapterClass } from '../src/adapter/zctx-adapter.ts'
 import { resolveZctxProviders } from '../src/adapter/providers.ts'
 import type { MappingDeps } from '../src/adapter/map.ts'
+import { PI_AI_THINKING_LEVELS } from './helpers/pi-ai-levels.ts'
 
 // The shared spec names a credential env (F4.3 chain); every pipeline test
 // sets it up front — the MISSING_CREDENTIAL case deletes it explicitly.
@@ -176,6 +177,65 @@ describe('zctx adapter: F2 table members', () => {
     // A model without efforts offers none (omitting reasoning = unavailable).
     const plain = (await adapter.resolveModel(MODEL_M1.provider, 'm2')) as { reasoning?: unknown }
     expect('reasoning' in plain).toBe(false)
+  })
+
+  it('LEGAL_PI_AI_LEVELS (providers gate list) and THINKING_LEVEL_ORDER (offered escalation order) are the same source (P3-r1 P3-6)', async () => {
+    // Face A — the providers.ts construction gate renders its legal set
+    // verbatim in the violation message (Set insertion order = canonical).
+    const gate = resolveZctxProviders(
+      {
+        providers: [
+          {
+            family: 'anthropic-messages',
+            baseURL: 'https://gateway.example/v1',
+            apiKeyEnv: 'ZCTX_ADAPTER_TEST_KEY',
+            models: [
+              { id: 'm1', contextWindow: 200000, maxTokens: 8192, reasoningEfforts: { deep: 'bogus' } },
+            ],
+          },
+        ],
+      },
+      ['openai-completions', 'openai-responses', 'anthropic-messages'],
+    )
+    const gateLine = gate.violations.find((v) => v.includes('reasoningEfforts values must be legal pi-ai levels')) ?? ''
+    const canonical = `[${PI_AI_THINKING_LEVELS.join(', ')}]`
+    expect(gateLine).toContain(`(${canonical})`)
+
+    // Face B — the adapter sorts the OFFERED efforts by THINKING_LEVEL_ORDER:
+    // all seven levels mapped under neutral wire keys must come out in the
+    // canonical escalation order.
+    const { providers } = resolveZctxProviders(
+      {
+        providers: [
+          {
+            family: 'anthropic-messages',
+            baseURL: 'https://gateway.example/v1',
+            apiKeyEnv: 'ZCTX_ADAPTER_TEST_KEY',
+            models: [
+              {
+                id: 'all-levels',
+                contextWindow: 200000,
+                maxTokens: 8192,
+                reasoningEfforts: Object.fromEntries(
+                  PI_AI_THINKING_LEVELS.map((level, index) => [`wire-${index}`, level]),
+                ),
+              },
+            ],
+          },
+        ],
+      },
+      ['openai-completions', 'openai-responses', 'anthropic-messages'],
+    )
+    const adapter = makeAdapter([DONE_EVENT], [], { providers })
+    const info = (await adapter.resolveModel('zctx-anthropic-messages', 'all-levels')) as {
+      reasoning?: { efforts: { id: string }[] }
+    }
+    expect(info.reasoning?.efforts.map((effort) => effort.id)).toEqual([...PI_AI_THINKING_LEVELS])
+
+    // Cross-face: the gate's legal set and the offered escalation order are
+    // element-for-element identical — the two private source lists cannot
+    // drift apart without breaking one of the faces above.
+    expect(gateLine).toContain(`([${info.reasoning?.efforts.map((effort) => effort.id).join(', ')}])`)
   })
 
   it('an unowned provider throws NO_ADAPTER; an unconfigured model throws UNKNOWN_MODEL', async () => {
