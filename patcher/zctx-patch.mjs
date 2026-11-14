@@ -347,13 +347,31 @@ export function spliceAsar({ asarPath, targetPath, entry, patchedText }) {
   // their bytes must be untouched (pristine integrity hash) after the splice.
   // The target itself is NEVER a witness (it is the file being replaced; in
   // small archives it can be the very first packed file).
+  //
+  // Layout premise, made explicit (P4-r1 P4-1): a file's header offset shifts
+  // by `delta` IFF `offset > targetStart` — the exact predicate of the
+  // mutation loop below. The post-verify expectation previously used
+  // `oldOffset > 0`, which silently relied on "@electron/asar packs the first
+  // file at offset 0, so witness #1 is either at offset 0 (before the target)
+  // or after the target". True for archives this toolchain produces (verified
+  // on the real rc.3 asar: first packed node offset = 0), but an assumption
+  // about the layout, not a rule — a witness positioned BEFORE the target at
+  // a nonzero offset would have produced a false post-verify FAILED on a
+  // correct archive. `afterTarget` is recorded from the collection-time
+  // offset, so the expectation no longer depends on the layout at all.
   const witnesses = []
   visitPackedNodes(header, (node, path) => {
     if (witnesses.length >= 2 || node.integrity === undefined) return
     const offset = Number(node.offset)
     if (offset === targetStart) return
     if (witnesses.length === 0 || offset >= targetStart + oldSize) {
-      witnesses.push({ path, oldOffset: offset, size: node.size, integrityHash: node.integrity.hash })
+      witnesses.push({
+        path,
+        oldOffset: offset,
+        afterTarget: offset > targetStart,
+        size: node.size,
+        integrityHash: node.integrity.hash,
+      })
     }
   })
 
@@ -714,8 +732,13 @@ function verifySplicedArchive(asar, asarPath, targetPath, patchedText, spliced) 
     return { ok: false, detail: 'patch marker count in the written archive is not exactly 1' }
   }
   // 2. Witnesses: bytes at the shifted positions match the pristine hashes.
+  // The expected offset uses the collection-time `afterTarget` flag — the
+  // same `offset > targetStart` rule as the header mutation (P4-r1 P4-1: the
+  // old `oldOffset > 0` predicate was a layout assumption that breaks for a
+  // witness positioned before the target at a nonzero offset → false FAILED
+  // on a byte-correct archive).
   for (const witness of spliced.witnesses) {
-    const newOffset = witness.oldOffset > 0 ? witness.oldOffset + spliced.delta : witness.oldOffset
+    const newOffset = witness.afterTarget ? witness.oldOffset + spliced.delta : witness.oldOffset
     const { header, headerSize } = readHeaderPositioned(asarPath)
     const node = headerNodeAt(header, witness.path)
     if (node === undefined || Number(node.offset) !== newOffset) {

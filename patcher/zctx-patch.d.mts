@@ -56,6 +56,8 @@ export interface SpliceResult {
   readonly witnesses: readonly {
     readonly path: string
     readonly oldOffset: number
+    /** Whether the file sits after the target region (its offset shifts by the splice delta). */
+    readonly afterTarget: boolean
     readonly size: number
     readonly integrityHash: string
   }[]

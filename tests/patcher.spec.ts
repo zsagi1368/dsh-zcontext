@@ -25,7 +25,7 @@ import { dirname, join, sep } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as asar from '@electron/asar'
 
-import { SUPPORTED, patchAsar, patchText, restoreAsar, spliceAsar, statusAsar } from '../patcher/zctx-patch.mjs'
+import { SUPPORTED, computeIntegrity, patchAsar, patchText, restoreAsar, spliceAsar, statusAsar } from '../patcher/zctx-patch.mjs'
 import type { ZctxPatchAnchorEntry } from '../patcher/zctx-patch.d.mts'
 
 /**
@@ -421,5 +421,122 @@ describe('spliceAsar: header/payload accounting', () => {
       expect(witness.path).not.toBe(TARGET_PATH)
       expect(witness.integrityHash).not.toBe('')
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// P4-r1 P4-1 regression pin: a witness BEFORE the target at a NONZERO offset.
+// @electron/asar's own packer always writes the first file at payload offset
+// 0, so its archives cannot produce this shape — the archive below is
+// hand-assembled (same pickle byte format the patcher writes; the official
+// reader parses it, asserted via freshExtract) with the header KEY ORDER
+// deliberately different from the payload order: "zz-first.bin" is the first
+// visited node (witness #1) while sitting AFTER package.json and BEFORE the
+// target in the payload. The old `oldOffset > 0` post-verify expectation
+// judged this witness "shifted" → false FAILED on a byte-correct archive.
+// ---------------------------------------------------------------------------
+
+/** Header pickle, byte-format identical to the patcher's internal builder. */
+function buildHeaderPickleTest(jsonText: string): Buffer {
+  const jsonBuf = Buffer.from(jsonText, 'utf8')
+  const aligned = (jsonBuf.length + 3) & ~3
+  const payloadSize = 4 + aligned
+  const buf = Buffer.alloc(4 + payloadSize)
+  buf.writeUInt32LE(payloadSize, 0)
+  buf.writeUInt32LE(jsonBuf.length, 4)
+  jsonBuf.copy(buf, 8)
+  return buf
+}
+
+/** The 8-byte outer size pickle: [u32 4][u32 headerPickleLength]. */
+function buildSizePickleTest(headerPickleLength: number): Buffer {
+  const buf = Buffer.alloc(8)
+  buf.writeUInt32LE(4, 0)
+  buf.writeUInt32LE(headerPickleLength, 4)
+  return buf
+}
+
+const PRE_TARGET_CONTENT = 'crafted witness file positioned BEFORE the target at a NONZERO offset'
+
+/** Hand-assemble the asar: payload laid out explicitly, header key order shuffled. */
+function writeCraftedAsar(fixture: Fixture): void {
+  const packageJson = JSON.stringify({ name: '@deepseek-ai/dsh-desktop', version: '0.2.2-rc.3' })
+  const contents = { packageJson, preTarget: PRE_TARGET_CONTENT, target: FIXTURE_LIB, neighbor: NEIGHBOR_CONTENT }
+  const sizeOf = (content: string) => Buffer.byteLength(content, 'utf8')
+  const offsets = {
+    packageJson: 0,
+    preTarget: sizeOf(contents.packageJson),
+    target: sizeOf(contents.packageJson) + sizeOf(contents.preTarget),
+    neighbor: sizeOf(contents.packageJson) + sizeOf(contents.preTarget) + sizeOf(contents.target),
+  }
+  const fileEntry = (content: string, offset: number) => ({
+    size: sizeOf(content),
+    offset: String(offset),
+    integrity: computeIntegrity(Buffer.from(content, 'utf8')),
+  })
+  const header = {
+    files: {
+      // KEY ORDER ≠ payload order: visited first (witness #1), nonzero offset,
+      // positioned before the target — the shape the old predicate misjudged.
+      'zz-first.bin': fileEntry(contents.preTarget, offsets.preTarget),
+      'package.json': fileEntry(contents.packageJson, offsets.packageJson),
+      dsh: {
+        files: {
+          node_modules: {
+            files: {
+              '@deepseek-ai': {
+                files: {
+                  'dsh-llm-pi-ai': {
+                    files: {
+                      lib: { files: { 'index.js': fileEntry(contents.target, offsets.target) } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      extra: { files: { 'neighbor.js': fileEntry(contents.neighbor, offsets.neighbor) } },
+    },
+  }
+  const headerPickle = buildHeaderPickleTest(JSON.stringify(header))
+  const payload = Buffer.concat([
+    Buffer.from(contents.packageJson, 'utf8'),
+    Buffer.from(contents.preTarget, 'utf8'),
+    Buffer.from(contents.target, 'utf8'),
+    Buffer.from(contents.neighbor, 'utf8'),
+  ])
+  writeFileSync(fixture.asarPath, Buffer.concat([buildSizePickleTest(headerPickle.length), headerPickle, payload]))
+  fixture.originalSha = shaOf(fixture.asarPath)
+}
+
+describe('P4-r1 P4-1: before-target witness at a nonzero offset', () => {
+  it('records afterTarget per witness and expects the before-target witness UNSHIFTED (no false post-verify FAILED)', async () => {
+    const fixture = buildFixture()
+    writeCraftedAsar(fixture)
+    // The hand-assembled archive is officially parseable (pre-patch sanity).
+    expect(freshExtract(fixture.asarPath, 'zz-first.bin').toString('utf8')).toBe(PRE_TARGET_CONTENT)
+    expect(freshExtract(fixture.asarPath, TARGET_PATH).toString('utf8')).toBe(FIXTURE_LIB)
+
+    // Witness flags: #1 = zz-first.bin (before the target, nonzero offset →
+    // afterTarget=false); #2 = after the target (shifted by the delta).
+    const patched = patchText(FIXTURE_LIB, fixture.entry)
+    expect(patched.ok).toBe(true)
+    const spliced = spliceAsar({
+      asarPath: fixture.asarPath,
+      targetPath: TARGET_PATH,
+      entry: fixture.entry,
+      patchedText: patched.text as string,
+    })
+    expect(spliced.witnesses[0]).toMatchObject({ path: 'zz-first.bin', afterTarget: false })
+    expect(spliced.witnesses[1]).toMatchObject({ path: 'extra/neighbor.js', afterTarget: true })
+
+    // Full chain: post-verify accepts the unshifted before-target witness.
+    const result = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(result.ok).toBe(true)
+    expect(result.steps.find((step) => step.name === 'post-verify')?.status).toBe('ok')
+    // The witness bytes are untouched at their original (unshifted) position.
+    expect(freshExtract(fixture.asarPath, 'zz-first.bin').toString('utf8')).toBe(PRE_TARGET_CONTENT)
   })
 })
