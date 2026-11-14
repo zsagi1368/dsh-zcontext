@@ -104,7 +104,7 @@ export const NUDGE_CONTEXT_ORDER = 800
  * (agent-loop/src/agent.ts:127) — so the nudge provider can attribute the
  * assembly to ITS session when the context is reachable.
  */
-export interface AssembleContextLike {
+interface AssembleContextLike {
   /** The agent the assembly is for (official scope === agent). */
   readonly agent?: { readonly session?: unknown }
   /** Scope key of the assembly (officially the same Agent object). */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { GUIDANCE_SECTION_ORDER, buildGuidanceSection } from '../src/guidance.ts'
+import * as guidanceModule from '../src/guidance.ts'
 import { GUIDANCE_SECTION_ID, GUIDANCE_SECTION_TEXT, GUIDANCE_SECTION_TITLE } from '../src/texts.ts'
 
 /**
@@ -89,5 +90,11 @@ describe('guidance: contractual semantics (clean-room wording)', () => {
     expect(text).toContain('What a summary should drop')
     expect(text).toContain('zctx_unfold restores')
     expect(text).toContain('zctx_recall searches')
+  })
+})
+
+describe('P3 export hygiene (R15): the GUIDANCE_TITLE orphan stays gone', () => {
+  it('the module exports no GUIDANCE_TITLE alias (deleted in P3, must not return)', () => {
+    expect((guidanceModule as Record<string, unknown>).GUIDANCE_TITLE).toBeUndefined()
   })
 })

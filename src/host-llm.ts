@@ -54,7 +54,7 @@ export type RequestMessageLike = Record<string, unknown>
 export type ToolSchemaLike = Record<string, unknown>
 
 /** Structural twin of the official ProjectedToolUpdates (content.ts:424 return shape). */
-export interface ProjectedToolUpdatesLike {
+interface ProjectedToolUpdatesLike {
   readonly messages: readonly RequestMessageLike[]
   readonly tools: readonly ToolSchemaLike[] | undefined
 }

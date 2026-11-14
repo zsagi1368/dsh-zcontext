@@ -86,6 +86,15 @@ describe('dsh-zcontext skeleton smoke', () => {
       providers: [],
     })
     expect(Object.isFrozen(configDefaults)).toBe(true)
+    // P3 deep-freeze hardening (AUD-architecture §6): the shared providers
+    // array instance is frozen too — every unconfigured plugin used to share
+    // one mutable array.
+    expect(Object.isFrozen(configDefaults.providers)).toBe(true)
+    // And the immutability is structural: any mutation attempt is a no-op
+    // (frozen arrays keep their methods but reject the writes).
+    const providers = configDefaults.providers as unknown as string[]
+    expect(providers.concat('injected').includes('injected')).toBe(true)
+    expect(configDefaults.providers).toEqual([])
   })
 
   it('applies plan §3 defaults when validating an empty config object', async () => {

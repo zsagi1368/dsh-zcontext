@@ -245,7 +245,7 @@ export function resolveDefineTool(): DefineToolFn {
 // Lenient fold-content parser (parseCompressInput-aligned, self-implemented).
 // ---------------------------------------------------------------------------
 
-export type ParsedFoldContent =
+type ParsedFoldContent =
   | { readonly ok: true; readonly range: { readonly startSeq: number; readonly endSeq: number }; readonly summaries: readonly { readonly startSeq: number; readonly endSeq: number; readonly text: string }[] }
   | { readonly ok: false; readonly reason: string }
 
@@ -434,7 +434,7 @@ export interface LlmRuntimeLike {
  * Structural session extended with the routed-request header the status face
  * reads for the provider/model route (non-deprecated official getter).
  */
-export type RoutedSessionLike = SessionLike & {
+type RoutedSessionLike = SessionLike & {
   requestHeader?(): {
     readonly config?: {
       readonly provider?: string
@@ -496,7 +496,7 @@ export function routedRequestTarget(
 const RECENT_FOLD_ROWS = 3
 
 /** Aggregated estimator error statistics over the S1 calibration ledger (V4). */
-export interface PreflightStats {
+interface PreflightStats {
   /** Records whose stream settled with a usable billed-input usage. */
   readonly comparable: number
   /** Mean signed error over comparable samples, % (positive = overestimate). */

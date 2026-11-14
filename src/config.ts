@@ -127,8 +127,24 @@ interface ConfigFieldSpec {
   readonly default: boolean | number | string | readonly ZctxProviderConfig[]
 }
 
+/**
+ * Recursively freeze a defaults object (P3 deep-freeze hardening): the
+ * shallow `Object.freeze` left the shared `providers: []` ARRAY instance
+ * mutable-by-proxy — every plugin constructed without a providers
+ * declaration referenced the SAME array (AUD-architecture §6 【注意-微】;
+ * all current consumers are read-only, so the risk was unreachable — this
+ * makes the immutability structural instead of conventional).
+ */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    for (const item of Object.values(value as Record<string, unknown>)) deepFreeze(item)
+    Object.freeze(value)
+  }
+  return value
+}
+
 /** Contractual defaults for every Config field (plan §3). */
-export const configDefaults: Readonly<ZcontextConfig> = Object.freeze<ZcontextConfig>({
+export const configDefaults: Readonly<ZcontextConfig> = deepFreeze<ZcontextConfig>({
   enabled: true,
   nudgeThresholds: '25,50,75,90',
   keepRecentTokens: 0,

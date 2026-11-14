@@ -12,7 +12,7 @@
  */
 
 /** Official surface event types that produce surface nodes (session/src/types.ts:439-444). */
-export type SurfaceEventType =
+type SurfaceEventType =
   | 'system/message'
   | 'developer/message'
   | 'user/message'
@@ -55,7 +55,7 @@ export interface SessionEventLike {
  * the generation counters are the concurrency/retry probes consumed by
  * compaction-basic (compaction-basic/src/index.ts:202,212,230).
  */
-export interface SessionSurfaceLike {
+interface SessionSurfaceLike {
   /** Ordered seqs of the nodes currently on the surface. */
   readonly nodes?: readonly number[]
   /** Monotonic counter of content-level changes. */
@@ -238,7 +238,7 @@ export type FoldValidationResult =
   | { readonly ok: true; readonly plan: FoldPlan }
 
 /** One summary block submitted with a fold window. */
-export interface FoldSummaryInput {
+interface FoldSummaryInput {
   /** Subrange start seq (must sit inside the fold window). */
   readonly startSeq: number
   /** Subrange end seq (inclusive). */

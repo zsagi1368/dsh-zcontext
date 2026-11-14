@@ -74,7 +74,7 @@ export interface ObserveStoreAccess {
 }
 
 /** Dependencies injected from the plugin (no host imports inside this module). */
-export interface ObserveDeps {
+interface ObserveDeps {
   /** Resolve one watched session id to its session object (criterion 3); undefined = not watched. */
   resolveSession(sessionId: string): unknown
   /** Per-session store accessors; undefined when the session has no bound store. */
@@ -134,7 +134,7 @@ type NextStream = () => AsyncIterable<unknown>
 const MODEL_INFO_CACHE_CAP = 64
 
 /** The waterfall listener signature (official 'llm/stream' event face). */
-export type ObserveStreamListener = (
+type ObserveStreamListener = (
   options: unknown,
   next: NextStream,
 ) => AsyncIterable<unknown>
@@ -218,7 +218,7 @@ export function detectPrefixBreak(
  * need session resolution and a truthy store binding; each listener casts
  * the binding to its own store interface.
  */
-export interface MainChainRegistry {
+interface MainChainRegistry {
   resolveSession(sessionId: string): unknown
   /** Any store binding the caller requires; truthiness is all the criteria need. */
   storeFor(session: unknown): unknown

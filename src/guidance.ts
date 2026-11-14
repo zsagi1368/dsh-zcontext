@@ -28,7 +28,7 @@ import {
  * ABSENT: the type forbids carrying it, and `buildGuidanceSection` never
  * emits the key — `guidance.spec.ts` asserts both (S10).
  */
-export interface GuidanceSectionSpec {
+interface GuidanceSectionSpec {
   /** Unique section name (duplicate registration throws in the host). */
   readonly name: string
   /** Ascending concatenation order (official PromptSection.order). */
@@ -66,4 +66,3 @@ export function buildGuidanceSection(): GuidanceSectionSpec {
  * Title exported for W4's `/zctx` command help and settings copy — not part
  * of the section registration itself.
  */
-export const GUIDANCE_TITLE = GUIDANCE_SECTION_TITLE

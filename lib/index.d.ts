@@ -242,6 +242,18 @@ interface ConfigSchemaLike {
 }
 /** Plugin Config schema: schemastery-backed when available, fail-soft shim otherwise. */
 declare const configSchema: ConfigSchemaLike;
+/**
+ * Structural type contract for the dsh-zcontext pure cores (W2) and the
+ * observability ledgers (v0.2.0 route-two, V1).
+ *
+ * Everything here is duck-typed: no host package is imported. The shapes
+ * mirror the official DeepSeek Harness APIs at the anchors noted per type,
+ * so W3/W4 can pass real host objects straight in.
+ *
+ * Official anchor baseline: zDSH-main @ zdsh-latest / HEAD 073792c7f8.
+ *
+ * @module types
+ */
 /** Official surface replace operation (session/src/types.ts:449-464). */
 type SurfaceOpLike = 'append' | {
   readonly op: 'replace';
