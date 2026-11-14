@@ -286,15 +286,150 @@ describe('FoldStore: resync and duplicate delivery', () => {
     expect(store.retainedEvent(11) !== undefined).toBe(true)
   })
 
-  it('treats duplicate delivery of one seq as a no-op', () => {
+  it('suppresses a TRUE duplicate delivery of one seq (SM-01: listener wired + real re-delivery + guard pin)', () => {
     const store = new FoldStore()
     const session = new MockSession()
+    // The host feed stand-in: every append is delivered to the store exactly
+    // once through this listener. The pre-P3 version of this test never
+    // registered it, so its "duplicate" onEvent call was the FIRST delivery.
+    const off = session.onAppend((event) => store.onEvent(session, event))
     store.attach(session)
     const event = session.append('assistant/message', msg.assistant('once', [], { inputTokens: 1, outputTokens: 1, cacheReadTokens: 10 }))
-    store.onEvent(session, event) // duplicate
+    expect(store.usageSnapshot().samples).toBe(1) // first delivery happened via the feed
+    store.onEvent(session, event) // ← the actual duplicate (same seq, already retained)
+    const snapshot = store.usageSnapshot()
+    expect(snapshot.samples).toBe(1) // not 2 — the guard suppressed the re-apply
+    expect(snapshot.measuredSamples).toBe(1)
+    expect(store.syncedToSeq).toBe(1) // lastSeq never rolled back
+    expect(store.anomalies().some((a) => a.kind === 'duplicate-event')).toBe(true)
+    off()
+  })
+})
+
+describe('FoldStore: idempotency/monotonicity guard (P3 SM-01 / P3-T1 pins)', () => {
+  /** Wire the feed and attach, mirroring the live host topology. */
+  function wired(): { store: FoldStore; session: MockSession; off: () => void } {
+    const store = new FoldStore()
+    const session = new MockSession()
+    const off = session.onAppend((event) => store.onEvent(session, event))
+    store.attach(session)
+    return { store, session, off }
+  }
+
+  it('re-delivering a fold checkpoint does not resurrect an unfolded fold', () => {
+    const { store, session, off } = wired()
+    session.append('user/message', msg.user('u1'))
+    session.append('user/message', {
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'summary' }],
+        source: { kind: 'zctx-fold', foldId: 'f1', tokensBefore: 100, tokensAfter: 10 },
+      },
+    }, { surfaceOp: { op: 'replace', startSeq: 0, endSeq: 0 }, sourceEventSeqs: [0] })
+    session.append('user/message', {
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'materialized' }],
+        source: { kind: 'zctx-unfold', foldId: 'f1' },
+      },
+    }, { surfaceOp: { op: 'replace', startSeq: 1, endSeq: 1 }, sourceEventSeqs: [1] })
+    expect(store.ledgerEntries().find((e) => e.foldId === 'f1')?.status).toBe('unfolded')
+    expect(store.foldMap.size).toBe(0)
+    // Re-deliver the fold checkpoint (seq 1) — the SM-01 attack A.
+    store.onEvent(session, session.log[1])
+    const f1 = store.ledgerEntries().find((e) => e.foldId === 'f1')
+    expect(f1?.status).toBe('unfolded') // NOT resurrected to active
+    expect(store.foldMap.size).toBe(0)
+    off()
+  })
+
+  it('re-delivering compaction/start does not reopen a closed bracket', () => {
+    const { store, session, off } = wired()
+    session.append('compaction/start', { compactionId: 'c1' })
+    session.append('compaction/end', { compactionId: 'c1', outcome: 'complete' })
+    expect(store.compactionActive()).toBe(false)
+    // Re-deliver the start (seq 0) — the SM-01 attack B (bracket reopen DoS).
+    store.onEvent(session, session.log[0])
+    expect(store.compactionActive()).toBe(false)
+    off()
+  })
+
+  it('re-delivering an assistant/message does not double-count usage', () => {
+    const { store, session, off } = wired()
+    session.append('assistant/message', msg.assistant('a1', [], { inputTokens: 5, outputTokens: 5 }))
+    expect(store.usageSnapshot().samples).toBe(1)
+    store.onEvent(session, session.log[0])
     const snapshot = store.usageSnapshot()
     expect(snapshot.samples).toBe(1)
     expect(snapshot.measuredSamples).toBe(1)
+    off()
+  })
+
+  it('re-delivering an unfold on an already-unfolded fold stays unfolded (no transition re-run)', () => {
+    const { store, session, off } = wired()
+    session.append('user/message', msg.user('u1'))
+    session.append('user/message', {
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'summary' }],
+        source: { kind: 'zctx-fold', foldId: 'f1', tokensBefore: 100, tokensAfter: 10 },
+      },
+    }, { surfaceOp: { op: 'replace', startSeq: 0, endSeq: 0 }, sourceEventSeqs: [0] })
+    session.append('user/message', {
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'materialized' }],
+        source: { kind: 'zctx-unfold', foldId: 'f1' },
+      },
+    }, { surfaceOp: { op: 'replace', startSeq: 1, endSeq: 1 }, sourceEventSeqs: [1] })
+    expect(store.ledgerEntries().find((e) => e.foldId === 'f1')?.status).toBe('unfolded')
+    store.onEvent(session, session.log[2]) // duplicate unfold
+    expect(store.ledgerEntries().find((e) => e.foldId === 'f1')?.status).toBe('unfolded')
+    off()
+  })
+
+  it('keeps lastSeq monotonic under re-delivery (syncedToSeq never rolls back)', () => {
+    const { store, session, off } = wired()
+    session.append('user/message', msg.user('u1'))
+    session.append('user/message', msg.user('u2'))
+    expect(store.syncedToSeq).toBe(2)
+    store.onEvent(session, session.log[0]) // duplicate of seq 0
+    expect(store.syncedToSeq).toBe(2)
+    // A fresh event AFTER the duplicate still lands exactly once.
+    session.append('user/message', msg.user('u3'))
+    expect(store.syncedToSeq).toBe(3)
+    expect(store.usageSnapshot().samples).toBe(0) // user messages are not usage samples
+    off()
+  })
+
+  it('drops a fresh seq BELOW the frontier (out-of-order) with an anomaly, frontier intact', () => {
+    const store = new FoldStore()
+    // Raw session with a HOLE at seq 1: the scan advances lastSeq across the
+    // unreadable slot without retaining it, so seq 1 stays unseen below the
+    // frontier — the second guard branch the mock log cannot produce.
+    const log: (SessionEventLike | undefined)[] = [
+      { seq: 0, type: 'user/message', time: 1000, data: { message: { role: 'user', content: [{ type: 'text', text: 'u1' }] } } },
+      undefined,
+      { seq: 2, type: 'user/message', time: 1000, data: { message: { role: 'user', content: [{ type: 'text', text: 'u3' }] } } },
+    ]
+    const session = {
+      get seq(): number { return 3 },
+      eventAt: (s: number) => log[s],
+    }
+    store.attach(session)
+    expect(store.syncedToSeq).toBe(3)
+    expect(store.anomalies().some((a) => a.kind === 'unreadable-event')).toBe(true)
+    // Out-of-order delivery: a fresh (never-retained) event below the frontier.
+    const late: SessionEventLike = {
+      seq: 1,
+      type: 'user/message',
+      time: 1000,
+      data: { message: { role: 'user', content: [{ type: 'text', text: 'late' }] } },
+    }
+    store.onEvent(session, late)
+    expect(store.retainedEvent(1)).toBeUndefined() // dropped, not applied
+    expect(store.syncedToSeq).toBe(3) // frontier unchanged
+    expect(store.anomalies().some((a) => a.kind === 'out-of-order-event')).toBe(true)
   })
 })
 

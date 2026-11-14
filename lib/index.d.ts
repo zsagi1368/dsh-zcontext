@@ -1634,6 +1634,23 @@ declare class FoldStore {
    * Apply one event to every derived view (scan and incremental paths share
    * this single transition, so attach scans, live feeds, and resync gaps
    * stay consistent by construction).
+   *
+   * Idempotency / monotonicity guard (P3 SM-01, AUD-state-machines §1): the
+   * official feed delivers each seq exactly once in order, but a broken host
+   * (or a mock direct-injection) may re-deliver a seq or send one below the
+   * frontier. Re-running a transition would resurrect unfolded folds, reopen
+   * compaction brackets, double-count usage, and roll `lastSeq` back into a
+   * cascading rescan — so both malformed shapes are dropped with an anomaly
+   * record (honest ledger, never throwing):
+   *
+   *   - a seq already retained in `eventsBySeq` is a TRUE duplicate → drop;
+   *   - a fresh seq BELOW the frontier (`seq < lastSeq`) is an out-of-order
+   *     delivery → drop (a full re-attach remains available to the caller via
+   *     `attach`, which is the blessed rebuild path).
+   *
+   * A seq equal to `lastSeq` but not retained can exist legitimately — the
+   * unreadable-event slot advanced `lastSeq` without retaining (scanUpTo) —
+   * and is applied on first delivery.
    * @internal
    */
   private applyEvent;
