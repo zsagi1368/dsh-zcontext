@@ -75,6 +75,9 @@ import {
   STATUS_OBS_THREE_STATE,
   STATUS_OBS_NO_SAMPLES,
   STATUS_PARTIAL_PREFIX,
+  STATUS_PATCH_HEADER,
+  STATUS_PATCH_MARKER,
+  STATUS_PATCH_MOUNT,
   STATUS_PREFLIGHT_BASIS,
   STATUS_PREFLIGHT_EMPTY,
   STATUS_PREFLIGHT_HEADER,
@@ -477,6 +480,23 @@ export interface ZctxToolRuntime {
     readonly routes: readonly string[]
     readonly mappingSource?: string
     readonly settled: boolean
+  }
+  /**
+   * Patch-bridge face (P4): the status segment's DUAL SOURCE for the external
+   * app.asar patch — `marker` is the filesystem truth (the patcher's marker
+   * file next to the app exe), `mount` the runtime truth (the armed
+   * globalThis bridge). Optional for backward-compatible test runtimes
+   * (absent → the segment is skipped).
+   */
+  readonly patchFace?: () => {
+    readonly mount: string
+    readonly marker: {
+      readonly state: 'present' | 'absent' | 'unknown'
+      readonly version?: string
+      readonly timestamp?: string
+      readonly reason?: string
+    }
+    readonly hostFaces: string
   }
 }
 
@@ -905,6 +925,16 @@ export async function renderStatus(runtime: ZctxToolRuntime, session: SessionLik
     )
   }
 
+  // Segment 7 (P4): the patch bridge — the external app.asar patch's
+  // receiving face, rendered as FACTS from BOTH sources (filesystem marker +
+  // runtime mount). Absent hook (older test runtimes) → honestly skipped.
+  if (runtime.patchFace !== undefined) {
+    const patch = runtime.patchFace()
+    lines.push(fill(STATUS_PATCH_HEADER, {}))
+    lines.push(fill(STATUS_PATCH_MARKER, { state: patch.marker.state, detail: patchMarkerDetail(patch.marker) }))
+    lines.push(fill(STATUS_PATCH_MOUNT, { mount: `${patch.mount} / host faces: ${patch.hostFaces}` }))
+  }
+
   // ---- degraded rows first-class ----------------------------------------------
   if (degraded.length > 0) {
     lines.push(STATUS_PARTIAL_PREFIX)
@@ -1119,4 +1149,18 @@ function buildRecallCorpus(store: FoldStore): RecallEntry[] {
 /** One-decimal percentage formatting (mirrors nudge formatting). @internal */
 function formatPct(value: number): string {
   return (Math.round(value * 10) / 10).toFixed(1)
+}
+
+/** The patch marker's parenthesized detail (facts only, no recommendations). @internal */
+function patchMarkerDetail(marker: {
+  readonly state: 'present' | 'absent' | 'unknown'
+  readonly version?: string
+  readonly timestamp?: string
+  readonly reason?: string
+}): string {
+  if (marker.state === 'present') {
+    return ` (v${marker.version ?? 'unknown'}${marker.timestamp !== undefined ? `, patched ${marker.timestamp}` : ''})`
+  }
+  if (marker.state === 'absent') return ' (official adapter unpatched — pure-plugin face)'
+  return ` (${marker.reason ?? 'unreadable'})`
 }

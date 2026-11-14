@@ -31,6 +31,11 @@
  *     process-memory ledgers; attemptCapture is opt-in (`observe.attemptCapture`).
  *     Strictly observational — never short-circuits (the preflight listener
  *     above is the only short-circuiting face).
+ *   - `globalThis.__zctxPatch__` → the P4 patch-bridge face (v0.2.1, plan §3
+ *     补丁连接设计): the receiving side of the ONE-LINE forwarding stub the
+ *     external app.asar patcher inserts into the OFFICIAL PiAiAdapter — wire
+ *     faces for OFFICIAL-route requests ride the same per-session ledger;
+ *     without the patch the mount is inert (pure-plugin face unchanged).
  *
  * The nudge context provider is a PURE function of (pressure, budget,
  * ranges): it contributes '' (nothing on the wire) unless a threshold was
@@ -57,6 +62,7 @@ import {
 import type { ResolvedZctxProvider } from './adapter/providers.ts'
 import { createZctxAdapterClass } from './adapter/zctx-adapter.ts'
 import { loadAdapterFaces, loadSupportedProtocols } from './adapter/host.ts'
+import type { HostLlmFace } from './adapter/host.ts'
 import { computeBudget } from './budget.ts'
 import { buildZctxCommand } from './command.ts'
 import { configDefaults, configSchema } from './config.ts'
@@ -67,6 +73,7 @@ import { nudgeContextText } from './nudge.ts'
 import { ObserveListener } from './observe.ts'
 import type { ObserveStoreAccess } from './observe.ts'
 import { PreflightListener } from './preflight.ts'
+import { mountPatchBridge, readPatchMarker } from './patch-bridge.ts'
 import { FoldStore } from './store.ts'
 import {
   buildZctxTools,
@@ -84,6 +91,7 @@ import type {
   SessionEventLike,
   SessionLike,
   ValidatorConfig,
+  WireSnapshot,
 } from './types.ts'
 
 /** Service name the plugin registers under. */
@@ -270,6 +278,15 @@ export class ZcontextPlugin extends ServiceBase {
   }
   private adapterFaceSettled = true
   private warnedWindowFailure = false
+  /**
+   * The P4 patch-bridge face (external app.asar patch receiver): the mount
+   * state string the status segment renders, the lazily-loaded host faces
+   * (attribution headers for the wire faces), and whether that load settled.
+   * No ctx service access — the mount needs no inject declaration.
+   */
+  private patchMountState = 'idle (not armed)'
+  private patchHost: HostLlmFace | undefined
+  private patchHostLoaded = false
 
   constructor(ctx: HostContextLike, config: Partial<ZcontextConfig> = {}) {
     super(ctx, SERVICE_NAME)
@@ -284,9 +301,17 @@ export class ZcontextPlugin extends ServiceBase {
       storeFor: (session) => this.storeFor(session),
       validatorConfig: (session) => this.validatorConfig(session),
       adapterHealth: () => ({ ...this.adapterFaceHealth, settled: this.adapterFaceSettled }),
+      patchFace: () => ({
+        mount: this.patchMountState,
+        marker: readPatchMarker(),
+        hostFaces: this.patchHostLoaded
+          ? (this.patchHost === undefined ? 'unreachable' : 'reachable')
+          : 'loading',
+      }),
     }
 
     if (!this.config.enabled) {
+      this.patchMountState = 'idle (plugin disabled by config)'
       ctx.logger?.info?.('dsh-zcontext: disabled by config — staying passive (official compaction remains the hard floor)')
       return
     }
@@ -298,6 +323,7 @@ export class ZcontextPlugin extends ServiceBase {
     this.wireAdapterFace()
     this.wirePreflightFace()
     this.wireObserveFace()
+    this.wirePatchFace()
   }
 
   // -- face wiring -----------------------------------------------------------
@@ -578,11 +604,7 @@ export class ZcontextPlugin extends ServiceBase {
           // The wire-domain ledger sink (V5 product 4): session-bound zctx
           // requests land in the per-session store's wire ledger (plan §3
           // dual-domain coverage note lives on the WireSnapshot record).
-          wireSink: (snapshot) => {
-            const session = this.resolveWatchedSession(snapshot.sessionId)
-            if (session === undefined) return
-            this.storeFor(session).absorbWireSnapshot(snapshot)
-          },
+          wireSink: (snapshot) => this.absorbWireSnapshot(snapshot),
         })
         const routes = resolved.map((provider) => provider.route)
         const registration = registerAdapter(routes, adapter)
@@ -634,6 +656,55 @@ export class ZcontextPlugin extends ServiceBase {
         this.adapterFaceSettled = true
       }
     })()
+  }
+
+  /**
+   * The P4 patch-bridge face (external app.asar patch receiver, plan §3
+   * 补丁连接设计): arms `globalThis.__zctxPatch__.wireOptions` so the ONE-LINE
+   * forwarding stub the external patcher inserted into the OFFICIAL PiAiAdapter
+   * (patcher/zctx-patch.mjs, inserted before the adapter's explicit
+   * `headers:`/`signal:` keys) reaches the same wire ledger the plugin's own
+   * adapter uses. Every face is OPTIONAL and none boot-breaking:
+   *   - plugin disabled → not armed (the stub evaluates to {} — stock behavior),
+   *   - host faces unreachable → wireOptions degrades to {} per request,
+   *   - unwatched/unattributable requests → {} (session-bound wire coverage only).
+   * The mount needs NO ctx service access (no inject entry; R3 untouched) and
+   * the stub's placement guarantees it can never clobber the official
+   * headers/signal face.
+   * @internal
+   */
+  private wirePatchFace(): void {
+    try {
+      const { mountState } = mountPatchBridge({
+        logger: this.ctx.logger,
+        resolveWatchedSession: (sessionId) => this.resolveWatchedSession(sessionId),
+        sink: (snapshot: WireSnapshot) => this.absorbWireSnapshot(snapshot),
+        hostFace: () => this.patchHost,
+      })
+      this.patchMountState = mountState
+    } catch (error) {
+      this.patchMountState = `idle (mount failed: ${error instanceof Error ? error.message : String(error)})`
+      this.ctx.logger?.warn?.(`dsh-zcontext: patch bridge mount failed (${error instanceof Error ? error.message : String(error)}) — the patched stub stays zero-op`)
+      return
+    }
+    // Lazy host faces for the attribution headers (memoized loader; failures
+    // degrade to undefined inside the loader and here). The adapter face may
+    // never have loaded them (no providers declared) — the patch bridge needs
+    // them independently because official-route requests flow regardless.
+    void loadAdapterFaces()
+      .then((faces) => {
+        this.patchHost = faces?.host
+        this.patchHostLoaded = true
+        if (faces === undefined) {
+          this.ctx.logger?.info?.('dsh-zcontext: patch bridge armed — host llm face unreachable, wire records carry hashes without attribution headers')
+        }
+      })
+      .catch((error: unknown) => {
+        this.patchHost = undefined
+        this.patchHostLoaded = true
+        this.ctx.logger?.warn?.(`dsh-zcontext: patch bridge host-face load failed (${error instanceof Error ? error.message : String(error)}) — wire records carry hashes without attribution headers`)
+      })
+    this.ctx.logger?.info?.(`dsh-zcontext: patch bridge armed (globalThis.${'__zctxPatch__'}.wireOptions) — waits for the external app.asar patch; without the patch this mount is inert`)
   }
 
   /**
@@ -698,6 +769,19 @@ export class ZcontextPlugin extends ServiceBase {
       if (typeof id === 'string' && id === sessionId) return session as SessionLike
     }
     return undefined
+  }
+
+  /**
+   * The single wire-ledger receive port for BOTH wire producers (the S2
+   * adapter's wireSink and the P4 patch bridge): session-bound records land
+   * in the per-session store; unwatched sessions are dropped (the wire
+   * domain covers session-bound requests only — the adapter/wire.ts rule).
+   * @internal
+   */
+  private absorbWireSnapshot(snapshot: WireSnapshot): void {
+    const session = this.resolveWatchedSession(snapshot.sessionId)
+    if (session === undefined) return
+    this.storeFor(session).absorbWireSnapshot(snapshot)
   }
 
   // -- runtime internals -----------------------------------------------------

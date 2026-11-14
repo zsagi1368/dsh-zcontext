@@ -2050,6 +2050,23 @@ interface ZctxToolRuntime {
     readonly mappingSource?: string;
     readonly settled: boolean;
   };
+  /**
+   * Patch-bridge face (P4): the status segment's DUAL SOURCE for the external
+   * app.asar patch — `marker` is the filesystem truth (the patcher's marker
+   * file next to the app exe), `mount` the runtime truth (the armed
+   * globalThis bridge). Optional for backward-compatible test runtimes
+   * (absent → the segment is skipped).
+   */
+  readonly patchFace?: () => {
+    readonly mount: string;
+    readonly marker: {
+      readonly state: 'present' | 'absent' | 'unknown';
+      readonly version?: string;
+      readonly timestamp?: string;
+      readonly reason?: string;
+    };
+    readonly hostFaces: string;
+  };
 }
 /**
  * Render the full status report. Every host face is capability-probed and
@@ -2172,6 +2189,15 @@ declare class ZcontextPlugin extends ServiceBase {
   private adapterFaceHealth;
   private adapterFaceSettled;
   private warnedWindowFailure;
+  /**
+   * The P4 patch-bridge face (external app.asar patch receiver): the mount
+   * state string the status segment renders, the lazily-loaded host faces
+   * (attribution headers for the wire faces), and whether that load settled.
+   * No ctx service access — the mount needs no inject declaration.
+   */
+  private patchMountState;
+  private patchHost;
+  private patchHostLoaded;
   constructor(ctx: HostContextLike, config?: Partial<ZcontextConfig>);
   /** session/event feed: maintain live stores + warm the window cache. @internal */
   private wireSessionFeed;
@@ -2235,6 +2261,22 @@ declare class ZcontextPlugin extends ServiceBase {
    */
   private wireAdapterFace;
   /**
+   * The P4 patch-bridge face (external app.asar patch receiver, plan §3
+   * 补丁连接设计): arms `globalThis.__zctxPatch__.wireOptions` so the ONE-LINE
+   * forwarding stub the external patcher inserted into the OFFICIAL PiAiAdapter
+   * (patcher/zctx-patch.mjs, inserted before the adapter's explicit
+   * `headers:`/`signal:` keys) reaches the same wire ledger the plugin's own
+   * adapter uses. Every face is OPTIONAL and none boot-breaking:
+   *   - plugin disabled → not armed (the stub evaluates to {} — stock behavior),
+   *   - host faces unreachable → wireOptions degrades to {} per request,
+   *   - unwatched/unattributable requests → {} (session-bound wire coverage only).
+   * The mount needs NO ctx service access (no inject entry; R3 untouched) and
+   * the stub's placement guarantees it can never clobber the official
+   * headers/signal face.
+   * @internal
+   */
+  private wirePatchFace;
+  /**
    * The llm/stream observe face (v0.2.0 V2): a strictly read-only waterfall
    * listener whose per-attempt request snapshots + prefix-break records land
    * in the per-session store's process-memory ledgers (the store's
@@ -2259,6 +2301,14 @@ declare class ZcontextPlugin extends ServiceBase {
    * @internal
    */
   private resolveWatchedSession;
+  /**
+   * The single wire-ledger receive port for BOTH wire producers (the S2
+   * adapter's wireSink and the P4 patch bridge): session-bound records land
+   * in the per-session store; unwatched sessions are dropped (the wire
+   * domain covers session-bound requests only — the adapter/wire.ts rule).
+   * @internal
+   */
+  private absorbWireSnapshot;
   /** Per-session store registry: lazy create + attach (resume-restore scan). @internal */
   private storeFor;
   /**
@@ -2438,11 +2488,17 @@ declare function loadSupportedProtocols(): Promise<{
   source: 'official' | 'builtin';
 }>;
 /**
- * Load all three faces once per process. `undefined` = the adapter face is
- * NOT registrable (host lib unreachable, pi-ai unreachable, or a pi-ai build
- * missing isContextOverflow — all the same "face absent" honest path) — the
- * wiring logs honestly and skips the face; this is never a throw and never a
- * permanently-memoized rejection (P3 HF-13).
+ * Load all three faces. SUCCESS is memoized per process (two callers share
+ * one loaded face set); an ABSENT result (host lib unreachable, pi-ai
+ * unreachable, or a pi-ai build missing isContextOverflow — all the same
+ * "face absent" honest path) is NOT memoized: the next call re-attempts the
+ * load. Rationale (P4): a memoized absence permanently locked later callers
+ * out — an eager face load from an earlier plugin mount (e.g. the P4 patch
+ * bridge probing before a later mount's env override was in place) would
+ * poison every subsequent adapter-face registration for the process life
+ * (probe-real-mount G4 regression, 2026-11-14). Never a throw, never a
+ * permanently-memoized rejection (P3 HF-13), now never a permanently-memoized
+ * absence either.
  */
 declare function loadAdapterFaces(): Promise<AdapterFaces | undefined>;
 /** Where one wire observation lands (the per-session store's wire ledger). */

@@ -367,6 +367,17 @@ export const STATUS_PARTIAL_PREFIX = 'status rendered in degraded mode:'
 export const STATUS_DEGRADED_ROW = '  - {{detail}}'
 
 // ---------------------------------------------------------------------------
+// P4 patch-bridge status lines (dual source: filesystem marker + runtime
+// mount; plan §3 补丁连接设计 — the external app.asar patch's receiving face).
+// ---------------------------------------------------------------------------
+
+export const STATUS_PATCH_HEADER = 'Patch bridge (official-adapter wire stub):'
+
+export const STATUS_PATCH_MARKER = '  patch marker: {{state}}{{detail}}'
+
+export const STATUS_PATCH_MOUNT = '  wireOptions: {{mount}}'
+
+// ---------------------------------------------------------------------------
 // V3 observability lines (zctx_status three-segment upgrade, RES-observe-route
 // §Q7.3: 本会话摘要 / 最近折叠条目 / 重置台账摘要 + 回本表; the clean-sample
 // floor gate withholds repay conclusions below the floor — 诚实纪律).

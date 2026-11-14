@@ -397,21 +397,38 @@ async function loadMappingFace(host: HostLlmFace, piAi: PiAiFace): Promise<Mappi
 let cached: Promise<AdapterFaces | undefined> | undefined
 
 /**
- * Load all three faces once per process. `undefined` = the adapter face is
- * NOT registrable (host lib unreachable, pi-ai unreachable, or a pi-ai build
- * missing isContextOverflow — all the same "face absent" honest path) — the
- * wiring logs honestly and skips the face; this is never a throw and never a
- * permanently-memoized rejection (P3 HF-13).
+ * Load all three faces. SUCCESS is memoized per process (two callers share
+ * one loaded face set); an ABSENT result (host lib unreachable, pi-ai
+ * unreachable, or a pi-ai build missing isContextOverflow — all the same
+ * "face absent" honest path) is NOT memoized: the next call re-attempts the
+ * load. Rationale (P4): a memoized absence permanently locked later callers
+ * out — an eager face load from an earlier plugin mount (e.g. the P4 patch
+ * bridge probing before a later mount's env override was in place) would
+ * poison every subsequent adapter-face registration for the process life
+ * (probe-real-mount G4 regression, 2026-11-14). Never a throw, never a
+ * permanently-memoized rejection (P3 HF-13), now never a permanently-memoized
+ * absence either.
  */
 export function loadAdapterFaces(): Promise<AdapterFaces | undefined> {
-  cached ??= (async () => {
-    const host = await loadHostLlmFace()
-    if (host === undefined) return undefined
-    const piAi = await loadPiAiFace()
-    if (piAi === undefined) return undefined
-    const mapping = await loadMappingFace(host, piAi)
-    return { host, piAi, mapping }
-  })()
+  if (cached === undefined) {
+    const attempt = (async () => {
+      const host = await loadHostLlmFace()
+      if (host === undefined) return undefined
+      const piAi = await loadPiAiFace()
+      if (piAi === undefined) return undefined
+      const mapping = await loadMappingFace(host, piAi)
+      return { host, piAi, mapping }
+    })()
+    cached = attempt
+    // Absence/rejection clears the memo so the next caller re-attempts.
+    // The identity guard keeps a stale clear from wiping a NEWER attempt's
+    // memoized success.
+    void attempt
+      .catch(() => undefined)
+      .then((faces) => {
+        if (faces === undefined && cached === attempt) cached = undefined
+      })
+  }
   return cached
 }
 
