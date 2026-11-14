@@ -28,8 +28,17 @@ describe('dsh-zcontext skeleton smoke', () => {
     expect(ZcontextPlugin.name).toBe('ZcontextPlugin')
   })
 
-  it('declares an empty inject list and a Config schema (loader entry shape)', () => {
-    expect(ZcontextPlugin.inject).toEqual([])
+  it('declares the six service inject keys and a Config schema (loader entry shape)', () => {
+    // v0.2.1 P0 (P0-inject-fix.md): each key is verified against the
+    // provider's registration name on the anchor tree; see plugin.ts.
+    expect(ZcontextPlugin.inject).toEqual([
+      'tools',
+      'systemPrompt',
+      'commands',
+      'llm',
+      'tokenMeter',
+      'sessions',
+    ])
     expect(ZcontextPlugin.Config).toBe(configSchema)
     expect(configSchema['~standard'].version).toBe(1)
     expect(typeof configSchema['~standard'].validate).toBe('function')
