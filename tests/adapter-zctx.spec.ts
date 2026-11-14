@@ -382,6 +382,15 @@ describe('zctx adapter: stream pipeline (twins mapping over a fake pi-ai face)',
     expect(Object.keys((oneShot[0]?.options.headers as Record<string, string>) ?? {})).toContain('x-zctx-test')
   })
 
+  it('P3 HF-08: a non-array messages input classifies INVALID_REQUEST (not UNKNOWN)', async () => {
+    const adapter = makeAdapter([DONE_EVENT], [])
+    for (const bad of [undefined, 'messages', { role: 'user' }, 42]) {
+      await expect(
+        collect(adapter.stream({ provider: MODEL_M1.provider, model: 'm1', messages: bad as never })),
+      ).rejects.toMatchObject({ code: 'INVALID_REQUEST' })
+    }
+  })
+
   it('P3 HF-01: wire records carry imageCount - 0 on the image-free path (official projection runs upstream)', async () => {
     const capture: RecordedCall[] = []
     const wireSnapshots: unknown[] = []

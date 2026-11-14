@@ -349,6 +349,16 @@ export function createZctxAdapterClass(Base: abstract new () => unknown): new (d
       if (typeof options.provider !== 'string' || typeof options.model !== 'string') {
         throw new host.LlmError('zctx adapter requires string provider and model', 'INVALID_REQUEST')
       }
+      // P3 HF-08: messages must be an array — a pathological input used to
+      // blow up inside the image gate below as a bare TypeError, which the
+      // twin table classifies UNKNOWN; INVALID_REQUEST is the honest category.
+      if (!Array.isArray(options.messages)) {
+        throw new host.LlmError(
+          `zctx adapter requires an array of messages `
+            + `(got ${options.messages === undefined ? 'undefined' : typeof options.messages})`,
+          'INVALID_REQUEST',
+        )
+      }
       // One capture per stream call (official adapter.ts:349-355 semantics):
       // the spec, the model, and the credential freeze before the first await.
       const { spec, model } = this.modelOf(options.provider, options.model)
@@ -369,12 +379,10 @@ export function createZctxAdapterClass(Base: abstract new () => unknown): new (d
       // documented in README (placeholder text, no failure signal) — the
       // degradation is upstream and observable only there; imageCount on the
       // wire records pins what reached THIS boundary.
-      const imageCount = Array.isArray(options.messages)
-        ? options.messages.filter((message) => {
-          if (typeof message !== 'object' || message === null) return false
-          return host.contentHasImage((message as { content?: unknown }).content)
-        }).length
-        : 0
+      const imageCount = options.messages.filter((message) => {
+        if (typeof message !== 'object' || message === null) return false
+        return host.contentHasImage((message as { content?: unknown }).content)
+      }).length
       if (imageCount > 0) {
         throw new host.LlmError(
           `zctx model "${model.id}" does not support image input (S2 adapter is text-only)`,
