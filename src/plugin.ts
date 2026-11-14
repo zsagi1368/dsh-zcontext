@@ -309,6 +309,12 @@ export class ZcontextPlugin extends ServiceBase {
       if (typeof id === 'string') this.observe?.forgetSession(id)
     })
     ctx.on('session/event', (session: unknown, event: unknown) => {
+      // P3 HF-05: the outer layer used to read `event.type` unguarded — a
+      // null/non-object event (host contract violation) threw HERE, before
+      // store.onEvent's own guard could run; the host's per-listener
+      // containment turned that into log noise on every delivery. Degrade
+      // honestly: a malformed event feeds nothing.
+      if (event === null || typeof event !== 'object') return
       const s = session as SessionLike
       const store = this.stores.get(s)
       if (store !== undefined) store.onEvent(s, event as SessionEventLike)

@@ -265,6 +265,34 @@ describe('plugin: face wiring', () => {
     ])
   })
 
+  it('P3 HF-05: malformed session/event payloads feed nothing and never throw at the handler layer', async () => {
+    let ctx = mockCtx()
+    new ZcontextPlugin(ctx)
+    const { session } = seedConversation()
+    ctx.emit('session/created', session)
+    // store.onEvent has its own guards — the OUTER layer used to throw on
+    // `event.type` before those could run (the host per-listener containment
+    // turned that into pure log noise on every delivery, HF-05).
+    const emitHostile = (): void => {
+      ctx.emit('session/event', session, null)
+      ctx.emit('session/event', session, undefined)
+      ctx.emit('session/event', session, 42)
+      ctx.emit('session/event', session, 'event')
+    }
+    expect(emitHostile).not.toThrow()
+    // The plugin stays alive and a later well-formed event still processes.
+    // FOLD_CONFIG lowers the fold floor so the follow-up fold is legal.
+    ctx = mockCtx()
+    new ZcontextPlugin(ctx, FOLD_CONFIG)
+    ctx.emit('session/created', session)
+    ctx.emit('session/event', session, { seq: 9, type: 'assistant/message', data: { turn: 1, step: 9 } })
+    expect(ctx.registeredTools).toHaveLength(4)
+    const foldTool = ctx.registeredTools[0] as { execute: (a: unknown, e: unknown) => Promise<string> }
+    const reply = await foldTool
+      .execute({ content: 'fold 3..5\nFiles listed: a.sql, b.ts, c.md; three files reported.' }, { agent: { session } })
+    expect(reply).toMatch(/^Folded seqs/)
+  })
+
   it('P3 HF-15: a REFUSING register degrades the face (warn), never breaks boot', () => {
     // The official tools.register throws on output-shape violations,
     // unsupported JSON schemas, and reserved names (tools/src/index.ts:
