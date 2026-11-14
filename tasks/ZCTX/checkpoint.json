@@ -1,6 +1,6 @@
-{
+ {
  "task": "ZCTX-P3",
- "updatedAt": "2026-11-14T05:30:00-08:00",
+ "updatedAt": "2026-11-14T13:20:00-08:00",
  "baseCommit": "391990f (P0 terminal baseline, 429/429, five probes green)",
  "steps": [
   {
@@ -243,7 +243,31 @@
     "tasks/ZCTX/progress.md"
    ],
    "evidence": "git log f01b5cd..ac3c3ef; probe transcripts in progress.md"
+  },
+  {
+   "id": "p3r1-start",
+   "name": "P3-r1 rework round 1/2 (REVIEW-P3 six suggestions, all doc/ledger hygiene except P3-6): registry check hits carried (Z19/Z15/heredoc/Z23/Z24/A43); §5 backup del/20261114-p3-r1-prechange (8 files, 7 = HEAD blobs byte-identical, closure.json CRLF LF-normalized = HEAD, RESTORE.md in place)",
+   "status": "done",
+   "artifacts": [
+    "del/20261114-p3-r1-prechange"
+   ],
+   "notes": [
+    "P3-3 ruling: anchor re-verified by real read BEFORE editing — packages/core/session/src/index.ts:593-608 fromRestore (docstring :605, detached construction, no enter/announce) and service.ts grep announce|restor = 0 hits; the review's finding independently confirmed, one-line fix with provenance note, conclusion unchanged.",
+    "P3-6 design: same-source pin chosen over single-source derivation — the canonical list lives in tests/helpers/pi-ai-levels.ts (tests only, zero lib export surface change to protect the R15 126-item pin); dual-face pin (providers violation-message face + resolveModel offered-order face) plus a cross-face equality assertion."
+   ]
+  },
+  {
+   "id": "p3r1-terminal",
+   "name": "P3-r1 terminal: six commits (0f20bf5 P3-3 anchor / 9b81a11 P3-6 marker+pin / c0779b5 P3-1 zh mirror / 0395c33 P3-2 release face / 37a14d8 P3-4 status vocabulary / 33854a1 P3-5 audit files into git) + closure +P3R1-A..F = 104 items (fixed/verified 99, duplicate/closed 3, uad/closed 1, uad/open 1 pre-existing); final battery npm test -> tsc -> five probes -> clean tree -> version triple 0.2.1",
+   "status": "done",
+   "artifacts": [
+    "tasks/ZCTX/closures/closure.json",
+    "tasks/ZCTX/artifacts/p3r1-closure-items.json",
+    "tasks/ZCTX/progress.md",
+    "CHANGELOG.md"
+   ],
+   "evidence": "git log 0f20bf5..HEAD; battery transcripts in progress.md"
   }
  ],
- "next": "P3 terminal — awaiting reviewer scorecard (>=98); S1 v0.3 registration + W5-A6-INSTALL are mainline-owned"
+ "next": "P3-r1 terminal — awaiting re-review of the six dispositions (round 1/2); S1 v0.3 registration + W5-A6-INSTALL remain mainline-owned"
 }

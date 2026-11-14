@@ -1,0 +1,66 @@
+{
+  "wave": "P3-r1 (REVIEW-P3 six suggestions, rework round 1/2)",
+  "date": "2026-11-14",
+  "items": [
+    {
+      "id": "P3R1-A",
+      "source": "REVIEW-P3 P3-1 (README.zh.md mirror lag: old image-refusal contract at :142, dev section still 424 tests, no Z19 chain note)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit c0779b5: zh README mirror sync — HF-01 image contract (placeholder projection / inputModalities / defensive mirror / imageCount), HF-03 no-hot-reload bullet added, HF-06 preflight two host-interaction facts, wire-coverage imageCount, dev section tsdown&&vitest Z19 chain (424 claim removed); mirror integrity re-verified: anchors 12/12 identical, headings language-only diff, '^- **' bullets 29/29",
+      "owner": "coder-p3-r1",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P3R1-B",
+      "source": "REVIEW-P3 P3-2 (release face: no 0.2.1 CHANGELOG section, :90-92 old refusal narrative vs new contract, package.json 0.2.0, probe-real-mount missing from bilingual probe lists)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 0395c33: CHANGELOG [0.2.1] section (P0 boot-failure fix + four must-fixes + 16 reinforced + 9 blind-spot pins + audit provenance + terminal battery counts); 0.2.0 text-only bullet amended to the defensive-mirror contract with an explicit 'narrative amended in 0.2.1' note; package.json version 0.2.1; probe-real-mount added to both README probe lists. Version face triple-checked: package.json=CHANGELOG=0.2.1, READMEs carry no current-version claim",
+      "owner": "coder-p3-r1",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P3R1-C",
+      "source": "REVIEW-P3 P3-3 (P3-T6 probe report evidence-3 anchor: service.ts:599-640 has no restore wording; true anchor = core/session fromRestore)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 0f20bf5: one-line correction after real re-read — anchor re-verified against G:/000Github/zDSH/zDSH-main/packages/core/session/src/index.ts (docstring 'restored detached session' :605, static fromRestore :608) and service.ts grep for announce|restor = 0 hits BEFORE editing; conclusion unchanged (restore path has no announce; announce-once guard and publish protocol anchors untouched)",
+      "owner": "coder-p3-r1",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P3R1-D",
+      "source": "REVIEW-P3 P3-4 (closure.json status vocabulary split: fixed items expressed as verified 68 vs closed 29)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 37a14d8: all 25 fixed/closed -> fixed/verified (diff is 25 status words + updatedAt only). Machine re-count post-unification: fixed/verified 93, duplicate/closed 3 (P3-T1/T3/T4 merged pins), user_approved_deferred/closed 1 (P3-S1 v0.3 registration), user_approved_deferred/open 1 (pre-existing W5-A6-INSTALL, mainline-owned). 'closed' retained deliberately for non-fixed terminal states: verified means a fix was verified, which a duplicate/deferred disposition cannot claim",
+      "owner": "coder-p3-r1",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P3R1-E",
+      "source": "REVIEW-P3 P3-5 (audit authority files untracked: reports/audits/ + P3 card — closure chain not recoverable from git)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 33854a1: 14 files tracked — reports/audits/ (AUD-architecture, AUD-host-faces, AUD-state-machines, AUD-verification-replay, REPORT-FULL-AUDIT), 5 CARD-AUD-*.md cards, P3-audit-fixes.md card, REVIEW-P3.md, scorecards/P3.json, plus the audit-wave .gitignore line (.codegraph/). Note recorded honestly: reports/audits/ holds 5 files, the review/card wording said 'six reports' — off-by-one in the review count; every audit authority file is now tracked",
+      "owner": "coder-p3-r1",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P3R1-F",
+      "source": "REVIEW-P3 P3-6 (texts.ts:378 embeds internal ticket marker 'P3 SM-02 fail-soft' in model-facing text; LEGAL_PI_AI_LEVELS / THINKING_LEVEL_ORDER dual list has no same-source pin)",
+      "type": "review-finding",
+      "disposition": "fixed",
+      "evidence": "commit 9b81a11: marker removed from STATUS_OBS_SNAPSHOT_FAILED (internal ticket refs remain in code comments/test titles only — those are not model-facing); new tests/helpers/pi-ai-levels.ts canonical list + dual-face pin in adapter-zctx.spec.ts (face A = providers gate renders the legal set verbatim in the violation message; face B = resolveModel offered escalation order for all seven levels; cross-face assertion gates list == offered order == canonical). tsc 0 + targeted 105/105; no export-surface change (helper lives in tests/, lib surface stays 126)",
+      "owner": "coder-p3-r1",
+      "status": "verified",
+      "phase": "block"
+    }
+  ]
+}

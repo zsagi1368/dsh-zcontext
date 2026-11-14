@@ -10,8 +10,9 @@ boot failure found in v0.2.1 verification) and **P3** (the full-repository
 audit wave). The audit authority lives in-repo: `reports/audits/REPORT-FULL-AUDIT.md`
 (the frozen fix list §5 + the disposition receipt §8) with its four domain
 audits (`AUD-architecture.md`, `AUD-state-machines.md`, `AUD-host-faces.md`,
-`AUD-verification-replay.md`). Terminal battery: 471/471 vitest (429 baseline
-+ 42 new pins), `tsc --noEmit` zero errors, five repo probes green, and the
+`AUD-verification-replay.md`). Terminal battery: 472/472 vitest (429 baseline
++ 43 new pins, incl. the P3-r1 review-round same-source pin),
+`tsc --noEmit` zero errors, five repo probes green, and the
 four audit E-replay scripts re-run post-fix (SM-01/SM-02/HF-02 exit 1 =
 NO-REPRO; HF-01 exit 0 = option (a) intentionally keeps the mechanism — its
 acceptance is the contract downgrade + `imageCount`, recorded in three
