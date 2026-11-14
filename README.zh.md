@@ -125,7 +125,7 @@ dsh plugin add github:zsagi1368/dsh-zcontext
 `preflightMode: 'off' | 'observe' | 'enforce'`——**默认 `'observe'`**。
 
 - **observe（默认）**——第二条只读监听器在线缆之前估算每个请求的上下文（宿主在位时用官方投影导出，缺席时用如实标注的兜底孪生；保留的图片按 adapter 的 `imageRequestPricing` 定价或用声明的常数储备），并把「估算 vs 真实用量」记入校准台账，由 `zctx_status` 渲染误差统计。此模式下绝不短路。
-- **enforce（显式 opt-in）**——命中（估算 > 触发线 × `preflightMarginRatio`）时以恰好一个终态 `finish{kind:'error', failure:{code:'CONTEXT_WINDOW_EXCEEDED'}}` chunk 短路本次流——官方认可的短路形态——省下这单注定失败的线缆请求；其后的全部救援由官方 compaction 溢出恢复链接管。一次性请求（compaction、会话标题）永不参与判罚，恢复链自己的调用不可能被自己短路。
+- **enforce（显式 opt-in）**——命中（估算 > 触发线 × `preflightMarginRatio`）时以恰好一个终态 `finish{kind:'error', failure:{code:'CONTEXT_WINDOW_EXCEEDED'}}` chunk 短路本次流——官方认可的短路形态——省下这单注定失败的线缆请求；其后的全部救援由官方 compaction 溢出恢复链接管。一次性请求（compaction、会话标题）永不参与判罚，恢复链自己的调用不可能被自己短路。两条与宿主的交互事实（P3）：一次短路消耗 compaction 恢复链 `maxOverflowRetries` 预算中的一次（误报同样要花恢复预算）；若把 `CONTEXT_WINDOW_EXCEEDED` 加进官方 `retryableCodes`，llm-retry 会在每次短路后重发同一超限请求（有界，但浪费）——zctx 会话上请勿把该码放进 `retryableCodes`。
 - **off**——该监听器不注册。
 
 enforce 在三个迁移条件全部成立之前保持 opt-in：估算器误差分布经真机标定、误报代价（每次误判多付一次 compaction 表面改写）被有意识地接受、observe 期记录的命中与真实供应商溢出对得上账。在那之前，估算器阈值是声明的标定欠账（见[限制](#limitations)）。
@@ -137,10 +137,11 @@ v0.2.0 唯一触碰线缆的地方——作为显式声明的例外，不是接�
 
 - **family 就是协议名。** 每个声明的供应商成为路由 `zctx-<family>`，其中 `family` 直接取官方 `supportedProtocols()` union 的线缆协议名（`openai-completions` | `openai-responses` | `anthropic-messages`，从宿主动态加载，带如实标注的内置兜底）。零发明映射；未知 family 在构造期被拒收并附完整违规清单。
 - **配置形态。** 结构化 `providers[]` 设置段是配置权威，经 profile overlay patch 手写。Models 页会挂载本插件命名空间、显示每条路由的行、凭据徽标与错误字段——但第三方命名空间**没有页面编辑能力**（探针实测；诚实天花板）：页面仅可见。
+- **无热重载。** adapter 的注册挂在宿主 llm 服务自己的 fiber 上（不是插件的），因此插件卸载**不会**注销该路由：HMR/重载后，新实例会撞上 `DUPLICATE_ADAPTER` 并打一行 warn，而旧实例的 adapter 仍以它（已过期的）providers 继续服务该路由——provider/配置的变更在宿主重启后才生效（P3 HF-03；`registration.replace` 原子换路由是中期路径，不是 v0.2.x 的行为）。
 - **每个模型声明自己的容量。** `contextWindow` 与 `maxTokens` 是每个模型的必填正整数——缺值即构造期违规，绝不发明默认值（官方 catalog 语义）。
 - **缓存旋钮。** `cacheRetention`（`'none' | 'short' | 'long'`）直通 pi-ai 自身的优先级（显式值 > 环境变量 > 默认 `'short'`；`'none'` 关闭缓存标记）；`cacheControlFormat: 'anthropic'` 物化 cache-control 标记——仅在 `openai-completions` 族有意义，其他族构造成拒收（死配置不诚实携带）。
-- **红线全守。** `maxRetries: 0`（重试归 agent 恢复层独占）、归因头随每一次请求上行（含一次性调用）、仅 HTTP(SSE) 协议（无 WebSocket 传输）、纯文本——image/file 内容块在线缆之前被拒收。
-- **wire 账本覆盖。** 只有路由实际驱动的会话才有 wire 域字节哈希行；其余会话保持 harness 域，每行携带自己的 `domain` 标注。
+- **红线全守。** `maxRetries: 0`（重试归 agent 恢复层独占）、归因头随每一次请求上行（含一次性调用）、仅 HTTP(SSE) 协议（无 WebSocket 传输）、纯文本——zctx 路由的线缆上不承载任何 image/file 内容。P3 诚实注记：官方运行时在派发 adapter **之前**就把图片投影为占位文本（adapter 声明 `inputModalities: ['text']`），因此经 zctx 路由的图片请求会正常完成——模型只看到占位文本，且没有任何失败信号。adapter 自己的 `UNSUPPORTED_CONTENT` 门是直呼 adapter 路径上的防御镜像；wire 账本的每一行都携带 `imageCount` 字段（官方路径上恒为 0），把到达 adapter 边界的内容钉进账本。
+- **wire 账本覆盖。** 只有路由实际驱动的会话才有 wire 域字节哈希行；其余会话保持 harness 域，每行携带自己的 `domain` 标注（外加 `imageCount`——P3 HF-01 的可观测字段）。
 
 <a id="settings"></a>
 ## 设置项
@@ -220,7 +221,8 @@ v0.2.0 各段共用同一 schema：
 pnpm install
 pnpm build          # tsdown → lib/（产物入库，探针按字节锁定）
 pnpm lint           # tsc --noEmit，预期零错
-pnpm test           # vitest 全套（424 例），含真实官方 session 钉
+pnpm test           # tsdown && vitest run——构建链在测试之前（Z19：否则导入
+                    # lib/index.js 的测试会静默钉住过期产物），含真实官方 session 钉
 ```
 
 仓内验证探针：
