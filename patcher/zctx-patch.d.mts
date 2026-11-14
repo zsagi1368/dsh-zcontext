@@ -94,6 +94,8 @@ export interface PatchAsarResult {
   readonly ok: boolean
   readonly refused?: boolean
   readonly alreadyPatched?: boolean
+  /** True when the idempotence run backfilled a missing marker (crash-window self-heal). */
+  readonly markerBackfilled?: boolean
   readonly appDir: string
   readonly asarPath: string
   readonly steps: readonly PatchStep[]

@@ -266,8 +266,44 @@ describe('patchAsar: full chain on the mini-asar fixture', () => {
     expect(second.ok).toBe(true)
     expect(second.alreadyPatched).toBe(true)
     expect(second.backup).toBeUndefined()
+    expect(second.markerBackfilled).toBeUndefined()
     expect(readdirSync(join(fixture.work, 'zctx-backup')).length).toBe(backupCount)
     expect(readFileSync(fixture.markerPath, 'utf8')).toBe(markerAfterFirst)
+  })
+
+  it('P4-r1 P4-2: self-heals the crash window — stub live but marker missing → re-patch backfills the marker, asar untouched', async () => {
+    const fixture = await createFixture()
+    const first = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(first.ok).toBe(true)
+    const patchedAsarSha = shaOf(fixture.asarPath)
+    const backupCount = readdirSync(join(fixture.work, 'zctx-backup')).length
+    // Simulate the crash window: the splice landed, the marker write did not
+    // (a crash or a failed marker write between the rename and writeMarker).
+    rmSync(fixture.markerPath)
+    expect(existsSync(fixture.markerPath)).toBe(false)
+
+    const second = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(second.ok).toBe(true)
+    expect(second.alreadyPatched).toBe(true)
+    expect(second.markerBackfilled).toBe(true)
+    expect(second.steps.find((step) => step.name === 'marker')?.status).toBe('backfilled')
+    // The reconciliation is marker-only: asar bytes and backups untouched.
+    expect(shaOf(fixture.asarPath)).toBe(patchedAsarSha)
+    expect(readdirSync(join(fixture.work, 'zctx-backup')).length).toBe(backupCount)
+    // The backfilled marker carries the derivable truth.
+    const marker = JSON.parse(readFileSync(fixture.markerPath, 'utf8')) as Record<string, unknown>
+    expect(marker.patcher).toBe('zctx-patch')
+    expect(marker.shellVersion).toBe('0.2.2-rc.3')
+    expect(marker.target).toBe(TARGET_PATH)
+    expect(marker.sha256Before).toBe(fixture.entry.targetSha256)
+    const lib = freshExtract(fixture.asarPath, TARGET_PATH).toString('utf8')
+    expect(marker.sha256After).toBe(createHash('sha256').update(Buffer.from(lib, 'utf8')).digest('hex'))
+    expect(marker.backup).toBe(first.backup?.dir)
+    expect(typeof marker.timestamp).toBe('string')
+    // The dual source is consistent again: plugin status reads the marker.
+    const status = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(status.marker?.state).toBe('present')
+    expect(status.patched).toBe(true)
   })
 
   it('refuses anchor drift (hash gate) and modifies NOTHING', async () => {

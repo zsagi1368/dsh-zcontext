@@ -30,7 +30,9 @@
  *   1. app dir resolution (--app-dir | HKCU registry | documented default)
  *   2. app-not-running gate (process probe + the app's own wx lock file)
  *   3. version gate (asar root package.json version ∈ SUPPORTED)
- *   4. idempotence (stub marker already present → no-op success, no new backup)
+ *   4. idempotence (stub marker already present → no-op success, no new
+ *      backup; marker missing while the stub is live = crash window → the
+ *      marker is backfilled from derivable facts, asar untouched)
  *   5. anchor hash gate (target lib/index.js SHA-256 must match the per-version
  *      anchor set — drift = official update = refuse + report, never patch blind)
  *   6. anchor string uniqueness (count must be exactly 1)
@@ -567,11 +569,24 @@ function installPaths(appDir) {
   }
 }
 
-/** Marker write (temp + rename, atomic on the same volume). @internal */
+/**
+ * Marker write (temp + rename, atomic on the same volume). Returns the
+ * outcome instead of throwing: a failed marker write must surface as a
+ * FAILED step + ok:false — never an uncaught throw past the splice, and
+ * never ok:true without the marker in place (the plugin's zctx_status reads
+ * this file as the filesystem truth; P4-r1 P4-2).
+ * @internal
+ */
 function writeMarker(markerPath, payload) {
   const tmp = `${markerPath}.tmp-${process.pid}`
-  writeFileSync(tmp, `${JSON.stringify(payload, null, 2)}\n`)
-  renameSync(tmp, markerPath)
+  try {
+    writeFileSync(tmp, `${JSON.stringify(payload, null, 2)}\n`)
+    renameSync(tmp, markerPath)
+    return { ok: true }
+  } catch (error) {
+    rmSync(tmp, { force: true })
+    return { ok: false, reason: `marker write failed: ${error instanceof Error ? error.message : String(error)}` }
+  }
 }
 
 /**
@@ -646,8 +661,43 @@ export async function patchAsar(options) {
   const currentSha = sha256Hex(Buffer.from(currentText, 'utf8'))
   const markerCount = countOccurrences(currentText, supportedEntry.anchors.stubMarker)
   if (markerCount > 0) {
-    step('idempotence', 'skip', `patch stub already present (${markerCount} occurrence) — nothing to do; the asar stays untouched`)
-    return { ok: true, alreadyPatched: true, ...report, shellVersion }
+    step('idempotence', 'skip', `patch stub already present (${markerCount} occurrence) — the asar stays untouched`)
+    if (existsSync(markerPath)) {
+      return { ok: true, alreadyPatched: true, ...report, shellVersion }
+    }
+    // Crash-window self-heal (P4-r1 P4-2): the stub is live in the asar but
+    // the marker file is missing — a crash (or a failed marker write)
+    // between the splice rename and the marker write. The re-run is the only
+    // write path that can reconcile, so backfill the marker from derivable
+    // facts; the asar stays untouched. Derivation: the patcher writes stubs
+    // ONLY onto files that passed the anchor-hash gate (pristine pinned
+    // bytes), so the pre-patch content was the pinned hash; the after-hash is
+    // the patched file as it stands now.
+    const backfill = writeMarker(markerPath, {
+      patcher: 'zctx-patch',
+      patcherVersion: PATCHER_VERSION,
+      shellVersion,
+      target: supportedEntry.targetPath,
+      sha256Before: supportedEntry.targetSha256,
+      sha256After: currentSha,
+      // The crashed run's own backup dir is not recoverable from the archive;
+      // the latest sibling backup is the best-known pointer (restore defaults
+      // to the latest dir when --backup is omitted anyway).
+      backup: latestBackupDir(backupRootFor(appDir)) ?? null,
+      timestamp: new Date().toISOString(),
+    })
+    step(
+      'marker',
+      backfill.ok ? 'backfilled' : 'FAILED',
+      backfill.ok
+        ? `${markerPath} was missing (crash window between the splice rename and the marker write) — backfilled; the asar stays untouched`
+        : backfill.reason,
+    )
+    if (!backfill.ok) {
+      report.recovery = `the patch stub IS live but the marker could not be written (${markerPath}) — fix the marker path and re-run patch (idempotent, backfills the marker), or restore with: node patcher/zctx-patch.mjs restore --app-dir "${appDir}"`
+      return { ok: false, ...report, shellVersion }
+    }
+    return { ok: true, alreadyPatched: true, markerBackfilled: true, ...report, shellVersion }
   }
 
   // Gate: anchor hash (pristine content must match the pinned hash).
@@ -703,8 +753,11 @@ export async function patchAsar(options) {
     return { ok: false, ...report, shellVersion, verify }
   }
 
-  // Marker (the plugin's status dual-source filesystem truth).
-  writeMarker(markerPath, {
+  // Marker (the plugin's status dual-source filesystem truth). A failure here
+  // leaves the stub live with no marker — the crash window the idempotence
+  // branch self-heals on the next patch run — so it surfaces as ok:false +
+  // recovery, never ok:true without the marker (P4-r1 P4-2).
+  const markerWrite = writeMarker(markerPath, {
     patcher: 'zctx-patch',
     patcherVersion: PATCHER_VERSION,
     shellVersion,
@@ -714,7 +767,11 @@ export async function patchAsar(options) {
     backup: backup.dir,
     timestamp: new Date().toISOString(),
   })
-  step('marker', 'ok', markerPath)
+  step('marker', markerWrite.ok ? 'ok' : 'FAILED', markerWrite.ok ? markerPath : markerWrite.reason)
+  if (!markerWrite.ok) {
+    report.recovery = `the patch IS applied but the marker write failed (${markerPath}) — re-run patch (idempotent, backfills the marker), or restore with: node patcher/zctx-patch.mjs restore --app-dir "${appDir}" --backup "${backup.dir}"`
+    return { ok: false, ...report, shellVersion, before: spliced.before, after: spliced.after }
+  }
 
   return { ok: true, ...report, shellVersion, before: spliced.before, after: spliced.after }
 }
