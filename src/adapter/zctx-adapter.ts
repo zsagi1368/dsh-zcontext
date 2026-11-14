@@ -26,7 +26,12 @@
  *                       recovery layer owns visible attempts (R4 discipline;
  *                       llm-retry/src/index.ts:243).
  *   - imageRequestPricing — NOT overridden (undefined → caller-side estimate;
- *                       S2 is text-only, images never reach the wire).
+ *                       S2 is text-only. P3 HF-01 honesty: on the OFFICIAL
+ *                       dispatch path images never reach this adapter at all —
+ *                       the runtime projects them to placeholder text before
+ *                       dispatch — so the UNSUPPORTED_CONTENT gate below is a
+ *                       DEFENSIVE MIRROR, reachable only on direct-adapter
+ *                       calls; wire records carry imageCount for observability).
  *   - listModels      — OVERRIDDEN: from settings providers[].models (card).
  *   - resolveModel    — OVERRIDDEN: contextWindow comes from the config and
  *                       was validated at construction (INVALID_MODEL_CONTEXT
@@ -350,19 +355,27 @@ export function createZctxAdapterClass(Base: abstract new () => unknown): new (d
       const modelInfo = frozenInfo ?? this.modelInfoOf(options.provider, options.model)
       const apiKey = this.resolveApiKey(spec)
 
-      // Product 6 (S2 text-only, honest boundary): any image block fails the
-      // request BEFORE conversion — no attachment service exists to resolve
-      // image bytes through. The F5.7 three-knob image budget
-      // (maxRequestImageBytes/requestImagePixelBudget/requestImageMaxBytes)
-      // is therefore NOT accepted in the config: knobs with no consumer
-      // would be dead config, and the honest S2 surface is the refusal
-      // (UNSUPPORTED_CONTENT) — IMAGE_OFFLOAD_REQUIRED's offload-retry loop
-      // has nothing to offload on a text-only route. IMAGE_OFFLOAD_REQUIRED
-      // can never fire here by construction.
-      if (options.messages.some((message) => {
-        if (typeof message !== 'object' || message === null) return false
-        return host.contentHasImage((message as { content?: unknown }).content)
-      })) {
+      // Product 6 (S2 text-only), P3 HF-01 contract alignment — this gate is
+      // a DEFENSIVE MIRROR, not the primary refusal surface: the official
+      // adapterStream projects images to placeholder text BEFORE dispatch
+      // (llm/src/index.ts:1092-1095 -> content.ts:360-371; this adapter
+      // declares inputModalities: ['text']), so on the official path every
+      // request arrives image-free and this gate is unreachable. It stays as
+      // the honest backstop for direct-adapter calls (where it DOES refuse:
+      // no attachment service exists to resolve image bytes through — the
+      // IMAGE_OFFLOAD_REQUIRED offload-retry loop has nothing to offload on
+      // a text-only route, and the F5.7 image-budget knobs are not accepted
+      // as dead config). What the model actually sees on the official path is
+      // documented in README (placeholder text, no failure signal) — the
+      // degradation is upstream and observable only there; imageCount on the
+      // wire records pins what reached THIS boundary.
+      const imageCount = Array.isArray(options.messages)
+        ? options.messages.filter((message) => {
+          if (typeof message !== 'object' || message === null) return false
+          return host.contentHasImage((message as { content?: unknown }).content)
+        }).length
+        : 0
+      if (imageCount > 0) {
         throw new host.LlmError(
           `zctx model "${model.id}" does not support image input (S2 adapter is text-only)`,
           'UNSUPPORTED_CONTENT',
@@ -430,7 +443,7 @@ export function createZctxAdapterClass(Base: abstract new () => unknown): new (d
         const wireFaces = sessionId === undefined
           ? undefined
           : buildWireFaces(
-            { sessionId, provider: spec.route, model: model.id },
+            { sessionId, provider: spec.route, model: model.id, imageCount },
             this.deps.wireSink,
             host,
           )

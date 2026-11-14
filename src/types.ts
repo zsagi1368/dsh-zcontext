@@ -712,6 +712,14 @@ export interface WireSnapshot {
   readonly sha256: string
   /** Byte length when known ('request-bytes' with a string body; else undefined). */
   readonly byteLength?: number
+  /**
+   * Messages still carrying image blocks at the adapter boundary (P3 HF-01
+   * observability). On the official dispatch path this is always 0 — the
+   * runtime projects images to placeholder text BEFORE the adapter runs —
+   * so a non-zero count means the request reached the adapter un-projected
+   * (direct-adapter path, where the UNSUPPORTED_CONTENT gate refuses it).
+   */
+  readonly imageCount?: number
   /** Unix epoch ms of the observation. */
   readonly time: number
 }

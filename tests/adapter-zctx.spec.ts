@@ -382,6 +382,33 @@ describe('zctx adapter: stream pipeline (twins mapping over a fake pi-ai face)',
     expect(Object.keys((oneShot[0]?.options.headers as Record<string, string>) ?? {})).toContain('x-zctx-test')
   })
 
+  it('P3 HF-01: wire records carry imageCount - 0 on the image-free path (official projection runs upstream)', async () => {
+    const capture: RecordedCall[] = []
+    const wireSnapshots: unknown[] = []
+    const ZctxAdapter = createZctxAdapterClass(HOST.LlmAdapter as abstract new () => unknown)
+    const adapter = new ZctxAdapter({
+      host: HOST as unknown as ZctxAdapterDeps['host'],
+      piAi: fakePiAi([DONE_EVENT], capture) as unknown as ZctxAdapterDeps['piAi'],
+      mapping: buildMappingTwins(DEPS, () => false),
+      providers: RESOLVED,
+      logger: noopLogger,
+      wireSink: (snapshot) => wireSnapshots.push(snapshot),
+    })
+    await collect(adapter.stream({
+      provider: MODEL_M1.provider,
+      model: 'm1',
+      messages: MESSAGES,
+      sessionId: 'sess-zctx',
+    }))
+    // Fire the observation point the real pi-ai would fire (the R1 pattern).
+    const options = capture[0]?.options as { onPayload?: (payload: unknown, model: unknown) => unknown }
+    options.onPayload?.({ any: 'payload' }, undefined)
+    expect(wireSnapshots.length).toBeGreaterThan(0)
+    for (const snapshot of wireSnapshots) {
+      expect((snapshot as { imageCount?: number }).imageCount).toBe(0)
+    }
+  })
+
   it('product 5 (F4.6): cacheRetention rides the stream options verbatim; cacheControlFormat materializes into the model compat', async () => {
     const openaiResolved = resolveZctxProviders(
       {

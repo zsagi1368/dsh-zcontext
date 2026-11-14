@@ -53,6 +53,11 @@ export interface WireRequestIdentity {
   readonly sessionId: string
   readonly provider: string
   readonly model: string
+  /**
+   * Messages still carrying image blocks at the adapter boundary (P3 HF-01
+   * observability; 0 on the official path — projection runs upstream).
+   */
+  readonly imageCount?: number
 }
 
 /**
@@ -77,6 +82,7 @@ export function buildWireFaces(
       kind,
       sha256,
       ...(byteLength !== undefined ? { byteLength } : {}),
+      ...(identity.imageCount !== undefined ? { imageCount: identity.imageCount } : {}),
       time: Date.now(),
     })
   }

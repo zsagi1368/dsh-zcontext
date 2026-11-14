@@ -858,6 +858,14 @@ interface WireSnapshot {
   readonly sha256: string;
   /** Byte length when known ('request-bytes' with a string body; else undefined). */
   readonly byteLength?: number;
+  /**
+   * Messages still carrying image blocks at the adapter boundary (P3 HF-01
+   * observability). On the official dispatch path this is always 0 — the
+   * runtime projects images to placeholder text BEFORE the adapter runs —
+   * so a non-zero count means the request reached the adapter un-projected
+   * (direct-adapter path, where the UNSUPPORTED_CONTENT gate refuses it).
+   */
+  readonly imageCount?: number;
   /** Unix epoch ms of the observation. */
   readonly time: number;
 }
@@ -2407,6 +2415,11 @@ interface WireRequestIdentity {
   readonly sessionId: string;
   readonly provider: string;
   readonly model: string;
+  /**
+   * Messages still carrying image blocks at the adapter boundary (P3 HF-01
+   * observability; 0 on the official path — projection runs upstream).
+   */
+  readonly imageCount?: number;
 }
 /**
  * Build the wire faces for ONE stream call. `sink` is absent → the faces
