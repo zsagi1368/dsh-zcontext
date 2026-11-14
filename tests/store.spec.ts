@@ -456,4 +456,46 @@ describe('FoldStore: anomaly ledger', () => {
     expect(store.anomalies().some((a) => a.kind === 'unreadable-event' && a.seq === 0)).toBe(true)
     expect(store.syncedToSeq).toBe(1)
   })
+
+  it('breaker: 16 consecutive unreadable slots abort the scan (P3 SM-03, bounded not hung)', () => {
+    const store = new FoldStore()
+    // A corrupt/mock host claiming an enormous seq while eventAt yields
+    // nothing: without the breaker this attach would loop toward 1e12.
+    const session = {
+      get seq(): number { return 1_000_000_000_000 },
+      eventAt: () => undefined,
+    }
+    const start = Date.now()
+    store.attach(session)
+    const elapsed = Date.now() - start
+    expect(elapsed).toBeLessThan(2000) // bounded in wall-clock terms
+    expect(store.anomalies().filter((a) => a.kind === 'unreadable-event')).toHaveLength(16)
+    expect(store.anomalies().some((a) => a.kind === 'scan-breaker-tripped')).toBe(true)
+    expect(store.syncedToSeq).toBe(16) // frontier stopped at the breaker slot
+  })
+
+  it('breaker: real events before the hole still commit; the scan resumes on the next feed event', () => {
+    const store = new FoldStore()
+    const log: SessionEventLike[] = []
+    for (let seq = 0; seq < 3; seq += 1) {
+      log.push({
+        seq,
+        type: 'user/message',
+        time: 1000,
+        data: { message: { role: 'user', content: [{ type: 'text', text: `u${seq}` }] } },
+      })
+    }
+    const session = {
+      get seq(): number { return 1_000_000 }, // lies far beyond the real log
+      eventAt: (seq: number) => log[seq],
+    }
+    store.attach(session)
+    // The three real events committed; then 16 unreadable slots tripped it.
+    expect(store.syncedToSeq).toBe(19)
+    expect(store.anomalies().some((a) => a.kind === 'scan-breaker-tripped')).toBe(true)
+    // A later feed event re-enters the scan from the frontier (still bounded).
+    store.onEvent(session, log[2]!) // duplicate of seq 2 — dropped by the SM-01 guard
+    expect(store.syncedToSeq).toBe(19)
+    expect(store.anomalies().filter((a) => a.kind === 'unreadable-event').length).toBeGreaterThanOrEqual(16)
+  })
 })

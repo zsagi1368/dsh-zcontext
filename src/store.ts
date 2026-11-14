@@ -188,6 +188,16 @@ const ROUTE_HEADER_LEDGER_CAP = 64
 /** Bounded cap for the cache-reset ledger (V1-B closure, same 64-cap design). */
 const RESET_LEDGER_CAP = 64
 
+/**
+ * Consecutive-unreadable breaker for scanUpTo (P3 SM-03): a mock/corrupt
+ * host can claim an enormous `session.seq` while `eventAt` yields nothing —
+ * without a breaker the scan would loop toward that seq unbounded (the
+ * anomaly cap bounds LEDGER growth, not the LOOP). 16 consecutive unreadable
+ * slots abort the scan (fail-soft but bounded); the frontier stays where the
+ * run ended and the next feed event re-enters the scan from there.
+ */
+const SCAN_UNREADABLE_BREAKER = 16
+
 /** Narrow an unknown to a plain object record (V3 helpers' guard). */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object'
@@ -909,13 +919,28 @@ export class FoldStore {
 
   /** Replay retained events up to `end` (exclusive) through seq reads. @internal */
   private scanUpTo(end: number): void {
+    // P3 SM-03: the unreadable-run breaker below keeps a corrupt/mock host's
+    // huge claimed seq from hanging the scan (each unreadable slot costs one
+    // anomaly record; the 256-cap bounds the ledger, never the loop).
+    let unreadableRun = 0
     for (let seq = this.syncedToSeq; seq < end; seq += 1) {
       const event = this.session?.eventAt?.(seq)
       if (event === undefined) {
         this.recordAnomaly('unreadable-event', `seq ${seq} not readable during scan`, seq)
         this.lastSeq = seq
+        unreadableRun += 1
+        if (unreadableRun >= SCAN_UNREADABLE_BREAKER) {
+          this.recordAnomaly(
+            'scan-breaker-tripped',
+            `${SCAN_UNREADABLE_BREAKER} consecutive unreadable slots ending at seq ${seq}; `
+              + `scan aborted (a later feed event re-enters the scan from here)`,
+            seq,
+          )
+          return
+        }
         continue
       }
+      unreadableRun = 0
       this.applyEvent(event)
     }
   }
