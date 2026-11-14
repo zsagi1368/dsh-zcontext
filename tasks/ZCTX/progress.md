@@ -113,3 +113,17 @@
 - [13:40] 终态电池（Z19 新链）：npm test = tsdown Build complete 先行 + vitest 472/472（22 文件 = 429 基线 + 42 P3 钉 + 1 P3-r1 同源钉）EXIT 0；tsc --noEmit 0 错；五探针全 EXIT 0（artifact 6/0/0 · surface 10/0 · smoke-real-loader 3/0/0 · host-imports 16/16 · real-mount 5/0/0），两探针报告时间戳 diff 已按先例还原
 - [13:45] 产物新鲜度（Z19+Z22）：npm test 重建后 lib diff 非零——按 Z22 结构化对比归因：mappings/sources/names 全等，唯一差异 = src/texts.ts L378 的 P3-6 标记移除进入产物（index.js 一行 + sourcesContent 一条目），非行尾假动；lib 重建物已随 eaf30ca 入库，复跑重建零漂移（干净树验证）
 - [13:50] CHANGELOG 电池计数校正 471→472（P3-r1 新增 1 钉入段）；版本面终核 package.json=CHANGELOG=0.2.1；树净态验证（tracked 零 diff，仅 del/ 与治理目录外无物）
+
+## P4 补丁版波（patcher 本体 · 2026-11-14）
+
+- [开工] 查册命中并全程执行：Z19（build→test 链 + lib 同批提交）· Z15（先 tsc 后 vitest）· Z22（行尾归因）· Z23（含转义代码禁 heredoc，全程 Write/Edit）· Z24（恢复=当前态备份+哈希校验）· A43（grep 分隔符）；§5 备份 del/20261114-p4-patcher-prechange（12 件含哈希清单+RESTORE.md）
+- [定锚] 真机只读抽取（零写入用户机器，抽取件落本机 temp）：app.asar 内 dsh-llm-pi-ai/lib/index.js SHA-256=e956da3d…（P2 [F16]/VERIFY-P #8 双证复验）；调用点锚串（5-tab）与定义锚串各自 count=1；@electron/asar 4.3.2 源码实读定 pickle/integrity 格式（jsonLen@+4、payloadBase=8+headerSize、4MiB blocks）
+- [commit 1d6956f] P3-r1 评审放行产物入库（REVIEW-P3.md + scorecards/P3.json + P4 卡）——评审 handoff「随 P4 governance 提交顺带处理」兑现
+- [commit 7c4a3d8] patcher core：patcher/zctx-patch.mjs 三子命令（版本门/幂等/锚哈希门/锚唯一性/先备份后动件/surgical 单文件拼接/官方 API 后校验+见证文件 integrity/体积记账/marker 写入）+ .d.mts 类型面 + patcher/README.md（风险如实：存活期=官方更新覆盖、fuse off=运行时事实非承诺、app 关闭执行）+ devDep @electron/asar 4.3.2；fixture 冒烟全绿（scratch 一次性脚本，非入库）
+- [commit eefe2a5] 插件桥：src/patch-bridge.ts（wireOptions 防御转发接收端：身份校验→watched session→buildWireFaces 同源 wire 面；fetch 包装层做 R7 attribution 叠加（桩位在官方 headers 键之前，headers 面必被覆盖，fetch 是补丁模式送达通道）；宿主面缺席=空 attribution 集继续记账）+ plugin.ts wirePatchFace 第六面挂载（last-wins，零 ctx 服务访问）+ tools/texts zctx_status patch 段（marker+mount 双源）+ host.ts loadAdapterFaces 改「仅成功 memoize」+ lib 重建同批（Z19）
+- [commit ac80a3e] 测试：tests/patcher.spec.ts（14：SUPPORTED 锚集 pin e956da3d…/patchText 唯一性与幂等/patch 全链 8 步/幂等重跑/锚漂移拒收零改动/版本门/进程门/锁面门/restore 字节级还原+marker 清除/损坏备份拒收/status 双态/splice 记账）+ tests/patch-bridge.spec.ts（16：{} 降级梯/空 attribution 降级/R1 恒 undefined/R7 plain-object·Headers·array·undefined 四形态/last-wins 挂载/marker 三态/process.resourcesPath 解析/插件级挂载+禁用不挂+zctx_status 双源渲染/活会话解析）+ verify-activation-surface A11（12 断言）
+- [G4 回归根因] probe-real-mount G4 FAIL（基线 5 PASS）：wirePatchFace 构造期急加载 memoized loadAdapterFaces → G3 挂载（无 providers、env 未设）把缺席永久毒化 → G4 adapter 面拿到缓存缺席跳过注册。修复二重：host.ts 只成功 memoize（缺席即重试，与 HF-13「never a permanently-memoized rejection」语义对齐，防陈旧清锁=身份守卫）+ 桥接缺席降级为空 attribution 集继续服务账本（解耦 providers 配置）。修复后 G4 5/5 全绿 continuation=true
+- [Z22 事件] git stash 往返（基线对照用）把已跟踪文件落成 CRLF → LF 归一 + lib 重建；新文件全程 LF
+- [桩形态] 桩插在 `...profileOptions(profile, reasoning, apiKey),` 之后、官方显式 headers/signal 键之前（桩永不覆盖官方 header/超时面）；身份={provider: options.provider, model: model.id, sessionId: options.sessionId}（调用点作用域齐全）
+- [真机边界] 真机 patch/restore/status 命令实现但未执行（W5-A6-INSTALL 伞下 post-merge）；全程对 H:\AiAgent 与 C:\Users\ZS\.dsh 零写入（只读抽取件在 temp）
+- [终态电池] npm test = tsdown + vitest 502/502（24 文件 = 472 基线 + 30 P4）；tsc --noEmit 0 错；五探针全 EXIT 0（artifact 6/6 · host-imports 16/16 · real-mount 5/5 · smoke-real-loader 3/3 · verify-activation-surface 11/11 含新 A11 patcher 面 12 断言）；两探针报告时间戳 diff 按先例还原；lib diff 归因=src 变更（patch-bridge 嵌入+wirePatchFace+loadAdapterFaces 语义，非行尾假动）；CHANGELOG +[0.2.1] P4 段；closure +P4-A..I；checkpoint p4-terminal

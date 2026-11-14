@@ -130,6 +130,28 @@ consistent places, never reported as a fake NO-REPRO).
 - **T9** — reasoning-effort value-domain gate at construction + violation
   hygiene (an illegal level never echoes into the offered specs).
 
+
+### P4 — external app.asar patch face (same release, 2026-11-14)
+
+The external patcher for the official DSH desktop (plan §3 补丁连接设计):
+one-line defensive forwarding stub inserted into the OFFICIAL PiAiAdapter
+options construction (after the profileOptions spread, BEFORE the official
+explicit headers/signal keys — the stub can never clobber them; zero body
+rewrite, R1). The plugin arms the receiving side at startup
+(`globalThis.__zctxPatch__.wireOptions`, patch-bridge.ts) so OFFICIAL-route
+requests ride the same per-session wire ledger; patch absent = stock
+request byte-identical (automatic degradation). Tool: `patcher/zctx-patch.mjs`
+(`patch`/`restore`/`status`; version gate + anchor-hash gate against the
+real rc.3 lib SHA-256 + anchor-uniqueness asserts + backup-first sibling
+`zctx-backup/<ts>/` with RESTORE.md + surgical single-file asar splice +
+official-API post-verify + marker file; idempotent; anchor drift refuses).
+`zctx_status` gains the patch segment (marker + mount, dual source).
+Real-machine execution is deferred under W5-A6-INSTALL (post-merge);
+everything above is fixture-verified (`tests/patcher.spec.ts`,
+`tests/patch-bridge.spec.ts`). Terminal battery: 502/502 vitest (472 + 30),
+`tsc --noEmit` zero errors, five repo probes green
+(verify-activation-surface 11/11 with the new A11 patcher-face group).
+
 ## [0.2.0] - 2026-11-13
 
 ### Added (v0.2.0)

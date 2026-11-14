@@ -1066,7 +1066,97 @@
    "owner": "coder-p3-r1",
    "status": "verified",
    "phase": "block"
+  },
+  {
+   "id": "P4-A",
+   "source": "P4 card product 1: patcher tool (patch/restore/status + gates + backup + splice + marker)",
+   "type": "p4-card",
+   "disposition": "fixed",
+   "evidence": "commit 7c4a3d8: patcher/zctx-patch.mjs (production anchors pinned to real rc.3 sha e956da3d…, verified live read-only) + .d.mts + patcher/README.md; fixture-verified in tests/patcher.spec.ts (14 pins incl. refusal paths) | owner: coder-p4",
+   "owner": "coder-p4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P4-B",
+   "source": "P4 card product 2: plugin-side receiver (globalThis.__zctxPatch__.wireOptions mount + zctx_status patch row marker+mount dual source; patch absent = existing faces unchanged)",
+   "type": "p4-card",
+   "disposition": "fixed",
+   "evidence": "commit eefe2a5: src/patch-bridge.ts + plugin.ts wirePatchFace (zero ctx-service access, last-wins mount) + tools.ts ZctxToolRuntime.patchFace + texts.ts STATUS_PATCH_*; absent patch = stub evaluates {} (byte-identical stock request), mount inert | owner: coder-p4",
+   "owner": "coder-p4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P4-C",
+   "source": "P4 card product 3: tests — mini-asar fixture patch/restore/idempotence/anchor-mismatch-refuse/version-gate-refuse + plugin bridge mount + status dual source",
+   "type": "p4-card",
+   "disposition": "fixed",
+   "evidence": "commit ac80a3e: tests/patcher.spec.ts (14) + tests/patch-bridge.spec.ts (16); vitest 502/502 with the two new files | owner: coder-p4",
+   "owner": "coder-p4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P4-D",
+   "source": "P4 card product 4: patcher/README.md with honest risks (patch lifetime = official update overwrite; fuse off is a runtime fact not a promise; run with app closed)",
+   "type": "p4-card",
+   "disposition": "fixed",
+   "evidence": "commit 7c4a3d8: patcher/README.md risk section verbatim on the three card risks + restore/rollback commands + dual-source status semantics | owner: coder-p4",
+   "owner": "coder-p4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P4-E",
+   "source": "P4 card product 5: verify-activation-surface patcher-face assertions (files on disk + anchor set in register)",
+   "type": "p4-card",
+   "disposition": "fixed",
+   "evidence": "commit ac80a3e: A11 group (12 assertions incl. rc.3 sha pin + target path + call-site anchor + backup-first + marker contract + bridge receiver) — verify-activation-surface 11 PASS / 0 FAIL | owner: coder-p4",
+   "owner": "coder-p4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P4-F",
+   "source": "P4 card constraint: real-machine patch/restore commands implemented but NOT executed this wave (W5-A6-INSTALL umbrella)",
+   "type": "p4-card",
+   "disposition": "fixed",
+   "evidence": "verified by absence: zero writes to H:/AiAgent or C:/Users/ZS/.dsh during the wave (read-only extraction into machine temp only, scratch cleaned); the pre-existing open item W5-A6-INSTALL (user_approved_deferred/open, mainline-owned) absorbs the real-machine execution + full-install smoke post-merge | owner: coder-p4",
+   "owner": "coder-p4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P4-G",
+   "source": "REDLINE audit: patch stub zero body rewrite (options-field forwarding only) + R1/R7 semantics across the bridge",
+   "type": "p4-card",
+   "disposition": "fixed",
+   "evidence": "verified: stub string pinned verbatim in tests/patcher.spec.ts (SUPPORTED pin) — ...(globalThis.__zctxPatch__?.wireOptions?.({...}) ?? {}), inserted BEFORE the official explicit headers/signal keys (cannot clobber them); bridge onPayload returns undefined constantly (tests/patch-bridge.spec.ts), fetch forwards untouched; attribution via fetch wrapper is additive (init merge only, no body touch) | owner: coder-p4",
+   "owner": "coder-p4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P4-H",
+   "source": "G4 probe regression introduced by the wave (probe-real-mount 4/5: eager memoized loadAdapterFaces absence poisoned later mounts) — fixed and regression-locked",
+   "type": "p4-card",
+   "disposition": "fixed",
+   "evidence": "commit eefe2a5: host.ts loadAdapterFaces memoizes SUCCESS only (absence re-attempts; identity-guarded clear); bridge degrade = empty attribution set (ledger serves regardless); probe-real-mount 5/5 after rebuild (continuation=true); adapter-host.spec 8/8 still green (HF-13 pin updated semantics hold) | owner: coder-p4",
+   "owner": "coder-p4",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P4-I",
+   "source": "Z22 event: git stash round-trip (baseline comparison) rewrote tracked files CRLF; normalized back to LF and rebuilt artifacts",
+   "type": "p4-card",
+   "disposition": "fixed",
+   "evidence": "verified: residual CRLF 0 on all six affected files; lib rebuilt from LF sources; committed blobs LF (autocrlf normalize); lib diff attributed to src changes (patch-bridge embedded + wirePatchFace + loadAdapterFaces semantics — not line-ending noise) | owner: coder-p4",
+   "owner": "coder-p4",
+   "status": "verified",
+   "phase": "block"
   }
  ],
- "updatedAt": "2026-11-14T12:40:00-08:00"
+ "updatedAt": "2026-11-14T11:50:00-08:00"
 }
