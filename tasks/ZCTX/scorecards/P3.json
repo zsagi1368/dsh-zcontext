@@ -1,19 +1,82 @@
 {
   "block": "P3",
   "task": "ZCTX v0.2.1 P3 — 审计修复波（REPORT-FULL-AUDIT.md 冻结清单执行：必修 5 + 强化 16 + 盲区钉测 9 + 结构 1）",
-  "range": "f01b5cd..b676f83（19 提交：f01b5cd SM-01 / 614028a SM-02 / 219f7ff HF-01 / c9ed41f HF-02 / 83e966e Z19 / 9f940b5 SM-03 / 23e15ff SM-06 / 1d6a804 SM-05 / c78133f SM-12 / 937dad8 SM-04 / 0c621c1 HF-04 / cf22369 HF-15 / bc567f3 HF-05 / 92cf972 HF-08 / 555aa2d HF-13 / 1021e3d docs-trio / 0effbb6 R15+R16 / ac3c3ef P3c 批 / b676f83 terminal 台账）",
+  "range": "第 1 轮评审 f01b5cd..b676f83（19 提交）+ 返工第 1 轮 c0779b5..d9bd4fd（8 提交，HEAD=d9bd4fd）",
   "reviewer": "reviewer-P3 (independent subagent; reviewer ≠ P3 coder)",
   "date": "2026-11-14",
-  "verdict": "打回（总分 93 < 98）→ 0 条 [阻断]，6 条 [建议] P3-1..P3-6；代码修复本体全数核实为真（四必修忠实 + 摘除即红亲证 + 电池亲验全绿），打回项全部为文档/台账卫生面，修复成本为一个小的文档收口提交；不阻塞中间合入的代码块，阻塞最终验收",
-  "total": 93,
+  "verdict": "通过（返工第 1 轮后总分 99 ≥ 98）→ 放行 P4 patcher 波；[阻断] 0；第 1 轮 [建议] P3-1..P3-6 六条全部 closed（disposition=fixed，证据=P3R1-A..F 台账 + 本文件 rework_round1_review 亲验）；残留 1 条非阻塞记事（P0-1/2/4 追溯台账条目 + P4 卡未入库，随 P4 governance 提交顺带处理）",
+  "total": 99,
   "threshold": 98,
   "scores": {
     "correctness": 25,
-    "completeness": 17,
-    "consistency": 18,
-    "verifiability": 14,
+    "completeness": 19,
+    "consistency": 20,
+    "verifiability": 15,
     "safety_rollback": 10,
-    "maintainability": 9
+    "maintainability": 10
+  },
+  "round1_original": {
+    "total": 93,
+    "verdict": "打回（93 < 98）：0 [阻断] + 6 [建议]；代码修复本体全数核实为真，打回项全部为文档/台账卫生面",
+    "scores": { "correctness": 25, "completeness": 17, "consistency": 18, "verifiability": 14, "safety_rollback": 10, "maintainability": 9 },
+    "note": "第 1 轮全部评分依据、四必修核验、强化抽查、钉测复核、诚实度专项结论保留于本文件各节与 handoffs/REVIEW-P3.md 原稿——未被返工推翻，返工只针对六条 [建议]"
+  },
+  "rework_round1_review": {
+    "range": "c0779b5..d9bd4fd（8 提交：0f20bf5 P3-3 / 9b81a11+eaf30ca P3-6 / c0779b5 P3-1 / 0395c33 P3-2 / 37a14d8 P3-4 / 33854a1 P3-5 / d9bd4fd terminal）",
+    "reviewer_own_battery": {
+      "test": "npm test（Z19 链 tsdown && vitest run）→ 472/472（22 files = 429 基线 + 42 P3 钉 + 1 P3-r1 同源钉）EXIT 0",
+      "lint": "npx tsc --noEmit → 0 错 EXIT 0",
+      "probes": "五探针全 EXIT 0：artifact 6/0/0 · surface 10/0 · smoke-real-loader 3/0/0 · host-imports 16/16 · real-mount 5/0/0；两报告时间戳 diff 已按先例还原",
+      "freshness": "npm test 重建 lib → git status lib/ 零漂移（eaf30ca 刷新后重建字节=入库字节，Z19+Z22 口径）",
+      "tree": "tracked 零 diff；唯一 untracked = tasks/ZCTX/cards/P4-patcher.md（主线下一波输入件，非 P3-r1 范围，随 P4 入库）"
+    },
+    "per_suggestion_closure": [
+      {
+        "id": "P3-1",
+        "disposition": "fixed",
+        "evidence": "c0779b5 + 评审人机器核对：README.zh.md:142-143 拒图契约降级注记（占位投影/inputModalities/防御镜像/imageCount 与 en:142-143 逐点同义）+ dev 段 Z19 链说明替换 424 旧数 + probe-real-mount 双语入清单（en:236/zh:235）；镜像完整性评审人独立复核：'^- **' bold-bullet 29/29 全同（与 coder 自报一致）、top-level '<a id=' 锚点 14/14 全同（coder 自报 12/12 为更窄计数口径，两种口径下 en==zh 不变量均成立）",
+        "verified": true
+      },
+      {
+        "id": "P3-2",
+        "disposition": "fixed",
+        "evidence": "0395c33 + 评审人亲读：CHANGELOG [0.2.1] 段（P0 真机 boot 修复 + 四必修 + 16 强化 + 9 钉测 + 审计来源路径 + 终态电池 472/472 + HF-01 exit 0=方案 a 诚实登记——三处口径一致重申）；0.2.0 Text-only bullet :220-225 改为防御镜像叙述并附 'narrative amended in 0.2.1' 出处；package.json version 0.2.1（亲读 :4）；双语探针清单 probe-real-mount 补行（亲读）；README 双语无现行版本声明（版本面无矛盾点）",
+        "verified": true
+      },
+      {
+        "id": "P3-3",
+        "disposition": "fixed",
+        "evidence": "0f20bf5 + 评审人亲读更正后报告：证据 3 锚点改为 core/session/src/index.ts:596-620（Session.fromRestore，docstring :605）——与第 1 轮评审指认的真锚逐字一致；更正注记如实记录原误写与改前独立回源（service.ts announce/restor 零命中）；结论不变",
+        "verified": true
+      },
+      {
+        "id": "P3-4",
+        "disposition": "fixed",
+        "evidence": "37a14d8 + 评审人机器复核（node 遍历 closure.json，104 items）：fixed/verified 99 / fixed-not-verified 零命中 / duplicate-closed 3（P3-T1/T3/T4）/ uad-closed 1（P3-S1）/ uad-open 1（W5-A6-INSTALL post-merge 复核 2026-11-19）；diff 完整性核查：25 条旧条目仅 status+updatedAt 变更、证据字段零篡改（+31/-25 status 行 + 6 新条目）",
+        "semantics_verdict": "duplicate/uad 保留 closed 合规——§11 唯一 status 约束是『fixed 必须 verified』；verified 语义=修复经核验，duplicate（实质由被合并条目承载）与 deferred（无修复可核验）不可能也不应自称 verified，closed=非 fixed 终态、open=deferred 复核未到期（W5-A6-INSTALL）——词表内部自洽、机器可校验、且 P3R1-D 证据段已书面登记该语义",
+        "verified": true
+      },
+      {
+        "id": "P3-5",
+        "disposition": "fixed",
+        "evidence": "33854a1（14 件）+ 评审人机器核对（git ls-files）：reports/audits/ 5 件（REPORT-FULL-AUDIT + AUD-architecture/state-machines/host-faces/verification-replay）+ CARD-AUD 5 张 + P3 卡 + REVIEW-P3.md + scorecards/P3.json + 审计波 .gitignore 行——closure 追溯链自 git 可复原；coder 如实注记并经评审人确认：reports/audits/ 实为 5 件而非第 1 轮评审所述『六报告』——off-by-one 系评审人计数错误，在此更正（git status 目录级条目 7 个 ≠ 目录内文件数；后续评审应以 git ls-files 逐件计数）；REPORT-FULL-AUDIT.md 冻结正文 §1-§7 未动（卡面 SHA 50a9d0ea=222 行冻结时点，§8 回执为追加节，哈希 d8a647d5 差异已在 progress [13:05] 显式归因）",
+        "verified": true
+      },
+      {
+        "id": "P3-6",
+        "disposition": "fixed",
+        "evidence": "9b81a11 + eaf30ca + 评审人亲读：texts.ts:378 票据标记移除（模型可见面零内部 ID；代码注释/测试标题保留票据引用=非模型面，可接受）；tests/helpers/pi-ai-levels.ts 单源 canonical 列表 + adapter-zctx.spec 双面同源钉（面 A=providers 违规消息逐字渲染合法集 vs canonical；面 B=resolveModel 七级 wire 键→升序 == canonical；面间互证=两份私有源列表无法各自漂移）——采纳『同源钉测』路径且零导出面变化（helper 在 tests/，lib 126 面不变）；lib 刷新 diff 结构化归因=仅该一行字符串 + sourcesContent 条目（eaf30ca 提交信息 + 评审人 diff 亲读）；snapshot-failed 钉测语义存活（tools.spec:299-302 断言稳定前缀+毒化明细+段降级，非装饰标记）",
+        "verified": true
+      }
+    ],
+    "ledger": "closure.json +P3R1-A..F 六条全 fixed/verified（owner=coder-p3-r1，evidence=逐条 commit+机器数）= 104 items；artifacts/p3r1-closure-items.json 台账件在库；progress.md [12:20]-[13:50] 全时间线含两次过程自纠如实记录（P3-6 跨面断言少写内层括号一红自纠；lib 重建 diff 按 Z22 结构化归因非行尾假动）"
+  },
+  "residual_note": {
+    "id": "P3-R1-residual",
+    "location": "tasks/ZCTX/closures/closure.json + tasks/ZCTX/cards/P4-patcher.md",
+    "problem": "①P0-1/P0-2/P0-4 三条建议的实质已全部闭环且机器可溯（P0-1→P3-M4/c9ed41f、P0-2→0395c33+CHANGELOG 0.2.1 段、P0-4→33854a1），但 closure.json 仍无以其 ID 命名的追溯条目（P0-3 已有 V6-1 条目）——§11 字面台账缺口；②P4-patcher.md 未入库（主线下一波输入件，同 P0-4 类）",
+    "fix": "随 P4 波 terminal governance 提交补 3 条（或 1 条捆绑）追溯条目 + git add P4 卡；不阻塞 P4 开工，阻塞 P4 最终验收",
+    "disposition": "OPEN → 主线随 P4 记账（本次不计入 P3 扣分主因——实质链路完整，仅形式条目缺位，扣 completeness 1 分）"
   },
   "must_fix_verification": {
     "P3-M1_SM-01": {
@@ -24,14 +87,12 @@
     },
     "P3-M2_SM-02": {
       "code": "614028a 实读：extractCheckpointSource Number.isFinite+>=0（validAmount，store.ts:307-309）与 extractUsageRecord 孪生对齐；droppedAmounts → invalid-checkpoint-amount anomaly（store.ts:1019-1030）；renderStatus 观测段 1-4 try/catch → STATUS_OBS_SNAPSHOT_FAILED 诚实降级行（tools.ts:725-840）",
-      "removal_check_claim": "coder 自报 4 红（三态毒化钉）；对照组 strong 行保留",
       "e_repro_reverse": "评审人亲跑 repro-sm02-infinity.mjs：exit 1；3 条毒化态全 NO-REPRO（ingested=0、NO THROW），剩余 1 REPRO=对照组（tokensBefore=100 strong 行）按脚本原语义应保持 REPRO——退出码与回执吻合"
     },
     "P3-M3_HF-01_option_a": {
       "ruling_check": "checkpoint p3s0 notes 实读：方案 (a) 裁决理由成立——(b) 被淘汰依据 U1 探针实证（第三方 settingsNs 无页编辑，AUD-host-faces §1.2 原文一致）、(c) 被淘汰依据=审计明示不可靠不推荐——两条淘汰理由均可回溯审计原文，非虚构",
       "code": "219f7ff：拒图门改 imageCount 计数（zctx-adapter.ts:355-385）+ DEFENSIVE MIRROR 契约注释（头注+门注）+ WireSnapshot.imageCount 透传（wire.ts/types.ts）；门行为不变（直呼路径仍拒）",
-      "readme_en": "README.md redlines/wire-ledger 两行已降级（219f7ff 实读）",
-      "readme_zh_changelog_gap": "README.zh.md:142 仍为旧契约『image/file 内容块在线缆之前被拒收』、CHANGELOG.md:90-92 旧 UNSUPPORTED_CONTENT 拒图叙述未降级、无 0.2.1 段——见 [建议] P3-1/P3-2",
+      "readme_sync": "第 1 轮缺口（zh:142 + CHANGELOG 旧叙述）已在返工 c0779b5/0395c33 全数闭合（见 rework_round1_review P3-1/P3-2）",
       "e_repro_reverse": "评审人亲跑 repro-hf01-image.mjs：exit 0，7/7 REPRO——与回执『HF-01 exit 0=方案 a 有意保持机制』逐字吻合；回执如实呈报 REPRO 而非谎称 NO-REPRO，验收口径=契约降级+imageCount 钉（checkpoint p3s0 + closure P3-M3 evidence 双处登记）——诚实呈报合规"
     },
     "P3-M4_HF-02": {
@@ -42,8 +103,7 @@
     "P3-M5_Z19": {
       "code": "83e966e：package.json scripts.test=\"tsdown && vitest run\" 实读确认；&& 语义=tsdown 非 0 退出即停（失败即停），vitest 只吃新鲜产物，退出码取链尾——npm/pnpm/yarn 三 runner 语义一致",
       "ruling_check": "checkpoint p3s0 notes 实读：显式链 vs pretest 钩子的裁决理由成立（pnpm 默认不跑 pre/post 脚本，钩子方案对 pnpm 用户留缺口）",
-      "reviewer_own": "评审人 npm test 亲跑 exit 0：tsdown Build complete 先于 vitest 471/471；重建后 git status lib/ 零漂移（重建字节=入库字节，Z19 新鲜度判据②）",
-      "readme": "README.md dev 段已同步链说明（en）；zh 侧未同步（见 P3-1）"
+      "reviewer_own": "两轮评审均亲跑 npm test exit 0：tsdown Build complete 先于 vitest；重建后 git status lib/ 零漂移（第 2 轮经 eaf30ca 刷新后同样零漂移）"
     }
   },
   "hardening_sample": {
@@ -60,97 +120,54 @@
     "T5": "fold-engine.spec unfold 重展开 absorbed 内层渲染语义钉：断言 [user]+summary、非 marker（not.toContain '[folded block f9]'）、非原文（not.toContain 原始内容）——三向断言强于审计建议",
     "T7": "adapterFaceHealth+adapterFaceSettled（plugin.ts 每个 gate 落 state）+ STATUS_ADAPTER_* + 3 钉",
     "T8": "非法 preflightMode warn + observe 回退（plugin.ts:451-462 实读；mode=off 先行分支不受影响）——warn-once 由『构造期单次 wiring』语义达成",
-    "T9": "LEGAL_PI_AI_LEVELS 构造门 + apiKeyEnv 卫生（violation 路径不再 push 无效原值 spec，providers.ts 实读）+ 4 钉；LEVELS 与 zctx-adapter.ts:135 THINKING_LEVEL_ORDER 逐项同步核实（7 值一致）",
-    "T6": "reports/probes/P3-T6-boot-timing.md 实读 + 评审人回源复核：announce-once（core/session:1262-1276）、create announce 位点（:1118）、agent-loop publish 内 announce 先于 run（agent-loop:664-671 逐行实读核实）全部命中；fromRestore=detached 创建、无 enter/announce（core/session/src/index.ts:596-620 + awk 扫描零命中）——实质结论『惰性 watching 不需要』成立；但证据 3 把该锚点误标为 session-controller service.ts:599-640（实读该区域为 bindScope/projectList，无 restore 措辞）——见 [建议] P3-3"
+    "T9": "LEGAL_PI_AI_LEVELS 构造门 + apiKeyEnv 卫生（violation 路径不再 push 无效原值 spec，providers.ts 实读）+ 4 钉；LEVELS 与 zctx-adapter.ts:135 THINKING_LEVEL_ORDER 逐项同步核实（7 值一致）；返工后另有同源钉测（见 rework_round1_review P3-6）",
+    "T6": "reports/probes/P3-T6-boot-timing.md 实读 + 评审人回源复核：announce-once（core/session:1262-1276）、create announce 位点（:1118）、agent-loop publish 内 announce 先于 run（agent-loop:664-671 逐行实读核实）全部命中；fromRestore=detached 创建、无 enter/announce（core/session/src/index.ts:596-620 + awk 扫描零命中）——实质结论『惰性 watching 不需要』成立；第 1 轮指出的证据 3 锚点误标已在返工 0f20bf5 更正（见 rework_round1_review P3-3）"
   },
   "verification_trio_reviewer_run": {
-    "test": "npm test（Z19 新链 tsdown && vitest run）→ vitest 22 files 471/471 passed EXIT=0（429 基线+42 新钉，与 terminal 自报一致）",
-    "lint": "npx tsc --noEmit → 零输出 EXIT=0",
-    "probes": "五探针全 EXIT=0：probe-artifact 6/0/0、verify-activation-surface 10/0、smoke-real-loader 3/0/0、probe-host-imports 16/0/0、probe-real-mount 5/0/0（G3 五桩=无 sessions 激活钉）；两探针报告时间戳 diff 已按先例 git checkout 还原",
-    "repro_reverse": "四 E 复现脚本亲跑：SM-01 exit1 0/5、SM-02 exit1 1REPRO=对照组、HF-01 exit0 7/7（方案 a 预期）、HF-02 exit1 1REPRO=正对照组——与 §8 回执四条退出码逐项吻合，剩余 REPRO 行均为对照组语义正确",
-    "closure_machine_count": "node 遍历 closure.json → 98 items：fixed 93 / user_approved_deferred 2（W5-A6-INSTALL post-merge 复核 2026-11-19 + P3-S1 v0.3 登记）/ duplicate 3（P3-T1/T3/T4 合并条，清单原文允许）；status 词表分裂：verified 68 + closed 29 + open 1——见 [建议] P3-4",
-    "freshness": "npm test 重建 lib 后 git status lib/ 零漂移（重建字节=入库字节）",
-    "tree": "tracked 零 diff（还原探针时间戳后仅剩 .gitignore +1 行 .codegraph/=审计波既有件，非 P3 触改）；untracked 7 件=reports/audits/ 全部 7 审计件 + P3 任务卡——见 [建议] P3-5"
+    "round1": "npm test 471/471 EXIT 0 · tsc 0 · 五探针 6/10/3/16/5 全 EXIT 0 · 四复现脚本 1/1/0/1 与回执吻合 · closure 98 机器数 · lib 重建字节一致 · 126 导出面机器数",
+    "round2_after_rework": "npm test 472/472 EXIT 0（+1 同源钉）· tsc 0 · 五探针 6/10/3/16/5 全 EXIT 0（时间戳 diff 已还原）· closure 104 机器数（fixed/verified 99，fixed-not-verified 零命中）· lib 重建零漂移 · tracked 树零 diff（唯一 untracked=P4 卡，主线件）"
   },
   "evidence": {
     "correctness": [
       "四必修代码语义逐条实读对照审计修复建议原文（store.ts:932-945/307-309/1019-1030、tools.ts:725-840、zctx-adapter.ts:355-385、plugin.ts inject/83e966e package.json）——零偏离",
       "四 E 复现脚本评审人亲跑四退出码 1/1/0/1 与 §8 回执逐项吻合；剩余 REPRO 行逐条判定为对照组（非修复缺口）",
       "三组摘除即红评审人临时副本法亲证（SM-01 守卫→7 红 / SM-05 clamp→1 红 / HF-15 try→1 红），零陪跑",
-      "全量电池亲验 471/471 + tsc 0 + 五探针 6/10/3/16/5 全 EXIT=0 + lib 重建字节一致",
-      "P3c 钉测 8 形态/渲染三向断言/值域门与 THINKING_LEVEL_ORDER 同步逐项核实"
+      "两轮全量电池亲验（471/471 → 472/472）+ tsc 0 + 五探针全 EXIT 0 + lib 重建字节一致",
+      "P3c 钉测 8 形态/渲染三向断言/值域门与 THINKING_LEVEL_ORDER 同步逐项核实；返工新增同源钉测三断言实读通过"
     ],
     "completeness": [
-      "冻结清单 31 独立条目全部落地：必修 5 + 强化 16（R14 随 M1）+ 钉测 9（T1/T3/T4 合并）+ S1 按卡授权 v0.3 登记——19 提交与 closure 28 条 P3 条目一一对应",
-      "P0 四条 [建议] 的实质处置：P0-1 sessions 键=由 P3-M4 修复；P0-3 V6-1 台账补录（实锚 d8d2f5a）；P0-4 plan/card 两件入库（git ls-files 核实）",
-      "[扣 1] P0-2 承诺（『随 v0.2.1 发布波 version+CHANGELOG+README 同批更新』）部分未兑现：version 仍 0.2.0、CHANGELOG 无 0.2.1 段、probe-real-mount 双语 README 探针清单均缺行、README.zh.md 测试数仍写 424 且无 Z19 链说明",
-      "[扣 1] P0-1..P0-4 四条未按 §11 逐条登记 closure（三路 grep 零命中）——实质已解但轨迹断链，P0-2 残量无 owner/触发条件",
-      "[扣 1] 审计波 7 件（reports/audits/ 六报告 + P3 卡）至 terminal 提交仍未入库——冻结清单权威件在 git 外（审计波继承缺口，terminal 波收口责任），closure.json 引用的 SHA 权威件不可从 git 追溯"
+      "冻结清单 31 独立条目全部落地：必修 5 + 强化 16（R14 随 M1）+ 钉测 9（T1/T3/T4 合并）+ S1 按卡授权 v0.3 登记——19 提交与 closure 28 条 P3 条目一一对应；返工 +P3R1-A..F 六条（六 [建议] 全 fixed/verified）= 104 items",
+      "P0 四条 [建议] 实质全部闭环且机器可溯：P0-1 sessions 键=P3-M4（c9ed41f）；P0-2 全量兑现（CHANGELOG [0.2.1] 段 + version 0.2.1 + 双语探针清单 + zh 计数清理，0395c33/c0779b5）；P0-3 V6-1 台账条目（37a14d8 同批词表统一中一并修至 verified）；P0-4 plan/card 及全部审计件入库（33854a1，14 件）",
+      "[残留 -1] P0-1/P0-2/P0-4 无以其 ID 命名的 closure 追溯条目（实质链路完整、形式条目缺位）+ P4-patcher.md 未入库——记 residual_note，随 P4 governance 提交处理，不阻塞 P4 开工"
     ],
     "consistency": [
-      "[扣 1] README.zh.md:142 旧拒图契约未随 219f7ff 降级（en/zh 镜像纪律由 P0-2 确立，本波 en 侧改了 zh 侧没改）",
-      "[扣 1] CHANGELOG.md:90-92 旧『UNSUPPORTED_CONTENT 拒图』叙述与代码新契约（防御镜像）矛盾——契约降级只改了 README 未同步 CHANGELOG",
-      "[扣 1] closure.json status 词表分裂：同为 disposition=fixed，存量 68 条 status=verified、P3 批 29 条 status=closed（含 V6-1）——§11 『fixed 必须 verified』的字段表达不统一，机器校验口径含混"
+      "zh/en 镜像复原并机器核对：bold-bullet 29/29 全同、top-anchor 14/14 全同（评审人独立计数）；zh:142-143 契约降级注记与 en 逐点同义",
+      "CHANGELOG 0.2.0 Text-only bullet 改防御镜像叙述 + 'amended in 0.2.1' 出处 + [0.2.1] 新段记录全波修复与诚实注记——新旧契约叙述零矛盾",
+      "closure status 词表统一且语义合规：fixed→verified 99/99（机器复核零例外）；duplicate/deferred→closed/open 为有意语义区分（verified=修复经核验，duplicate/deferred 无修复可核验），§11 唯一约束满足且 P3R1-D 证据段书面登记"
     ],
     "verifiability": [
-      "亲验全绿（本文件 verification_trio_reviewer_run，reviewer 本机实跑 2026-11-14）：四退出码/471 用例/五探针/126 导出面机器数/98 台账机器数全部可复现",
-      "T6 探针报告四条证据链中三条逐行回源命中（core/session:1262-1276/:1118、agent-loop:664-671）",
-      "[扣 1] T6 证据 3 锚点失实：service.ts:599-640 实读无 restore 措辞（真锚=core/session/src/index.ts:605 fromRestore docstring+构造器），实质结论经评审人独立回源确认成立——探针报告的可验证性缺陷（结论不受影响）"
+      "两轮亲验全绿且数字可复现（471→472、closure 98→104、退出码逐项）",
+      "T6 探针报告四锚点全部回源命中（证据 3 已按第 1 轮指认更正，含改前独立回源记录）；更正注记本身可回溯（0f20bf5 diff）",
+      "返工台账件（p3r1-closure-items.json）+ progress 时间线 + checkpoint p3r1-terminal 三方可交叉核对；closure.json 旧条目零证据篡改（diff 仅 status/updatedAt/新条目）"
     ],
     "safety_rollback": [
-      "P3 零删除/零凭证/零 wire 行为变更（HF-01 契约降级不改门行为）；19 提交全 git 可回滚；lib 入库且重建字节一致",
-      "评审过程零仓改动：三组摘除即红在 G:\\000Github\\zDSH\\zctx-p3-review-rm-tmp 临时副本（node_modules junction）执行后已删除；探针报告时间戳 diff 已还原；终态 git status 与开工一致（.gitignore+7 未跟踪件均为既有）",
-      "deepFreeze/fail-soft/幂等守卫三件均为风险收窄向加固；失败路径全部走 anomaly/warn 诚实台账（no throwing 契约保持）"
+      "P3+P3-r1 零删除/零凭证/零 wire 行为变更（HF-01 契约降级不改门行为）；27 提交全 git 可回滚；lib 入库且两轮重建字节一致",
+      "评审过程零仓改动：摘除即红临时副本已清理；探针报告时间戳已还原；两轮终态 git status 均与开工一致（第 2 轮仅剩主线 P4 卡）",
+      "eaf30ca lib 刷新附结构化 diff 归因（一行字符串+sourcesContent，mappings 不变）——产物变更可审计；deepFreeze/fail-soft/幂等守卫均为风险收窄向加固"
     ],
     "maintainability": [
-      "修复注释逐条携带审计 ID+官方锚点（如 SM-01 守卫注释含五腐败面+合法首投形态说明）——下一个读者不需要考古",
+      "修复注释逐条携带审计 ID+官方锚点；返工 P3-6 单源 helper 使双列表漂移成为机器可拦项（三断言：面 A/面 B/面间互证）",
       "clamp 收敛在 validatorConfig 单漏斗（grep 唯一构造点），注册面 try/catch 与 adapter 面 continuation-catch 同构",
-      "[扣 1] STATUS_OBS_SNAPSHOT_FAILED 文案内嵌内部票据标记『(P3 SM-02 fail-soft)』（texts.ts:378，模型/用户可见面唯一带波次 ID 的文案，与 texts.ts 单家园风格不一致）；LEGAL_PI_AI_LEVELS 与 THINKING_LEVEL_ORDER 的双列表同步仅靠注释约束、无同源钉测"
+      "模型可见文案零内部票据标记（texts.ts:378 已清）；票据引用保留在代码注释/测试标题=正确的关注面分离"
     ]
   },
   "suggestions": [
-    {
-      "id": "P3-1",
-      "location": "README.zh.md:142（redlines 行）与 README.zh.md:218-233（dev 段）",
-      "problem": "HF-01 契约降级只改了 README.md，zh 镜像滞后：142 行仍声明旧契约『纯文本——image/file 内容块在线缆之前被拒收』（与新代码的防御镜像+imageCount 契约相反）；dev 段 pnpm test 仍写『vitest 全套（424 例）』（实 471）且无 Z19 build-first 说明（en 侧 :221-228 已改）——en/zh 镜像纪律破缺",
-      "fix": "zh:142 按 README.md:142-143 同步降级表述；zh dev 段同步 Z19 链说明（测试数建议不再硬编码，对齐 en 的新写法）",
-      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
-    },
-    {
-      "id": "P3-2",
-      "location": "CHANGELOG.md:90-92 + :1（无 0.2.1 段）+ package.json:4（version 0.2.0）+ README.md:227-236 与 README.zh.md:227-236（探针清单）",
-      "problem": "P0-2 已登记的跨波承诺（『随 v0.2.1 发布波（P3）version+CHANGELOG+README 同批更新：424→新数、探针清单 +real-mount 行』）只兑现了 en dev 段一行；CHANGELOG 90-92 的旧 UNSUPPORTED_CONTENT 拒图叙述与 P3-M3 新契约矛盾且无 0.2.1 段记录本波 31 项修复；probe-real-mount 在双语 README 探针清单均缺行；version 未 bump——P3 卡标题即『v0.2.1 波次』",
-      "fix": "一个文档收口提交：CHANGELOG 增 0.2.1 段（记录 P3 修复+契约降级诚实注记+471 钉测数）并降级 90-92 旧叙述；双语 README 探针清单补 probe-real-mount 行；version 0.2.0→0.2.1（若主线决定 release 另行走 §15 流程，则本条按 §11 转 user_approved_deferred 并登记触发条件=release 波）",
-      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
-    },
-    {
-      "id": "P3-3",
-      "location": "reports/probes/P3-T6-boot-timing.md 证据链第 3 条",
-      "problem": "锚点失实：『api/session-controller/src/client/sessions/service.ts:599-640（restore → restored detached session…）』——评审人实读该区域为 bindScope/ScopeRecord/projectList，无 restore 措辞；真锚=core/session/src/index.ts:596-620（Session.fromRestore，docstring 『restored detached session』在 :605）+ 构造器无 enter/announce。实质结论（restore=detached 无 announce、惰性 watching 不需要）经评审人独立回源确认成立，但报告自身的 file:line 可追溯性缺陷违反 A56 回源纪律",
-      "fix": "更正报告证据 3 的 file:line 为 core/session/src/index.ts:596-620（并保留 service.ts 的 grep 零命中附注）；一行修正，结论不变",
-      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
-    },
-    {
-      "id": "P3-4",
-      "location": "tasks/ZCTX/closures/closure.json（status 字段）",
-      "problem": "status 词表分裂：disposition=fixed 的条目中存量 68 条 status='verified'、P3 批 29 条 status='closed'（另 V6-1='closed'、W5-A6-INSTALL='open'）——§11 『fixed 必须 verified』的字段表达在批内不统一；若 closure-check 工具按 status 过滤，-Phase all 口径下 P3 批可能被误判",
-      "fix": "二选一：①P3 批 29 条 status 统一改 'verified'（与存量词表一致）；②若 'closed' 是新终态词表，则在台账头部或治理文档显式登记词表升级并确认 closure-check 工具兼容——机器校验口径必须唯一",
-      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
-    },
-    {
-      "id": "P3-5",
-      "location": "reports/audits/（6 审计报告）+ tasks/ZCTX/cards/P3-audit-fixes.md + 5 张 CARD-AUD-*（共 7 处 untracked）",
-      "problem": "P3 波的权威输入件（冻结清单 REPORT-FULL-AUDIT.md——closure 28 条 P3 条目与 §8 处置回执的引用源）与 P3 任务卡至 terminal 提交仍在 git 外——验收追溯链（closure evidence → 审计条目 → 复现状态）的关键一环不可从 git 追溯；P0-4 同类问题（当时承诺『随下一 governance 增量提交入库』且已兑现 P0 两件），本波新增件重复同类缺口",
-      "fix": "git add 7 件 + chore(ZCTX) governance 提交（P0-4 先例：卡随 governance 提交入库）；连同 P3-1/P3-2 文档收口可并入同一提交或相邻提交",
-      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
-    },
-    {
-      "id": "P3-6",
-      "location": "src/texts.ts:378（STATUS_OBS_SNAPSHOT_FAILED）+ src/adapter/providers.ts:24-32（LEGAL_PI_AI_LEVELS）",
-      "problem": "①模型/用户可见文案内嵌内部票据标记『(P3 SM-02 fail-soft)』——texts.ts 全表唯一带波次 ID 的文案，与单家园文案风格不一致，且该文案出现在 zctx_status 输出（外露面）；②LEGAL_PI_AI_LEVELS 与 zctx-adapter.ts:135 THINKING_LEVEL_ORDER 是必须同步的双列表，当前仅注释约束（『changing one without the other is a spec-level drift』），无同源或同源钉测——漂移只会在请求期暴露（恰是 HF-12 要修的形态）",
-      "fix": "①删去文案尾部票据标记（保留诚实降级语义本身）；②补一条断言两列表相等的同源钉测（import 双方比较），或把 LEGAL_SET 改为从 THINKING_LEVEL_ORDER 派生（providers.ts 是 zero-import 层的话则反向钉测）",
-      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
-    }
+    { "id": "P3-1", "location": "README.zh.md:142 + dev 段", "problem": "（第 1 轮）zh 镜像滞后：旧拒图契约/424 旧数/无 Z19 说明", "fix": "已修 c0779b5", "disposition": "fixed（P3R1-A，status=verified）" },
+    { "id": "P3-2", "location": "CHANGELOG/version/probe-lists", "problem": "（第 1 轮）发布面收口缺口：无 0.2.1 段、旧叙述矛盾、version 0.2.0、probe-real-mount 缺行", "fix": "已修 0395c33", "disposition": "fixed（P3R1-B，status=verified）" },
+    { "id": "P3-3", "location": "reports/probes/P3-T6-boot-timing.md 证据 3", "problem": "（第 1 轮）锚点误标 service.ts:599-640", "fix": "已修 0f20bf5（改前实读+更正注记）", "disposition": "fixed（P3R1-C，status=verified）" },
+    { "id": "P3-4", "location": "closure.json status 词表", "problem": "（第 1 轮）fixed 类 verified/closed 分裂", "fix": "已修 37a14d8（25 条→verified；duplicate/uad closed 语义判定合规）", "disposition": "fixed（P3R1-D，status=verified）" },
+    { "id": "P3-5", "location": "reports/audits/ + 卡件", "problem": "（第 1 轮）审计权威件 7 处 untracked；评审人『六报告』为 off-by-one（实 5 件，已在 round1_original/rework 节更正）", "fix": "已修 33854a1（14 件入库）", "disposition": "fixed（P3R1-E，status=verified）" },
+    { "id": "P3-6", "location": "texts.ts:378 + providers.ts 双列表", "problem": "（第 1 轮）模型可见文案内嵌票据标记 + 双列表无同源钉测", "fix": "已修 9b81a11+eaf30ca（标记清除+单源 helper 三断言钉+lib 刷新）", "disposition": "fixed（P3R1-F，status=verified）" }
   ],
-  "fraud_check": "未发现造假：四必修修复全部逐行实读对照审计建议原文（无凭空声称）；四 E 复现脚本退出码评审人亲跑且与回执逐字吻合——关键诚实点：HF-01 机制性 REPRO 被如实呈报为方案 (a) 预期而非谎报 NO-REPRO（checkpoint p3s0 + closure P3-M3 + §8 回执三处口径一致）；三组摘除即红评审人临时副本法独立复现（7/1/1 红，零陪跑）；471/471+tsc 0+五探针 6/10/3/16/5+126 导出面+98 台账全部本机复跑；T6 报告四锚点评审人回源（三中一失实已如实扣分，实质结论经独立确认）；lib 重建字节一致；评审全程零仓改动（临时副本已清理、探针时间戳已还原、git status 复核与开工一致）。评分无自评（reviewer-P3 ≠ P3 coder）；发现的一处锚点失实（T6 证据 3）与文档同步缺口（P3-1/P3-2）均已如实计入扣分而非隐藏"
+  "fraud_check": "两轮均未发现造假：第 2 轮重点复验——①六条 [建议] 修复证据逐条亲读+机器核对（29/29 bullet、14/14 anchor、fixed/verified 99/99、git ls-files 14 件、CHANGELOG/version 亲读）；②472/472+tsc 0+五探针全 EXIT 0+lib 重建零漂移评审人本机复跑；③closure.json 旧条目 diff 零证据篡改（仅 25 status 词+6 新条目）；④T6 更正与改前实读声明相符（评审人第 1 轮已独立回源同一结论）；⑤off-by-one 由 coder 如实注记且评审人确认系自身计数错误并当此更正；⑥两份第 1 轮评审件入库内容与原稿逐节一致（八节齐全、fraud_check 在位——未被返工改动）。评分无自评（reviewer-P3 ≠ P3 coder）；第 1 轮扣分全部对应返工项，无隐藏"
 }

@@ -68,3 +68,54 @@ T2 八形态逐形态对照审计 §4 表全命中；T5 三向断言（[user]+su
 - 评分全部附证据路径/行号/命令输出；无证据维度记 0 的条款未触发（六维均有直接证据）。
 
 （完 · 交主线：打回清单六条当波收口后可复评；代码块本身已达可合并质量，文档收口不涉及行为。）
+
+---
+
+# 返工复审（第 1 轮 · 2026-11-14 · reviewer-P3）
+
+```
+FROM: reviewer-P3
+TO: 主线
+MODE: verify
+TASK_REF: P3 返工第 1 轮复审（c0779b5..d9bd4fd，8 提交）
+PAYLOAD: SCORE 99/100 · [阻断] 0 · 六条 [建议] 全部 closed（fixed/verified）· 放行 P4 patcher 波
+ATTACHMENTS: tasks/ZCTX/scorecards/P3.json（已更新：round1_original 保留 + rework_round1_review 新增）
+```
+
+## 判定：通过（99 ≥ 98）→ 放行 P4 patcher 波
+
+六维（返工后）：正确性 25 · 完整性 19 · 一致性 20 · 可验证性 15 · 安全回滚 10 · 可维护性 10。
+第 1 轮打回仅因文档/台账卫生面（-7 分），六条全部闭合后回升 99；唯一残留 1 分为 P0-1/2/4 形式台账条目缺位（实质链路完整，随 P4 记账，见 residual_note）。
+
+## 一、六条建议逐条闭合复核（全 fixed/verified，评审人亲验）
+
+| ID | 修复提交 | 评审人复核证据 | 判定 |
+|---|---|---|---|
+| P3-1 zh 镜像 | c0779b5 | zh:142-143 契约降级注记与 en 逐点同义；dev 段 Z19 链替换 424 旧数；probe-real-mount 双语入清单（en:236/zh:235）；**评审人机器核对：'^- **' bullet 29/29 全同、top-anchor 14/14 全同**（coder 自报 12/12 为更窄口径，两口径下 en==zh 均成立） | closed |
+| P3-2 发布面 | 0395c33 | CHANGELOG [0.2.1] 段亲读（P0+P3 两波、审计来源、472/472、HF-01 exit0=方案 a 诚实登记）；0.2.0 :220-225 改防御镜像+出处注记；package.json:4 = 0.2.1；README 双语无现行版本声明（版本面零矛盾） | closed |
+| P3-3 T6 锚点 | 0f20bf5 | 更正后报告证据 3 = core/session:596-620（fromRestore，docstring :605）——与第 1 轮评审指认真锚逐字一致；更正注记含改前独立回源（service.ts announce/restor 零命中）；结论不变 | closed |
+| P3-4 词表统一 | 37a14d8 | **评审人机器复核：104 items，fixed/verified 99，fixed-not-verified 零命中**；duplicate/closed 3（P3-T1/T3/T4）+ uad/closed 1（P3-S1）+ uad/open 1（W5-A6-INSTALL，post-merge 复核 2026-11-19）；diff 仅 25 status 词+updatedAt，证据字段零篡改 | closed |
+| P3-5 审计件入库 | 33854a1 | **git ls-files 亲验 14 件**：reports/audits/ 5 + CARD-AUD 5 + P3 卡 + REVIEW-P3 + scorecards/P3.json + .gitignore 行；closure 追溯链自 git 可复原；冻结正文 §1-§7 未动（§8 回执为追加节，哈希差异已归因） | closed |
+| P3-6 标记+同源钉 | 9b81a11+eaf30ca | texts.ts:378 标记清除（模型可见面零内部 ID；代码注释/测试标题保留=正确关注面分离）；tests/helpers/pi-ai-levels.ts 单源 + 双面同源钉三断言亲读（面 A=违规消息渲染合法集 vs canonical；面 B=七级升序 == canonical；面间互证）；零导出面变化（helper 在 tests/，126 面不变）；lib 刷新 diff=一行字符串+sourcesContent 条目（eaf30ca 亲读）；snapshot-failed 钉测语义存活（tools.spec:299-302 断言稳定前缀+段降级，非装饰标记） | closed |
+
+## 二、P3-4 词表语义专项判定（主线问询）
+
+**duplicate/uad 保留 `closed` 合规。** §11 对 status 的唯一硬约束是『fixed 必须 verified』；`verified` 的语义=修复已实现并经核验，duplicate（实质由被合并条目承载）与 deferred（无修复）**不可能也不应**自称 verified——`closed`=非 fixed 类的终态、`open`=deferred 复核未到期（W5-A6-INSTALL）。该区分内部自洽、机器可校验（fixed-not-verified 零命中），且已在 P3R1-D 证据段书面登记。第 1 轮缺陷（fixed 类标 closed=未经 verified 即终态）已消除；统一后的词表比第 1 轮更符合 §11 字面。
+
+## 三、亲验电池（返工后 HEAD=d9bd4fd）
+
+- `npm test`（Z19 链）→ **472/472**（22 files = 429 基线 + 42 P3 钉 + 1 P3-r1 同源钉）EXIT 0
+- `npx tsc --noEmit` → 0 错 EXIT 0
+- 五探针全 EXIT 0：artifact 6/0/0 · surface 10/0 · smoke-real-loader 3/0/0 · host-imports 16/16 · real-mount 5/0/0；两报告时间戳 diff 已按先例还原
+- lib 重建零漂移（eaf30ca 刷新后重建字节=入库字节）；tracked 树零 diff；唯一 untracked = tasks/ZCTX/cards/P4-patcher.md（主线下一波输入件，非本波范围）
+
+## 四、评审人自我更正（诚实记录）
+
+第 1 轮 P3-5 所述『reports/audits/ 六报告』为 **off-by-one 计数错误**：实为 5 件（git status 把目录计为 1 个条目，我未逐件清点）。coder 在 33854a1/P3R1-E 如实注记并经我确认。更正：后续审计件计数以 `git ls-files <dir>` 逐件为准。该错误不改变第 1 轮判定实质（untracked 缺口为真，现已闭合）。
+
+## 五、残留（不阻塞 P4 开工，阻塞 P4 最终验收）
+
+- P0-1/P0-2/P0-4 三条建议无以其 ID 命名的 closure 追溯条目（实质已闭环且机器可溯：P0-1→c9ed41f/P3-M4、P0-2→0395c33、P0-4→33854a1；P0-3 已有 V6-1 条目）——随 P4 terminal governance 提交补 3 条（或 1 条捆绑）。
+- tasks/ZCTX/cards/P4-patcher.md 随 P4 首个 governance 提交入库。
+
+（完 · 返工第 1 轮复审 · 放行 P4 patcher 波 · 99/100 · 零 OPEN [阻断] · 六 [建议] 全 fixed/verified）
