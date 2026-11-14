@@ -265,6 +265,36 @@ describe('plugin: face wiring', () => {
     ])
   })
 
+  it('P3 HF-15: a REFUSING register degrades the face (warn), never breaks boot', () => {
+    // The official tools.register throws on output-shape violations,
+    // unsupported JSON schemas, and reserved names (tools/src/index.ts:
+    // 1069-1093). The plugin must treat absence AND refusal alike: skip the
+    // face with a warn, keep every other face, keep boot alive.
+    const refused: string[] = []
+    const accepted: string[] = []
+    const ctx = mockCtx({
+      tools: {
+        register: (definition: { name: string }) => {
+          if (definition.name === 'zctx_fold') {
+            refused.push(definition.name)
+            throw new TypeError('reserved tool name (official register refusal)')
+          }
+          accepted.push(definition.name)
+          return definition
+        },
+      },
+    })
+    expect(() => new ZcontextPlugin(ctx)).not.toThrow()
+    // fold refused, the other three still registered (the override stub owns
+    // its own accepted-list; ctx.registeredTools belongs to the default stub).
+    expect(accepted).toEqual(['zctx_unfold', 'zctx_recall', 'zctx_status'])
+    expect(refused).toEqual(['zctx_fold'])
+    expect(ctx.logLines.some((l) => l.level === 'warn' && l.message.includes('tools.register refused'))).toBe(true)
+    // The other faces crossed normally.
+    expect(ctx.registeredSections).toHaveLength(1)
+    expect(ctx.registeredCommands).toHaveLength(1)
+  })
+
   it('degrades face by face when host services are missing', () => {
     const ctx = mockCtx({ tools: undefined, systemPrompt: undefined, commands: undefined, on: undefined })
     new ZcontextPlugin(ctx)

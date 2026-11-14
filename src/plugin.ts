@@ -326,8 +326,19 @@ export class ZcontextPlugin extends ServiceBase {
       return
     }
     const defineTool = resolveDefineTool()
+    // P3 HF-15: the official tools.register has multiple throw paths (output
+    // shape, assertSupportedJsonSchema, reserved names — tools/src/index.ts:
+    // 1069-1093). Absence AND throw are both degrade-to-skip now: the plugin
+    // never breaks boot on a registration refusal, it logs and continues.
     for (const definition of buildZctxTools(defineTool, this.runtime)) {
-      ctx.tools.register(definition)
+      try {
+        ctx.tools.register(definition)
+      } catch (error: unknown) {
+        const name = (definition as { name?: unknown }).name
+        ctx.logger?.warn?.(
+          `dsh-zcontext: tools.register refused "${String(name)}" (${error instanceof Error ? error.message : String(error)}) — tool face degraded, boot continues`,
+        )
+      }
     }
   }
 
@@ -338,7 +349,15 @@ export class ZcontextPlugin extends ServiceBase {
       ctx.logger?.warn?.('dsh-zcontext: systemPrompt.section unavailable — guidance face skipped')
       return
     }
-    ctx.systemPrompt.section(buildGuidanceSection())
+    // P3 HF-15: register-time throw degrades to skip (same contract as the
+    // absence check above — "缺席/抛错双态都降级").
+    try {
+      ctx.systemPrompt.section(buildGuidanceSection())
+    } catch (error: unknown) {
+      ctx.logger?.warn?.(
+        `dsh-zcontext: systemPrompt.section refused the guidance face (${error instanceof Error ? error.message : String(error)}) — guidance skipped, boot continues`,
+      )
+    }
   }
 
   /** The threshold nudge context with required: true (B2). @internal */
@@ -348,15 +367,23 @@ export class ZcontextPlugin extends ServiceBase {
       ctx.logger?.warn?.('dsh-zcontext: systemPrompt.context unavailable — nudge face skipped')
       return
     }
-    ctx.systemPrompt.context({
-      name: NUDGE_CONTEXT_NAME,
-      order: NUDGE_CONTEXT_ORDER,
-      interpolate: false,
-      required: true,
-      // Official PromptContext.text contract: the provider receives the
-      // assembly's AssembleContext (system-prompt/src/index.ts:85).
-      text: (assembly: AssembleContextLike) => this.nudgeProvider(assembly),
-    })
+    // P3 HF-15: register-time throw degrades to skip (same contract as the
+    // absence check above — "缺席/抛错双态都降级").
+    try {
+      ctx.systemPrompt.context({
+        name: NUDGE_CONTEXT_NAME,
+        order: NUDGE_CONTEXT_ORDER,
+        interpolate: false,
+        required: true,
+        // Official PromptContext.text contract: the provider receives the
+        // assembly's AssembleContext (system-prompt/src/index.ts:85).
+        text: (assembly: AssembleContextLike) => this.nudgeProvider(assembly),
+      })
+    } catch (error: unknown) {
+      ctx.logger?.warn?.(
+        `dsh-zcontext: systemPrompt.context refused the nudge face (${error instanceof Error ? error.message : String(error)}) — nudge skipped, boot continues`,
+      )
+    }
   }
 
   /** The /zctx command. @internal */
@@ -366,7 +393,15 @@ export class ZcontextPlugin extends ServiceBase {
       ctx.logger?.warn?.('dsh-zcontext: commands service unavailable — command face skipped')
       return
     }
-    ctx.commands.register(buildZctxCommand(this.runtime))
+    // P3 HF-15: register-time throw degrades to skip (same contract as the
+    // absence check above — "缺席/抛错双态都降级").
+    try {
+      ctx.commands.register(buildZctxCommand(this.runtime))
+    } catch (error: unknown) {
+      ctx.logger?.warn?.(
+        `dsh-zcontext: commands.register refused the /zctx command (${error instanceof Error ? error.message : String(error)}) — command face skipped, boot continues`,
+      )
+    }
   }
 
   /**
