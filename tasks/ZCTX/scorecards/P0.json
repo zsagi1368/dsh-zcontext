@@ -1,0 +1,115 @@
+{
+  "block": "P0",
+  "task": "ZCTX v0.2.1 P0 — inject 六键声明（真机 cannot get property without inject 根因修复）+ mock 宿主 cordis get-trap 纪律 + probe-real-mount 真装载探针 + 访问点收编 + governance",
+  "range": "b289f04..fb982e0（4 提交：b289f04 inject 六键 / 5174b93 mock 纪律 / b650c73 probe-real-mount / fb982e0 governance closure 69）",
+  "reviewer": "reviewer-P0 (independent subagent; reviewer ≠ P0 coder)",
+  "date": "2026-11-14",
+  "verdict": "通过 (总分 98 ≥ 98) → P0 块中间合入放行；0 条 [阻断]；4 条 [建议] P0-1..P0-4（按 §0.1/§11 当波记账，阻塞最终验收，不阻塞中间合入）",
+  "total": 98,
+  "threshold": 98,
+  "scores": {
+    "correctness": 25,
+    "completeness": 19,
+    "consistency": 19,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 10
+  },
+  "six_key_independent_recheck": {
+    "method": "逐键实读锚树（G:/000Github/zDSH/zDSH-main）提供方源码行号，非转引提交信息；并实读 vendor/cordis/src/service.ts:51 证实 super(ctx,name)→ctx.reflect.provide(name) 即注册名",
+    "keys": [
+      "tools = packages/core/tools/src/index.ts:850 `super(ctx, 'tools')` — 实读命中",
+      "systemPrompt = packages/core/system-prompt/src/index.ts:442 `super(ctx, 'systemPrompt')` — 实读命中",
+      "commands = packages/interaction/commands/src/index.ts:277 `super(ctx, 'commands')` — 实读命中",
+      "llm = packages/llm/llm/src/index.ts:354 `super(ctx, 'llm')` — 实读命中",
+      "tokenMeter = packages/llm/token-meter/src/index.ts:111 `super(ctx, 'tokenMeter')` — 实读命中",
+      "sessions = packages/api/session-controller/src/client/sessions/service.ts:282 `rootCtx.reflect.provide('sessions', this, undefined)` — 实读命中（反直觉路径为真：提供方确在 session-controller client 而非 core/session，grep 'provide(' 实锚行 282；非 AI 拼凑）"
+    ],
+    "convention": "compaction-basic packages/compaction/compaction-basic/src/index.ts:114 `static inject = ['llm','tokenMeter','sessions']` — 实读命中，键=ctx 属性名惯例成立",
+    "root_mechanism_from_source": "provide → reflect.store + 提供 fiber.store + notify([name]) → 每个声明 fiber._checkImpl 把 impl 拷入 _store（reflect.ts:286-303, fiber.ts:596-608）→ _refresh 任一缺失 epoch=INACTIVE=PENDING（fiber.ts:613-627）→ get 陷阱 walk 仅祖先链 fiber.store（reflect.ts:153-166）→ 兄弟插件 fiber 提供的服务未声明不可达 → 设备同款错误；锚树 grep 无 'internal/get' 宿主拦截器（仅 cordis 自身声明+emit）→ vendor 语义=设备语义",
+    "finding": "sessions 键在 src 全域零消费（grep ctx.sessions/['sessions']/动态 ctx[ 均零命中）——声明按卡面契约执行、宿主确提供、无错误键风险，但属无消费者耦合面（见 P0-1）"
+  },
+  "verification_trio_reviewer_run": {
+    "build": "pnpm build → tsdown 992.98 kB (7 files) EXIT=0；git status --porcelain lib/ 为空 = 重建 lib 与入库字节一致（亲验 2026-11-14）",
+    "test": "pnpm test → vitest 22 files 429/429 passed EXIT=0（424 基线 + 5 纪律钉，与 5174b93 提交信息一致）",
+    "lint": "pnpm lint → tsc --noEmit 零错 EXIT=0（build→test→tsc 顺序，Z19）",
+    "probes": "五探针全 EXIT=0：probe-artifact 6/0/0 + verify-activation-surface 10/0 + smoke-real-loader 3/0/0 + probe-host-imports 16/0/0 + probe-real-mount 5/0/0（G1×2 + G2 负对照 'cannot get property \"llm\" without inject' + G3 全触达 tools=4 sections=1 contexts=1 commands=1 llm/stream=2 + G4 registerAdapter routes=zctx-anthropic-messages directory=1 continuation=true）；两报告重生成仅时间戳，已 git checkout 还原入库态（沿 REVIEW-V3V4/V5/V6 先例）",
+    "closure_machine_count": "node 遍历 closure.json → 69 items / 68 fixed + 1 user_approved_deferred（W5-A6-INSTALL，phase=post-merge，by design）；disposition 词表零违规；P0-A..P0-D 全 fixed/verified 且 evidence 均指向具体提交机制（非泛引）；checkpoint ZCTX-P0 终步 p0s4-terminal + progress 四条 P0 时间线一致",
+    "tree": "干净（两探针报告时间戳 diff 还原后仅剩协调者两未跟踪输入件：reports/plans/ZCTX-v021-plan.md + tasks/ZCTX/cards/P0-inject-fix.md，见 P0-4）",
+    "removal_check_30_red": "评审人以临时副本法亲验（C:/Users/ZS/AppData/Local/Temp/zctx-p0-review-removal-check：仓库只读拷贝 src/tests/lib/三配置 + node_modules junction，仓内零改动——git status 复核干净；副本内 src/plugin.ts:224 摘回 []）→ npx vitest run = 恰 30 failed / 399 passed：adapter-plugin.spec 8 + plugin.spec 22，全部失败于 new ZcontextPlugin 构造点 src/plugin.ts:257 抛设备同款错误 'cannot get property \"tokenMeter\" without inject'，零陪跑（store/guidance/twins/mapping/adapter-host 等 20 文件全绿）。脚注：smoke.spec 在 src-only 摘除下仍绿（其 import 的是未补丁的 BUILT lib/index.js）；若 src+lib 全量重建则红更多不会更少——防复发机制声称稳健",
+    "mock_fidelity": "mock-host.ts 特殊属性清单（symbol/prototype/then/数字串/_前缀）= reflect.ts:86-91（RESERVED_WORDS=['prototype','then'] 实读）逐项一致；自有/原型属性直解析=:140-141；∈inject→store 解析、缺失=belt undefined（真实宿主 PENDING fiber.ts:613-627，mock 头注 DOCUMENTED DEVIATION 明示）；其余抛 :144 同款错误串；inject 活读自锁（新服务访问漏声明→全构造测试红）；三处简化（accessor 当自有属性/无 root 非运行时分支/has 陷阱无 props 注册表）均已在头注声明且不影响被测面"
+  },
+  "probe_topology_fidelity": {
+    "verdict": "忠实且自守：六桩 root.plugin(XStub) 各自插件 fiber 提供=官方 provider 形态（真机 5 键同拓扑）；sessions 真机在 rootCtx 直供（root fiber store=宽容态）而探针按兄弟 fiber 供给=更严不假绿；G2 负对照把拓扑漂移宽容化钉成红（根 fiber 直供桩→inject=[] 直访不抛→G2 FAIL）——拓扑保真度被探针自身机器守护",
+    "coverage": "G3 覆盖 plugin.ts 全部启动期服务访问点：构造 :256-258（236/237 死点现址）/session feed 三监听 :288,:292,:300/tools :313,:319（4 注册）/section :326,:330/context :336,:340（required zctx-nudge）/command :354,:358/llm :395,:399/llm/stream 双监听 :422（真 EventsService._hooks 计数，events.ts:131 实读确认字段在）；G4 覆盖 providers 声明态 adapter 面 :458-:464；事件期回调体内访问（如 tokenMeter.measure）探针不执行——同一 ctx 代理解析语义，单测在纪律 mock 下已执行，且 dsh-zcontext 查找=PENDING 守卫全局兜错误键"
+  },
+  "evidence": {
+    "correctness": [
+      "六键独立复核全命中（本文件 six_key_independent_recheck，逐键行号实读）——任务卡写 core/session 而真实提供方在 session-controller client：实现以实读锚树为准而非照抄卡面猜测，恰是卡面『错误键=静默 PENDING 必须实读』的正确执行",
+      "根因链源码级重建：reflect.ts:144 错误串/:153-166 祖先链 walk/fiber.ts:596-608 _checkImpl 拷贝/:613-627 PENDING epoch——五键中任一未声明即设备同款红（30 红亲验）；六键齐备时 notify→_checkImpl 全拷入→_refresh epoch 活跃→构造执行（429/429 + probe G3 实跑）",
+      "摘除即红 30/429 亲验复现，明细全为构造点/声明绿路径钉，零无关陪跑（removal_check_30_red）",
+      "mock 纪律保真逐条对照通过（mock_fidelity）；5 纪律钉测含『六键逐一在 inject=[] 下抛设备错误』负例循环（plugin.spec.ts:106-120）",
+      "无解构/动态 ctx[ 访问（grep 零命中）——P0-D 收编排查声称独立复核成立"
+    ],
+    "completeness": [
+      "卡面产物 1-5 全交付并亲验：六键声明+注释逐键锚点（plugin.ts:206-223）/mock 纪律（mock-host.ts 120 行+三 spec 改道）/probe-real-mount（427 行 G1-G4+报告落盘）/访问点收编（grep 全 sweep 独立复核）/负例钉测 5 条",
+      "验收全项：vitest 429 绿+tsc 零+build 绿+probe exit 0+台账落盘（closure 69 机器数）——逐条对得上",
+      "[建议 P0-4 扣 1 分]：任务卡+计划两输入件仍未入库（?? reports/plans/ZCTX-v021-plan.md ?? tasks/ZCTX/cards/P0-inject-fix.md）——V6 先例是『V6 card enter the repo』；评审与审计轨迹部分在 git 外。progress [07:56] 已如实披露『干净树（仅协调者 plan/card 两未跟踪件）』，非隐瞒"
+    ],
+    "consistency": [
+      "lib/index.d.ts 随源重建（inject 文档注释入类型面 21 行）且重建字节一致；smoke inject 钉测 []→六键（顺序一并钉死，有意识变更）",
+      "探针家族结构同构：report(id,ok,detail)/skip 明示/Z20 装载纪律（fileURLToPath+statSync isDirectory，probe:74-98）/报告落盘惯例——与 U2/surface/artifact 家族一致",
+      "RSI 收口属实：Z21/Z22 当天入册（ZDSH-LESSONS.md:129/:135 + ~/.agents/rsi/INDEX.md:19/:106 自审行）——『桩漏显式构造器→静默 PENDING』『checkout-CRLF→sourcemap 假动 1550B』两坑均带固化去处",
+      "[建议 P0-2 扣 1 分]：README en/zh 开发节滞后于 P0 实盘——测试数仍写 424（实 429）、探针清单仍四条（实五条，缺 probe-real-mount 5 组）；V6-1 同类问题（当时已修 d8d2f5a）。P0 卡面无 README 项、v0.2.1 发布波（P3）按既定模式 version+CHANGELOG+README 同批更新，属合法时序但需记账"
+    ],
+    "verifiability": [
+      "亲验全绿（本文件 verification_trio_reviewer_run，reviewer 本机实跑 2026-11-14）：build 992.98 kB 字节一致/429-429/tsc 零/五探针 6/10/3/16/5 全 EXIT=0/closure 69 机器数",
+      "30 红以零仓改动的临时副本法独立复现并给出逐文件明细（8+22）与失败行锚（plugin.ts:257 + mock-host.ts:96）",
+      "锚点实读均为本波亲读非转引：六提供方行号/compaction-basic:114/context.ts:81（this.logger=LoggerService(self) 确在 81 行）/events.ts:131 _hooks 字段/cordis 4.0.5-alpha.1（vendor/cordis/package.json:4）",
+      "closure P0-A..D evidence 与实盘提交机制逐条对得上；progress 含两处过程自纠如实记录（Z21 桩构造器、Z22 CRLF 假动）——诚实度证据充分"
+    ],
+    "safety_rollback": [
+      "P0 无删除/凭据/wire 面改动；四提交全 git 可回滚；lib 入库且重建字节一致（回滚=git checkout 即得可运行产物）",
+      "评审过程零仓改动：探针报告时间戳 diff 已还原；摘除即红在系统临时目录副本执行（junction 复用 node_modules，原仓 git status 复核干净）——评审纪律与 §5 全程未破",
+      "G2 负对照=拓扑漂移的机器守卫（根 fiber 直供桩→G2 红），防止未来探针假绿；mock 活读 inject=防未来新增访问点漏声明的机器守卫",
+      "静态 inject 后缺服务宿主=PENDING 不加载宿主不受影响（plan §1 边界）；belt typeof 探针保留为防御层（真实宿主不再触达）——行为面收窄有意识且已文档化（plugin.ts:206-223 注释）"
+    ],
+    "maintainability": [
+      "mock-host.ts 结构化镜像真语义并把三处偏差写进头注（DOCUMENTED DEVIATION/STRUCTURAL MIRROR）——mock 语义漂移从此有单一权威文档点",
+      "probe-real-mount 四组各自独立可解释（G1 可达性/G2 负对照/G3 全触达/G4 adapter 面），SKIP 明示不静默；报告模板与家族一致",
+      "plugin.ts inject 注释逐键含提供方路径+行号+惯例出处——下一个改服务面的人不需要考古",
+      "[建议 P0-1 记录]：sessions 键零消费（grep 全域零命中）——按卡面执行无错，但『为何声明』只有卡面知道；plugin.ts 注释只写提供方锚点未写消费理由（对齐 compaction-basic 惯例/未来 session feed），下一个读者会问同一个问题"
+    ]
+  },
+  "suggestions": [
+    {
+      "id": "P0-1",
+      "location": "src/plugin.ts:224（static inject 第六键 'sessions'）",
+      "problem": "sessions 在 src 全域零消费（grep ctx.sessions / ['sessions'] / 动态 ctx[ 均零命中；本评审独立复核）——声明本身无错误键风险（提供方 service.ts:282 实锚、宿主必提供），但属无消费者依赖声明：若官方未来移除/改名 'sessions'，插件将静默 PENDING——恰是卡面『错误键=静默 PENDING 比抛错更糟』的失效形态，多声明一个不用的键等于多背一份该风险",
+      "fix": "二选一并落证据：(a) plugin.ts:206-223 注释补一行声明理由（如『对齐 compaction-basic 惯例/P1 session feed 预留』）；或 (b) 若 P1 漂移侦察确认无消费计划则摘键+probe G3 复跑。P1 波顺带处理即可",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    },
+    {
+      "id": "P0-2",
+      "location": "README.md:223,229-232 与 README.zh.md:223,229-232（development 节测试数+探针清单）",
+      "problem": "测试数仍写 424（实 429）、探针清单仍四条（缺 scripts/probe-real-mount.mjs 5 组）——P0 实盘已超出文档口径；V6-1 同类（probe-host-imports 当时即因此补入 d8d2f5a）",
+      "fix": "随 v0.2.1 发布波（P3）version+CHANGELOG+README 同批更新：424→429、探针清单 +real-mount 行（en/zh 两侧镜像）；§15 文档同批更新门",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入；P3 发布波为既定时序）"
+    },
+    {
+      "id": "P0-3",
+      "location": "tasks/ZCTX/closures/closure.json（69 条）",
+      "problem": "V6-1（上轮唯一 OPEN [建议]，scorecard 处置『OPEN → 主线 §11 记账』）已在 d8d2f5a 修复（双语探针清单补 probe-host-imports，README en/zh:231 实锚确认），但 closure.json 无对应条目（本波机器遍历 id/源/evidence 三路检索零命中）——§11 台账『fixed 必须 verified 且有证据』的轨迹断链，69 条里这条修复不可追溯",
+      "fix": "closure.json 补一条（如 id=V6-1，disposition=fixed，evidence=d8d2f5a + README.md:231/README.zh.md:231 + 本评审复核），status=verified；一并机器数 69→70",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入；一行台账修复）"
+    },
+    {
+      "id": "P0-4",
+      "location": "reports/plans/ZCTX-v021-plan.md + tasks/ZCTX/cards/P0-inject-fix.md（两未跟踪件）",
+      "problem": "本波任务卡与计划文件未入库——评审/审计对『验收标准是什么』的追溯部分在 git 外；V6 先例是卡随 governance 提交入库（abbb8b2『the V6 card enter the repo』）；progress 已如实披露，非隐瞒，但轨迹完整性缺口属实",
+      "fix": "随下一 governance 增量提交两文件入库（git add + chore(ZCTX) 提交）",
+      "disposition": "OPEN → 主线 §11 记账（阻塞最终验收，不阻塞中间合入）"
+    }
+  ],
+  "fraud_check": "未发现造假：六提供方锚点逐键本波亲读（含反直觉的 session-controller client/sessions/service.ts:282 实锚——路径存在且行号精确命中）；30 红亲验复现且明细与声称机制吻合（恰为构造点测试零陪跑）；429/429+build 992.98 kB+tsc 零+五探针 6/10/3/16/5 全部本机复跑；closure 69 机器数+disposition 词表校验通过；Z21/Z22 RSI 条目实读确认；mock/probe 引用的 cordis 锚点（reflect.ts:86-91/:136-166、fiber.ts:596-627、context.ts:81、events.ts:131、4.0.5-alpha.1）全部实读核实；两探针报告重生成仅时间戳已还原；评审全程零业务代码/测试/配置/del 改动（临时副本法+git status 复核）。评分无自评（reviewer-P0 ≠ P0 coder）"
+}
