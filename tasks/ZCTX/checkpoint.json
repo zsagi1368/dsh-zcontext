@@ -1,59 +1,50 @@
 {
- "task": "ZCTX-V6",
- "updatedAt": "2026-11-13T12:55:00+08:00",
- "baseCommit": "e243c70 (V5 governance terminal, 419/419)",
+ "task": "ZCTX-P0",
+ "updatedAt": "2026-11-14T07:58:00-08:00",
+ "baseCommit": "7f5a3d7 (v0.2.0 merge ledger terminal, 424/424)",
  "steps": [
   {
-   "id": "v6s1",
-   "name": "R5 four closures + V1-A in ONE commit dec0bcc (code before docs): V5-1 resetBetween cap-guard boundary pins (at-cap stop-walk stays estimated / at-cap-1 interpolates, deleting the guard line goes red; V3-1 test branch walked per REVIEW-V5 6.2); V5-2 official alignment option-a — maxTokens REQUIRED at the providers.ts construction gate (catalog.ts:934-936 semantics), ?? 32768 removed from the wire face, dedicated violation test; V5-3 one-statement providers-default comment (configDefaults/schema/smoke all carry []); V5-4 violation list hoisted BEFORE loadAdapterFaces (validation host-independent; pin: unreachable faces + bad config still logs the COMPLETE list); V1-A pinned-not-fixed (callConfigEquals JSDoc boundary + store-observe NaN pin — unreachable on the official wire). tsc zero + 424/424 (419+5); closure +V6-A..E; governance increment c935277",
+   "id": "p0s1",
+   "name": "inject fix commit b289f04: static inject = ['tools','systemPrompt','commands','llm','tokenMeter','sessions'] — all six keys read-verified against the provider registration names on the anchor tree (tools=core/tools/src/index.ts:850, systemPrompt=core/system-prompt/src/index.ts:442, commands=interaction/commands/src/index.ts:277, llm=llm/llm/src/index.ts:354, tokenMeter=llm/token-meter/src/index.ts:111, sessions=session-controller client/sessions/service.ts:282); ctx.logger (context.ts:81 own prop) and ctx.on (mixin accessor) exempt; smoke inject pin []->six keys; lib rebuilt in-commit; ground truth on the vendored cordis: the get-trap fiber walk only walks the ANCESTOR chain (reflect.ts:148-165), sibling-fiber services are invisible without inject, wrong key (session) -> silent PENDING proven",
    "status": "done",
    "artifacts": [
-    "src/adapter/providers.ts",
-    "src/adapter/zctx-adapter.ts",
-    "src/config.ts",
     "src/plugin.ts",
-    "src/store.ts",
-    "tests/adapter-providers.spec.ts",
-    "tests/adapter-zctx.spec.ts",
+    "tests/smoke.spec.ts",
+    "lib"
+   ]
+  },
+  {
+   "id": "p0s2",
+   "name": "mock host discipline commit 5174b93: tests/helpers/mock-host.ts implements the vendor ReflectService.get semantics (reflect.ts:136-165) as a Proxy — special props / own props / inject-declared store resolution / declared-but-absent belt undefined / else the exact device throw; service stubs moved off the target into a store (fiber.store mirror); inject read LIVE from ZcontextPlugin.inject (self-lock); three spec mocks rerouted; +5 negative pins = 429/429; removal check: inject reverted to [] turns 30 tests red, restore green; self-caught: git checkout restore under autocrlf put CRLF into src/plugin.ts -> rebuilt sourcemap embedded CRLF sourcesContent (+1550B) — normalized to LF, rebuilt, lib byte-identical to committed (Z22 candidate)",
+   "status": "done",
+   "artifacts": [
+    "tests/helpers/mock-host.ts",
+    "tests/plugin.spec.ts",
     "tests/adapter-plugin.spec.ts",
-    "tests/store-attribution.spec.ts",
-    "tests/store-observe.spec.ts",
-    "tasks/ZCTX/closures/closure.json"
+    "tests/smoke.spec.ts"
    ]
   },
   {
-   "id": "v6s2",
-   "name": "release face e733ad1: version 0.2.0 + CHANGELOG finalized (S2 wave full append + honest-ceilings section) + lib rebuilt 988.84 kB (7 files); probe extensions 6d835b1: surface 8->10 (+A9 config face / +A10 adapter face + R4 single-site + R7), artifact 5->6 (+P6 S2 exports + V5-2 pin), smoke 2->3 (+R3 real-loader providers-row compose, honest config-layer scope); four probes exit 0 (6/10/3/16), U2 timestamp-only diff restored",
+   "id": "p0s3",
+   "name": "probe-real-mount commit b650c73: real vendored cordis 4.0.5-alpha.1 (Z20 discipline: fileURLToPath + statSync isDirectory entry resolution; node_modules copy as fallback) + six Service-form stubs each providing from its OWN plugin fiber (the real host topology) + mounts the BUILT lib/index.js. G1 reachability with explicit SKIP; G2 negative control (inject-less ctx.llm read MUST throw the exact device error — topology drift guard); G3 default-config mount crosses every boot-time access point (constructor tokenMeter/llm death site, 4 tools, guidance section, nudge required:true, command, session feed 3 listeners, 2 llm/stream listeners counted on the real EventsService._hooks registry) with the dsh-zcontext lookup as the PENDING guard for wrong keys; G4 providers-declared mount crosses registerAdapter + registerConfigurableProviders. 5/5 PASS 0 SKIP 0 FAIL exit 0, report reports/probes/P0-real-mount.md. Self-caught during authoring: stubs without explicit super(ctx,name) constructors auto-called super(ctx, config) -> all six provided under '[object Object]' -> silent PENDING (Z21 candidate)",
    "status": "done",
    "artifacts": [
-    "package.json",
-    "CHANGELOG.md",
-    "lib",
-    "scripts/probe-artifact.mjs",
-    "scripts/verify-activation-surface.mjs",
-    "scripts/smoke-real-loader.mjs"
+    "scripts/probe-real-mount.mjs",
+    "reports/probes/P0-real-mount.md"
    ]
   },
   {
-   "id": "v6s3",
-   "name": "README bilingual 80c43d5: three capability sections + settings +7 fields + limitations +2 honest ceilings + development 424/6/10/3; en/zh mirror anchor-identical (28..217) + fact counts 6/6 and 9/9",
-   "status": "done",
-   "artifacts": [
-    "README.md",
-    "README.zh.md"
-   ]
-  },
-  {
-   "id": "v6s4-terminal",
-   "name": "terminal governance: closure 65 items (V6-A..I verified; only W5-A6-INSTALL user_approved_deferred by design, phase post-merge); RSI check: Z20 already in ZDSH-LESSONS + INDEX, no-new-lesson this wave; final battery re-run green (build/424/tsc/probes) + clean tree with only governance files staged for the terminal commit",
+   "id": "p0s4-terminal",
+   "name": "sweep + terminal battery: src ctx service accesses ALL inside the declared six (tools.ts/preflight.ts/zctx-adapter.ts grep hits are comment lines only; no destructuring/this.ctx forms); logger/on/reflect exempt by real cordis semantics; final battery green on the normalized state: build 992.98 kB 7 files, vitest 429/429 (424 baseline + 5 discipline pins), tsc -b --force 0 errors, five probes exit 0 (surface 10/10, artifact 6/6, host-imports 16/16, smoke-real-loader 3/3, real-mount 5/5), U2/P0-real-mount report timestamp-only diffs restored, clean tree (only the coordinator's plan/card untracked); closure +P0-A..P0-D all fixed/verified (65->69); RSI capture Z21/Z22 into ZDSH-LESSONS.md + INDEX with del/ backups",
    "status": "done",
    "artifacts": [
     "tasks/ZCTX/closures/closure.json",
     "tasks/ZCTX/progress.md",
     "tasks/ZCTX/checkpoint.json",
-    "tasks/ZCTX/checkpoint-history.jsonl"
+    "tasks/ZCTX/checkpoint-history.jsonl",
+    "del/20261114-p0-inject-prechange"
    ]
   }
  ],
- "next": "terminal — awaiting V6 review (scorecard) then orchestrator release steps (push/tag/ledger are mainline-owned)"
+ "next": "P0 terminal — awaiting reviewer scorecard (>=98) then orchestrator disposition; P1 drift recon and P2 patch-design are coordinator-owned waves"
 }
