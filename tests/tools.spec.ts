@@ -275,6 +275,36 @@ describe('tools: the four zctx tools (shim-defined)', () => {
     expect(status).not.toContain('status rendered in degraded mode')
   })
 
+  it('zctx_status degrades honestly when the observability snapshot throws (P3 SM-02 fail-soft)', async () => {
+    const { session } = seedConversation()
+    // A pathological store whose snapshot throws (belt-and-braces beyond the
+    // ingestion guard): the user sees the honest withheld line, segments 1-4
+    // are skipped, and segments 5/degraded rows still render — never a throw
+    // across the tool boundary.
+    const real = new FoldStore()
+    real.attach(session)
+    const brokenStore = new Proxy(real, {
+      get(target, prop) {
+        if (prop === 'observabilitySnapshot') {
+          return () => {
+            throw new TypeError('amount must be a finite non-negative integer (got NaN)')
+          }
+        }
+        const value = Reflect.get(target, prop, target)
+        return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
+      },
+    }) as unknown as FoldStore
+    const runtime = testRuntime({ storeFor: () => brokenStore })
+    const status = await renderStatus(runtime, session)
+    expect(status).toContain('observability snapshot failed')
+    expect(status).toContain('got NaN')
+    // Segments 1-4 are withheld with the failed snapshot (fold account),
+    // while the preflight segment and the degraded-mode rows still render.
+    expect(status).not.toContain('Recent folds')
+    expect(status).toContain('Preflight estimator (S1')
+    expect(status).toContain('status rendered in degraded mode:')
+  })
+
   it('zctx_status flags windows below the CCM legal domain (engine gate, tools usable)', async () => {
     const { session } = seedConversation()
     const runtime = testRuntime({

@@ -367,6 +367,9 @@ export const STATUS_DEGRADED_ROW = '  - {{detail}}'
 
 export const STATUS_OBS_HEADER = 'Observability (fold→usage attribution, three-state accounting):'
 
+export const STATUS_OBS_SNAPSHOT_FAILED =
+  '  (observability snapshot failed: {{detail}} — fold account rendering withheld, other segments unaffected; P3 SM-02 fail-soft)'
+
 export const STATUS_OBS_SESSION_LINE =
   'session: {{folds}} folds committed / repaid {{repaid}} / recovery {{recoveryPct}}% (net removed ÷ folded of committed folds)'
 

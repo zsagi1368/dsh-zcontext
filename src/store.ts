@@ -274,10 +274,28 @@ function extractSourceKind(data: unknown): string | undefined {
   return undefined
 }
 
-/** Extract the frozen checkpoint payload of a zctx fold/unfold event. */
+/**
+ * Extract the frozen checkpoint payload of a zctx fold/unfold event.
+ *
+ * Amount fields (`tokensBefore`/`tokensAfter`) follow the extractUsageRecord
+ * twin (P3 SM-02, the store.ts Number.isFinite precedent): a value is
+ * accepted only when it is a FINITE NON-NEGATIVE number — ±Infinity/NaN and
+ * negatives are rejected (field dropped, reported in `droppedAmounts` so the
+ * caller records an anomaly; the ledger lands the `?? 0` default). A poisoned
+ * amount used to flow straight into the breakeven report, where budget
+ * assertAmount made every later zctx_status throw with no self-heal — the
+ * ledger's "honest ledger, no throwing" contract starts at ingestion.
+ */
 function extractCheckpointSource(
   data: unknown,
-): { kind: string; foldId: string; tokensBefore?: number; tokensAfter?: number } | undefined {
+): {
+  kind: string
+  foldId: string
+  tokensBefore?: number
+  tokensAfter?: number
+  /** Amount fields that arrived as numbers but were rejected (non-finite/negative). */
+  droppedAmounts?: ('tokensBefore' | 'tokensAfter')[]
+} | undefined {
   const kind = extractSourceKind(data)
   if (kind !== 'zctx-fold' && kind !== 'zctx-unfold') return undefined
   const message = extractMessage(data)
@@ -286,13 +304,19 @@ function extractCheckpointSource(
   const record = source as Record<string, unknown>
   const foldId = record.foldId
   if (typeof foldId !== 'string') return undefined
-  const tokensBefore = typeof record.tokensBefore === 'number' ? record.tokensBefore : undefined
-  const tokensAfter = typeof record.tokensAfter === 'number' ? record.tokensAfter : undefined
+  const validAmount = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0
+  const tokensBefore = validAmount(record.tokensBefore) ? record.tokensBefore : undefined
+  const tokensAfter = validAmount(record.tokensAfter) ? record.tokensAfter : undefined
+  const droppedAmounts = (['tokensBefore', 'tokensAfter'] as const).filter(
+    (field) => typeof record[field] === 'number' && !validAmount(record[field]),
+  )
   return {
     kind,
     foldId,
     ...(tokensBefore !== undefined ? { tokensBefore } : {}),
     ...(tokensAfter !== undefined ? { tokensAfter } : {}),
+    ...(droppedAmounts.length > 0 ? { droppedAmounts } : {}),
   }
 }
 
@@ -992,6 +1016,19 @@ export class FoldStore {
     // kind === 'zctx-fold': a new checkpoint. Older active checkpoints it
     // shadows become 'absorbed' (recoverable inside the new fold's summary).
     this.shadowActiveCheckpoints(event, 'absorbed')
+    // P3 SM-02: a rejected amount (non-finite/negative) is recorded in the
+    // anomaly ledger and the field lands at the honest 0 default below —
+    // the poison never reaches the breakeven report.
+    if (checkpoint.droppedAmounts !== undefined) {
+      for (const field of checkpoint.droppedAmounts) {
+        this.recordAnomaly(
+          'invalid-checkpoint-amount',
+          `zctx checkpoint at seq ${event.seq}: ${field} rejected `
+            + `(must be a finite non-negative number; field dropped to 0)`,
+          event.seq,
+        )
+      }
+    }
     this.ledger.set(checkpoint.foldId, {
       foldId: checkpoint.foldId,
       startSeq: op.startSeq,

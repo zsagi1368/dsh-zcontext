@@ -654,3 +654,70 @@ describe('FoldStore V2: process-memory receive ports (snapshot / break / capture
     expect(store.capturedAttemptUsage()).toHaveLength(0)
   })
 })
+
+describe('FoldStore observability: poisoned checkpoint amounts (P3 SM-02 / P3-T4 pins)', () => {
+  /**
+   * Seed the E-repro SM-02 shape: plain user → fold checkpoint (the poisoned
+   * amount rides the source payload) → first post-fold assistant/message.
+   * The clean window (zero events between fold and M) is what earns the
+   * `strong` attribution that admits the fold into the breakeven table —
+   * exactly the audit's reachability condition.
+   */
+  function poisonedSession(tokensBefore: unknown, tokensAfter: unknown = 10): MockSession {
+    const session = new MockSession()
+    session.append('user/message', msg.user('plain'))
+    session.append('user/message', {
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'summary fX' }],
+        source: { kind: 'zctx-fold', foldId: 'fX', tokensBefore, tokensAfter },
+      },
+    }, { surfaceOp: { op: 'replace', startSeq: 0, endSeq: 0 }, sourceEventSeqs: [0] })
+    session.append('assistant/message', { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: 'first M' }] } })
+    return session
+  }
+
+  it('control: a legal tokensBefore still lands 100 and renders a strong breakeven row', () => {
+    const store = new FoldStore()
+    const session = poisonedSession(100)
+    store.attach(session)
+    const entry = store.ledgerEntries().find((e) => e.foldId === 'fX')
+    expect(entry?.tokensBefore).toBe(100)
+    let snapshot: ReturnType<typeof store.observabilitySnapshot> | undefined
+    expect(() => { snapshot = store.observabilitySnapshot() }).not.toThrow()
+    expect(snapshot?.breakevenTable[0]?.quality).toBe('strong')
+    expect(store.anomalies().some((a) => a.kind === 'invalid-checkpoint-amount')).toBe(false)
+  })
+
+  for (const [label, poison, repr] of [
+    ['Infinity', Number.POSITIVE_INFINITY, 'Infinity'],
+    ['NaN', Number.NaN, 'NaN'],
+    ['negative', -1, '-1'],
+  ] as const) {
+    it(`rejects tokensBefore=${repr} at ingestion: field lands 0, anomaly recorded, snapshot never throws (${label})`, () => {
+      const store = new FoldStore()
+      const session = poisonedSession(poison)
+      store.attach(session)
+      // Ingestion rejected: the ledger holds the honest 0 default, NOT the
+      // poison — the value that used to reach budget assertAmount and make
+      // every later zctx_status throw.
+      const entry = store.ledgerEntries().find((e) => e.foldId === 'fX')
+      expect(entry?.tokensBefore).toBe(0)
+      expect(store.anomalies().some((a) => a.kind === 'invalid-checkpoint-amount')).toBe(true)
+      let snapshot: ReturnType<typeof store.observabilitySnapshot> | undefined
+      expect(() => { snapshot = store.observabilitySnapshot() }).not.toThrow()
+      expect(Array.isArray(snapshot?.breakevenTable)).toBe(true)
+    })
+  }
+
+  it('rejects a poisoned tokensAfter the same way (twin field)', () => {
+    const store = new FoldStore()
+    const session = poisonedSession(100, Number.NaN)
+    store.attach(session)
+    const entry = store.ledgerEntries().find((e) => e.foldId === 'fX')
+    expect(entry?.tokensAfter).toBe(0)
+    expect(entry?.tokensBefore).toBe(100)
+    expect(store.anomalies().filter((a) => a.kind === 'invalid-checkpoint-amount')).toHaveLength(1)
+    expect(() => store.observabilitySnapshot()).not.toThrow()
+  })
+})

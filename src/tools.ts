@@ -52,6 +52,7 @@ import {
   STATUS_METER_UNAVAILABLE,
   STATUS_NO_SESSION,
   STATUS_OBS_BREAKEVEN_EMPTY,
+  STATUS_OBS_SNAPSHOT_FAILED,
   STATUS_OBS_BREAKEVEN_HEADER,
   STATUS_OBS_BREAKEVEN_ROW,
   STATUS_OBS_CONFIDENCE_INSUFFICIENT,
@@ -721,111 +722,124 @@ export async function renderStatus(runtime: ZctxToolRuntime, session: SessionLik
     )
   }
 
-  // ---- observability (V3 three-segment upgrade; RES-observe-route §Q7.3) ------
-  // Segment 1 (session summary): folds / repaid / recovery / three-state pct.
-  // Segment 2 (repay conclusions): the breakeven table, OR the honest
-  // degradation note when the clean-sample ratio sits below the config floor —
-  // "归因可信度不足" withholds the repay conclusions, never a low-confidence
-  // claim. Segment 3 (recent folds with attribution quality) + segment 4
-  // (reset ledger digest) are facts, not conclusions, and always render.
-  const snapshot = store.observabilitySnapshot()
-  const attributionByFold = new Map<string, FoldUsageAttribution>()
-  for (const attribution of store.foldAttributions()) attributionByFold.set(attribution.foldId, attribution)
-  // An empty fold ledger has no evidence to judge — the honest shape is the
-  // empty note, not a confidence verdict about folds that never existed.
-  const emptyLedger = entries.length === 0
-  const confidenceOk = snapshot.cleanSampleRatio >= runtime.cleanSampleFloor
-  const repaidText = !emptyLedger && !confidenceOk
-    ? STATUS_OBS_SESSION_REPAID_WITHHELD
-    : String(snapshot.breakevenTable.filter((row) => row.repaid === true).length)
-  const totalBefore = entries.reduce((sum, entry) => sum + entry.tokensBefore, 0)
-  const totalNet = entries.reduce((sum, entry) => sum + (entry.tokensBefore - entry.tokensAfter), 0)
-  lines.push(STATUS_OBS_HEADER)
-  lines.push(
-    fill(STATUS_OBS_SESSION_LINE, {
-      folds: entries.length,
-      repaid: repaidText,
-      recoveryPct: totalBefore > 0 ? formatPct((totalNet / totalBefore) * 100) : 'n/a',
-    }),
-  )
-  const threeTotal = snapshot.threeState.measured + snapshot.threeState.semi + snapshot.threeState.estimated
-  if (threeTotal === 0) {
-    lines.push(STATUS_OBS_NO_SAMPLES)
-  } else {
+  // P3 SM-02 fail-soft: the fold-account snapshot used to be able to throw
+  // (poisoned non-finite amounts -> budget assertAmount TypeError), which made
+  // every later zctx_status call fail with no self-heal. Ingestion now rejects
+  // poisoned amounts (extractCheckpointSource); this belt-and-braces wrapper
+  // keeps any future snapshot failure an honest degraded row, never a throw.
+  try {
+    // ---- observability (V3 three-segment upgrade; RES-observe-route §Q7.3) ------
+    // Segment 1 (session summary): folds / repaid / recovery / three-state pct.
+    // Segment 2 (repay conclusions): the breakeven table, OR the honest
+    // degradation note when the clean-sample ratio sits below the config floor —
+    // "归因可信度不足" withholds the repay conclusions, never a low-confidence
+    // claim. Segment 3 (recent folds with attribution quality) + segment 4
+    // (reset ledger digest) are facts, not conclusions, and always render.
+    const snapshot = store.observabilitySnapshot()
+    const attributionByFold = new Map<string, FoldUsageAttribution>()
+    for (const attribution of store.foldAttributions()) attributionByFold.set(attribution.foldId, attribution)
+    // An empty fold ledger has no evidence to judge — the honest shape is the
+    // empty note, not a confidence verdict about folds that never existed.
+    const emptyLedger = entries.length === 0
+    const confidenceOk = snapshot.cleanSampleRatio >= runtime.cleanSampleFloor
+    const repaidText = !emptyLedger && !confidenceOk
+      ? STATUS_OBS_SESSION_REPAID_WITHHELD
+      : String(snapshot.breakevenTable.filter((row) => row.repaid === true).length)
+    const totalBefore = entries.reduce((sum, entry) => sum + entry.tokensBefore, 0)
+    const totalNet = entries.reduce((sum, entry) => sum + (entry.tokensBefore - entry.tokensAfter), 0)
+    lines.push(STATUS_OBS_HEADER)
     lines.push(
-      fill(STATUS_OBS_THREE_STATE, {
-        measuredPct: formatPct((snapshot.threeState.measured / threeTotal) * 100),
-        semiPct: formatPct((snapshot.threeState.semi / threeTotal) * 100),
-        estimatedPct: formatPct((snapshot.threeState.estimated / threeTotal) * 100),
-        total: threeTotal,
-        plural: threeTotal === 1 ? '' : 's',
+      fill(STATUS_OBS_SESSION_LINE, {
+        folds: entries.length,
+        repaid: repaidText,
+        recoveryPct: totalBefore > 0 ? formatPct((totalNet / totalBefore) * 100) : 'n/a',
       }),
     )
-  }
-  // Segment 2: repay conclusions behind the confidence gate.
-  if (emptyLedger) {
-    lines.push(STATUS_OBS_BREAKEVEN_HEADER)
-    lines.push(STATUS_OBS_BREAKEVEN_EMPTY)
-  } else if (!confidenceOk) {
-    lines.push(
-      fill(STATUS_OBS_CONFIDENCE_INSUFFICIENT, {
-        ratioPct: formatPct(snapshot.cleanSampleRatio * 100),
-        floorPct: formatPct(runtime.cleanSampleFloor * 100),
-      }),
-    )
-  } else {
-    lines.push(STATUS_OBS_BREAKEVEN_HEADER)
-    if (snapshot.breakevenTable.length === 0) {
-      lines.push(STATUS_OBS_BREAKEVEN_EMPTY)
+    const threeTotal = snapshot.threeState.measured + snapshot.threeState.semi + snapshot.threeState.estimated
+    if (threeTotal === 0) {
+      lines.push(STATUS_OBS_NO_SAMPLES)
     } else {
-      for (const row of snapshot.breakevenTable) {
-        const repaidMark =
-          row.repaid === true ? fill(STATUS_OBS_REPAID_MARK, { seq: row.repayEventSeq ?? 0 }) : ''
+      lines.push(
+        fill(STATUS_OBS_THREE_STATE, {
+          measuredPct: formatPct((snapshot.threeState.measured / threeTotal) * 100),
+          semiPct: formatPct((snapshot.threeState.semi / threeTotal) * 100),
+          estimatedPct: formatPct((snapshot.threeState.estimated / threeTotal) * 100),
+          total: threeTotal,
+          plural: threeTotal === 1 ? '' : 's',
+        }),
+      )
+    }
+    // Segment 2: repay conclusions behind the confidence gate.
+    if (emptyLedger) {
+      lines.push(STATUS_OBS_BREAKEVEN_HEADER)
+      lines.push(STATUS_OBS_BREAKEVEN_EMPTY)
+    } else if (!confidenceOk) {
+      lines.push(
+        fill(STATUS_OBS_CONFIDENCE_INSUFFICIENT, {
+          ratioPct: formatPct(snapshot.cleanSampleRatio * 100),
+          floorPct: formatPct(runtime.cleanSampleFloor * 100),
+        }),
+      )
+    } else {
+      lines.push(STATUS_OBS_BREAKEVEN_HEADER)
+      if (snapshot.breakevenTable.length === 0) {
+        lines.push(STATUS_OBS_BREAKEVEN_EMPTY)
+      } else {
+        for (const row of snapshot.breakevenTable) {
+          const repaidMark =
+            row.repaid === true ? fill(STATUS_OBS_REPAID_MARK, { seq: row.repayEventSeq ?? 0 }) : ''
+          lines.push(
+            fill(STATUS_OBS_BREAKEVEN_ROW, {
+              foldId: row.foldId,
+              turns: row.breakevenTurns === Number.POSITIVE_INFINITY ? 'never' : formatPct(row.breakevenTurns),
+              quality: row.quality,
+              repaidMark,
+            }),
+          )
+        }
+      }
+    }
+    // Segment 3: recent folds with attribution quality (+ noise markers).
+    lines.push(STATUS_OBS_RECENT_HEADER)
+    if (entries.length === 0) {
+      lines.push(STATUS_OBS_RECENT_EMPTY)
+    } else {
+      for (const entry of entries.slice(-RECENT_FOLD_ROWS).reverse()) {
+        const attribution = attributionByFold.get(entry.foldId)
+        const retryPart =
+          attribution !== undefined && attribution.retryCount > 0
+            ? fill(STATUS_OBS_RETRY_PART, { count: attribution.retryCount })
+            : ''
+        const flags =
+          (attribution?.timeWindow === true ? STATUS_OBS_FLAG_TIME_WINDOW : '')
+          + (attribution?.interrupted === true ? STATUS_OBS_FLAG_INTERRUPTED : '')
         lines.push(
-          fill(STATUS_OBS_BREAKEVEN_ROW, {
-            foldId: row.foldId,
-            turns: row.breakevenTurns === Number.POSITIVE_INFINITY ? 'never' : formatPct(row.breakevenTurns),
-            quality: row.quality,
-            repaidMark,
+          fill(STATUS_OBS_RECENT_ROW, {
+            foldId: entry.foldId,
+            status: entry.status,
+            seq: entry.checkpointSeq,
+            quality: attribution?.quality ?? 'unattributed',
+            retryPart,
+            flags,
           }),
         )
       }
     }
-  }
-  // Segment 3: recent folds with attribution quality (+ noise markers).
-  lines.push(STATUS_OBS_RECENT_HEADER)
-  if (entries.length === 0) {
-    lines.push(STATUS_OBS_RECENT_EMPTY)
-  } else {
-    for (const entry of entries.slice(-RECENT_FOLD_ROWS).reverse()) {
-      const attribution = attributionByFold.get(entry.foldId)
-      const retryPart =
-        attribution !== undefined && attribution.retryCount > 0
-          ? fill(STATUS_OBS_RETRY_PART, { count: attribution.retryCount })
-          : ''
-      const flags =
-        (attribution?.timeWindow === true ? STATUS_OBS_FLAG_TIME_WINDOW : '')
-        + (attribution?.interrupted === true ? STATUS_OBS_FLAG_INTERRUPTED : '')
-      lines.push(
-        fill(STATUS_OBS_RECENT_ROW, {
-          foldId: entry.foldId,
-          status: entry.status,
-          seq: entry.checkpointSeq,
-          quality: attribution?.quality ?? 'unattributed',
-          retryPart,
-          flags,
-        }),
-      )
+    // Segment 4: reset ledger digest (V1 ResetEvent classification counts).
+    lines.push(STATUS_OBS_RESET_HEADER)
+    if (snapshot.resetSummary.length === 0) {
+      lines.push(STATUS_OBS_RESET_EMPTY)
+    } else {
+      for (const row of snapshot.resetSummary) {
+        lines.push(fill(STATUS_OBS_RESET_ROW, { kind: row.kind, count: row.count }))
+      }
     }
-  }
-  // Segment 4: reset ledger digest (V1 ResetEvent classification counts).
-  lines.push(STATUS_OBS_RESET_HEADER)
-  if (snapshot.resetSummary.length === 0) {
-    lines.push(STATUS_OBS_RESET_EMPTY)
-  } else {
-    for (const row of snapshot.resetSummary) {
-      lines.push(fill(STATUS_OBS_RESET_ROW, { kind: row.kind, count: row.count }))
-    }
+  } catch (error: unknown) {
+    lines.push(
+      fill(STATUS_OBS_SNAPSHOT_FAILED, {
+        detail: error instanceof Error ? error.message : String(error),
+      }),
+    )
   }
 
   // Segment 5 (V4): preflight estimator calibration (card product 3). The
