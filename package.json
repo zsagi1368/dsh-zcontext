@@ -32,6 +32,6 @@
   "scripts": {
     "build": "tsdown",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "tsdown && vitest run"
   }
 }

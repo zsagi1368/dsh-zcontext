@@ -220,7 +220,9 @@ All implementation, wording, tests, and documentation in this repository are ori
 pnpm install
 pnpm build          # tsdown → lib/ (committed artifact, byte-pinned in CI probes)
 pnpm lint           # tsc --noEmit, zero errors expected
-pnpm test           # vitest suite (424 tests), incl. real official-session pins
+pnpm test           # tsdown && vitest run — the build is chained FIRST (Z19: tests
+                    # that import lib/index.js would silently pin a stale artifact
+                    # otherwise), incl. real official-session pins
 ```
 
 Repository-internal verification probes:
