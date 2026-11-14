@@ -110,6 +110,16 @@ function eventType(event: unknown): string | undefined {
  * reasoning tokens are already folded into `output` by pi-ai; the cache
  * fields ride ONLY when non-zero (pi-ai reports zeros, not absence), keeping
  * the harness TokenUsage three-count semantics intact (F5.6).
+ *
+ * PARITY DIVERGENCE (P3 HF-07, registered honestly): for an absent
+ * (`undefined`/non-record) usage the official mapUsage assumes the field is
+ * there and THROWS (llm-pi-ai/src/stream.ts:23-31 typing), while this twin
+ * returns an all-zero record — the twin is the MORE TOLERANT side. On an
+ * in-stream pi-ai error event without usage, the official path throws into
+ * the adapter's catch (classified), the twin path yields a zero usage chunk
+ * plus the error finish. Downstream guards keep the zero row inert (the
+ * preflight calibration statistics exclude billed<=0 rows), so the
+ * divergence costs an honest zero-sample capture, never a wrong number.
  */
 export function mapUsageTwins(usage: unknown): unknown {
   if (!isRecord(usage)) {

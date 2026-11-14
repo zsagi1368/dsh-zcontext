@@ -20,6 +20,18 @@
  * 调整 — the observe-mode calibration ledger (product 3) is the dataset
  * that decides when enforce is safe to promote (no-go condition 4).
  *
+ * HOST-INTERACTION DECLARATIONS (P3 HF-06, facts not recommendations):
+ *   1. A short-circuit consumes ONE of the official compaction chain's
+ *      `maxOverflowRetries` overflow budgets (compaction-basic/src/index.ts:
+ *      194-200 — the vetoed request still counts as an overflow attempt), so
+ *      preflight false positives spend the recovery layer's budget too.
+ *   2. If the user adds CONTEXT_WINDOW_EXCEEDED to the official
+ *      `retryableCodes` (configurable since rc.2), llm-retry will retry the
+ *      SAME still-over-limit request after a short-circuit — up to
+ *      maxRetries estimate->short-circuit loops (bounded, no deadlock, but
+ *      wasteful). Keep that code OUT of retryableCodes on zctx sessions; the
+ *      compaction chain, not llm-retry, owns overflow recovery.
+ *
  * ESTIMATOR (F3.4): the waterfall sees PRE-projection messages (file/image
  * projection happens inside adapterStream, llm/src/index.ts:1084-1106), so
  * the estimate re-projects through the same public face the V2 observe
