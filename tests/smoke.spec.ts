@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import ZcontextPlugin, { configDefaults, configSchema, name } from '../lib/index.js'
+import { disciplinedCtx } from './helpers/mock-host.ts'
 
 /**
  * W1 smoke probe (the Z7 artifact probe): import the BUILT lib/ output, not
@@ -11,6 +12,14 @@ import ZcontextPlugin, { configDefaults, configSchema, name } from '../lib/index
  * peer, resolved lazily). Construction therefore needs a minimal
  * cordis-compatible context (reflect.provide); the assertions on identity,
  * Config, defaults, and config storage are unchanged.
+ *
+ * v0.2.1 P0: the minimal context goes through the disciplined host
+ * (tests/helpers/mock-host.ts) — an undeclared service access throws the
+ * exact cordis device error. `logger: undefined` and `on: undefined` are
+ * deliberate: real cordis always carries logger as an own property
+ * (context.ts:81) and `on` as a mixin accessor, so EXPLICIT undefined own
+ * properties keep the absence belt honest under `Reflect.has` instead of
+ * tripping the get-trap throw branch.
  */
 
 /** Minimal cordis-compatible host context (real Service base registers here). */
@@ -18,7 +27,14 @@ function minimalCtx(): {
   reflect: { provide: (name: string, value: unknown) => unknown }
   logger?: { info(message: string): void; warn(message: string): void }
 } {
-  return { reflect: { provide: () => undefined } }
+  return disciplinedCtx<{
+    reflect: { provide: (name: string, value: unknown) => unknown }
+    logger?: { info(message: string): void; warn(message: string): void }
+  }>({
+    target: { reflect: { provide: () => undefined }, logger: undefined, on: undefined },
+    store: {},
+    inject: ZcontextPlugin.inject,
+  })
 }
 
 describe('dsh-zcontext skeleton smoke', () => {

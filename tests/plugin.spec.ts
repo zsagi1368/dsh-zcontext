@@ -4,6 +4,7 @@ import { FoldStore } from '../src/store.ts'
 import { NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, ZcontextPlugin } from '../src/plugin.ts'
 import type { HostContextLike } from '../src/plugin.ts'
 import type { SessionEventLike, SessionLike } from '../src/types.ts'
+import { disciplinedCtx, routeOverrides } from './helpers/mock-host.ts'
 import { MockSession, msg, seedConversation } from './helpers/mock-session.ts'
 
 /** Recorded mock faces for the host context. */
@@ -24,7 +25,13 @@ function mockCtx(overrides: Partial<HostContextLike> = {}): MockCtx {
   const registeredCommands: unknown[] = []
   const listeners = new Map<string, ((...args: never[]) => unknown)[]>()
   const logLines: { level: string; message: string }[] = []
-  const ctx: MockCtx = {
+  // v0.2.1 P0 (anti-recurrence): the mock host enforces the cordis get-trap
+  // inject discipline (tests/helpers/mock-host.ts) — an undeclared service
+  // access throws the exact device error. Service stubs live in `store` (the
+  // fiber.store mirror, never on the target); `inject` is read LIVE from the
+  // plugin class, so a new ctx.<service> access without a matching `static
+  // inject` entry fails EVERY test that constructs the plugin.
+  const target: Record<string, unknown> = {
     registeredTools,
     registeredSections,
     registeredContexts,
@@ -32,18 +39,10 @@ function mockCtx(overrides: Partial<HostContextLike> = {}): MockCtx {
     listeners,
     logLines,
     logger: {
-      info: (m) => logLines.push({ level: 'info', message: m }),
-      warn: (m) => logLines.push({ level: 'warn', message: m }),
-      error: (m) => logLines.push({ level: 'error', message: m }),
+      info: (m: string) => logLines.push({ level: 'info', message: m }),
+      warn: (m: string) => logLines.push({ level: 'warn', message: m }),
+      error: (m: string) => logLines.push({ level: 'error', message: m }),
     },
-    tools: { register: (d) => registeredTools.push(d) },
-    systemPrompt: {
-      section: (s) => registeredSections.push(s),
-      context: (c) => registeredContexts.push(c),
-    },
-    commands: { register: (c) => registeredCommands.push(c) },
-    tokenMeter: { measure: () => ({ totalTokens: 100000 }) },
-    llm: { resolveModelInfo: async () => ({ context: { contextWindow: 200000 }, defaultMaxTokens: 8192 }) },
     reflect: { provide: () => undefined },
     on(event: string, listener: (...args: never[]) => unknown) {
       const list = listeners.get(event) ?? []
@@ -55,7 +54,18 @@ function mockCtx(overrides: Partial<HostContextLike> = {}): MockCtx {
       for (const listener of listeners.get(event) ?? []) (listener as (...a: unknown[]) => unknown)(...args)
     },
   }
-  return Object.assign(ctx, overrides)
+  const store: Record<string, unknown> = {
+    tools: { register: (d: unknown) => registeredTools.push(d) },
+    systemPrompt: {
+      section: (s: unknown) => registeredSections.push(s),
+      context: (c: unknown) => registeredContexts.push(c),
+    },
+    commands: { register: (c: unknown) => registeredCommands.push(c) },
+    tokenMeter: { measure: () => ({ totalTokens: 100000 }) },
+    llm: { resolveModelInfo: async () => ({ context: { contextWindow: 200000 }, defaultMaxTokens: 8192 }) },
+  }
+  routeOverrides(overrides as Record<string, unknown>, store, target, ZcontextPlugin.inject)
+  return disciplinedCtx<MockCtx>({ target, store, inject: ZcontextPlugin.inject })
 }
 
 const FOLD_CONTENT = 'fold 3..5\nFiles listed: a.sql, b.ts, c.md; three files reported.'
@@ -85,6 +95,69 @@ const FOLD_CONFIG = {
   protectionFloorTokens: 0,
   keepRecentTokens: 0,
 }
+
+describe('mock host: cordis get-trap inject discipline (v0.2.1 P0)', () => {
+  it('undeclared service access throws the exact cordis device error', () => {
+    // vendor/cordis/src/reflect.ts:142,144 — the v0.2.0 real-device failure.
+    const ctx = mockCtx()
+    expect(() => (ctx as unknown as { agents?: unknown }).agents).toThrowError(
+      'cannot get property "agents" without inject',
+    )
+  })
+
+  it('every inject key accessed WITHOUT its declaration reproduces the device failure', () => {
+    // The regression lock: with `static inject = []` (the v0.2.0 state) each
+    // of these reads threw on the real device at the first millisecond of
+    // apply (plugin.ts constructor lines). The mock must reproduce each one.
+    for (const key of ['tools', 'systemPrompt', 'commands', 'llm', 'tokenMeter', 'sessions']) {
+      const ctx = disciplinedCtx<HostContextLike>({
+        target: { logger: undefined, on: undefined, reflect: { provide: () => undefined } },
+        store: {
+          tools: {}, systemPrompt: {}, commands: {},
+          tokenMeter: {}, llm: {}, sessions: {},
+        },
+        inject: [],
+      })
+      expect(() => (ctx as unknown as Record<string, unknown>)[key]).toThrowError(
+        `cannot get property "${key}" without inject`,
+      )
+    }
+  })
+
+  it('declared services resolve from the store; non-service surface needs no declaration', () => {
+    const ctx = mockCtx()
+    // Declared + provided → the store stub (every constructing test relies on
+    // this; asserted explicitly once for the contract).
+    expect(typeof (ctx as unknown as { llm: unknown }).llm).toBe('object')
+    expect(typeof (ctx as unknown as { tokenMeter: unknown }).tokenMeter).toBe('object')
+    // Non-service surface (logger own property / on mixin) resolves without
+    // any inject declaration — mirroring cordis context.ts:81 + mixins.
+    expect(typeof ctx.logger).toBe('object')
+    expect(typeof ctx.on).toBe('function')
+  })
+
+  it('declared-but-absent service resolves undefined (belt; real host = PENDING)', () => {
+    // Documented deviation: real cordis keeps the plugin PENDING
+    // (fiber.ts:614-621) — the belt tests rely on constructing anyway.
+    const ctx = disciplinedCtx<HostContextLike>({
+      target: {},
+      store: { llm: undefined },
+      inject: ['llm'],
+    })
+    expect((ctx as unknown as { llm: unknown }).llm).toBeUndefined()
+  })
+
+  it('special properties bypass the discipline (reflect.ts:86-91)', () => {
+    const ctx = disciplinedCtx<HostContextLike>({
+      target: { _internal: 'kept' },
+      store: {},
+      inject: [],
+    })
+    expect((ctx as unknown as { _internal: string })._internal).toBe('kept')
+    expect((ctx as unknown as Record<symbol, unknown>)[Symbol.iterator]).toBeUndefined()
+    expect('then' in ctx).toBe(false)
+  })
+})
 
 describe('plugin: face wiring', () => {
   it('enabled=false registers nothing and logs passivity', () => {

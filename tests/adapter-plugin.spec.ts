@@ -15,6 +15,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import type { HostContextLike } from '../src/plugin.ts'
 import { ZcontextPlugin } from '../src/plugin.ts'
 import { resetAdapterFacesForTest } from '../src/adapter/host.ts'
+import { disciplinedCtx, routeOverrides } from './helpers/mock-host.ts'
 
 const HOST_LLM = 'G:/000Github/zDSH/zDSH-main/packages/llm/llm/lib/index.js'
 const HOST_PIAI_ROOT = 'G:/000Github/zDSH/zDSH-main/node_modules/.pnpm/@earendil-works+pi-ai@1.0.2_a3a2a33fdd5b7de7825ad7dc4af57d74/node_modules/@earendil-works/pi-ai'
@@ -59,17 +60,25 @@ interface MockCtx extends HostContextLike {
 function mockCtx(overrides: { llm?: HostContextLike['llm'] } = {}): MockCtx {
   const logLines: LogLine[] = []
   const registeredAdapters: { routes: readonly string[]; adapter: unknown }[] = []
-  const ctx: MockCtx = {
+  // v0.2.1 P0 (anti-recurrence): disciplined mock host (tests/helpers/mock-host.ts)
+  // — undeclared service access throws the exact cordis device error; inject
+  // is read LIVE from the plugin class. tokenMeter is intentionally absent
+  // from the store (the adapter face does not consume it): declared-but-absent
+  // resolves undefined (belt; a real host keeps the plugin PENDING instead).
+  const target: Record<string, unknown> = {
     logLines,
     registeredAdapters,
     logger: {
-      info: (m) => logLines.push({ level: 'info', message: m }),
-      warn: (m) => logLines.push({ level: 'warn', message: m }),
+      info: (m: string) => logLines.push({ level: 'info', message: m }),
+      warn: (m: string) => logLines.push({ level: 'warn', message: m }),
     },
+    reflect: { provide: () => undefined },
+    on: () => undefined,
+  }
+  const store: Record<string, unknown> = {
     tools: { register: () => undefined },
     systemPrompt: { section: () => undefined, context: () => undefined },
     commands: { register: () => undefined },
-    reflect: { provide: () => undefined },
     llm: overrides.llm ?? {
       registerAdapter: (routes: readonly string[], adapter: unknown) => {
         registeredAdapters.push({ routes, adapter })
@@ -77,9 +86,9 @@ function mockCtx(overrides: { llm?: HostContextLike['llm'] } = {}): MockCtx {
       },
       resolveModelInfo: async () => ({ context: { contextWindow: 200000 } }),
     },
-    on: () => undefined,
   }
-  return ctx
+  routeOverrides(overrides as Record<string, unknown>, store, target, ZcontextPlugin.inject)
+  return disciplinedCtx<MockCtx>({ target, store, inject: ZcontextPlugin.inject })
 }
 
 const VALID_PROVIDERS = [
