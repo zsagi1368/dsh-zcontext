@@ -8,7 +8,7 @@
 
 1. **announce-once 守卫**：core/session/src/index.ts:1262-1276 `announce()` 对 `entry.announced || entry.announcing` 抛错——每个 live entry 只有一次 `session/created`。
 2. **live 会话的唯一 announce 位点**：core/session/src/index.ts:1100-1120（`publish` 内 `this.announce(session)`）。全仓非测试调用点 grep：仅 core/session:1118、agent-loop:667、subagent manager（自有 activation 域）——**restore 路径零 announce**。
-3. **恢复会话是 detached 创建**：api/session-controller/src/client/sessions/service.ts:599-640（restore → `restored detached session`；`bindScope`/scope 记录，无 enter/announce）。grep `announce` 于 service.ts：仅文档注释与 restored 生命周期验证函数，无调用。
+3. **恢复会话是 detached 创建**：packages/core/session/src/index.ts:596-620（`Session.fromRestore`——docstring `@returns a restored detached session` :605，detached 构造，无 enter/announce）。grep `announce` 于 core/session/src/index.ts：唯一 live 调用位点 :1118（`create()` 的 publish 协议内），restore 构造路径零 announce。（P3-r1 锚点更正：原文误写 api/session-controller/src/client/sessions/service.ts:599-640——该范围实读无 restore 措辞且全文件 `announce`/`restor` 零命中；评审 REVIEW-P3 P3-3 回源指认真锚，结论不变。）
 4. **首次 run 的 announce 时序**：core/agent-loop/src/index.ts:659-671 —— `publish(source)` 内：`sessions.enter(session)` → `agents.enter(...)` → `sessions.announce(session)` → `agents.announce(...)`；publish 完成后 run 才继续（`publication` resolver 在 finally 兑现）。即 **announce 严格先于该 run 的任何 llm/stream 活动**。
 5. **插件侧事实（已有钉测）**：liveSessions 仅增于 session/created（plugin.ts wireSessionFeed，face-wiring 测试在位）；resolveWatchedSession 对未 watch 会话恒 miss（plugin.ts）。
 
