@@ -1156,7 +1156,40 @@
    "owner": "coder-p4",
    "status": "verified",
    "phase": "block"
+  },
+  {
+   "id": "P0-1",
+   "source": "REVIEW-P0 #53 ([建议] P0-1): src/plugin.ts sessions inject key zero-consumer — comment the declared reason, or remove after P1 confirms no consumption plan (traceability entry added per REVIEW-P4 P4-B1)",
+   "type": "suggestion",
+   "disposition": "fixed",
+   "verified": true,
+   "evidence": "commit c9ed41f (P3 HF-02, the remove branch of the verdict): declared-but-never-read 'sessions' inject key removed from src/plugin.ts; same-batch pins updated (tests/plugin.spec.ts, tests/smoke.spec.ts) + lib rebuilt + probe-real-mount runtime face; zero-consumer premise re-verified by the P3 review grep sweep",
+   "owner": "coder-p3",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P0-2",
+   "source": "REVIEW-P0 #54 ([建议] P0-2): README.md:223,229-232 / README.zh.md — test count 424→429 + probe list add probe-real-mount, with the P3 release-wave version+CHANGELOG same-batch update (§15) (traceability entry added per REVIEW-P4 P4-B1)",
+   "type": "suggestion",
+   "disposition": "fixed",
+   "verified": true,
+   "evidence": "commit 0395c33 (P3-r1 P3-2 release-face closure): CHANGELOG [0.2.1] section, package.json version 0.2.1, probe-real-mount added to BOTH README probe lists + c0779b5 zh-side mirror sync and count cleanup — the version+CHANGELOG+README same-batch update the recommendation required",
+   "owner": "coder-p3-r1",
+   "status": "verified",
+   "phase": "block"
+  },
+  {
+   "id": "P0-4",
+   "source": "REVIEW-P0 #56 ([建议] P0-4): reports/plans/ZCTX-v021-plan.md + tasks/ZCTX/cards/P0-inject-fix.md — into git with the next governance increment (V6 precedent: cards ride governance commits) (traceability entry added per REVIEW-P4 P4-B1)",
+   "type": "suggestion",
+   "disposition": "fixed",
+   "verified": true,
+   "evidence": "commit 391990f (P0 terminal governance): ZCTX-v021-plan.md + P0-inject-fix.md committed (git ls-files attested) — the two review-named files; commit 33854a1 (P3-r1 P3-5) later completed the same authority-files-into-git chain (5 audits + 5 AUD cards + P3 card + REVIEW-P3 + scorecard, 14 files) and is the P0-4 evidence anchor cited by the P3-r1 rework review; both commits git-attested",
+   "owner": "mainline",
+   "status": "verified",
+   "phase": "block"
   }
  ],
- "updatedAt": "2026-11-14T11:50:00-08:00"
+ "updatedAt": "2026-11-14T12:21:28-08:00"
 }

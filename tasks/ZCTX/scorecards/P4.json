@@ -1,0 +1,127 @@
+{
+  "block": "P4",
+  "task": "ZCTX v0.2.1 P4 — patcher 版本体（patcher core + patcher/README + 插件桥 src/patch-bridge.ts + wirePatchFace 第六面 + status patch 段双源 + 测试 30 条 + verify-activation-surface A11）",
+  "range": "d9bd4fd..45b1152（5 提交：1d6956f governance / 7c4a3d8 patcher core / eefe2a5 插件桥 / ac80a3e 测试 / 45b1152 terminal），HEAD=45b1152",
+  "reviewer": "reviewer-P4 (independent subagent; reviewer ≠ P4 coder)",
+  "date": "2026-11-14",
+  "verdict": "打回（96 < 98）：[阻断] 1 + [建议] 5。补丁本体正确性经真机档级亲验成立（含真机 209MB asar temp 副本全链 patch/status/restore 循环），打回项=1 条 P3 残留台账缺口（前波裁决明确阻塞 P4 最终验收）+ 5 条防御路径/措辞面；返工量小（3 条台账条目 + 1 行谓词 + marker 回填 + 3 处措辞），单轮可达标。返工 ≤2 轮。",
+  "total": 96,
+  "threshold": 98,
+  "scores": {
+    "correctness": 24,
+    "completeness": 19,
+    "consistency": 19,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 9
+  },
+  "reviewer_own_battery": {
+    "test": "npm test（Z19 链 tsdown && vitest run）→ 502/502（24 files = 472 基线 + 30 P4：patcher.spec 14 + patch-bridge.spec 16）EXIT 0",
+    "lint": "npx tsc --noEmit → 0 错 EXIT 0",
+    "freshness": "npm test 重建 lib → git status lib/ 零漂移（Z19/Z22 口径）",
+    "probes": "五探针全 EXIT 0：probe-artifact 6/0/0 · host-imports 16/0/0 · real-mount 5/0/0（G4 修复后 5/5）· smoke-real-loader EXIT 0 · verify-activation-surface 11 PASS/0 FAIL（含新 A11 patcher 面 12 断言）；探针报告仅行尾噪声、已按先例 git checkout 还原",
+    "tree": "tracked 零 diff（终态 git status --porcelain = 0）；package.json version 0.2.1；CHANGELOG [0.2.1] P4 段亲读",
+    "closure_machine_count": "node 遍历 closure.json = 113 items：verified 108 / closed 4（duplicate 3 + uad 1）/ open 1（W5-A6-INSTALL）；fixed-not-verified 零命中",
+    "real_asar_readonly": "评审人对真机 H:/AiAgent/DeepSeekHarness/resources/app.asar 只读亲验：209,021,953 B；headerSize 5,669,972 / jsonLen 5,669,961（与 P2 [F16] 一致）；shell=@deepseek-ai/dsh-desktop 0.2.2-rc.3；目标 lib/index.js size 137,008 offset 97,367,238，SHA-256 实算=e956da3d…=asar 头 integrity.hash（双证复现）；锚计数 callSite=1 / definition=1 / maxRetries:0=1 / stubMarker pristine=0；调用点上下文逐字节打印（5-tab、void 0、键序 profileOptions 展开→temperature/maxTokens/sessionId 展开→signal→headers）；options.provider×7 / options.sessionId×4 / model.id×9 在 lib 中全部真实在用；首打包节点=dsh/desktop-runtime.json offset 0",
+    "real_asar_full_cycle": "评审人把真机 asar 复制到系统 temp（用户机器零写入；temp 已清理）后用 REAL SUPPORTED 锚集（零注入）走全链：patch 8 步全 ok（+136 B；backup 209MB 哈希双验；splice header 5,669,972→5,669,972；post-verify 官方 API 可读+见证 2/2 byte-identical+体积记账 209,022,089 精确）→ marker 写入 → status（anchorHit=mismatch (drift)+patched=true——P4-3 亲见）→ restore 字节级还原（sha == 原副本）→ marker 清除 EXIT 0",
+    "pi_ai_fetch_channel": "真机 asar 内 pi-ai dist 198 js 中 15 个引用 options.fetch/??.fetch；抽读实锚：anthropic-messages.js:425 createClient(model, apiKey, options?.headers, options?.fetch, …)、classifier-shared.js:44 options.fetch ?? globalThis.fetch——fetch 包装层为活通道（R7 attribution 送达路径成立）",
+    "integrity_parity": "patcher computeIntegrity 空输入推一空块的分支与 @electron/asar 4.3.2 node_modules lib/integrity.js getFileIntegrityFromBuffer:48-56 逐行一致（注释属实，此前存疑已排除）",
+    "wave_discipline": "del/20261114-p4-patcher-prechange 在盘（RESTORE.md+12 件）；progress.md P4 段全时间线含 G4 回归根因+Z22 事件如实记录；checkpoint p4-terminal 在盘"
+  },
+  "load_bearing_verification": {
+    "stub_shape": "桩串逐字对照卡面与测试 pin（patcher.spec:158-160）：...(globalThis.__zctxPatch__?.wireOptions?.({ provider: options.provider, model: model.id, sessionId: options.sessionId }) ?? {}),——零 body 改写、纯 options 字段转发；?. 链 + ?? {} 保证插件缺席零操作；buildWireFaces 的 headers 面 = requestHeaders(undefined, host) = 纯 attribution 集（wire.ts:118），与官方 profileOptions 八键（apiKey/reasoning/thinkingBudgets/cacheRetention/transport/timeoutMs/websocketConnectTimeoutMs/maxRetries）零碰撞",
+    "yield_order": "插入点在 ...profileOptions(...) 展开之后、官方显式 headers:/signal: 键之前（真机 lib 上下文亲证）→ 官方键恒后置覆盖桩输出（headers/signal/temperature/maxTokens/sessionId 全让位）；onPayload/fetch 无官方同名键、原生存活（pi-ai onPayload 18 处 + options.fetch 15 文件双实证）",
+    "scope_safety": "桩引用的三个局部变量在真机 lib 调用点作用域齐全且为官方代码自身使用面（options.provider 用于 onReplayDegrade/onThinkingOmitted、options.sessionId 用于展开行、model.id 用于 toStreamChunks）——桩在最坏情况（bridge 缺席）下求值 {} 而非抛 ReferenceError",
+    "asar_splice": "surgical 拼接选型正确（extract-repack 会重排全部字节+unpacked 标记风险；拼接只动目标区间+头 JSON 原位变异保持键序）；pickle 数学复现（jsonLen 5,669,961 → aligned 5,669,964 → payloadSize 5,669,968 → headerSize 5,669,972 与真档逐字节吻合）；Z26 win32 path.sep 修复在位（nativeAsarPath :160-162 + 测试 asarNative 同步）",
+    "gates": "版本门（真档 0.2.2-rc.3 亲过）→ 幂等（stubMarker 计数）→ 锚哈希门（真档 e956da3d 亲过）→ 锚唯一性（0/2 拒收测试在位）→ 进程/锁面（锁文件永不删）；锚漂移拒收后零改动（测试断言 sha/无备份/无 marker）",
+    "backup_restore": "备份=app 目录 sibling（官方更新器全量替换安装目录不可波及，P2 [F29] 对策正确）；copy→双哈希→不匹配即 refuse；RESTORE.md 含 certutil 格式哈希+patcher/manual 双还原命令；restore=RESTORE.md 记录哈希门→temp 副本哈希门→原子 rename→装后哈希门→marker 清除；fixture 测试字节级还原钉（lib === FIXTURE_LIB）+ 真档 temp 循环 sha 复原亲证",
+    "bridge": "身份校验（三字段非空字符串）→ watched session → buildWireFaces 同源 wire 面；全路径 try-contained 降级 {}（宿主 registry 抛错测试钉）；R7 attribution 经 fetch 包装层叠加（plain-object 大小写不敏感去重后 attribution 胜、Headers 实例 set、array/string/undefined 诚实透传——四形态测试在位）；last-wins 挂载+禁用不挂载测试在位；loadAdapterFaces 改仅成功 memoize（身份守卫防陈旧清锁）——G4 当波自纠闭环且 real-mount 5/5 亲验",
+    "dual_source_status": "marker（process.resourcesPath 推 app 目录，ENOENT=absent/坏 JSON=unknown 诚实三态）+ mount（globalThis）双源；zctx_status patch 段 facts-only（patchMarkerDetail 无建议措辞）；legacy runtime 无 patchFace → 段诚实跳过（测试钉）"
+  },
+  "blockers": [
+    {
+      "id": "P4-B1",
+      "location": "tasks/ZCTX/closures/closure.json（45b1152 diff 仅 +P4-A..I）× tasks/ZCTX/scorecards/P3.json:74-80 residual_note",
+      "problem": "P3 评审裁决明文：『P0-1/P0-2/P0-4 三条建议补 3 条（或 1 条捆绑）closure 追溯条目 + git add P4 卡；不阻塞 P4 开工，阻塞 P4 最终验收』。P4 terminal 只兑现了后半（P4 卡入库 1d6956f），closure.json 机器检索 P0-1/P0-2/P0-4 零命中（现有 P0-A..D 为 P0 波 inject 修复产物条目，非该三条评审建议的追溯）——terminal 提交自称零遗留而该条未落账",
+      "fix": "45b1152 后补 3 条（或 1 条捆绑）disposition=fixed/status=verified 追溯条目：P0-1→P3-M4/c9ed41f（inject sessions 键）、P0-2→0395c33（CHANGELOG 0.2.1 段/version/探针清单）、P0-4→33854a1（审计权威件 14 件入库），evidence 指向既有 commit 与 P3 评分卡对应节",
+      "phase": "block（前波裁决即 P4 最终验收硬条件；条目纯台账，补齐即过）"
+    }
+  ],
+  "suggestions": [
+    {
+      "id": "P4-1",
+      "location": "patcher/zctx-patch.mjs:718（verifySplicedArchive witness 期望偏移）× :351-358（witness 采集）× :363-371（splice 移位规则）",
+      "problem": "期望偏移谓词 `witness.oldOffset > 0 ? oldOffset+delta : oldOffset` 与移位规则 `offset > targetStart → +delta` 不等价：若首打包见证文件位于 targetStart 之前且 offset>0（即 0<oldOffset<targetStart），期望值错误 → 头偏移断言必失败 → post-verify 假阴性（档已正确写入但报 FAILED+提示 restore，无自动回滚）。可达性分析：@electron/asar 产物 header 序==写入序、首文件 offset=0（真档亲证 dsh/desktop-runtime.json@0，fixture 同性质）→ 本工具可接受的任何档（版本门+哈希门+官方产物布局）内不可达；后果仅假警报、绝不产生坏档",
+      "fix": "witness 采集时记录 afterTarget 布尔（offset > targetStart）或直接记录 targetStart，期望偏移改用它；谓词前提（官方产物首文件 offset=0）补注释显式化；补回归钉（对 SpliceResult.witnesses 的期望偏移计算单测，或导出期望函数直测）",
+      "disposition": "OPEN → 返工轮处理（fixed/verified 后关账）"
+    },
+    {
+      "id": "P4-2",
+      "location": "patcher/zctx-patch.mjs:630-633（幂等 skip 分支）× :669-671（rename 先于 marker）× :689-699（writeMarker）",
+      "problem": "marker 与实际 patch 状态的不变量存在两个破口：①renameSync(asar) 与 writeMarker 之间断电/崩溃 → stub 在场/marker 缺席；此时重跑 patch 走幂等分支返回 alreadyPatched 成功且【不回填 marker】→ 插件侧 zctx_status 双源（tools.ts:925-935 读 readPatchMarker）将永远渲染 'absent (official adapter unpatched — pure-plugin face)' 而桩实际活且桥已武装；patcher 自身 status 读桩计数呈 patched=true——跨工具口径不一致。②writeMarker 抛错路径同源（档已改无 marker，CLI 报 error）。出现概率=单次原子窗口/崩溃，危害=状态面误导（wire 记账不受影响）",
+      "fix": "幂等分支检测 marker 缺席/损坏时回填 marker（按当前态构造 patcher/shellVersion/target/sha256After/backup 字段，backup 可 unknown）或至少在 skip 输出中如实报告 marker 状态；writeMarker 失败路径在 report 中如实标注档已改、marker 缺席",
+      "disposition": "OPEN → 返工轮处理"
+    },
+    {
+      "id": "P4-3",
+      "location": "patcher/zctx-patch.mjs:868（statusAsar anchorHit 赋值）+ zctx-patch.d.mts:139 类型面",
+      "problem": "已打补丁的档 status 报告 anchorHit='mismatch (drift)'（评审人真档 temp 循环亲见）——事实正确但 'drift' 一词把【补丁后的期望态】与【官方升级导致的锚漂移】（两者对用户的行动完全不同：前者正常、后者需更新锚集）合并为一个告警色彩标签；patched=true 同屏可辨但用户需自行推断",
+      "fix": "anchorHit 区分三态：'match (pristine)' / 'patched (content differs from pristine — expected after patch)' / 'drift (official update changed the file)'；.d.mts 类型面同步",
+      "disposition": "OPEN → 返工轮处理"
+    },
+    {
+      "id": "P4-4",
+      "location": "tasks/ZCTX/closures/closure.json updatedAt（45b1152 diff：2026-11-14T12:40:00-08:00 → 11:50:00-08:00）",
+      "problem": "台账 updatedAt 时间戳倒退 50 分钟——append 式台账的时间单调性破坏（条目本体与证据字段 diff 零篡改，纯该行卫生问题）",
+      "fix": "终态提交把 updatedAt 修正为不早于 P3-r1 终态值；后续台账更新保持时间单调",
+      "disposition": "OPEN → 返工轮处理"
+    },
+    {
+      "id": "P4-5",
+      "location": "scripts/verify-activation-surface.mjs A11 断言标签 'anchor set in册: rc.3 pinned'",
+      "problem": "断言标签中英混排（'in册'）——该脚本输出面其余标签全英文（A1-A10 一致口径），A11 为孤例；探针输出是收口报告引用面，混排影响可读性一致性",
+      "fix": "改为 'anchor set registered: rc.3 pinned'",
+      "disposition": "OPEN → 返工轮处理"
+    }
+  ],
+  "non_item_notes": [
+    "patchAsar splice/post-verify 失败返回缺 refused:true（:667/:685 与门拒绝路径 :593 等 refused 语义不齐）——CLI 行为不受影响（main 只看 ok），随 P4-1 返工顺手对齐即可，不单独计条",
+    "extractPositioned 哈希基于 UTF-8 重编码文本而非原始字节——目标文件为纯 ASCII JS 源（真档亲证），重编码逐字节等价；对非 UTF-8 目标不成立，但锚集扩展时新目标必为同类 JS 源，记为锚集扩展时的检查项而非本波缺陷",
+    "restore 在 RESTORE.md 缺失时跳过记录哈希门（recorded undefined）——备份目录中途崩溃场景的容错；temp 副本哈希门仍守复制保真，不构成静默还原坏备份",
+    "非 win32 平台 probeAppRunningDefault 返回 'unknown' → 进程门放行——注释明示锁文件为硬信号且该 app 仅 win32 安装面，可接受"
+  ],
+  "evidence": {
+    "correctness": [
+      "真机 209MB asar temp 副本全链 patch→status→restore 亲验（8 步全 ok/+136 B/见证 2/2/体积记账 209,022,089 精确/restore sha 复原/marker 清除）——最高权重证据",
+      "真机只读亲验五组：哈希双证 e956da3d、锚计数 1/1/1/0、调用点上下文逐字节（5-tab+键序+作用域）、options.provider×7/sessionId×4/model.id×9、首打包节点 offset=0",
+      "502/502 + tsc 0 + lib 重建零漂移 + 五探针全 EXIT 0（含 G4 修复后 real-mount 5/5）",
+      "扣分项：P4-1 谓词缺陷（可接受域内不可达、假阴性向）+ P4-2 崩溃窗口 marker 不变量（状态面误导向）合计 -1"
+    ],
+    "completeness": [
+      "卡面 5 产物逐项在盘且功能真实（patcher 三子命令/README 三风险如实/桥+第六面/测试 30 条/A11 12 断言）；3 约束逐条核（fixture-only 真机零写入亲证、备份先行真档亲验、锚漂移 refuse 测试在位）；W5-A6-INSTALL 诚实 SKIPPED 登记",
+      "G4 回归当波自引入当波闭环（host.ts 仅成功 memoize+身份守卫+桥接空 attribution 降级）且 P4-H 台账如实记录根因；Z22 CRLF 事件如实记账",
+      "扣分项：P4-B1（P3 残留追溯条目未落账）-1"
+    ],
+    "consistency": [
+      "桩串与卡面逐字一致（测试 pin）；README 双语风险叙述与 VERIFY-P 修正（fuse '0'=off 9 字节 schema、存活期推断标注）一致；CHANGELOG P4 段与实际产物/电池数字一致（502/11 组/30 条均亲验吻合）；.d.mts 与 .mjs 导出面一致",
+      "zctx_status patch 段 facts-only 与 texts 纪律一致；桥 R7 语义与 own-adapter requestHeaders 同构（大小写不敏感、attribution 胜）",
+      "扣分项：P4-3（drift 措辞歧义）+ P4-4（时间戳倒退）+ P4-5（标签混排）合计 -1"
+    ],
+    "verifiability": [
+      "评审人电池七组全可复现（电池/真机只读/真机 temp 全链/fetch 通道/integrity 对齐/closure 机器数 113/树净+版本面），无一条依赖转抄",
+      "P4-F『零写入 H:\\AiAgent 与 ~/.dsh』与评审人复核一致（评审全程亦零写入用户机器，temp 已清理）",
+      "锚集 pin 测试（patcher.spec:148-162）把 e956da3d 与桩串固化为机器可拦项——官方漂移即红"
+    ],
+    "safety_rollback": [
+      "备份先行：sibling 目录防更新器清除（P2 [F29] 对策）+ copy 双哈希 + RESTORE.md（patcher/manual 双通道还原命令+验证口径）；真档 temp 循环 restore 字节级还原亲证",
+      "restore 四重门（选择/记录哈希/temp 副本哈希/装后哈希）+ fixture 损坏备份拒收测试；锁面永不删（测试钉）",
+      "post-verify 不自动回滚的取舍有注释交代（用户机器自动修复需显式之眼）并给 recovery 命令——refuse 不硬来纪律全程在位"
+    ],
+    "maintainability": [
+      "门族命名/步骤结构清晰（8 步 report 可读）；单文件工具+.d.mts 类型面+README 三层文档；桥依赖全注入零宿主导入（PatchBridgeDeps）",
+      "G4 修复注释带根因与身份守卫理由；测试 30 条按拒收路径逐门铺钉（0/2 锚、版本门、进程门、锁面门、损坏备份）",
+      "扣分项：P4-1 谓词依赖未注释的布局不变量（隐式前提）-1"
+    ]
+  },
+  "fraud_check": "未发现造假：①全部电池数字（502/502、tsc 0、五探针计数、closure 113、树净）评审人本机复跑非转抄；②真机锚计数/哈希/上下文为评审人独立只读抽取（与 coder『真机只读抽取』声明互证且零依赖其 temp 件）；③真档 temp 全链为评审人自建验证，coder 未主张过该证据（评审超额加验）；④P4-H 自曝当波引入 G4 回归并修复=诚实呈报而非隐瞒；⑤closure diff 旧条目零证据篡改（仅 +P4-A..I 与 updatedAt 行）；⑥评分无自评（reviewer-P4 ≠ P4 coder）。注：评审人运行五探针产生的报告行尾噪声已按先例 git checkout 还原（内容 diff 为零，非 P4 波缺陷）"
+}
