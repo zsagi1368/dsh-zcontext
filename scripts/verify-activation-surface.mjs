@@ -363,6 +363,46 @@ let zctx
 }
 
 // ---------------------------------------------------------------------------
+// A11 (P4) patcher face: the patcher tool + anchor set are on disk and the
+// production anchor matrix pins the real rc.3 target hash (task card P4
+// product 5: "verify-activation-surface 补 patcher 面断言（文件在盘+锚集在册）").
+// ---------------------------------------------------------------------------
+
+{
+  let ok = false
+  let detail
+  try {
+    const patcherText = read('patcher/zctx-patch.mjs')
+    const checks = {
+      'patcher/zctx-patch.mjs on disk': patcherText.length > 0,
+      'patcher README on disk': read('patcher/README.md').length > 0,
+      'three subcommands (patch/restore/status)':
+        patcherText.includes("'patch'") && patcherText.includes("'restore'") && patcherText.includes("'status'"),
+      'stub marker = globalThis.__zctxPatch__ (patch/plugin contract)':
+        patcherText.includes('globalThis.__zctxPatch__'),
+      'anchor set in册: rc.3 pinned': patcherText.includes("'0.2.2-rc.3'"),
+      'anchor hash = real pristine lib SHA-256 (e956da3d…, P2 [F16]/VERIFY-P #8)':
+        patcherText.includes('e956da3d7300e1426e13e14f47e6f981dd1ca345633a406568ee5058ad93e9d8'),
+      'target path pinned': patcherText.includes('dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js'),
+      'call-site anchor pinned': patcherText.includes('...profileOptions(profile, reasoning, apiKey),'),
+      'backup-first discipline (RESTORE.md)': patcherText.includes('RESTORE.md'),
+      'marker file contract (<appDir>/.zctx-patch.json)':
+        patcherText.includes('.zctx-patch.json'),
+      'bridge receiver shipped (src/patch-bridge.ts)': read('src/patch-bridge.ts').includes('wireOptions'),
+      'plugin arms the bridge (wirePatchFace)': read('src/plugin.ts').includes('wirePatchFace'),
+    }
+    const failedChecks = Object.entries(checks).filter(([, v]) => !v).map(([name]) => name)
+    ok = failedChecks.length === 0
+    detail = failedChecks.length === 0
+      ? `${Object.keys(checks).length} patcher-face assertions ok (anchor set on disk, rc.3 hash pinned)`
+      : `failed: [${failedChecks.join('; ')}]`
+  } catch (error) {
+    detail = `threw: ${error instanceof Error ? error.message : String(error)}`
+  }
+  report('A11 P4 patcher face: tool on disk + anchor set in册 + bridge receiver', ok, detail)
+}
+
+// ---------------------------------------------------------------------------
 
 const failed = results.filter((r) => !r.ok)
 console.log(`\nverify-activation-surface: ${results.length - failed.length} PASS, ${failed.length} FAIL`)
