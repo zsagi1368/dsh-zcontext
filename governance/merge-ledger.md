@@ -18,3 +18,13 @@
 - 设计裁定入册：§3.1 family=协议名直取（A 案）；margin 裁决=product-1+F6.4 误报偏向（R4 确认）；U1 SKIP→S2 visibility-only 降级路径。
 - RSI：Z18/Z19/Z20 入 ZDSH-LESSONS.md。
 - post-merge 台账沿用：W5-A6-INSTALL 真机全装冒烟（复核日 2026-11-19）。
+
+## 2026-11-14 · v0.2.1（真机异常修复+全量审计+patcher 双形态）
+
+- 云锚：origin/main = 6ae64bdb…（含台账）；tag v0.2.1（附注 7dc6cef）。
+- 波次：P0 真机 inject 修复（六键→五键，评审 98）→ 官方 rc.3 漂移侦察+安装面测绘（P1/P2，verifier 12/12 换源复核）→ **全量审计七域**（codegraph/架构 8.5-10/RSI 自审/状态机/宿主面/verifier/重放复现——4 真缺陷全复现确认）→ P3 审计修复（93→返工→99）→ P4 patcher 双形态（96→返工→100）。
+- 安全门：Mimosa v0.2.1 波未单独扫（v0.2.0 全扫 13 findings 分诊 13/13 误报入库；P0-P4 变更经七域审计覆盖，真机 patcher 执行归 W5-A6-INSTALL）。
+- 质量证据：507 测试全绿；R1-R8 两轮独立审计；真机 209MB asar 副本全链 patch→status→restore 零写入验证；rc.3 适配三项全部无需适配（P1 九组消费面+D2 互证）。
+- 设计裁定入册：§3.1 family=协议名 A 案；margin 裁决（R4 确认）；U1 SKIP→visibility-only；sessions 键摘除（零消费硬依赖=静默 PENDING 实证）。
+- RSI：Z21-Z26 入 ZDSH-LESSONS.md；RSI 自审逮 Z19 闭环缺口（test 不自动 build）已修（Z19 新链 tsdown&&vitest）。
+- post-merge 台账：W5-A6-INSTALL 真机全装+patcher 真机执行（复核日 2026-11-19，验收点含自愈不变式/四态 status/字节级 restore）；P0 遗留 stash e78a247 处置权归用户。
