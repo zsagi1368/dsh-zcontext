@@ -28,3 +28,12 @@
 - 设计裁定入册：§3.1 family=协议名 A 案；margin 裁决（R4 确认）；U1 SKIP→visibility-only；sessions 键摘除（零消费硬依赖=静默 PENDING 实证）。
 - RSI：Z21-Z26 入 ZDSH-LESSONS.md；RSI 自审逮 Z19 闭环缺口（test 不自动 build）已修（Z19 新链 tsdown&&vitest）。
 - post-merge 台账：W5-A6-INSTALL 真机全装+patcher 真机执行（复核日 2026-11-19，验收点含自愈不变式/四态 status/字节级 restore）；P0 遗留 stash e78a247 处置权归用户。
+
+## 2026-11-15 · W5-A6-INSTALL 真机验收（closure open→0）
+
+- 云锚：origin/main = fb679df…（含验收报告+closure 闭合）。
+- 诊断（用户真机 `cannot get property "tokenMeter" without inject`）：profile 装的是 v0.2.0（inject 未声明版）；profile cordis.patch.yml 无 zctx 行属正常（bundle patch 运行时组合，不写回用户层——profile.ts:8-20 文档实证）。
+- 验收（真 CLI 0.2.1-alpha.2 + 隔离 DSH_HOME）：dump-config exit 0 含 `id/name: dsh-zcontext`；启动装配 inject 失败 0 条、插件零 PENDING；装件身份 0.2.1 齐全。
+- 报告：reports/W5-A6-INSTALL-acceptance.md；closure 全量 open=0。
+- 用户侧待办：`pnpm update dsh-zcontext` + 重启 app（git 依赖缓存缓解=pnpm store prune 后重装）。
+- patcher 真机执行：代码+209MB asar 副本全链验证已过，实际打补丁待用户确认（建议 0.2.1 纯插件稳定运行后再评估）。
