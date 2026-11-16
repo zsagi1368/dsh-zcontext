@@ -1391,6 +1391,16 @@
       "owner": "coder-p6f",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "P6F-2",
+      "source": "REVIEW-P6F §4 P6F-F1 [阻断]（声称的改前备份 del/20261116-p6f-rsi-prechange 盘上不存在——progress.md:166 与 ~/.agents/rsi/INDEX.md:19 两处声称）",
+      "type": "process-deviation",
+      "disposition": "fixed",
+      "evidence": "①两处声称如实更正（progress.md [P6-F RSI] 行 + INDEX.md:19：原声称 del/20261116-p6f-rsi-prechange 未建成、盘上不存在，根因=台账先写而备份动作未做，Z32 入 ZDSH-LESSONS.md 固化检查项）；②补现态基线快照 del/20261116-p6f-rsi-snapshot（ZDSH-LESSONS.md+INDEX.md post-Z31 态，SHA256SUMS=3f5e3543…6c15/50c9eb95…2e47，RESTORE.md 写明补录性质与两层回滚路径：快照复制回 + pre-Z31 纯追加逆运算）；③本波自身改前备份 del/20261116-p6f-r1-prechange（5 件+SHA256SUMS+RESTORE.md）开工首步在盘建立（先 mkdir 后改件，落实 Z32）。关闭依据=记录更正+逆运算可回滚性在案，全部为纯台账/文档动作，业务代码零改动。",
+      "owner": "coder-p6f-r1",
+      "status": "verified",
+      "phase": "block"
     }
   ]
 }
