@@ -116,7 +116,8 @@ C2 是卡面五组之外的补充臂：桌面 profile 给 hy4flash-free 声明 c
 | BENCH-L2 | 桌面 Electron/web 组合中 zctx 面激活状态未测（用户真实使用环境） | user_approved_deferred | web 组合需 boot HTTP 面，超出 headless 基准卡范围。P6-D2 补充事实：desktop 原 profile 无 zcontext 覆盖块（默认启用），本定谳的根因（基准克隆层残留）不适用于 desktop；激活探针同法可覆盖。 |
 | BENCH-L3 | 矩阵 D（preflight enforce）与 E（zctx 路由）组 | not_applicable（本轮） | 卡面明示"本轮可后置"。P6-D2 后 faces 已实证激活，D/E 的被测机制（S1/S2）在 headless 已有意义，可重估为后续基准卡。 |
 | BENCH-L4 | cache-write 字段全程缺失（该路由 provider 不上报） | not_applicable | 命中率口径退化为 cacheRead/billed，已如实标注；换路由后可恢复三值口径。 |
-| BENCH-L5 | **采用面**：修复接线后模型仍 0 自发 fold（20 轮压力臂，nudge 文本在场；§11.3） | user_approved_deferred（文本面/模型面，超出本卡接线范围） | owner: 插件域主线。触发条件：下一插件域波次开工；杠杆=nudge/guidance 措辞强度对照实验 + 更强模型对照。 |
+| BENCH-L5 | **采用面**：修复接线后模型仍 0 自发 fold（20 轮压力臂，nudge 文本在场；§11.3） | **fixed/verified（P6-F 改判，2026-11-16；原 user_approved_deferred）** | 改判依据=机制路线交付使依赖消失：P6-E autofold 引擎 + f297 服务端折叠（评审独立重放 MATCH:true）+ P6-F 两臂 f290/f340 复证（§13，净省 4576/5101）——文本面/模型面自发 fold 不再是折叠生效的依赖条件。采用面事实不被抹掉：维持 §11.3 原判（两臂仍 0 自发 zctx_* 调用，三会话×20 轮如实，§13.2）；残余研究杠杆单列 BENCH-L7。owner: 插件域主线。 |
+| BENCH-L7 | 残余研究杠杆：nudge/guidance 措辞强度对照实验 + 更强模型自发采用对照（文本面/模型面） | not_applicable（v0.4 候选） | 非插件缺陷：服务端自发折叠机制已交付（P6-E/P6-F），模型自发采用不在 v0.3 任何验收判据内；作为 v0.4 研究候选如实保留（§13 诚实边界；closure.json BENCH-L7 同源）。 |
 
 ## 9. 环境完整性证据
 

@@ -1401,6 +1401,16 @@
       "owner": "coder-p6f-r1",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "P6F-3",
+      "source": "REVIEW-P6F §4 P6F-F2 [建议]（BENCH §8 台账行未随 closure 改判更新：BENCH-L5 仍 user_approved_deferred 且无 BENCH-L7 行）",
+      "type": "review-recommendation",
+      "disposition": "fixed",
+      "evidence": "BENCH-report.md §8：BENCH-L5 行改判 fixed/verified（机制解药=P6-E 引擎+f297 独立重放+P6-F f290/f340 复证；采用面事实维持 §11.3 原判不抹掉）+ 新增 BENCH-L7 行（not_applicable，v0.4 候选）——与 closure.json 既有的 BENCH-L5 改判、BENCH-L7 条目对齐，BENCH-L7 evidence 自述指针 §8 row + §13 现已两处都在盘。§8 为活登记表（BENCH-L1 行先例同型）。",
+      "owner": "coder-p6f-r1",
+      "status": "verified",
+      "phase": "block"
     }
   ]
 }
