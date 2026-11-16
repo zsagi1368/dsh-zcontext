@@ -357,6 +357,56 @@ export function resolveMarginRatio(value: number | undefined, logger: PreflightD
 }
 
 /**
+ * Project one request through the public projection face and estimate its
+ * input tokens (the shared estimate core). Extracted in P6-E so the autoFold
+ * face reuses the EXACT V4 estimate path (trigger 复用 V4 preflight 判据):
+ * identical projection, identical image gating, identical tool pricing — two
+ * copies of this walk would drift. Pure relative to its inputs; throws on
+ * grossly malformed options (callers degrade honestly).
+ */
+export function projectAndEstimateRequest(input: {
+  readonly options: Record<string, unknown>
+  readonly projector: HostProjector
+  readonly modelInfo: HostModelInfoLike | undefined
+  readonly fileRequestText?: (ref: unknown) => string | undefined
+  readonly imagePricing?: HostImagePricingLike | undefined
+}): PreflightEstimate {
+  const messages: readonly RequestMessageLike[] = Array.isArray(input.options.messages)
+    ? (input.options.messages as RequestMessageLike[])
+    : []
+  const tools: readonly ToolSchemaLike[] | undefined = Array.isArray(input.options.tools)
+    ? (input.options.tools as ToolSchemaLike[])
+    : undefined
+  const resolvePath: ResolvePathLike =
+    typeof input.fileRequestText === 'function'
+      ? (ref: unknown) => input.fileRequestText?.(ref)
+      : () => undefined
+  let projected = input.projector.projectFilesToText(messages, resolvePath)
+  // Official image gating: project away only for KNOWN image-less models.
+  const hasImages = messages.some((message) => contentHasType(message, 'image'))
+  if (
+    hasImages
+    && input.modelInfo?.inputModalities !== undefined
+    && !input.modelInfo.inputModalities.includes('image')
+  ) {
+    projected = input.projector.projectImagesForTextModel(projected)
+  }
+  const toolUpdate = input.modelInfo?.toolUpdate
+  const projectedTools = input.projector.projectToolUpdates(
+    projected,
+    tools,
+    toolUpdate,
+    input.options.toolHistory,
+  )
+  return estimateProjectedRequest({
+    messages: projectedTools.messages,
+    tools: projectedTools.tools ?? tools,
+    system: input.options.system,
+    pricing: input.imagePricing,
+  })
+}
+
+/**
  * The S1 preflight listener. Construct once per plugin when
  * preflightMode !== 'off'; register `onStream` on the host's llm/stream
  * waterfall BEFORE the observe listener (outermost — see module docstring).
@@ -437,39 +487,20 @@ export class PreflightListener {
     const model = typeof options.model === 'string' ? options.model : ''
     const modelInfo = await this.resolveModelInfoCached(provider, model)
 
-    // Pre-projection messages (F3.4): re-project through the public face.
-    const messages: readonly RequestMessageLike[] = Array.isArray(options.messages)
-      ? (options.messages as RequestMessageLike[])
-      : []
-    const tools: readonly ToolSchemaLike[] | undefined = Array.isArray(options.tools)
-      ? (options.tools as ToolSchemaLike[])
-      : undefined
-    const resolvePath: ResolvePathLike =
-      typeof this.deps.fileRequestText === 'function'
-        ? (ref: unknown) => this.deps.fileRequestText?.(ref)
-        : () => undefined
-    let projected = projector.projectFilesToText(messages, resolvePath)
-    // Official image gating: project away only for KNOWN image-less models.
-    const hasImages = messages.some((message) => contentHasType(message, 'image'))
-    if (
-      hasImages
-      && modelInfo?.inputModalities !== undefined
-      && !modelInfo.inputModalities.includes('image')
-    ) {
-      projected = projector.projectImagesForTextModel(projected)
-    }
-    const toolUpdate = modelInfo?.toolUpdate
-    const projectedTools = projector.projectToolUpdates(projected, tools, toolUpdate, options.toolHistory)
-
+    // Pre-projection messages (F3.4): re-project through the shared estimate
+    // core (P6-E extraction — the autoFold face rides the identical path).
     const pricing =
       typeof this.deps.imageRequestPricing === 'function'
         ? this.deps.imageRequestPricing(provider, model)
         : undefined
-    const estimate = estimateProjectedRequest({
-      messages: projectedTools.messages,
-      tools: projectedTools.tools ?? tools,
-      system: options.system,
-      pricing,
+    const estimate = projectAndEstimateRequest({
+      options,
+      projector,
+      modelInfo,
+      ...(typeof this.deps.fileRequestText === 'function'
+        ? { fileRequestText: (ref: unknown) => this.deps.fileRequestText?.(ref) }
+        : {}),
+      ...(pricing !== undefined ? { imagePricing: pricing } : {}),
     })
     const judgment = judgeEstimate({
       estimate: estimate.tokens,

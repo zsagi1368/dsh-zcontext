@@ -109,6 +109,49 @@ export interface ZcontextConfig {
    */
   'patch.guardObserveEvents': boolean
   /**
+   * P6-E autoFold master switch (v0.3; task card product 2; RES-bc-server-
+   * orchestration §9.1 MUST 5 + F1.20/F2.21): when true, the plugin registers
+   * the third llm/stream face — server-initiated folding. On a V4-preflight
+   * trigger hit (estimate > triggerLine × margin) the face runs the full
+   * chain deterministically: conservative span selection → summary supply →
+   * W2 validator gates → fold-engine surface replace → degradation chain
+   * (transient retry → halving cascade → CPU digest). NO model tool call is
+   * required — the model's inaction is the failure mode this face removes.
+   *
+   * DEFAULT FALSE (v0.3 explicit opt-in, card: 校准后转默认): the face
+   * commits folds the user did not ask for; it stays opt-in until the pilot
+   * battery and the calibration ledger say the trigger is safe. The face is
+   * registered INNERMOST (after the preflight listener): preflight 'enforce'
+   * short-circuits first, so with preflightMode='enforce' this face stays
+   * suppressed (documented precedence, wired face logs a warn when both on).
+   */
+  'autofold.enabled': boolean
+  /**
+   * P6-E summary supply selector (card product 2; RES-bc §9.1 MUST 5 three
+   * choices). 'compaction' (DEFAULT): one-shot `ctx.llm.stream` call with the
+   * official `purpose: 'compaction'` marker (compaction-basic precedent,
+   * summarizer.ts read in full before implementation) to the parent request's
+   * provider/model. 'external': an independent summary service (own URL /
+   * model / credential env, bc externalSummary 同型). 'digest': CPU-only
+   * deterministic structural digest (zero model, bc EMERGENCY 同型).
+   * An ILLEGAL value is a loud config error — the face is skipped with a
+   * warn, never silently mapped to another supply (bc R9: invalid settings
+   * fail loudly, never silently fall back).
+   */
+  'autofold.summarizer': string
+  /** 'external' supply: summary-service endpoint URL (POST JSON). Required for 'external'. */
+  'autofold.external.url': string
+  /** 'external' supply: model id sent in the request body. Required for 'external'. */
+  'autofold.external.model': string
+  /** 'external' supply: env var name holding the bearer credential ('' = unauthenticated). */
+  'autofold.external.apiKeyEnv': string
+  /** P6-E chain budget (bc F2.6 MAX_PREFLIGHT_ROUNDS=16, data-ified): max span attempts per triggered run. */
+  'autofold.maxRounds': number
+  /** P6-E chain budget (bc F2.6 MAX_PREFLIGHT_SUMMARY_BATCH=4, data-ified): max disjoint spans per selection batch. */
+  'autofold.maxBatch': number
+  /** P6-E output clamp (bc F2.6 MAX_SUMMARY_OUTPUT_TOKENS=32768, data-ified): summary-call maxTokens cap. */
+  'autofold.maxSummaryOutputTokens': number
+  /**
    * The structured S2 adapter section (v0.2.0 V5, task card product 8; plan
    * §3 structured-settings relaxation, official llm-pi-ai schemastery
    * precedent config.ts:340-361): `providers[]` entries declare the routes
@@ -170,6 +213,14 @@ export const configDefaults: Readonly<ZcontextConfig> = deepFreeze<ZcontextConfi
   'observe.enabled': true,
   'observe.attemptCapture': false,
   'patch.guardObserveEvents': true,
+  'autofold.enabled': false,
+  'autofold.summarizer': 'compaction',
+  'autofold.external.url': '',
+  'autofold.external.model': '',
+  'autofold.external.apiKeyEnv': '',
+  'autofold.maxRounds': 16,
+  'autofold.maxBatch': 4,
+  'autofold.maxSummaryOutputTokens': 32768,
   preflightMode: 'observe',
   preflightMarginRatio: 0.9,
   // V5 S2: the structured providers section defaults to an EMPTY declaration
@@ -198,6 +249,14 @@ const CONFIG_FIELD_SPECS = {
   'observe.enabled': { type: 'boolean', default: configDefaults['observe.enabled'] },
   'observe.attemptCapture': { type: 'boolean', default: configDefaults['observe.attemptCapture'] },
   'patch.guardObserveEvents': { type: 'boolean', default: configDefaults['patch.guardObserveEvents'] },
+  'autofold.enabled': { type: 'boolean', default: configDefaults['autofold.enabled'] },
+  'autofold.summarizer': { type: 'string', default: configDefaults['autofold.summarizer'] },
+  'autofold.external.url': { type: 'string', default: configDefaults['autofold.external.url'] },
+  'autofold.external.model': { type: 'string', default: configDefaults['autofold.external.model'] },
+  'autofold.external.apiKeyEnv': { type: 'string', default: configDefaults['autofold.external.apiKeyEnv'] },
+  'autofold.maxRounds': { type: 'number', default: configDefaults['autofold.maxRounds'] },
+  'autofold.maxBatch': { type: 'number', default: configDefaults['autofold.maxBatch'] },
+  'autofold.maxSummaryOutputTokens': { type: 'number', default: configDefaults['autofold.maxSummaryOutputTokens'] },
   preflightMode: { type: 'string', default: configDefaults.preflightMode },
   preflightMarginRatio: { type: 'number', default: configDefaults.preflightMarginRatio },
   // The S2 structured section (R5 V5-3: ONE unified statement of the
