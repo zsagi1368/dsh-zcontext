@@ -192,7 +192,7 @@ C2b 插桩逐 assembly 记录（`raw-stderr/`）：窗口解析成功（40000）
 | 模型工具调用依赖 | **0**——全会话（20 轮）无任何 `zctx_*` tool/call 事件 | 同上 session log `tool/call` 全量扫描 |
 | 摘要供给 | **compaction 供给**（官方 purpose:'compaction' 一次性 ctx.llm.stream，父请求路由 magpie/hy4flash-free）：摘要文本非 digest 形态（无 deterministic-digest 头），经 validator 长度窗 [50,20000] + 净缩门 1.05（5744 > 864 ✓） | seq 297 摘要文本头 + 机制代码路径 |
 | 触发判据 | V4 判据第三态复用：turn 11 起 HIT（estimate 28859 > hit line 26421 = triggerLine 29356 × margin 0.9），此后每轮 HIT（estimates 28859→48002） | `summary-p6e-autofold.jsonl` stderrTail `[zctx-debug] autoFold judge: … → HIT`（turns 11-20 全部） |
-| 提交链路因果复现 | 离线重放：折叠前精确表面（80 节点 12769 tokens）上 selectFoldSpans 返回**唯一候选 [9..202] 5471 tokens——与运行时提交的 span/tokens 逐字一致** | 本波 offline 复现脚本输出（progress.md P6-E 段） |
+| 提交链路因果复现 | 离线重放：折叠前精确表面（80 节点 12769 tokens）上 selectFoldSpans 返回**唯一候选 [9..202] 5471 tokens——与运行时提交的 span/tokens 逐字一致** | 归档脚本 `harness/replay-f297.mjs`（P6D2E-R2 入库；输出：`MATCH: true` + post-fold `[]`，2026-11-16 复跑核验；原始独立复现=REVIEW-P6D2E §1.8） |
 | 防反馈环 | 摘要调用 purpose 豁免（不在任何监听判定/不入 session log）；fold 提交后 nudge 基线清零 hook 在位 | autofold.ts + plugin.ts onFoldCommitted（单测 37 钉） |
 
 ### 12.2 时间线（session e98c4f6f，20 轮 = 10 轮 pilot 脚本 + 10 轮 matrix 续臂）

@@ -39,7 +39,7 @@ import { computeBudget, estimateTokens } from '../src/budget.ts'
 import { configDefaults } from '../src/config.ts'
 import { fold } from '../src/fold-engine.ts'
 import { FoldStore } from '../src/store.ts'
-import { AUTOFOLD_DIGEST_HEADER } from '../src/texts.ts'
+import * as texts from '../src/texts.ts'
 import { renderStatus } from '../src/tools.ts'
 import type { SessionLike, ValidatorConfig } from '../src/types.ts'
 import { MockSession, msg } from './helpers/mock-session.ts'
@@ -493,7 +493,7 @@ describe('deterministic CPU digest (bc F2.15-F2.16 EMERGENCY 同型)', () => {
     const a = digestSpanSummary(blocks, 20000)
     const b = digestSpanSummary(blocks, 20000)
     expect(a).toBe(b)
-    expect(a.startsWith(AUTOFOLD_DIGEST_HEADER)).toBe(true)
+    expect(a.startsWith(texts.AUTOFOLD_DIGEST_HEADER)).toBe(true)
     // Heads bounded by DIGEST_HEAD_CHARS.
     for (const line of a.split('\n').slice(1)) {
       const head = line.slice(line.indexOf(': ') + 2)
@@ -744,6 +744,31 @@ describe('chain: runAutoFoldChain', () => {
     })
     expect(record.foldsCommitted).toBe(0)
     expect(record.faults.some((f) => f.includes('net-shrink pre-check rejected'))).toBe(true)
+  })
+
+  it('P6D2E-R4a: the halving classifier matches the machine signature derived from the template — containment + cross-template uniqueness (a texts wording edit cannot silently strand the classifier)', () => {
+    // The rendered net-shrink reason must contain the signature: the
+    // classifier is derived from the template itself, so wording edits carry
+    // it automatically — this pin fails LOUD if that derivation ever breaks.
+    const rendered = texts.fill(texts.REASON_NO_NET_SHRINK, {
+      start: 9,
+      end: 202,
+      folded: 5471,
+      tolerance: '1.05',
+      summary: 864,
+    })
+    expect(rendered.includes(texts.REASON_NO_NET_SHRINK_SIGNATURE)).toBe(true)
+    // Non-empty (an empty signature matches everything → every structural
+    // rejection would wrongly feed the halving path).
+    expect(texts.REASON_NO_NET_SHRINK_SIGNATURE.length).toBeGreaterThan(0)
+    // Unique across every other REASON_ template: a shared fragment would
+    // classify e.g. protected-zone rejections as net-shrink and route them
+    // to halving (which cannot fix them) instead of abort.
+    for (const [name, value] of Object.entries(texts)) {
+      if (name === 'REASON_NO_NET_SHRINK' || name === 'REASON_NO_NET_SHRINK_SIGNATURE') continue
+      if (!name.startsWith('REASON_') || typeof value !== 'string') continue
+      expect(value.includes(texts.REASON_NO_NET_SHRINK_SIGNATURE), `${name} shares the net-shrink signature`).toBe(false)
+    }
   })
 
   it('bc F2.6 budget clamp: maxRounds bounds the span attempts; the summary-call budget is the exported constant', async () => {

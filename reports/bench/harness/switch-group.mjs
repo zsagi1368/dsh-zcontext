@@ -1,3 +1,17 @@
+// ARCHIVED PRE-FIX EVIDENCE COPY (P6D2E-R5) — do NOT run this file for new
+// bench work. This is the switch-group.mjs as it existed during the P6-D
+// matrix, BEFORE the P6-D2 root-cause fix; it carries the two defects that
+// caused the C/C2 false-green (B-group `enabled: false` residue):
+//   (1) sticky removal regex anchored at position 0 — never matched because
+//       the file leads with `#` comment lines, so removal silently no-opped;
+//   (2) dump verification required `- id:` to be immediately followed by
+//       `config:`, but the dump renders `name:` between them — structurally
+//       blind, C/C2 verified green with the disabled block still present.
+// Kept verbatim as evidence for BENCH-report §11.1 (mechanical proof that
+// the old regexes could not work). The LIVE fixed script (global multiline
+// removal + dump-shape-tolerant verification) lives in the bench home:
+//   C:/Users/ZS/AppData/Local/Temp/zctx-bench-home/harness/switch-group.mjs
+//
 // Switch the bench profile between group configurations:
 //   A  = dsh-zcontext bundle row removed (bare official baseline)
 //   B  = bundle kept + config enabled:false (installed-but-off)

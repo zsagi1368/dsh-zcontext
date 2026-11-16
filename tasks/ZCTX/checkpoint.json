@@ -1,49 +1,19 @@
 {
-  "task": "ZCTX-P6E",
-  "updatedAt": "2026-11-16T22:55:00.000Z",
-  "baseCommit": "3083ced (P6-D2 terminal; main)",
-  "branch": "feat/ZCTX-P6E",
-  "steps": [
-    {
-      "id": "p6es0",
-      "status": "done",
-      "name": "wave start: registry check (Z15/Z19/Z20/Z21/Z23/Z28/Z29/A43 as checks); card + RES-bc §2/§9.1 read; official summarizer read IN FULL; R3 variant ruling recorded; §5 backup del/20261116-p6e-prechange (6 src files + SHA256SUMS.pre + RESTORE.md)"
-    },
-    {
-      "id": "p6es1-engine",
-      "status": "done",
-      "name": "commit c7c75c3: src/autofold.ts full chain (trigger/selection/three supplies/degradation chain/commit/anti-feedback-loop) + preflight projectAndEstimateRequest extraction + config autofold.* 8 keys + texts 9 constants + 37 pins tests/autofold.spec.ts; tsc 0"
-    },
-    {
-      "id": "p6es2-wiring",
-      "status": "done",
-      "name": "commit 36178af: plugin wireAutoFoldFace (innermost third face; loud gates: illegal summarizer/external-empty/no-stream fail-skip + enforce precedence warn; onFoldCommitted nudge-baseline clear) + status segment 8 + LlmRuntimeLike.stream + smoke config pin +7 wiring-gate pins"
-    },
-    {
-      "id": "p6es3-regression",
-      "status": "done",
-      "name": "battery 589/589 (545 baseline + 37 autofold + 7 wiring gates) + tsc 0 + five probes 6/16/5/3/11; commit ae779a4 lib rebuild committed (d.ts +113 / js +1043)"
-    },
-    {
-      "id": "p6es4-pilot",
-      "status": "done",
-      "name": "pilot: bench install lib synced (sha256 cca6d84a... == repo); armed via arm-autofold.mjs (Z29: exact-line ops + structural dump verify + idempotent arm/disarm 2x2); session e98c4f6f 20 turns — SERVER-INITIATED FOLD REAL: f297 [9..202] 5471→864 tokens net ~4607 (-84%), 0 model tool calls, compaction supply (not digest); offline replay reproduces selection [9..202]/5471 exactly; turns 15-19 post-fold reachability collapse (W3-2 invariant, honest coverage boundary BENCH-L6 candidate); turn 20 official compaction failed on truncated summary (plugin fail-open correct); bench profile disarmed clean",
-      "artifacts": [
-        "reports/bench/raw/p6e-autofold-fold-f297-evidence.json",
-        "reports/bench/raw/p6e-autofold-session-e98c4f6f.jsonl",
-        "reports/bench/harness/summary-p6e-autofold.jsonl",
-        "reports/bench/harness/arm-autofold.mjs",
-        "reports/bench/harness/pilot-p6e-stdout.log"
-      ]
-    },
-    {
-      "id": "p6es5-report",
-      "status": "done",
-      "name": "BENCH-report §12 (pilot verdict/timeline/honest boundaries incl. BENCH-L6 candidate registered in leftover-ledger, OPEN pending planner); RSI Z30 into ZDSH-LESSONS.md (multi-frame zstd session log + stderrTail truncation sampling) + INDEX capture line; registry backups del/20261116-p6e-rsi-prechange; final telemetry commit with lib rebuild"
-    }
-  ],
-  "next": "terminal — coder handoff to reviewer/verifier (merge review includes P6-D2 4 unreviewed commits per card)",
-  "hashChain": {
-    "prevCheckpoint": "ZCTX-P6D2 terminal 2026-11-16T20:50:05Z (archived to checkpoint-history.jsonl)"
+ "task": "ZCTX-P6F",
+ "updatedAt": "2026-11-16T22:00:17.240Z",
+ "baseCommit": "67d3415 (P6-D2/E merged; main)",
+ "branch": "feat/ZCTX-P6F",
+ "steps": [
+  {
+   "id": "p6fs0",
+   "status": "done",
+   "name": "wave start: registry check (Z15/Z19/Z20/Z23/Z28/Z29/A43 as checks); card + REVIEW-P6D2E + GO-NO-GO §10 read; §5 backup del/20261116-p6f-prechange (13 files + SHA256SUMS.pre + RESTORE.md)"
+  },
+  {
+   "id": "p6fs1-rfixes",
+   "status": "done",
+   "name": "R1-R5 landed: BENCH-L5 uad->fixed/verified (+BENCH-L7 not_applicable), replay-f297.mjs archived (MATCH:true rerun), external apiKeyEnv wire warn +2 pins, net-shrink signature constant + pin, progress.md wording, archived switch-group header; tsc 0 + battery 592/592; closure 128->135 OPEN=0; commit pending"
   }
+ ],
+ "next": "bench arm + 20-round autofold run (lib sync SHA assert) -> collect incidence/net-saving/billedInput curve vs C group"
 }
