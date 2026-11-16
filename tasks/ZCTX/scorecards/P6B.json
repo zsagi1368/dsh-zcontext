@@ -1,0 +1,81 @@
+{
+  "block": "P6-B/P6-C",
+  "task": "ZCTX v0.2.2 P6-B 底座补丁集波 — patcher v0.2 多文件机制（5 文件有序 op 集/γ 全内联/点火 hunk/marker v0.2/三态门/单 asar 写）+ 补丁集数据 + 多文件测试（Z27 修复）+ 插件伴随 v0.2.2（guard-observe-bridge/config patch.guardObserveEvents/status 段 7）+ 终态台账",
+  "range": "9d0aa2b..bb00dc3（5 提交：9d0aa2b 机制 / efa0132 补丁集数据 / 5a37d94 测试+Z27 修复 / 260ea7f 插件伴随 / bb00dc3 台账），HEAD=bb00dc3",
+  "reviewer": "reviewer-P6B (independent subagent; reviewer ≠ P6-B coder)",
+  "date": "2026-11-16",
+  "verdict": "打回（96 < 98）→ 返工第 1 轮：[阻断] 0；[建议] 2（P6B-R1 patchAsar 混合面被幂等分支吞掉 + P6B-R2 status patchSet.state 'partial' 死臂）+ 2 条卫生记事（closure W5-A6-INSTALL fixed/closed 词表、README 归 P6-E）。核心机制与补丁集数据经评审人独立全套复验为真（锚/运行时链/splice 数学/真机零写入），打回仅针对两处非均匀面决策逻辑与缺失的边界钉测；修复面小（两处分支/聚合逻辑 + 2 钉测 + 1 行词表），建议返工后重评放行",
+  "total": 96,
+  "threshold": 98,
+  "scores": {
+    "correctness": 24,
+    "completeness": 19,
+    "consistency": 19,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 9
+  },
+  "reviewer_own_battery": {
+    "test": "npm test（Z19 链 tsdown+vitest）→ 541/541（26 files = 507 基线 + 34 新钉）EXIT 0；重建后 git status --porcelain = 0（lib 新鲜度/树净双证）",
+    "lint": "npx tsc --noEmit → 0 错 EXIT 0",
+    "probes": "五探针全 EXIT 0：artifact 6/0/0 · host-imports 16/0/0 · real-mount 5/0/0 · smoke-real-loader 3/0/0 · verify-activation-surface 11 PASS/0 FAIL（A11 17 断言亲见 PASS 行）；两探针报告时间戳 diff 按先例还原（timestamp-only diff 亲读后 git checkout 还原，树归零）",
+    "closure_machine_count": "node 遍历 closure.json = 120 items：fixed/verified 113 · fixed/closed 1（W5-A6-INSTALL，verified=true，词表记事见 hygiene）· duplicate/closed 3 · uad/closed 1 · uad/verified 1（P6B-3 真机执行归用户命令）· not_applicable/verified 1（P6B-1 scope ruling）；OPEN = 0",
+    "real_machine_readonly": "评审人独立复跑（零写入）：patcher status --app-dir H:\\AiAgent\\DeepSeekHarness → 5/5 state=pristine（e956da3d/f09f6081/d9911b5e/e1a30199/e86442e9 与钉值逐字一致）+ patchSet state=unpatched + marker absent + appRunning=no + EXIT 0；真机 asar 全文 SHA-256 前后一致 = 14cfd81c9135bf0afb89417543c94f9ecfe09266574452a9b106890c698725ae（sha256sum 两跑比对）",
+    "anchor_probe_independent": "评审人自写只读探针（temp 目录，不触仓）：真机 asar 逐文件提取（官方 @electron/asar extractFile）→ 21 个生产 op 锚 count=1 全中 + 5 个 presence marker 全 0 + 附带身份核查（LlmError 官方 bundle import 在位 :2；compaction-basic info.context.contextWindow/info.defaultMaxTokens 各 count=1；pruner codePointLength/PRUNE_MARKER 各 4 处）；哈希与钉值互证",
+    "runtime_path_trace": "官方三 bundle 只读实读端到端追链：agent-loop buildRequest 返回整 request（:1103 锚区）→ preparedCall?.stream(request) ?? loopCtx.llm.stream(request)（:890）→ dsh-llm runtime dispatch 原对象透传（dsh-llm-lib.js:2367/2431 dispatch=(options)=>adapterCall.stream(options)；:2459 resolvedOptions 展开 spread 保留额外键）→ llm-pi-ai prepareCall stream:(options)=>streamWithSnapshot(options)（:2075-2082）→ streamSimple 调用点 options 在作用域（:2142-2148）⟹ onGuardObserve 全链存活，补丁链运行时可达（非 inert）",
+    "ignition_identifiers": "点火 hunk 标识符运行时核查：this.loopCtx/id/options 均为官方构造器实参赋值（agent-loop :545-547）；loopCtx = this.runtime.ctx = cordis ctx（:1471 + :1349 super(ctx)），logger 在位由官方自身 this.ctx.logger.warn（:1408 同一对象）证得——初查 'loopCtx.logger 字面 count=0' 为假警报（成员存在而字面未出现），hunk 正确",
+    "tree": "评审全程零业务代码改动；两份评审件（本文件 + handoffs/REVIEW-P6B.md）按卡面入库到分支",
+    "session_api": "snapshotEvents 带参双形态官方实存（dsh-session-lib.js:1529 默认参签名）；get seq() :1554；KNOWN_SESSION_EVENT_TYPES :79 + 未知类型拒收面 :302（词汇 op 为真依赖）；U1 解在真机证实"
+  },
+  "attack_direction_results": {
+    "five_file_ops_vs_spec": "五文件 op 集逐文件对照 RES-port-feasibility §2/§3 + Go e63ceff2d7 实读：llm-pi-ai 7 ops（P4 桩原样/copyright import 面/Config guardObserve default(true)（计划点火裁定，Go 源 default(false) 的显式偏离已注释）/apply 接线 guardObserve:()=>config.guardObserve.get()/guardSink 两行与 Go adapter.ts hunk 逐字同义（void 0 编译形）/fetch 展开/内联簇）· agent-loop 3 ops（点火 hunk 为新写件——(options.guardObserve ?? true)===true：默认 true+显式 false 退出，与 config default(true) 构成双门且 config 为唯一 kill switch，与裁定一致；请求 sink 注入与 Go buildRequest hunk 同义）/ session 词汇（字典序插入点与 Go +1 hunk 同）/ compaction-basic 预算（Go index.ts hunk 逐字同义，computeBudget 三公式与 model-slots budget.ts:87/96/106 逐字核对一致 + DEFAULT_OUTPUT_CAP=32768 + toolCapToByteLimit×3.5=l3.ts:63-64）/ pruner 8 ops（Go diff 7 hunks 逐一对应 + limitFor 含 minRepresentable 下限回退语义与 Go 一致）",
+    "inline_fidelity": "内联保真四件套对照 Go 树实读：wrapper 簇（guard-observe.ts llm-pi-ai 逐函数同义，A6 不可探测 proceed 为文档化偏离——理由=asar fs 不可读时 fail-loud 会砖死默认点火下的每个请求，真旧 pi-ai 仍 fail-loud）/ stableStringify+verifyMonotonic 剪裁与 cache-guardian.ts:160/:451 逐字（仅编译形差异）/ GuardObserver+分类器与 agent-loop guard-observe.ts + llm-pi-ai 分类段逐字同义/剪裁语义无破坏（verifyMonotonic 在双侧 bundle 各一份，REGION B 补齐为自审捕获——progress 在案）/ l3 词汇剪裁 pruningMeta（官方无在树声明工具，文档化）/ 预算公式三函数+两常量逐字",
+    "multi_target_single_write": "spliceAsarMulti 实读：shiftFor 严格 offset>target.start = Z27 own-delta 排除正解（目标自身 delta 不入自身平移，前序目标 delta 计入）；重叠拒绝（duplicate start throw）；payload 分段拼接数学正确（cursor=start+oldSize）；header 原地变异仅 size/integrity/offset；pickle 格式与真机 round-trip 注记一致；witness 采集先于变异、afterTarget 记录采集期偏移（P4-1 谓词延续）；patchAsar 单次 writeFileSync(tmp)+renameSync 原子写 = 崩溃窗只余全 pristine 或全 patched 两态；verifySplicedArchive 官方 API 读回 + witness 期望偏移 + 体积记账三重后校验",
+    "three_state_gate": "重构法正确性：reconstructPristineText 逆序逐 op（replacement count==1 强制）→ 哈希等于钉值才算 patched-exact；apply 期锚唯一性门使 op 互嵌不可能（op i 替换含 op j 锚会在 apply 期 count≥2 拒绝）⟹ 重构sound；三态枚举完备（pristine 哈希/patched-exact 重构/drifted）；status 四标签措辞+guidance 分离延续 P4-3",
+    "plugin_bridge": "guard-observe-bridge log-only 纪律实读：consume 全 try/catch fail-soft warn-once、malformed feeds nothing（HF-05 同规）、会话桶 process-memory、session/disposed 遗忘与 observe listener 同位（plugin.ts 同 handler 双 forget）；config patch.guardObserveEvents 默认 true+CONFIG_FIELD_SPECS 注册+firehose 门在 config 检查后；marker v0.2 读 face 向后兼容 v0.1（patchSet/files undefined）；与 P0 五键 inject 纪律无交互（patchFace 新键为插件运行时 face 非 llm inject 键）",
+    "r1_r8_rerun": "R1 零 body 赋值面（src+patcher grep 无命中；init.body 仅注释；行为钉 releases[0].body===full 字节不动）+ 新红线：点火 hunk 只加构造器行/请求只加 onGuardObserve 键（sessionId 与 signal 之间，messages/toolHistory/config 未触碰）✓ R2 preflightMode 默认 observe（config.ts:173）✓ R3 无 ctx.llm.stream 调用（仅注释）✓ R4 maxRetries:0 单点（zctx-adapter.ts:478）✓ R5 补丁面标识全 zctx 命名空间（__zctxPatch__/zctx-guard-observe/zctx-l3-pruning/zctx-model-slots-budget/zctx-backup/zctx-tmp-/zctx-patch）✓ R6 无 WS 面 ✓ R7 attributionHeaders wire 在位（wire.ts:139+patch-bridge.ts:177）✓ R8 pi-ai 1.3.0 钉内联（PI_AI_GUARD_OBSERVE_MIN_VERSION）✓"
+  },
+  "findings": [
+    {
+      "id": "P6B-R1",
+      "severity": "建议",
+      "location": "patcher/zctx-patch.mjs:1654-1657（patchAsar 幂等分支）",
+      "problem": "混合面（部分 pristine + 部分 patched-exact，drifted=0）被幂等分支吞掉：pristineFiles.length < total 即进入 'already applied (N/N files patched-exact)' 且返回 ok:true alreadyPatched——消息数字失实（非 N/N），且与同函数 docstring『uniform pristine→patch 或 uniform patched-exact→no-op；anything else refuses』直接矛盾（refuse 未实现）。补丁器自身单次原子 rename 写不出该面（崩溃窗两态论证成立，评审独立复核），可达路径仅剩外来部分写入器；v0.1→v0.2 迁移落在 drift 拒收（v0.1 档缺 ops2-7 替换串→重构 undefined→drifted），不经此分支",
+      "fix": "混合面显式拒收（0 < pristineCount < total → step 'anchor hash gate'/'idempotence' refused + per-file face 报告真状态 + 不写任何东西），并补混合面钉测（patch 后手工还原一个 bundle 的 pristine 文本→重跑 patch 断言 refused+零改动）",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "P6B-R2",
+      "severity": "建议",
+      "location": "patcher/zctx-patch.mjs:2015-2021（statusAsar patchSet.state 聚合）",
+      "problem": "'partial' 臂为死代码：report.patched = files.some(patched-exact || patched-drifted)，凡含任一 patched-exact 即 true → 恒返 'patched'；'partial' 要求 patched=false 且 some(patched-exact) 自相矛盾永不可达。后果：官方更新后混合面（如 3 patched-exact + 2 drifted）聚合标 'patched'，误导计划自身定义的『官方升级后重打』工作流（per-file face 与 driftedFiles 计数仍诚实，信息可得但聚合标签失真）；CHANGELOG [0.2.2] 明文宣传 patched/unpatched/partial/drifted 四态——文档宣传了不可达态",
+      "fix": "聚合重排：全 patched-exact→'patched'；含 patched-exact/patched-drifted 但非全→'partial'；全 official-unchanged→'unpatched'；否则 'drifted'；补混合面 status 钉测（两条：patched-exact+pristine、patched-exact+drifted）+ CHANGELOG 措辞随实现核对",
+      "disposition": "OPEN"
+    }
+  ],
+  "hygiene_notes": [
+    {
+      "id": "P6B-H1",
+      "note": "closure.json W5-A6-INSTALL 为 disposition=fixed + status=closed（verified=true 已设）——P3-4 定立的词表规则 fixed→status=verified；一词之改，随返工台账提交顺带处理",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "P6B-H2",
+      "note": "patcher/README.md 仍为 v0.1 单桩叙述（3: 'v0.2.1 P4 波次产物'）——计划波次表明确把补丁集/重打/回滚文档归 P6-E 发布波，非本波缺陷；登记为 P6-E 检查项（勿漏）",
+      "disposition": "not_applicable"
+    }
+  ],
+  "positive_verifications": [
+    "真机零写入双证（评审人独立复跑 + coder 在案）：全 asar SHA 14cfd81c… 前后一致、status 严格只读、patch/restore 未执行（P6B-3 uad 归用户命令）",
+    "21 锚真机 count=1 全中（评审人独立探针）+ 5 presence marker 全 0 + 五哈希钉与 P2/P4 双证互洽",
+    "onGuardObserve 运行时全链存活实证（三 bundle 只读追链）——补丁链非纸面 inert，点火裁定真实生效",
+    "点火 hunk 标识符运行时全在位（loopCtx=cordis ctx 有 logger 官方自证 :1408）",
+    "Z27 修复数学正确 + between-target witness 钉测行为学有效（旧逻辑下读回必红）",
+    "541/541 + tsc 0 + 五探针 + A11 17 断言 + closure 120（OPEN=0）+ 树净全绿",
+    "R1-R8 全绿 + 新红线（补丁零 body 改写/请求内容零触碰）成立",
+    "内联保真对照 Go e63ceff2d7 无语义破坏；偏离三处（点火默认 true/A6 不可探测 proceed/pruningMeta 剪裁）全部文档化且理由成立",
+    "插件桥 fail-soft/遗忘/惰性纪律齐备；marker v0.2/v0.1 双读兼容"
+  ],
+  "rework_rounds_used": 0,
+  "rework_instruction": "第 1 轮：P6B-R1 + P6B-R2 修复 + 各≥1 钉测 + P6B-H1 词表；同波重跑 npm test/tsc/五探针并回报证据。修复后评审人重评（预计 ≥98 放行）"
+}
