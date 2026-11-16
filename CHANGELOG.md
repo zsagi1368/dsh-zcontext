@@ -3,21 +3,60 @@
 All notable changes to `dsh-zcontext` are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com); versioning follows SemVer.
 
-## [0.2.2] - 2026-11-16
+## [0.3.0] - 2026-11-16
 
-The base-context patch-set wave (**P6-B** patcher v0.2 + **P6-C** plugin
-companion; plan `reports/plans/ZCTX-v03-patch-plan.md`, implementation spec
-`RES-port-feasibility.md`). The external patcher grows from the single P4
-wire stub to the **five-file base-context patch set** (γ all-inline: zero new
-asar entries, zero official export-face changes), and the plugin gains the
-log-only consumer of the patched chain's events. Terminal battery: 541/541
-vitest (507 baseline + 34 new pins), `tsc --noEmit` zero errors, five repo
-probes green (A11 extended to 17 patcher-face assertions).
+The autoFold release: server-initiated folding arrives as an explicit opt-in
+face, together with the base-context patch-set wave (**P6-B** patcher v0.2 +
+**P6-C** plugin companion — documented below under this version because the
+0.2.2 section was never tagged; its content ships in 0.3.0), the headless
+benchmark waves (**P6-D** baseline matrix + **P6-D2** face-diagnosis verdict +
+**P6-F** replication arms), and the P6-D2E review recommendations (R1-R5).
+Waves and authorities: plan `reports/plans/ZCTX-v03-patch-plan.md`,
+implementation spec `RES-port-feasibility.md`, benchmark authority
+`zDSH-docs/R&D/zctx-20261112/REPORT-GO-NO-GO.md` §10, measurements
+`reports/bench/BENCH-report.md` (§11 verdict, §12 P6-E pilot, §13 P6-F
+replication). Terminal battery: **592/592** vitest, `tsc --noEmit` zero
+errors, five repo probes green; headless bench: two fresh 20-round autofold
+arms each committed exactly one real server-initiated fold with
+**0 model tool calls** (f290 5195→619 net −4576; f340 5739→638 net −5101).
 
-### Added (v0.2.2)
+### Added (v0.3.0)
 
-- **patcher v0.2 multi-file machinery** (`patcher/zctx-patch.mjs`): the anchor
-  set becomes the ordered five-file patch set (`zctx-v0.3-base-1`) —
+- **autoFold engine** (`src/autofold.ts`, P6-E): the server-initiated folding
+  chain — V4 trigger judgment REUSED from the preflight projection
+  (`projectAndEstimateRequest`, same trigger line, same margin), conservative
+  span selection inside the validator's own reachability domain (protected
+  head/tail/user pins, tool-call pairing, pair-safe boundaries,
+  `maxFoldFraction` cap, `minFoldableTokens` floor, oldest-first, batch cap),
+  three summary supplies (`compaction` = the official one-shot
+  `ctx.llm.stream({purpose:'compaction'})` channel, purpose-marked so all
+  three listeners and the session log are blind to it — recursion structurally
+  excluded; `external` = one bounded POST with Bearer-via-envName indirection;
+  `digest` = deterministic CPU-only fallback), the degradation chain
+  (transient retries → pair-safe halving → digest → dead-probe sticky with one
+  canary per run), commit through the SAME `fold()` engine with fresh-surface
+  re-verification, fail-open after the chain, and the anti-feedback-loop nudge
+  baseline reset on committing runs. Budgets are data-ified config
+  (`autofold.maxRounds` 16 / `autofold.maxBatch` 4 /
+  `autofold.maxSummaryOutputTokens` 32768).
+- **autoFold face wiring** (P6-E): `wireAutoFoldFace` registers the innermost
+  third `llm/stream` waterfall listener behind `autofold.enabled` (default
+  **false**, explicit opt-in in v0.3.0); loud gates (illegal summarizer /
+  external with empty url/model → fail-skip with a warn, never a silent
+  supply fallback; enforce precedence warn); `zctx_status` gains segment 8
+  (armed/idle view, run counters, last-run outcome, dead-probe verdict).
+- **Measured reality, honestly** (`reports/bench/BENCH-report.md` §11-§13):
+  the model-adoption face is real — a free-flash route model with tools,
+  guidance, and nudge on the wire made 0 spontaneous fold calls in 60
+  pressure rounds; the server-initiated route does not depend on it. P6-E
+  pilot f297 (5471→864, net −4607) replicated twice by P6-F (f290, f340),
+  each arm one fold, −88% magnitude, trigger conservative (32 HITs, 32
+  honest no-qualified-span no-ops, 1 commit in the instrumented arm). Known
+  ceiling: one fold per monotonic epoch (the committed fold collapses the
+  reachable span below the floor — checkpoint-aligned absorption windows are
+  the v0.4 lever, declared in §12.3/§13, not a silent gap).
+- **patcher v0.2 multi-file machinery** (`patcher/zctx-patch.mjs`, P6-B): the
+  anchor set becomes the ordered five-file patch set (`zctx-v0.3-base-1`) —
   llm-pi-ai (P4 stub + config `guardObserve` default TRUE per the user
   ignition ruling + adapter guardSink + hash-then-passthrough fetch wrapper +
   the inlined observation cluster), agent-loop (GuardObserver + chain
@@ -32,16 +71,40 @@ probes green (A11 extended to 17 patcher-face assertions).
   per-file face + the `patchSet` aggregate (patched / unpatched / partial /
   drifted). All pristine hashes were computed live from the real rc.3 asar
   (read-only positional extraction; llm-pi-ai double-attests the P4 pin).
-- **guard-observe bridge** (`src/guard-observe-bridge.ts`): the plugin's
+- **guard-observe bridge** (`src/guard-observe-bridge.ts`, P6-C): the plugin's
   log-only consumer of the patched chain's `cache/guard-observe` session
   events — per-session process-memory summaries (total / segmented /
   degraded / unclassified / providers / last record facts), fail-soft into
   the firehose, forgotten on session disposal; config switch
   `patch.guardObserveEvents` (default true; inert by construction when the
   patch is absent).
-- **zctx_status patch-set face**: segment 7 renders the patch-set identity
-  and patched-file count from the v0.2 marker (v0.1 markers stay readable)
-  plus the guard-observe record counters for the current session.
+- **zctx_status patch-set face** (P6-C): segment 7 renders the patch-set
+  identity and patched-file count from the v0.2 marker (v0.1 markers stay
+  readable) plus the guard-observe record counters for the current session.
+- **Env-gated diagnostics** (`src/debug.ts`, P6-D2): `ZCTX_DEBUG=1` writes
+  plugin face decisions to stderr directly (default zero output) — the
+  diagnostics that made the headless face-verdict mechanical.
+
+### Fixed (v0.3.0)
+
+- **P6D2E-R3**: a configured `autofold.external.apiKeyEnv` whose environment
+  variable is missing/empty now warns LOUDLY at wire time (the face stays
+  armed — missing credentials are a degradation-chain condition, not a skip);
+  the remote 401 is no longer the only signal.
+- **P6D2E-R4a**: the halving classifier no longer matches a copied texts
+  substring — `REASON_NO_NET_SHRINK_SIGNATURE` is exported and derived from
+  the template itself (a wording edit cannot silently downgrade halving to
+  abort); pinned for containment + cross-template uniqueness.
+- **P6D2E-R2/R4b/R5**: the f297 offline replay script is archived
+  (`reports/bench/harness/replay-f297.mjs`, rerun reproduces the runtime
+  selection verbatim); the archived pre-fix `switch-group.mjs` carries an
+  explicit evidence header with the live fixed script's location; progress
+  wording now points at the real ledger carrier.
+- **BENCH-L1** (P6-D2 verdict): the headless "faces not effective" finding
+  was the bench profile's own disabled-by-config residue + two harness
+  verification defects — after the fix, tools/guidance/nudge are all
+  verified on the wire (BENCH-report §11; the plugin itself needed no
+  behavioral change beyond the diagnostics).
 
 ## [0.2.1] - 2026-11-14
 
