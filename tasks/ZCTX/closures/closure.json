@@ -217,12 +217,12 @@
       "disposition": "fixed",
       "evidence": "reports/W5-A6-INSTALL-acceptance.md（2026-11-15 真 CLI 隔离验收：dump-config 行在场 exit0 + 启动装配 inject 失败 0 条 + 装件身份 0.2.1）；patcher 真机执行单列 reports 同文件 §A6-5",
       "owner": "mainline",
-      "status": "closed",
+      "status": "verified",
       "phase": "post-merge",
       "trigger": "用户桌面环境可跑完整 harness + 插件已发布后一周",
       "reviewDate": "2026-11-19",
       "verified": true,
-      "updatedAt": "2026-11-15T11:31:42.648Z"
+      "updatedAt": "2026-11-16T18:34:20.329Z"
     },
     {
       "id": "W5-RSI",
