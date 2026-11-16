@@ -1,6 +1,6 @@
 {
   "task": "ZCTX-P6D2",
-  "updatedAt": "2026-11-16T20:31:19.723Z",
+  "updatedAt": "2026-11-16T20:50:05.218Z",
   "baseCommit": "af4c65a (P6-D bench terminal; BENCH-L1 registered)",
   "steps": [
     {
@@ -25,8 +25,14 @@
     },
     {
       "id": "p6d2s4-retest10",
-      "status": "running",
-      "name": "10-round C re-test (p6d2-retest-C) RUNNING; turn 1/10 exit 0 at write time"
+      "status": "done",
+      "name": "retest done: C(960k) 10/10 ok 0 fold; C2(40k) 10/10 ok 0 fold; C2b(40k+instrumented) 10/10 ok 0 fold, nudge 615 chars fired at 25%/50% crossings (stderr-diag3), pressure 26.0→52.6% — adoption face honestly zero; BENCH-L5 registered",
+      "artifacts": [
+        "reports/bench/harness/summary-p6d2-retest-C.jsonl",
+        "reports/bench/harness/summary-p6d2-retest-C2.jsonl",
+        "reports/bench/harness/summary-p6d2-retest-C2b.jsonl",
+        "reports/bench/harness/stderr-diag3-c2b-turn9-nudge-fired.txt"
+      ]
     },
     {
       "id": "p6d2s5-regression",
@@ -35,11 +41,11 @@
     },
     {
       "id": "p6d2s6-report",
-      "status": "pending",
-      "name": "BENCH-report §11 + progress + closure + commits — PENDING retest data"
+      "status": "done",
+      "name": "BENCH-report §11 (verdict+retest+final answers; §8 L1→fixed/verified, L5 registered; §10 correction quote) + closure ledger (BENCH-L1/P6D2-H1/H2 verified, BENCH-L5 closed deferred) + RSI Z29 + INDEX capture line; commits e34b6a7/afc826f/ecafe64"
     }
   ],
-  "next": "await s4 → §11 → commits → closure",
+  "next": "terminal — coder handoff to reviewer/verifier",
   "hashChain": {
     "prevCheckpoint": "P6B terminal 2026-11-16T18:40:14Z (archived to checkpoint-history.jsonl line 67)"
   }
