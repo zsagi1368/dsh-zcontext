@@ -34,7 +34,9 @@
  *      backup; marker missing while the stub is live = crash window → the
  *      marker is backfilled from derivable facts, asar untouched)
  *   5. anchor hash gate (target lib/index.js SHA-256 must match the per-version
- *      anchor set — drift = official update = refuse + report, never patch blind)
+ *      anchor set — drift = official update = refuse + report, never patch blind;
+ *      a MIXED face — some pristine + some patched-exact, unreachable by this
+ *      patcher's ONE-write application — is refused with the per-file face too)
  *   6. anchor string uniqueness (count must be exactly 1)
  *   7. BACKUP FIRST (sibling `zctx-backup/<ts>/` OUTSIDE the install dir so
  *      the official updater/uninstaller cannot wipe it — RESTORE.md carries
@@ -49,6 +51,20 @@
  *
  * SUBCOMMANDS: patch / restore / status (restore = copy the backup asar back +
  * remove the marker; status = strictly read-only).
+ *
+ * v0.2 (P6-B, plan ZCTX-v03-patch-plan + RES-port-feasibility P6-A spec): the
+ * anchor set grows from ONE file/one stub to a MULTI-FILE base-context patch
+ * set (γ all-inline selection — zero new asar entries, zero export-face
+ * changes): the guard-observe wrapper cluster inlines into the llm-pi-ai
+ * bundle, the GuardObserver + chain classifier into the agent-loop bundle,
+ * the L3 pruning vocabulary into the pruner bundle, and the budget formula
+ * into compaction-basic. Every patched bundle stays SELF-CONTAINED (the
+ * classifier ships in both consumer bundles) so a hypothetical partial state
+ * leaves each bundle individually consistent. The set applies in ONE asar
+ * write (multi-target splice) — no partial multi-file state can persist.
+ * guardObserve ignition (user ruling "完整功能生效"): the patched llm-pi-ai
+ * Config defaults the observe switch to TRUE; the sole kill switch. Observe
+ * only — the interception half does not exist in any tree and is not invented.
  *
  * REAL-MACHINE EXECUTION IS OUT OF THIS WAVE (W5-A6-INSTALL umbrella,
  * post-merge): this wave ships the tool + fixture-verified tests only.
@@ -80,8 +96,16 @@ import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 
-/** Patcher version (plan §3 wave table: patcher v0.1.0). */
-export const PATCHER_VERSION = '0.1.0'
+/** Patcher version (plan P6 wave table: patcher v0.2.0). */
+export const PATCHER_VERSION = '0.2.0'
+
+/**
+ * Identity of the base-context patch set data shipped in this file (the P6-A
+ * convergence: surgical hunks + γ-inline drop-ins; return-cap and the inert
+ * cache-metrics face are registered v0.3 二期 by plan ruling). Bump when the
+ * patch-set data changes so markers/status can tell applied sets apart.
+ */
+export const PATCH_SET_VERSION = 'zctx-v0.3-base-1'
 
 /** The asar-relative path of the shell manifest (version gate source). */
 const SHELL_PACKAGE_PATH = 'package.json'
@@ -106,36 +130,830 @@ export function desktopLockPath(dshHome = join(homedir(), '.dsh')) {
 // ---------------------------------------------------------------------------
 
 /**
- * Anchor set per supported shell version. `targetSha256` pins the PRISTINE
- * (unpatched) target file; the anchor strings are file-unique in rc.3
- * lib/index.js (tsc output: tab indent, `void 0`, un-minified — P2 [F20],
- * re-verified live 2026-11-14). An official update changes the hash → the
- * anchor-hash gate refuses → this table gets the new entry first (card:
- * "官方升级后锚漂移=预期路径，patcher 更新锚集再支持").
+ * Anchor set per supported shell version — the v0.2 MULTI-FILE base-context
+ * patch set (P6-A convergence in plan ZCTX-v03-patch-plan; implementation
+ * spec RES-port-feasibility.md §2/§3). γ all-inline selection: every Go-tree
+ * module is inlined into an existing compiled bundle — ZERO new asar entries,
+ * ZERO official export-face changes, ZERO package.json edits. All pristine
+ * SHA-256 pins below were computed live from the real rc.3 asar (read-only
+ * positional extraction, 2026-11-16); the llm-pi-ai hash also matches the P4
+ * pin (double-attested across two independent extractions). The five compiled
+ * bundles are un-minified tsc output (tab indent, `void 0`, double-quoted
+ * strings — P2 [F20] shape); every anchor below was verified count=1 in its
+ * bundle by the fixture tests and is re-asserted at patch time.
+ *
+ * An official update changes any pinned hash → the anchor-hash gate refuses →
+ * this table gets the new entry first (card: "官方升级后锚漂移=预期路径，
+ * patcher 更新锚集再支持").
  */
+
+/**
+ * The inlined guard-observation wrapper cluster for the llm-pi-ai bundle:
+ * createGuardFetchWrapper + buildGuardSegments + the wire-form recognizers,
+ * plus the stableStringify/verifyMonotonic cut of cache-guardian.ts (the only
+ * cache-guardian faces the observation chain consumes — P6-A §2.13 trim
+ * ruling). Source of record: Go e63ceff2d7 llm-pi-ai/src/guard-observe.ts;
+ * the assertGuardObserveSupport probe is adapted for the inlined build
+ * (really-parsed OLD pi-ai still fails loud; an UNPROBEABLE runtime proceeds
+ * — the patcher's version + hash gates pin the shipped pair, and a fail-loud
+ * on an unprobeable fs would brick every request under the default-on
+ * ignition). Compiled style: tabs, double quotes, `void 0`.
+ */
+const ZCTX_REGION_LLM_PI_AI_GUARD = [
+  '//#region lib/types/zctx-guard-observe.js',
+  '/**',
+  ' * zctx P6-B inline — wire-body guard observation wrapper cluster (γ all-inline:',
+  ' * zero new asar entries, zero export-face change). Source of record: Go',
+  ' * e63ceff2d7 llm-pi-ai/src/guard-observe.ts + the stableStringify/',
+  ' * verifyMonotonic cut of llm-pi-ai/src/cache-guardian.ts. Observe-only',
+  ' * (D1P2-whitelist-design §1.1): hash-then-passthrough capture of the exact',
+  ' * wire bytes — this layer records, measures, and warns but decides nothing.',
+  ' * The chain classifier + sink maintainer live in the patched agent-loop',
+  ' * bundle (self-contained bundles; no cross-package contract added).',
+  ' */',
+  '/** Stable-key-order JSON serialization (cache-guardian.ts:160 cut, verbatim). */',
+  'function stableStringify(value) {',
+  '\tif (value === null || value === void 0) return "null";',
+  '\tif (typeof value !== "object") return JSON.stringify(value);',
+  '\tif (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;',
+  '\tconst keys = Object.keys(value).sort();',
+  '\tconst pairs = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`);',
+  '\treturn `{${pairs.join(",")}}`;',
+  '}',
+  '/** Frozen-segment + append-only chain check (cache-guardian.ts:451 cut, verbatim). */',
+  'function verifyMonotonic(prev, next) {',
+  '\tif (prev.systemHash !== next.systemHash) return { ok: false, reason: "system segment changed; system is frozen (reset event required)" };',
+  '\tif (prev.toolsHash !== next.toolsHash) return { ok: false, reason: "tools segment changed; tools are frozen (reset event required)" };',
+  '\tif (next.messageHashes.length < prev.messageHashes.length) {',
+  '\t\treturn { ok: false, reason: `messages segment shrank from ${prev.messageHashes.length} to ${next.messageHashes.length} (not monotonic)` };',
+  '\t}',
+  '\tfor (let i = 0; i < prev.messageHashes.length; i++) {',
+  '\t\tif (prev.messageHashes[i] !== next.messageHashes[i]) {',
+  '\t\t\treturn { ok: false, reason: `message at index ${i} was rewritten in place (not monotonic; reset event required)` };',
+  '\t\t}',
+  '\t}',
+  '\treturn { ok: true };',
+  '}',
+  'function guardSha256(text) {',
+  '\treturn createHash("sha256").update(text, "utf8").digest("hex");',
+  '}',
+  'function isRecord(value) {',
+  '\treturn typeof value === "object" && value !== null && !Array.isArray(value);',
+  '}',
+  '/** E-0 (D1P2 §3): deep-walk cache_control off the wire value — type-blind. */',
+  'function stripCacheControl(value) {',
+  '\tif (Array.isArray(value)) return value.map(stripCacheControl);',
+  '\tif (value === null || typeof value !== "object") return value;',
+  '\tconst out = {};',
+  '\tfor (const [key, item] of Object.entries(value)) {',
+  '\t\tif (key === "cache_control") continue;',
+  '\t\tout[key] = stripCacheControl(item);',
+  '\t}',
+  '\treturn out;',
+  '}',
+  'const ANTHROPIC_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);',
+  '/** Class-2 recognizer (D1P2 §4.2): empty-content system message carrying the managed effort. */',
+  'function recognizeEffortSynth(message) {',
+  '\tif (!isRecord(message) || message.role !== "system") return false;',
+  '\tif (!Array.isArray(message.content) || message.content.length !== 0) return false;',
+  '\tconst outputConfig = message.output_config;',
+  '\tif (!isRecord(outputConfig)) return false;',
+  '\tconst effort = outputConfig.effort;',
+  '\treturn typeof effort === "string" && ANTHROPIC_EFFORTS.has(effort);',
+  '}',
+  'const DEFERRED_SYSTEM_BLOCK_TYPES = new Set(["text", "tool_removal", "tool_addition"]);',
+  '/** Class-1 form recognizer (D1P2 §4.1): non-empty system message of deferred-update blocks. */',
+  'function recognizeDeferredReorderSystem(message) {',
+  '\tif (!isRecord(message) || message.role !== "system" || !Array.isArray(message.content)) return false;',
+  '\tif (message.content.length === 0) return false;',
+  '\treturn message.content.every((block) => isRecord(block) && typeof block.type === "string" && DEFERRED_SYSTEM_BLOCK_TYPES.has(block.type));',
+  '}',
+  'const ERROR_IMAGE_CAPTION_PREFIX = "Images from the error result of tool call ";',
+  '/** Class-3 recognizer (D1P2 §4.3): error-result images split behind a caption. */',
+  'function recognizeErrorImageSplit(message) {',
+  '\tif (!isRecord(message) || message.role !== "user" || !Array.isArray(message.content)) return false;',
+  '\tconst blocks = message.content;',
+  '\tlet lastToolResult = -1;',
+  '\tfor (let index = 0; index < blocks.length; index++) {',
+  '\t\tconst block = blocks[index];',
+  '\t\tif (isRecord(block) && block.type === "tool_result") lastToolResult = index;',
+  '\t}',
+  '\tif (lastToolResult === -1) return false;',
+  '\tconst tail = blocks.slice(lastToolResult + 1);',
+  '\tif (tail.length < 2) return false;',
+  '\tconst caption = tail[0];',
+  '\treturn isRecord(caption) && caption.type === "text" && typeof caption.text === "string" && caption.text.startsWith(ERROR_IMAGE_CAPTION_PREFIX) && tail.slice(1).every((block) => isRecord(block) && block.type === "image");',
+  '}',
+  '/** Wire-form label of one observed message (class-2, then class-1/class-3 by shape). */',
+  'function recognizeMessageKind(message) {',
+  '\tif (isRecord(message) && message.role === "system") {',
+  '\t\tif (recognizeEffortSynth(message)) return "class2";',
+  '\t\tif (recognizeDeferredReorderSystem(message)) return "class1";',
+  '\t\treturn "normal";',
+  '\t}',
+  '\tif (recognizeErrorImageSplit(message)) return "class3";',
+  '\treturn "normal";',
+  '}',
+  '/** Three-segment capture of one anthropic-messages wire body (D1P2 §2.2). */',
+  'function buildGuardSegments(params) {',
+  '\tconst system = stripCacheControl(params.system ?? null);',
+  '\tconst tools = stripCacheControl(params.tools ?? null);',
+  '\tconst messages = (Array.isArray(params.messages) ? params.messages : []).map(stripCacheControl);',
+  '\treturn {',
+  '\t\tsystemHash: guardSha256(stableStringify(system)),',
+  '\t\ttoolsHash: guardSha256(stableStringify(tools)),',
+  '\t\tmessagesHash: guardSha256(stableStringify(messages)),',
+  '\t\tmessageHashes: messages.map((message) => guardSha256(stableStringify(message))),',
+  '\t\tmessageKinds: messages.map(recognizeMessageKind)',
+  '\t};',
+  '}',
+  '/** A messages.create-shaped body: the only shape this surface three-segments. */',
+  'function isMessagesCreateBody(params) {',
+  '\treturn isRecord(params) && typeof params.model === "string" && Array.isArray(params.messages);',
+  '}',
+  '/** A6 runtime half: minimum installed pi-ai the observation surface may run on. */',
+  'const PI_AI_GUARD_OBSERVE_MIN_VERSION = "1.3.0";',
+  'let guardSupportMemo = void 0;',
+  '/**',
+  ' * A6 (adapted for the inlined patch build): a REALLY parsed installed',
+  ' * version below the minimum still fails loud (fork semantics preserved);',
+  ' * an UNPROBEABLE runtime proceeds — the patcher gates pin the shipped pair.',
+  ' * @throws LlmError INVALID_CONFIG when the installed pi-ai reads as older',
+  ' * than PI_AI_GUARD_OBSERVE_MIN_VERSION.',
+  ' */',
+  'function assertGuardObserveSupport() {',
+  '\tif (guardSupportMemo === void 0) guardSupportMemo = probePiAiGuardSupport();',
+  '\tif (guardSupportMemo.ok) return;',
+  '\tthrow new LlmError(`llm-pi-ai: guardObserve requires @earendil-works/pi-ai >= ${PI_AI_GUARD_OBSERVE_MIN_VERSION} (ProviderRequestOptions.fetch forwarding, D1P2 A6); installed version reads as ${guardSupportMemo.found ?? "unknown"} — refusing to enable the observation surface`, "INVALID_CONFIG");',
+  '}',
+  'function probePiAiGuardSupport() {',
+  '\ttry {',
+  '\t\tconst manifest = findPiAiManifest(dirname(fileURLToPath(import.meta.url)));',
+  '\t\tconst found = typeof manifest?.version === "string" ? manifest.version : void 0;',
+  '\t\tconst tuple = found?.match(/^(\\d+)\\.(\\d+)\\.(\\d+)/) ?? void 0;',
+  '\t\tif (manifest === void 0 || tuple === void 0) return { ok: true, found, detail: "installed pi-ai version unprobeable in this runtime — proceeding (the patcher gates pin the shipped pair)" };',
+  '\t\tconst minimum = PI_AI_GUARD_OBSERVE_MIN_VERSION.split(".").map(Number);',
+  '\t\tconst installed = tuple.slice(1).map(Number);',
+  '\t\tlet ordering = 0;',
+  '\t\tfor (let index = 0; index < Math.max(installed.length, minimum.length) && ordering === 0; index++) {',
+  '\t\t\tordering = (installed[index] ?? 0) - (minimum[index] ?? 0);',
+  '\t\t}',
+  '\t\treturn ordering >= 0 ? { ok: true, found } : { ok: false, found };',
+  '\t} catch {',
+  '\t\treturn { ok: true, detail: "pi-ai version probe failed — proceeding (the patcher gates pin the shipped pair)" };',
+  '\t}',
+  '}',
+  'function findPiAiManifest(startDir) {',
+  '\tlet dir = startDir;',
+  '\tfor (let depth = 0; depth < 16; depth++) {',
+  '\t\ttry {',
+  '\t\t\tconst manifestPath = join(dir, "node_modules", "@earendil-works", "pi-ai", "package.json");',
+  '\t\t\tif (existsSync(manifestPath)) return JSON.parse(readFileSync(manifestPath, "utf8"));',
+  '\t\t} catch {',
+  '\t\t\t// An unreadable candidate is not a version fact; keep walking.',
+  '\t\t}',
+  '\t\tconst parent = dirname(dir);',
+  '\t\tif (parent === dir) return void 0;',
+  '\t\tdir = parent;',
+  '\t}',
+  '\treturn void 0;',
+  '}',
+  'class NotMessagesCreateBodyError extends Error {',
+  '\tconstructor() {',
+  '\t\tsuper("wire body is not a messages.create request");',
+  '\t\tthis.name = "NotMessagesCreateBodyError";',
+  '\t}',
+  '}',
+  '/**',
+  ' * Hash-then-passthrough fetch wrapper for one logical request (D1P2 §2.1/§6):',
+  ' * per attempt the exact wire bytes are hashed (never rewritten) and the',
+  ' * original call is released to globalThis.fetch. Capture ladder: non-string',
+  ' * body → A7-2; hash failure → A7-3; parse failure → A7-1 (wholeHash kept);',
+  ' * non-anthropic or non-messages.create → whole-package fallback; otherwise',
+  ' * full three-segment capture.',
+  ' */',
+  'function createGuardFetchWrapper(args) {',
+  '\tlet attemptSeq = 0;',
+  '\treturn (input, init) => {',
+  '\t\tconst attempt = ++attemptSeq;',
+  '\t\tconst meta = {',
+  '\t\t\tprovider: args.model.provider,',
+  '\t\t\tapi: args.model.api,',
+  '\t\t\tmodelId: args.model.id,',
+  '\t\t\tbodyBytes: 0',
+  '\t\t};',
+  '\t\tconst release = () => globalThis.fetch(input, init);',
+  '\t\tconst body = init?.body;',
+  '\t\tif (typeof body !== "string") {',
+  '\t\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, degraded: { reason: "non-string-body" }, meta });',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\tmeta.bodyBytes = Buffer.byteLength(body, "utf8");',
+  '\t\tlet wholeHash;',
+  '\t\ttry {',
+  '\t\t\twholeHash = guardSha256(body);',
+  '\t\t} catch {',
+  '\t\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, degraded: { reason: "hash-failed" }, meta });',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\tif (args.model.api !== "anthropic-messages") {',
+  '\t\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, wholeHash, meta });',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\tlet params;',
+  '\t\ttry {',
+  '\t\t\tparams = JSON.parse(body);',
+  '\t\t\tif (!isMessagesCreateBody(params)) throw new NotMessagesCreateBodyError();',
+  '\t\t} catch (error) {',
+  '\t\t\tconst parseFailed = error instanceof SyntaxError || error instanceof NotMessagesCreateBodyError;',
+  '\t\t\targs.sink({',
+  '\t\t\t\tschemaVersion: 1,',
+  '\t\t\t\tattemptSeq: attempt,',
+  '\t\t\t\t...parseFailed ? { wholeHash } : {},',
+  '\t\t\t\tmeta,',
+  '\t\t\t\tdegraded: { reason: parseFailed ? "parse-failed" : "hash-failed" }',
+  '\t\t\t});',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\tlet segments;',
+  '\t\ttry {',
+  '\t\t\tsegments = buildGuardSegments(params);',
+  '\t\t} catch {',
+  '\t\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, degraded: { reason: "hash-failed" }, meta });',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, wholeHash, segments, meta });',
+  '\t\treturn release();',
+  '\t};',
+  '}',
+  '//#endregion',
+].join('\n')
+
+/**
+ * The inlined host-side GuardObserver + wire-form chain classifier for the
+ * agent-loop bundle. Source of record: Go e63ceff2d7 core/agent-loop/src/
+ * guard-observe.ts + the classifier cut of llm-pi-ai/src/guard-observe.ts.
+ * The classifier ships in BOTH consumer bundles (γ: no official export face
+ * is added, and a hypothetical partial state leaves each bundle individually
+ * consistent). SessionLogOffset rides the bundle's own dsh-session import.
+ */
+const ZCTX_REGION_AGENT_LOOP_GUARD = [
+  '//#region lib/types/zctx-guard-observe.js',
+  '/**',
+  ' * zctx P6-B inline — host-side GuardObserver + wire-form chain classifier (γ',
+  ' * all-inline). Source of record: Go e63ceff2d7 core/agent-loop/src/',
+  ' * guard-observe.ts + the classifier cut of llm-pi-ai/src/guard-observe.ts.',
+  ' * The classifier ships in BOTH consumer bundles (self-contained bundles —',
+  ' * no official export face is added). SessionLogOffset rides the bundle\'s',
+  ' * own dsh-session import. Observe-only: the observer appends the log-only',
+  ' * cache/guard-observe event and decides nothing (D1P2 §1.1).',
+  ' */',
+  'const GUARD_PLACEHOLDER_HASH = "";',
+  '/** Same-shape placeholder pair so the frozen-segment checks pass vacuously. */',
+  'function shapedGuard(segment) {',
+  '\treturn {',
+  '\t\tsystemHash: GUARD_PLACEHOLDER_HASH,',
+  '\t\ttoolsHash: GUARD_PLACEHOLDER_HASH,',
+  '\t\tmessagesHash: segment.messagesHash,',
+  '\t\tmessageHashes: segment.messageHashes',
+  '\t};',
+  '}',
+  '/** Frozen-segment + append-only chain check (cache-guardian.ts:451 cut, verbatim). */',
+  'function verifyMonotonic(prev, next) {',
+  '\tif (prev.systemHash !== next.systemHash) return { ok: false, reason: "system segment changed; system is frozen (reset event required)" };',
+  '\tif (prev.toolsHash !== next.toolsHash) return { ok: false, reason: "tools segment changed; tools are frozen (reset event required)" };',
+  '\tif (next.messageHashes.length < prev.messageHashes.length) {',
+  '\t\treturn { ok: false, reason: `messages segment shrank from ${prev.messageHashes.length} to ${next.messageHashes.length} (not monotonic)` };',
+  '\t}',
+  '\tfor (let i = 0; i < prev.messageHashes.length; i++) {',
+  '\t\tif (prev.messageHashes[i] !== next.messageHashes[i]) {',
+  '\t\t\treturn { ok: false, reason: `message at index ${i} was rewritten in place (not monotonic; reset event required)` };',
+  '\t\t}',
+  '\t}',
+  '\treturn { ok: true };',
+  '}',
+  '/** Class-2 strip for comparison (D1P2 §4.2): drop effort-synth entries, kinds kept aligned. */',
+  'function stripClass2(segments) {',
+  '\tconst messageHashes = [];',
+  '\tconst messageKinds = [];',
+  '\tfor (let index = 0; index < segments.messageHashes.length; index++) {',
+  '\t\tif (segments.messageKinds[index] === "class2") continue;',
+  '\t\tmessageHashes.push(segments.messageHashes[index] ?? "");',
+  '\t\tmessageKinds.push(segments.messageKinds[index] ?? "normal");',
+  '\t}',
+  '\treturn { messagesHash: segments.messagesHash, messageHashes, messageKinds };',
+  '}',
+  'function firstMismatch(prev, next) {',
+  '\tconst shared = Math.min(prev.length, next.length);',
+  '\tfor (let index = 0; index < shared; index++) {',
+  '\t\tif (prev[index] !== next[index]) return index;',
+  '\t}',
+  '\treturn void 0;',
+  '}',
+  'function findSubsequence(haystack, needle, from) {',
+  '\tif (needle.length === 0) return from;',
+  '\touter: for (let start = from; start + needle.length <= haystack.length; start++) {',
+  '\t\tfor (let offset = 0; offset < needle.length; offset++) {',
+  '\t\t\tif (haystack[start + offset] !== needle[offset]) continue outer;',
+  '\t\t}',
+  '\t\treturn start;',
+  '\t}',
+  '\treturn void 0;',
+  '}',
+  '/**',
+  ' * Class-1 deferred-reorder classifier (D1P2 §4.1): the migrating tail must',
+  ' * be class-1-form system messages that reappear in order as a subsequence',
+  ' * after the mismatch point with only new messages interleaved.',
+  ' */',
+  'function classifyDeferredReorder(prevHashes, prevKinds, nextHashes) {',
+  '\tconst mismatch = firstMismatch(prevHashes, nextHashes);',
+  '\tif (mismatch === void 0) return { verdict: "fail" };',
+  '\tconst tail = prevHashes.slice(mismatch);',
+  '\tif (tail.some((_, offset) => prevKinds[mismatch + offset] !== "class1")) return { verdict: "fail" };',
+  '\tconst position = findSubsequence(nextHashes, tail, mismatch);',
+  '\tif (position === void 0) return { verdict: "fail" };',
+  '\tconst interposed = nextHashes.slice(mismatch, position);',
+  '\tif (interposed.some((hash) => prevHashes.includes(hash))) return { verdict: "fail" };',
+  '\tconst strippedPrev = prevHashes.slice(0, mismatch);',
+  '\tconst shared = firstMismatch(strippedPrev, nextHashes);',
+  '\tconst sharedPrefixCount = shared ?? Math.min(strippedPrev.length, nextHashes.length);',
+  '\treturn { verdict: "ok", sharedPrefixCount };',
+  '}',
+  '/**',
+  ' * Class-4 attempt signature (D1P2 §4.4): within one logical request, a',
+  ' * rebuild attempt is legal exactly when system and messages are byte-equal',
+  ' * to attempt 1 and only tools differ.',
+  ' */',
+  'function classifyAttemptEquality(first, attempt) {',
+  '\tif (first === void 0) return "unclassified";',
+  '\tconst sameSystem = first.systemHash === attempt.systemHash;',
+  '\tconst sameMessages = first.messageHashes.length === attempt.messageHashes.length && first.messageHashes.every((hash, index) => hash === attempt.messageHashes[index]);',
+  '\tconst toolsChanged = first.toolsHash !== attempt.toolsHash;',
+  '\treturn sameSystem && sameMessages && toolsChanged ? "class4" : "unclassified";',
+  '}',
+  'function hasKind(segments, kind) {',
+  '\treturn segments.messageKinds.includes(kind);',
+  '}',
+  'function gapFields(gap) {',
+  '\treturn gap ? { chainGap: true } : {};',
+  '}',
+  '/**',
+  ' * messages-segment classification dispatch (D1P2 §4.5, W-G glue): class-4',
+  ' * first (no transitions inside a request), then the transition guard before',
+  ' * any comparison, then the monotonic chain on class-2-stripped hashes with',
+  ' * the class-1 fallback, else unclassified.',
+  ' */',
+  'function classifyGuardObserve(args) {',
+  '\tconst { prev, first, capture, chain, currentSeq, gap } = args;',
+  '\tconst segments = capture.segments;',
+  '\tif (capture.attemptSeq > 1) {',
+  '\t\tif (classifyAttemptEquality(first?.segments, segments) === "class4") {',
+  '\t\t\treturn { classified: true, classId: "class4-strict-downgrade" };',
+  '\t\t}',
+  '\t\treturn { classified: false, monotonic: "unclassified" };',
+  '\t}',
+  '\tif (prev === void 0) {',
+  '\t\tif (hasKind(segments, "class3")) return { classified: true, classId: "class3-error-images" };',
+  '\t\treturn { classified: true };',
+  '\t}',
+  '\tconst byRoute = prev.meta.provider !== capture.meta.provider || prev.meta.api !== capture.meta.api || prev.meta.modelId !== capture.meta.modelId ? "route-change" : void 0;',
+  '\tconst transition = byRoute ?? chain.transitionMarkBetween(prev.seq + 1, currentSeq);',
+  '\tif (transition !== void 0) {',
+  '\t\treturn { classified: true, monotonic: "ok-after-reset", transition: { kind: transition } };',
+  '\t}',
+  '\tconst prevCore = stripClass2(prev.segments);',
+  '\tconst nextCore = stripClass2(segments);',
+  '\tif (verifyMonotonic(shapedGuard(prevCore), shapedGuard(nextCore)).ok) {',
+  '\t\tconst classId = hasKind(segments, "class2") ? "class2-effort-synth" : hasKind(segments, "class3") ? "class3-error-images" : void 0;',
+  '\t\treturn {',
+  '\t\t\tclassified: true,',
+  '\t\t\t...classId === void 0 ? {} : { classId },',
+  '\t\t\tmonotonic: "ok",',
+  '\t\t\t...gapFields(gap),',
+  '\t\t\tsharedPrefixCount: prevCore.messageHashes.length',
+  '\t\t};',
+  '\t}',
+  '\tconst reorder = classifyDeferredReorder(prevCore.messageHashes, prevCore.messageKinds, nextCore.messageHashes);',
+  '\tif (reorder.verdict === "ok") {',
+  '\t\treturn {',
+  '\t\t\tclassified: true,',
+  '\t\t\tclassId: "class1-deferred-reorder",',
+  '\t\t\tmonotonic: "ok-after-classification",',
+  '\t\t\t...gapFields(gap),',
+  '\t\t\tsharedPrefixCount: reorder.sharedPrefixCount',
+  '\t\t};',
+  '\t}',
+  '\tconst mismatch = firstMismatch(prevCore.messageHashes, nextCore.messageHashes);',
+  '\treturn {',
+  '\t\tclassified: false,',
+  '\t\tmonotonic: "unclassified",',
+  '\t\t...gapFields(gap),',
+  '\t\tsharedPrefixCount: mismatch ?? Math.min(prevCore.messageHashes.length, nextCore.messageHashes.length)',
+  '\t};',
+  '}',
+  '/** Session-log events that mark a known-legal context rewrite (D1P2 §4.5 guard 2). */',
+  'const TRANSITION_MARKS = {',
+  '\t"compaction/start": "compaction",',
+  '\t"compaction/end": "compaction",',
+  '\t"cache/ledger": "reset-rewrite"',
+  '};',
+  '/** Classifies captures and appends cache/guard-observe events for one agent session. */',
+  'class GuardObserver {',
+  '\tbase = void 0;',
+  '\tfirstAttempt = void 0;',
+  '\tgap = false;',
+  '\tchainView = {',
+  '\t\ttransitionMarkBetween: (fromSeqInclusive, toSeqExclusive) => this.transitionMarkBetween(fromSeqInclusive, toSeqExclusive)',
+  '\t};',
+  '\tconstructor(session, warn) {',
+  '\t\tthis.session = session;',
+  '\t\tthis.warn = warn;',
+  '\t}',
+  '/**',
+  ' * Sink for GenerateOptions.onGuardObserve: invoked synchronously by the',
+  ' * adapter fetch wrapper once per attempt, in fetch order, so the appends',
+  ' * land in the log in wire order.',
+  ' */',
+  '\tobserve(capture) {',
+  '\t\tif (capture.segments === void 0) {',
+  '\t\t\t// A7 degraded capture, or the whole-package fallback: log-only, no',
+  '\t\t\t// chain participation, and the next segmented record reads the',
+  '\t\t\t// crossing as a gap.',
+  '\t\t\tthis.session.append("cache/guard-observe", {',
+  '\t\t\t\tschemaVersion: 1,',
+  '\t\t\t\tattemptSeq: capture.attemptSeq,',
+  '\t\t\t\t...capture.wholeHash === void 0 ? {} : { wholeHash: capture.wholeHash },',
+  '\t\t\t\tclassified: false,',
+  '\t\t\t\t...capture.degraded === void 0 ? {} : { degraded: capture.degraded },',
+  '\t\t\t\tmeta: capture.meta',
+  '\t\t\t});',
+  '\t\t\tthis.gap = true;',
+  '\t\t\treturn;',
+  '\t\t}',
+  '\t\tconst currentSeq = this.session.seq;',
+  '\t\tconst decision = classifyGuardObserve({',
+  '\t\t\tprev: this.base,',
+  '\t\t\tfirst: this.firstAttempt,',
+  '\t\t\tcapture: { ...capture, segments: capture.segments },',
+  '\t\t\tchain: this.chainView,',
+  '\t\t\tcurrentSeq,',
+  '\t\t\tgap: this.gap',
+  '\t\t});',
+  '\t\tconst event = { ...capture, ...decision };',
+  '\t\tconst { seq } = this.session.append("cache/guard-observe", event);',
+  '\t\tif (decision.monotonic === "unclassified") this.warnUnclassified(capture, decision);',
+  '\t\tconst record = { seq, segments: capture.segments, meta: capture.meta };',
+  '\t\tthis.base = record;',
+  '\t\tthis.gap = false;',
+  '\t\tif (capture.attemptSeq === 1) this.firstAttempt = record;',
+  '\t}',
+  '/** Transition-mark scan over the window (window-bounded read cost, D1P2 §4.5 R2-5). */',
+  '\ttransitionMarkBetween(fromSeqInclusive, toSeqExclusive) {',
+  '\t\tlet kind = void 0;',
+  '\t\tconst events = this.session.snapshotEvents(SessionLogOffset(fromSeqInclusive), SessionLogOffset(toSeqExclusive));',
+  '\t\tfor (const event of events) {',
+  '\t\t\tconst mark = TRANSITION_MARKS[event.type];',
+  '\t\t\tif (mark === void 0) continue;',
+  '\t\t\tif (mark === "compaction") return "compaction";',
+  '\t\t\tkind = mark;',
+  '\t\t}',
+  '\t\treturn kind;',
+  '\t}',
+  '/** D1P2 §8.2: an unclassified form is visible and searchable on the log face. */',
+  '\twarnUnclassified(capture, decision) {',
+  '\t\tconst mismatchAt = decision.sharedPrefixCount;',
+  '\t\tconst kindsAt = mismatchAt === void 0 ? "" : `; kinds at the mismatch: prev=${this.base?.segments.messageKinds[mismatchAt] ?? "none"} next=${capture.segments?.messageKinds[mismatchAt] ?? "none"}`;',
+  '\t\tthis.warn(`cache/guard-observe: unclassified wire form at attempt ${capture.attemptSeq} (first mismatch after ${mismatchAt ?? "unknown"} shared messages${kindsAt}); recorded in full, no action taken`);',
+  '\t}',
+  '}',
+  '//#endregion',
+].join('\n')
+
+/** The inlined L3 tool-result pruning vocabulary for the pruner bundle (Go e63ceff2d7 core/tools/src/l3.ts). pruningMeta is omitted: the official build has no in-tree declaring tool (γ minimal cut; P6-A §2.9). */
+const ZCTX_REGION_PRUNER_L3 = [
+  '//#region lib/types/zctx-l3-pruning.js',
+  '/**',
+  ' * zctx P6-B inline — L3 tool-result pruning vocabulary cut (Go e63ceff2d7',
+  ' * core/tools/src/l3.ts). pruningMeta is omitted: the official build has no',
+  ' * in-tree declaring tool, so the prune declarations ride future tool',
+  ' * patches; undeclared results keep the uniform threshold either way.',
+  ' */',
+  '/** Meta key under which tools attach the pruning declaration. */',
+  'const PRUNING_META_KEY = "l3.pruning";',
+  '/**',
+  ' * Narrow an opaque tool-result meta payload to a pruning declaration.',
+  ' * Absent or malformed metadata yields undefined (the generic fallback), so',
+  ' * logs without the declaration never throw during replay.',
+  ' */',
+  'function pruningFromMeta(meta) {',
+  '\tif (typeof meta !== "object" || meta === null || Array.isArray(meta)) return void 0;',
+  '\tconst value = meta[PRUNING_META_KEY];',
+  '\tif (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;',
+  '\tconst { prunable, bytes } = value;',
+  '\tif (typeof prunable !== "boolean") return void 0;',
+  '\tif (typeof bytes !== "number" || !Number.isSafeInteger(bytes) || bytes < 0) return void 0;',
+  '\treturn { prunable, bytes };',
+  '}',
+  '//#endregion',
+].join('\n')
+
+/**
+ * The inlined budget-formula cut for the compaction-basic bundle: the three
+ * model-slots budget.ts formulas verbatim + DEFAULT_OUTPUT_CAP + the L3 rule
+ * toolCapToByteLimit (l3.ts). Only the toolCap row is materialized — the
+ * patch's single consumer (P6-A §2.10 minimal-inline ruling).
+ */
+const ZCTX_REGION_COMPACTION_BUDGET = [
+  '//#region lib/types/zctx-model-slots-budget.js',
+  '/**',
+  ' * zctx P6-B inline — budget-formula cut mirroring the fork model-slots',
+  ' * budget.ts (computeMaxTokens/computeReserve/computeToolCap verbatim;',
+  ' * DEFAULT_OUTPUT_CAP = 32768) + the L3 rule toolCapToByteLimit (l3.ts).',
+  ' * Only the toolCap row is materialized — the patch\'s single consumer.',
+  ' */',
+  'const DEFAULT_OUTPUT_CAP = 32768;',
+  '/** maxTokens = min(C, floor(W × 0.10)). */',
+  'function computeMaxTokens(w, cap) {',
+  '\treturn Math.min(cap, Math.floor(w * 0.10));',
+  '}',
+  '/** reserve = ceil(maxTokens × 1.25) + 4096. */',
+  'function computeReserve(maxTokens) {',
+  '\treturn Math.ceil(maxTokens * 1.25) + 4096;',
+  '}',
+  '/** toolCap = max(1024, floor(0.25 × (reserve - maxTokens))). */',
+  'function computeToolCap(maxTokens, reserve) {',
+  '\treturn Math.max(1024, Math.floor(0.25 * (reserve - maxTokens)));',
+  '}',
+  '/** The toolCap budget row the L3 per-result cap derives from. */',
+  'function computeBudget(w, cap) {',
+  '\tconst maxTokens = computeMaxTokens(w, cap);',
+  '\tconst reserve = computeReserve(maxTokens);',
+  '\treturn { maxTokens, reserve, toolCap: computeToolCap(maxTokens, reserve) };',
+  '}',
+  '/** L3 rule: byte cap = toolCap × 3.5 characters (UTF-8 bytes), at least 1. */',
+  'function toolCapToByteLimit(toolCapTokens) {',
+  '\treturn Math.max(1, Math.floor(toolCapTokens * 3.5));',
+  '}',
+  '//#endregion',
+].join('\n')
+
 export const SUPPORTED = {
   '0.2.2-rc.3': {
     shellPackage: '@deepseek-ai/dsh-desktop',
-    targetPath: 'dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js',
-    // Pristine lib/index.js SHA-256 (P2 [F16] asar-header double-attested;
-    // re-computed live from the real asar 2026-11-14, VERIFY-P #8 anchor).
-    targetSha256: 'e956da3d7300e1426e13e14f47e6f981dd1ca345633a406568ee5058ad93e9d8',
-    anchors: {
-      // The file-unique call-site spread (count=1 verified live).
-      callSite: '...profileOptions(profile, reasoning, apiKey),',
-      // The file-unique definition line (count=1 verified live) — a shape
-      // fingerprint checked alongside the call site, never a rewrite anchor.
-      definition: 'function profileOptions(profile, reasoning, apiKey) {',
-      // Idempotence/presence marker (the stub itself).
-      stubMarker: 'globalThis.__zctxPatch__',
-    },
-    // The one-line defensive forwarding stub (R1: adds options fields only).
-    // Identity = provider/model + options.sessionId — all three locals are in
-    // scope at the call site (rc.3 adapter.ts:475-482).
-    stub:
-      '...(globalThis.__zctxPatch__?.wireOptions?.({ provider: options.provider, model: model.id, sessionId: options.sessionId }) ?? {}),',
-    // The call-site spread sits at five-tab depth in lib/index.js.
-    stubIndent: '\t\t\t\t\t',
+    files: [
+      // ------------------------------------------------------------------
+      // File 1/5 — llm-pi-ai/lib/index.js: the P4 forwarding stub + the
+      // guard observation wiring (config switch default TRUE per user
+      // ruling, adapter guardSink + hash-then-passthrough fetch wrapper,
+      // plugin apply wiring) + the inlined wrapper cluster.
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js',
+        // Pristine SHA-256: P2 [F16] + P4 VERIFY-P #8 anchor, re-verified
+        // live from the real asar 2026-11-16 (double-attested).
+        pristineSha256: 'e956da3d7300e1426e13e14f47e6f981dd1ca345633a406568ee5058ad93e9d8',
+        presenceMarker: 'globalThis.__zctxPatch__',
+        ops: [
+          // P4 one-line defensive forwarding stub (R1: adds options fields
+          // only; identity = provider/model + options.sessionId in scope at
+          // the call site). Carried into the v0.2 set unchanged.
+          {
+            anchor: '...profileOptions(profile, reasoning, apiKey),',
+            replacement:
+              '...profileOptions(profile, reasoning, apiKey),\n\t\t\t\t\t...(globalThis.__zctxPatch__?.wireOptions?.({ provider: options.provider, model: model.id, sessionId: options.sessionId }) ?? {}),',
+          },
+          // Import face for the inlined cluster (createHash already imported).
+          {
+            anchor: 'import { createHash } from "node:crypto";',
+            replacement:
+              'import { createHash } from "node:crypto";\n'
+              + 'import { existsSync, readFileSync } from "node:fs";\n'
+              + 'import { dirname, join } from "node:path";\n'
+              + 'import { fileURLToPath } from "node:url";',
+          },
+          // Config schema: the observation switch, DEFAULT TRUE (user ruling
+          // "完整功能生效"; observe-only — the sole kill switch; Go source
+          // default false was overridden by the plan's ignition ruling).
+          {
+            anchor: 'const Config = z.object({ providers: z.dict(profile).default({}).volatile() });',
+            replacement:
+              'const Config = z.object({ providers: z.dict(profile).default({}).volatile(), guardObserve: z.boolean().default(true).volatile() });',
+          },
+          // Plugin apply wiring: the adapter reads the switch per request (a
+          // flip reaches the next request without touching the route set).
+          {
+            anchor:
+              '\t\tauth,\n\t\tprepareHeaders: (request, headers) => ctx.waterfall("llm-pi-ai/request-headers", request, headers, () => headers),',
+            replacement:
+              '\t\tauth,\n'
+              + '\t\tguardObserve: () => config.guardObserve.get(),\n'
+              + '\t\tprepareHeaders: (request, headers) => ctx.waterfall("llm-pi-ai/request-headers", request, headers, () => headers),',
+          },
+          // Adapter guard sink (T3 L5-A A1): the surface installs only when
+          // the switch is on AND the request carries a host sink; enabled
+          // wrapping asserts the installed pi-ai forwards fetch (A6).
+          {
+            anchor:
+              '\t\t\t\tconst iterator = toStreamChunks(snapshot.models.streamSimple(model, context, {',
+            replacement:
+              '\t\t\t\tconst guardSink = this.config.guardObserve?.() === true ? options.onGuardObserve : void 0;\n'
+              + '\t\t\t\tif (guardSink !== void 0) assertGuardObserveSupport();\n'
+              + '\t\t\t\tconst iterator = toStreamChunks(snapshot.models.streamSimple(model, context, {',
+          },
+          // Hash-then-passthrough per attempt: the wrapper never touches
+          // init.body, it captures and releases the original bytes.
+          {
+            anchor:
+              '\t\t\t\t\theaders: requestHeaders(profile.headers, options, model.baseUrl, this.config.prepareHeaders)',
+            replacement:
+              '\t\t\t\t\theaders: requestHeaders(profile.headers, options, model.baseUrl, this.config.prepareHeaders),\n'
+              + '\t\t\t\t\t...guardSink === void 0 ? {} : { fetch: createGuardFetchWrapper({ model, sink: guardSink }) }',
+          },
+          // The inlined wrapper cluster (before the export line).
+          {
+            anchor: 'export { Config, PiAiAdapter, apply, inject, name, recordKeyFor, supportedProtocols };',
+            replacement:
+              `${ZCTX_REGION_LLM_PI_AI_GUARD}\nexport { Config, PiAiAdapter, apply, inject, name, recordKeyFor, supportedProtocols };`,
+          },
+        ],
+      },
+      // ------------------------------------------------------------------
+      // File 2/5 — agent-loop/lib/index.js: the GuardObserver + chain
+      // classifier (inlined, self-contained) + the ignition hunk (constructor)
+      // + the request sink injection (buildRequest).
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-agent-loop/lib/index.js',
+        // Pristine SHA-256 computed live from the real asar 2026-11-16.
+        pristineSha256: 'f09f60814d4e96a880f41b9fc3832f33c56a28f954f48810d8439ce83ad6ffa8',
+        presenceMarker: '//#region lib/types/zctx-guard-observe.js',
+        ops: [
+          // Ignition hunk (P6-A U4 ruling realized at the agent constructor —
+          // the fork tree has no composition-root ignition either, F9, and
+          // the official composition root is a dynamic plugin load, so the
+          // constructor is the single-file ignition point): opt-in honored
+          // (explicit false opts out), default ON. The llm-pi-ai config
+          // switch stays the sole kill switch. Observe-only.
+          {
+            anchor: '\t\tthis.runtimeContext = new RuntimeContextProjection(this.ctx, session);',
+            replacement:
+              '\t\tthis.runtimeContext = new RuntimeContextProjection(this.ctx, session);\n'
+              + '\t\tthis.guardObserver = (this.options.guardObserve ?? true) === true ? new GuardObserver(session, (message) => {\n'
+              + '\t\t\tthis.loopCtx.logger?.warn(`agent "${this.id}": ${message}`);\n'
+              + '\t\t}) : void 0;',
+          },
+          // Request sink injection (T3 L5-A): the session-bound chain carries
+          // the observation sink when the observer exists; the adapter
+          // installs its wrapper only when its own switch is also on.
+          {
+            anchor: '\t\t\tsessionId: this.session.id,\n\t\t\tsignal\n\t\t}));',
+            replacement:
+              '\t\t\tsessionId: this.session.id,\n'
+              + '\t\t\t...this.guardObserver === void 0 ? {} : { onGuardObserve: (capture) => { this.guardObserver.observe(capture); } },\n'
+              + '\t\t\tsignal\n\t\t}));',
+          },
+          // The inlined observer + classifier (before the export line).
+          {
+            anchor: 'export { AgentLoop, AgentLoop as default, CONFIGURED_AGENT_IDENTITIES_KEY, DEFAULT_MAX_PARALLEL_TOOL_CALLS };',
+            replacement:
+              `${ZCTX_REGION_AGENT_LOOP_GUARD}\nexport { AgentLoop, AgentLoop as default, CONFIGURED_AGENT_IDENTITIES_KEY, DEFAULT_MAX_PARALLEL_TOOL_CALLS };`,
+          },
+        ],
+      },
+      // ------------------------------------------------------------------
+      // File 3/5 — session/lib/index.js: the cache/guard-observe event
+      // vocabulary (KNOWN_SESSION_EVENT_TYPES — the persistence read path
+      // refuses unknown types without the ignorable marker, so the appended
+      // guard records must be first-class vocabulary).
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js',
+        // Pristine SHA-256 computed live from the real asar 2026-11-16.
+        pristineSha256: 'd9911b5e1585bcb142d03ce46eb2990b3fc7c254de5a76d3ffb124bd2469216c',
+        presenceMarker: '"cache/guard-observe",',
+        ops: [
+          // Alphabetical insertion point (fork known-event-types.ts hunk,
+          // Go diff +1: after 'assistant/message', before 'command/done').
+          {
+            anchor: '\t"assistant/message",\n\t"command/done",',
+            replacement: '\t"assistant/message",\n\t"cache/guard-observe",\n\t"command/done",',
+          },
+        ],
+      },
+      // ------------------------------------------------------------------
+      // File 4/5 — compaction-basic/lib/index.js: the L3 per-result budget
+      // (computeBudget toolCap row → byteCapPerResult on the pressure path)
+      // + the inlined budget formula cut.
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-compaction-basic/lib/index.js',
+        // Pristine SHA-256 computed live from the real asar 2026-11-16.
+        pristineSha256: 'e1a3019949d01b22baa91d6eb672d9559d76b97fb5bb45e0428715a316bf11d4',
+        presenceMarker: '//#region lib/types/zctx-model-slots-budget.js',
+        ops: [
+          // The pressure-path budget (Go index.ts:356-362 hunk): declared
+          // results honor the routed model's toolCap through
+          // toolCapToByteLimit. Undeclared results keep the uniform threshold
+          // (pruningFromMeta → undefined → limitFor falls back) — behavior
+          // neutral until a declaring tool exists.
+          {
+            anchor: '\t\tif (prune !== void 0) {\n\t\t\tprune.pruneSession(agent.session);',
+            replacement:
+              '\t\tif (prune !== void 0) {\n'
+              + '\t\t\tconst budget = computeBudget(info.context.contextWindow, header.config.maxTokens ?? info.defaultMaxTokens ?? DEFAULT_OUTPUT_CAP);\n'
+              + '\t\t\tprune.pruneSession(agent.session, {\n'
+              + '\t\t\t\tbyteCapPerResult: toolCapToByteLimit(budget.toolCap)\n'
+              + '\t\t\t});',
+          },
+          // The inlined budget formula (before the export line).
+          {
+            anchor: 'export { BasicCompactionEngine, BasicCompactionEngine as default };',
+            replacement: `${ZCTX_REGION_COMPACTION_BUDGET}\nexport { BasicCompactionEngine, BasicCompactionEngine as default };`,
+          },
+        ],
+      },
+      // ------------------------------------------------------------------
+      // File 5/5 — compaction-tool-result-pruner/lib/index.js: the
+      // pruneSession opts + l3.pruning declaration branch + per-call
+      // limitFor + the inlined L3 vocabulary (γ: tools bundle untouched).
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-compaction-tool-result-pruner/lib/index.js',
+        // Pristine SHA-256 computed live from the real asar 2026-11-16.
+        pristineSha256: 'e86442e9a2403c392482b9035916e5610c251d62f3581892866404d69c064254',
+        presenceMarker: '//#region lib/types/zctx-l3-pruning.js',
+        ops: [
+          // pruneContent gains the per-call limit (Go hunk 1).
+          {
+            anchor: '\tpruneContent(blocks) {',
+            replacement: '\tpruneContent(blocks, limitChars = this.config.thresholdChars) {',
+          },
+          // Threshold comparisons ride limitChars (Go hunks 2-3).
+          {
+            anchor: '\t\tif (totalChars <= this.config.thresholdChars) return null;',
+            replacement: '\t\tif (totalChars <= limitChars) return null;',
+          },
+          {
+            anchor:
+              '\t\tif (charsAfter > this.config.thresholdChars || charsAfter >= totalChars) throw new Error("tool-result prune: replacement must be smaller and within threshold");',
+            replacement:
+              '\t\tif (charsAfter > limitChars || charsAfter >= totalChars) throw new Error("tool-result prune: replacement must be smaller and within threshold");',
+          },
+          // pruneSession gains the per-pass budgets (Go hunk 4).
+          {
+            anchor: '\tpruneSession(session) {',
+            replacement: '\tpruneSession(session, opts = {}) {',
+          },
+          // The declaration branch: a non-prunable result is never rewritten
+          // (Go hunk 5).
+          {
+            anchor: '\t\t\tconst original = session.deriveEventMessage(event);',
+            replacement:
+              '\t\t\tconst declared = pruningFromMeta(event.data.meta);\n'
+              + '\t\t\tif (declared !== void 0 && !declared.prunable) continue;\n'
+              + '\t\t\tconst original = session.deriveEventMessage(event);',
+          },
+          // The effective limit for one candidate (Go hunk 6).
+          {
+            anchor: '\t\t\tconst content = this.pruneContent(original.content);',
+            replacement: '\t\t\tconst content = this.pruneContent(original.content, this.limitFor(declared, opts));',
+          },
+          // limitFor (Go hunk 7), inserted before the class close.
+          {
+            anchor:
+              '\t\t\tcharsRemoved += charsBefore - charsAfter;\n\t\t}\n\t\treturn {\n\t\t\tpruned,\n\t\t\tcharsRemoved\n\t\t};\n\t}\n};',
+            replacement:
+              '\t\t\tcharsRemoved += charsBefore - charsAfter;\n'
+              + '\t\t}\n'
+              + '\t\treturn {\n'
+              + '\t\t\tpruned,\n'
+              + '\t\t\tcharsRemoved\n'
+              + '\t\t};\n'
+              + '\t}\n'
+              + '\t/**\n'
+              + '\t * Resolve the effective code-point threshold for one candidate: a\n'
+              + '\t * declared prunable result honors opts.byteCapPerResult; the uniform\n'
+              + '\t * threshold applies whenever the declaration is absent or the cap\n'
+              + '\t * cannot represent a valid replacement.\n'
+              + '\t */\n'
+              + '\tlimitFor(declared, opts) {\n'
+              + '\t\tif (declared === void 0) return this.config.thresholdChars;\n'
+              + '\t\tconst cap = opts.byteCapPerResult;\n'
+              + '\t\tif (typeof cap !== "number" || !Number.isFinite(cap) || cap <= 0) return this.config.thresholdChars;\n'
+              + '\t\tconst minRepresentable = this.config.headChars + codePointLength(PRUNE_MARKER) + this.config.tailChars;\n'
+              + '\t\treturn cap >= minRepresentable ? cap : this.config.thresholdChars;\n'
+              + '\t}\n'
+              + '};',
+          },
+          // The inlined L3 vocabulary (before the export line).
+          {
+            anchor: 'export { DEFAULTS, PRUNE_MARKER, ToolResultPruner, ToolResultPruner as default, codePointLength, resolveConfig };',
+            replacement:
+              `${ZCTX_REGION_PRUNER_L3}\nexport { DEFAULTS, PRUNE_MARKER, ToolResultPruner, ToolResultPruner as default, codePointLength, resolveConfig };`,
+          },
+        ],
+      },
+    ],
   },
 }
 
@@ -272,6 +1090,99 @@ export function patchText(text, entry) {
 }
 
 // ---------------------------------------------------------------------------
+// v0.2 multi-file patch-set layer (γ all-inline).
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize an anchor-set entry into the v0.2 multi-file shape. A legacy
+ * single-target entry (P4 v0.1 shape: targetPath/targetSha256/anchors/stub/
+ * stubIndent) becomes a one-file entry whose single op is the stub insert —
+ * so v0.1 entries (and the v0.1 fixture tests) keep flowing through the
+ * v0.2 machinery unchanged.
+ */
+export function normalizeEntry(entry) {
+  if (Array.isArray(entry?.files)) return entry.files
+  return [
+    {
+      targetPath: entry.targetPath,
+      pristineSha256: entry.targetSha256,
+      presenceMarker: entry.anchors.stubMarker,
+      ...(entry.anchors.definition !== undefined ? { fingerprint: entry.anchors.definition } : {}),
+      ops: [
+        {
+          anchor: entry.anchors.callSite,
+          replacement: `${entry.anchors.callSite}\n${entry.stubIndent}${entry.stub}`,
+        },
+      ],
+    },
+  ]
+}
+
+/**
+ * Apply an ordered op list to one file's text. Every op is {anchor,
+ * replacement}: the anchor must occur EXACTLY once and is replaced wholesale
+ * (insert-after/insert-before are expressed as replacements that embed the
+ * anchor). Any anchor count ≠ 1 refuses — never patch blind. This runs only
+ * on files the gate chain proved PRISTINE, so per-op idempotence is not
+ * needed here (the file-level reconstruction gate owns that).
+ */
+export function patchFile(text, fileEntry) {
+  if (countOccurrences(text, fileEntry.presenceMarker) > 0) {
+    return { ok: false, alreadyPatched: true, reason: 'presence marker already in the text — refusing to double-apply' }
+  }
+  let patched = text
+  for (let index = 0; index < fileEntry.ops.length; index++) {
+    const op = fileEntry.ops[index]
+    const count = countOccurrences(patched, op.anchor)
+    if (count !== 1) {
+      return {
+        ok: false,
+        reason: `op ${index} anchor occurs ${count} times (must be exactly 1) — refusing`,
+      }
+    }
+    // Function-form replacement: no `$`-pattern substitution semantics.
+    patched = patched.replace(op.anchor, () => op.replacement)
+  }
+  if (countOccurrences(patched, fileEntry.presenceMarker) === 0) {
+    return { ok: false, reason: 'post-patch presence marker absent — patch text incomplete, refusing' }
+  }
+  return { ok: true, text: patched, byteLength: Buffer.byteLength(patched, 'utf8') }
+}
+
+/**
+ * Reconstruct the pristine text from a patched text by reversing every op in
+ * REVERSE order (replace op.replacement → op.anchor, each exactly once).
+ * Returns undefined when any reversal is unprovable — the caller then reports
+ * drifted (P4-r1 P4-3 reconstruction proof, generalized to op lists).
+ */
+export function reconstructPristineText(text, fileEntry) {
+  let current = text
+  for (let index = fileEntry.ops.length - 1; index >= 0; index--) {
+    const op = fileEntry.ops[index]
+    if (countOccurrences(current, op.replacement) !== 1) return undefined
+    current = current.replace(op.replacement, () => op.anchor)
+  }
+  return current
+}
+
+/**
+ * Three-state discrimination of ONE target file (the gate's unit):
+ *   'pristine'     — bytes match the pinned pristine hash
+ *   'patched-exact' — reversing every op reconstructs the pinned pristine
+ *                     hash (marker-independent exactness proof)
+ *   'drifted'      — anything else (official update or foreign modification)
+ */
+export function fileStateOf(text, fileEntry) {
+  const sha = sha256Hex(Buffer.from(text, 'utf8'))
+  if (sha === fileEntry.pristineSha256) return { state: 'pristine', sha256: sha }
+  const reconstructed = reconstructPristineText(text, fileEntry)
+  if (reconstructed !== undefined && sha256Hex(Buffer.from(reconstructed, 'utf8')) === fileEntry.pristineSha256) {
+    return { state: 'patched-exact', sha256: sha }
+  }
+  return { state: 'drifted', sha256: sha }
+}
+
+// ---------------------------------------------------------------------------
 // Positional asar reads (cache-free; the splice must never see stale caches).
 // ---------------------------------------------------------------------------
 
@@ -322,95 +1233,154 @@ function extractPositioned(asarPath, asarPath_) {
 // ---------------------------------------------------------------------------
 
 /**
- * Splice ONE patched target file into the archive: header JSON mutated
- * in place (offsets after the target shift by the byte delta; the target gets
- * new size + integrity), payload rebuilt around the target region — every
- * other packed byte IDENTICAL, unpacked-file flags untouched. Returns the
- * complete new archive buffer plus accounting + pristine witnesses for the
- * post-verify.
+ * Splice ONE patched target file into the archive (v0.1 shape kept for the
+ * v0.1 fixture tests): a thin single-target wrapper over
+ * {@link spliceAsarMulti}.
  */
 export function spliceAsar({ asarPath, targetPath, entry, patchedText }) {
-  const { header, headerSize } = readHeaderPositioned(asarPath)
-  const targetNode = headerNodeAt(header, targetPath)
-  if (targetNode === undefined) {
-    throw new Error(`target file not present in the asar header: ${targetPath}`)
+  const result = spliceAsarMulti({ asarPath, targets: [{ targetPath, patchedText }] })
+  return {
+    buffer: result.buffer,
+    before: result.targets[0].before,
+    after: result.targets[0].after,
+    delta: result.targets[0].delta,
+    headerSizeBefore: result.headerSizeBefore,
+    headerSizeAfter: result.headerSizeAfter,
+    payloadSizeBefore: result.payloadSizeBefore,
+    witnesses: result.witnesses,
   }
-  if (targetNode.unpacked === true || targetNode.offset === undefined) {
-    throw new Error(`target file is unpacked (not stored inside this asar) — unsupported: ${targetPath}`)
-  }
+}
 
-  const targetStart = Number(targetNode.offset)
-  const oldSize = targetNode.size
-  const newBuf = Buffer.from(patchedText, 'utf8')
-  const delta = newBuf.length - oldSize
+/**
+ * Splice SEVERAL patched target files into the archive in ONE operation (the
+ * v0.2 multi-file patch set applies as a single asar write — no partial
+ * multi-file state can persist past a crash): header JSON mutated in place
+ * (each target gets new size + integrity; every non-target offset shifts by
+ * the SUM of the deltas of the target regions positioned before it), payload
+ * rebuilt around the sorted target regions — every other packed byte
+ * IDENTICAL, unpacked-file flags untouched. Returns the complete new archive
+ * buffer plus per-target accounting + pristine witnesses for the post-verify.
+ */
+export function spliceAsarMulti({ asarPath, targets }) {
+  const { header, headerSize } = readHeaderPositioned(asarPath)
+  const resolved = targets.map(({ targetPath, patchedText }) => {
+    const node = headerNodeAt(header, targetPath)
+    if (node === undefined) {
+      throw new Error(`target file not present in the asar header: ${targetPath}`)
+    }
+    if (node.unpacked === true || node.offset === undefined) {
+      throw new Error(`target file is unpacked (not stored inside this asar) — unsupported: ${targetPath}`)
+    }
+    return {
+      targetPath,
+      node,
+      start: Number(node.offset),
+      oldSize: node.size,
+      newBuf: Buffer.from(patchedText, 'utf8'),
+    }
+  })
+  // Overlapping targets are a spec error, not a splice case.
+  const starts = resolved.map((target) => target.start).sort((a, b) => a - b)
+  for (let index = 1; index < starts.length; index++) {
+    if (starts[index] === starts[index - 1]) throw new Error('duplicate target offset in the patch set — refusing')
+  }
 
   // Pristine witnesses BEFORE the header mutation: the first packed file in
-  // header order and the first packed file positioned after the target —
+  // header order and the first packed file positioned after ALL targets —
   // their bytes must be untouched (pristine integrity hash) after the splice.
-  // The target itself is NEVER a witness (it is the file being replaced; in
-  // small archives it can be the very first packed file).
+  // No target is ever its own witness.
   //
-  // Layout premise, made explicit (P4-r1 P4-1): a file's header offset shifts
-  // by `delta` IFF `offset > targetStart` — the exact predicate of the
-  // mutation loop below. The post-verify expectation previously used
-  // `oldOffset > 0`, which silently relied on "@electron/asar packs the first
-  // file at offset 0, so witness #1 is either at offset 0 (before the target)
-  // or after the target". True for archives this toolchain produces (verified
-  // on the real rc.3 asar: first packed node offset = 0), but an assumption
-  // about the layout, not a rule — a witness positioned BEFORE the target at
-  // a nonzero offset would have produced a false post-verify FAILED on a
-  // correct archive. `afterTarget` is recorded from the collection-time
-  // offset, so the expectation no longer depends on the layout at all.
+  // Layout premise made explicit (P4-r1 P4-1): a file's header offset shifts
+  // by the summed deltas of the target regions BEFORE it; `afterTarget` is
+  // recorded from the collection-time offset, so the post-verify expectation
+  // never depends on the archive layout.
+  const targetStarts = new Set(resolved.map((target) => target.start))
+  const lastTargetEnd = Math.max(...resolved.map((target) => target.start + target.oldSize))
+  const shiftFor = (offset) =>
+    resolved.reduce((sum, target) => (offset > target.start ? sum + (target.newBuf.length - target.oldSize) : sum), 0)
   const witnesses = []
   visitPackedNodes(header, (node, path) => {
     if (witnesses.length >= 2 || node.integrity === undefined) return
     const offset = Number(node.offset)
-    if (offset === targetStart) return
-    if (witnesses.length === 0 || offset >= targetStart + oldSize) {
+    if (targetStarts.has(offset)) return
+    if (witnesses.length === 0 || offset >= lastTargetEnd) {
       witnesses.push({
         path,
         oldOffset: offset,
-        afterTarget: offset > targetStart,
+        afterTarget: shiftFor(offset) !== 0,
+        shift: shiftFor(offset),
         size: node.size,
         integrityHash: node.integrity.hash,
       })
     }
   })
 
-  // Header mutation: shift offsets of files positioned after the target
-  // region; reset the target's size + integrity. In-place → JSON.stringify
-  // preserves the original key order for everything else.
+  // Header mutation: reset each target's size + integrity; shift EVERY other
+  // packed file's offset by the summed deltas of the targets positioned
+  // before it. Targets shift too: a target sitting after a GROWN earlier
+  // target region moves back in the payload (its own delta is excluded —
+  // shiftFor sums only starts strictly below the file's offset).
   visitPackedNodes(header, (node) => {
     const offset = Number(node.offset)
-    if (offset === targetStart) {
-      node.size = newBuf.length
-      node.integrity = computeIntegrity(newBuf)
-    } else if (offset > targetStart) {
-      node.offset = String(offset + delta)
+    const target = resolved.find((candidate) => candidate.start === offset)
+    if (target !== undefined) {
+      target.before = { size: target.oldSize, sha256: sha256Hex(wholeFor(asarPath, payloadBaseOf(headerSize), target.start, target.oldSize)) }
+      target.after = { size: target.newBuf.length, sha256: sha256Hex(target.newBuf) }
+      node.size = target.newBuf.length
+      node.integrity = computeIntegrity(target.newBuf)
+    }
+    if (shiftFor(offset) !== 0) {
+      node.offset = String(offset + shiftFor(offset))
     }
   })
 
-  // Payload splice around the target region (one whole-file read).
+  // Payload splice around the sorted target regions (one whole-file read).
   const whole = readFileSync(asarPath)
   const payloadBase = 8 + headerSize
-  const absTargetStart = payloadBase + targetStart
-  const newPayload = Buffer.concat([
-    whole.subarray(payloadBase, absTargetStart),
-    newBuf,
-    whole.subarray(absTargetStart + oldSize),
-  ])
+  const sorted = [...resolved].sort((a, b) => a.start - b.start)
+  const pieces = []
+  let cursor = 0
+  for (const target of sorted) {
+    pieces.push(whole.subarray(payloadBase + cursor, payloadBase + target.start))
+    pieces.push(target.newBuf)
+    cursor = target.start + target.oldSize
+  }
+  pieces.push(whole.subarray(payloadBase + cursor))
 
   const headerPickle = buildHeaderPickle(JSON.stringify(header))
-  const buffer = Buffer.concat([buildSizePickle(headerPickle.length), headerPickle, newPayload])
+  const buffer = Buffer.concat([buildSizePickle(headerPickle.length), headerPickle, Buffer.concat(pieces)])
   return {
     buffer,
-    before: { size: oldSize, sha256: sha256Hex(whole.subarray(absTargetStart, absTargetStart + oldSize)) },
-    after: { size: newBuf.length, sha256: sha256Hex(newBuf) },
-    delta,
+    targets: resolved.map(({ targetPath, before, after, newBuf, oldSize }) => ({
+      targetPath,
+      before,
+      after,
+      delta: newBuf.length - oldSize,
+    })),
+    delta: resolved.reduce((sum, target) => sum + (target.newBuf.length - target.oldSize), 0),
     headerSizeBefore: headerSize,
     headerSizeAfter: headerPickle.length,
     payloadSizeBefore: whole.length - payloadBase,
     witnesses,
+  }
+}
+
+/** @internal payload base offset of an archive with the given header size. */
+function payloadBaseOf(headerSize) {
+  return 8 + headerSize
+}
+
+/** @internal positional read of one file region (used for target before-hashes). */
+function wholeFor(asarPath, payloadBase, start, size) {
+  const fd = openSync(asarPath, 'r')
+  try {
+    const buf = Buffer.alloc(size)
+    if (readSync(fd, buf, 0, size, payloadBase + start) !== size) {
+      throw new Error(`short read for the target region (${size} B at ${payloadBase + start})`)
+    }
+    return buf
+  } finally {
+    closeSync(fd)
   }
 }
 
@@ -650,36 +1620,88 @@ export async function patchAsar(options) {
   }
   step('version gate', 'ok', `${shellVersion}`)
 
-  // Pre-state: pristine or already patched? (Cache-free positional read.)
-  let currentText
-  try {
-    currentText = extractPositioned(asarPath, supportedEntry.targetPath).toString('utf8')
-  } catch (error) {
-    step('target read', 'refused', `${supportedEntry.targetPath}: ${error instanceof Error ? error.message : String(error)}`)
-    return { ok: false, refused: true, ...report, shellVersion }
+  // Pre-state per file (cache-free positional reads): pristine, patched-exact,
+  // or drifted. The whole set must be uniformly pristine (→ patch) or
+  // uniformly patched-exact (→ idempotent no-op); anything else refuses —
+  // drifted (official update or foreign edit) at the hash gate, and a MIXED
+  // face (some pristine + some patched-exact) at the mixed-face gate below.
+  // A mixed face cannot arise from THIS patcher (the set applies in ONE asar
+  // write), so it means a foreign partial writer has been here — it is
+  // reported with the per-file face instead of being guessed through.
+  const files = normalizeEntry(supportedEntry)
+  const fileTexts = []
+  for (const file of files) {
+    let text
+    try {
+      text = extractPositioned(asarPath, file.targetPath).toString('utf8')
+    } catch (error) {
+      step('target read', 'refused', `${file.targetPath}: ${error instanceof Error ? error.message : String(error)}`)
+      return { ok: false, refused: true, ...report, shellVersion }
+    }
+    const state = fileStateOf(text, file)
+    fileTexts.push({ file, text, ...state })
   }
-  const currentSha = sha256Hex(Buffer.from(currentText, 'utf8'))
-  const markerCount = countOccurrences(currentText, supportedEntry.anchors.stubMarker)
-  if (markerCount > 0) {
-    step('idempotence', 'skip', `patch stub already present (${markerCount} occurrence) — the asar stays untouched`)
+  const drifted = fileTexts.filter((entry) => entry.state === 'drifted')
+  if (drifted.length > 0) {
+    const detail = drifted
+      .map((entry) => `${entry.file.targetPath}: SHA-256 ${entry.sha256} is neither the pinned pristine hash nor a reconstructable patched state (anchor drift)`)
+      .join(' | ')
+    step('anchor hash gate', 'refused', `${detail} — official update or foreign modification; update the patcher anchor set first`)
+    return {
+      ok: false,
+      refused: true,
+      ...report,
+      shellVersion,
+      targetSha256: drifted[0].sha256,
+      files: fileTexts.map(({ file, state, sha256 }) => ({ target: file.targetPath, state, sha256 })),
+    }
+  }
+  const pristineFiles = fileTexts.filter((entry) => entry.state === 'pristine')
+  if (pristineFiles.length > 0 && pristineFiles.length < fileTexts.length) {
+    // MIXED face (some pristine + some patched-exact — the drifted rows are
+    // already refused above): this patcher applies the whole set in ONE asar
+    // write, so it can never leave this state — a foreign partial writer has
+    // been here. Refuse loudly with the per-file face (which rows are in,
+    // which are not) and the two exits (restore → re-patch, or manual
+    // reconciliation); never guess through a half-applied set (P6B-R1).
+    const patchedCount = fileTexts.length - pristineFiles.length
+    const face = fileTexts.map((entry) => `${entry.file.targetPath}: ${entry.state}`).join(' | ')
+    step('mixed-face gate', 'refused', `half-applied patch set (${pristineFiles.length} pristine + ${patchedCount} patched-exact) — this patcher writes the whole set in ONE asar operation, so a foreign partial writer has touched the archive: ${face}`)
+    return {
+      ok: false,
+      refused: true,
+      ...report,
+      shellVersion,
+      recovery: `restore the whole set from the latest backup (node patcher/zctx-patch.mjs restore --app-dir "${appDir}") and re-patch, or reconcile the half-applied set manually — this patcher never applies over a mixed face`,
+      files: fileTexts.map(({ file, state, sha256 }) => ({ target: file.targetPath, state, sha256 })),
+    }
+  }
+  if (pristineFiles.length < fileTexts.length) {
+    // All patched-exact (the only remaining case after the drifted and
+    // mixed-face refusals): idempotence branch.
+    step('idempotence', 'skip', `patch set ${PATCH_SET_VERSION} already applied (${fileTexts.length}/${fileTexts.length} files patched-exact) — the asar stays untouched`)
     if (existsSync(markerPath)) {
       return { ok: true, alreadyPatched: true, ...report, shellVersion }
     }
-    // Crash-window self-heal (P4-r1 P4-2): the stub is live in the asar but
-    // the marker file is missing — a crash (or a failed marker write)
-    // between the splice rename and the marker write. The re-run is the only
-    // write path that can reconcile, so backfill the marker from derivable
-    // facts; the asar stays untouched. Derivation: the patcher writes stubs
-    // ONLY onto files that passed the anchor-hash gate (pristine pinned
-    // bytes), so the pre-patch content was the pinned hash; the after-hash is
-    // the patched file as it stands now.
+    // Crash-window self-heal (P4-r1 P4-2, v0.2 set shape): the patched files
+    // are live but the marker is missing. The re-run is the only write path
+    // that can reconcile, so backfill the marker from derivable facts; the
+    // asar stays untouched. Derivation: each file's pristine content was its
+    // pinned hash (the patcher writes only past the anchor-hash gate) and the
+    // after-hash is the patched file as it stands now.
     const backfill = writeMarker(markerPath, {
       patcher: 'zctx-patch',
       patcherVersion: PATCHER_VERSION,
+      patchSet: PATCH_SET_VERSION,
       shellVersion,
-      target: supportedEntry.targetPath,
-      sha256Before: supportedEntry.targetSha256,
-      sha256After: currentSha,
+      target: fileTexts[0].file.targetPath,
+      sha256Before: fileTexts[0].file.pristineSha256,
+      sha256After: fileTexts[0].sha256,
+      files: fileTexts.map((entry) => ({
+        target: entry.file.targetPath,
+        sha256Before: entry.file.pristineSha256,
+        sha256After: entry.sha256,
+      })),
       // The crashed run's own backup dir is not recoverable from the archive;
       // the latest sibling backup is the best-known pointer (restore defaults
       // to the latest dir when --backup is omitted anyway).
@@ -694,26 +1716,28 @@ export async function patchAsar(options) {
         : backfill.reason,
     )
     if (!backfill.ok) {
-      report.recovery = `the patch stub IS live but the marker could not be written (${markerPath}) — fix the marker path and re-run patch (idempotent, backfills the marker), or restore with: node patcher/zctx-patch.mjs restore --app-dir "${appDir}"`
+      report.recovery = `the patch IS live but the marker could not be written (${markerPath}) — fix the marker path and re-run patch (idempotent, backfills the marker), or restore with: node patcher/zctx-patch.mjs restore --app-dir "${appDir}"`
       return { ok: false, ...report, shellVersion }
     }
     return { ok: true, alreadyPatched: true, markerBackfilled: true, ...report, shellVersion }
   }
 
-  // Gate: anchor hash (pristine content must match the pinned hash).
-  if (currentSha !== supportedEntry.targetSha256) {
-    step('anchor hash gate', 'refused', `target SHA-256 ${currentSha} != pinned ${supportedEntry.targetSha256} — official update changed the file (anchor drift); update the patcher anchor set first`)
-    return { ok: false, refused: true, ...report, shellVersion, targetSha256: currentSha }
-  }
-  step('anchor hash gate', 'ok', currentSha)
+  // Gate: anchor hash — every file matched its pinned pristine hash.
+  step('anchor hash gate', 'ok', `${fileTexts.length}/${fileTexts.length} files match the pinned pristine hashes`)
 
-  // Pure text patch (anchor uniqueness asserts inside).
-  const patched = patchText(currentText, supportedEntry)
-  if (!patched.ok) {
-    step('anchor patch', 'refused', patched.reason)
-    return { ok: false, refused: true, alreadyPatched: patched.alreadyPatched === true, ...report, shellVersion }
+  // Pure text patches (op-list application; anchor uniqueness asserts inside).
+  const patchedFiles = []
+  let addedBytes = 0
+  for (const entry of fileTexts) {
+    const patched = patchFile(entry.text, entry.file)
+    if (!patched.ok) {
+      step('anchor patch', 'refused', `${entry.file.targetPath}: ${patched.reason}`)
+      return { ok: false, refused: true, ...report, shellVersion }
+    }
+    addedBytes += patched.byteLength - Buffer.byteLength(entry.text, 'utf8')
+    patchedFiles.push({ targetPath: entry.file.targetPath, patchedText: patched.text, before: entry.sha256, after: sha256Hex(Buffer.from(patched.text, 'utf8')) })
   }
-  step('anchor patch', 'ok', `stub inserted at the call site (+${patched.byteLength - Buffer.byteLength(currentText, 'utf8')} B)`)
+  step('anchor patch', 'ok', `${patchedFiles.length} files patched, +${addedBytes} B total`)
 
   // Backup FIRST (§5): copy + hash-verify before any modification.
   let backup
@@ -726,10 +1750,11 @@ export async function patchAsar(options) {
   step('backup', 'ok', `${backup.dir} (sha ${backup.asarSha256}${backup.markerBackedUp ? ', marker included' : ''})`)
   report.backup = backup
 
-  // Surgical splice + atomic write (temp in the same dir → rename).
+  // Multi-target surgical splice + atomic write (temp in the same dir →
+  // rename): ONE operation for the whole set.
   let spliced
   try {
-    spliced = spliceAsar({ asarPath, targetPath: supportedEntry.targetPath, entry: supportedEntry, patchedText: patched.text })
+    spliced = spliceAsarMulti({ asarPath, targets: patchedFiles })
   } catch (error) {
     step('splice', 'refused', error instanceof Error ? error.message : String(error))
     return { ok: false, ...report, shellVersion }
@@ -737,14 +1762,14 @@ export async function patchAsar(options) {
   const tmpAsar = `${asarPath}.zctx-tmp-${process.pid}`
   writeFileSync(tmpAsar, spliced.buffer)
   renameSync(tmpAsar, asarPath)
-  step('splice', 'ok', `payload delta ${spliced.delta} B, header ${spliced.headerSizeBefore} → ${spliced.headerSizeAfter} B`)
+  step('splice', 'ok', `${spliced.targets.length} targets, payload delta ${spliced.delta} B total, header ${spliced.headerSizeBefore} → ${spliced.headerSizeAfter} B`)
 
   // Post-verify on the WRITTEN archive: the official extract API (cache
   // dropped first) proves the patched archive is readable by the official
   // toolchain; cache-free positional reads check the untouched witnesses and
   // the size accounting.
   asar.uncacheAll()
-  const verify = verifySplicedArchive(asar, asarPath, supportedEntry.targetPath, patched.text, spliced)
+  const verify = verifySplicedArchive(asar, asarPath, patchedFiles, spliced)
   step('post-verify', verify.ok ? 'ok' : 'FAILED', verify.detail)
   if (!verify.ok) {
     // The backup exists; surface the restore command honestly. The tool does
@@ -753,49 +1778,57 @@ export async function patchAsar(options) {
     return { ok: false, ...report, shellVersion, verify }
   }
 
-  // Marker (the plugin's status dual-source filesystem truth). A failure here
-  // leaves the stub live with no marker — the crash window the idempotence
-  // branch self-heals on the next patch run — so it surfaces as ok:false +
-  // recovery, never ok:true without the marker (P4-r1 P4-2).
+  // Marker (the plugin's status dual-source filesystem truth), v0.2 set
+  // shape: per-file before/after hashes under `files`, the first file also
+  // mirrored to the v0.1 top-level fields for reader compatibility. A failure
+  // here leaves the patch live with no marker — the crash window the
+  // idempotence branch self-heals on the next patch run — so it surfaces as
+  // ok:false + recovery, never ok:true without the marker (P4-r1 P4-2).
   const markerWrite = writeMarker(markerPath, {
     patcher: 'zctx-patch',
     patcherVersion: PATCHER_VERSION,
+    patchSet: PATCH_SET_VERSION,
     shellVersion,
-    target: supportedEntry.targetPath,
-    sha256Before: spliced.before.sha256,
-    sha256After: spliced.after.sha256,
+    target: spliced.targets[0].targetPath,
+    sha256Before: spliced.targets[0].before.sha256,
+    sha256After: spliced.targets[0].after.sha256,
+    files: spliced.targets.map((target) => ({
+      target: target.targetPath,
+      sha256Before: target.before.sha256,
+      sha256After: target.after.sha256,
+    })),
     backup: backup.dir,
     timestamp: new Date().toISOString(),
   })
   step('marker', markerWrite.ok ? 'ok' : 'FAILED', markerWrite.ok ? markerPath : markerWrite.reason)
   if (!markerWrite.ok) {
     report.recovery = `the patch IS applied but the marker write failed (${markerPath}) — re-run patch (idempotent, backfills the marker), or restore with: node patcher/zctx-patch.mjs restore --app-dir "${appDir}" --backup "${backup.dir}"`
-    return { ok: false, ...report, shellVersion, before: spliced.before, after: spliced.after }
+    return { ok: false, ...report, shellVersion, before: spliced.targets[0].before, after: spliced.targets[0].after, files: spliced.targets }
   }
 
-  return { ok: true, ...report, shellVersion, before: spliced.before, after: spliced.after }
+  return { ok: true, ...report, shellVersion, before: spliced.targets[0].before, after: spliced.targets[0].after, files: spliced.targets }
 }
 
-/** Post-verify the spliced archive on disk. @internal */
-function verifySplicedArchive(asar, asarPath, targetPath, patchedText, spliced) {
-  // 1. Target content == expected patched text, marker exactly once — read
-  // through the OFFICIAL extract API (a header the official toolchain cannot
-  // parse would fail right here).
-  const actualTarget = asar.extractFile(asarPath, nativeAsarPath(targetPath)).toString('utf8')
-  if (actualTarget !== patchedText) {
-    return { ok: false, detail: 'patched target content mismatch after write' }
-  }
-  if (countOccurrences(actualTarget, 'globalThis.__zctxPatch__') !== 1) {
-    return { ok: false, detail: 'patch marker count in the written archive is not exactly 1' }
+/**
+ * Post-verify the spliced archive on disk (multi-target). @internal
+ */
+function verifySplicedArchive(asar, asarPath, patchedFiles, spliced) {
+  // 1. Every target's content == its expected patched text, read through the
+  // OFFICIAL extract API (a header the official toolchain cannot parse would
+  // fail right here); each file's presence marker occurs at least once.
+  for (const target of patchedFiles) {
+    const actualTarget = asar.extractFile(asarPath, nativeAsarPath(target.targetPath)).toString('utf8')
+    if (actualTarget !== target.patchedText) {
+      return { ok: false, detail: `patched target content mismatch after write: ${target.targetPath}` }
+    }
   }
   // 2. Witnesses: bytes at the shifted positions match the pristine hashes.
-  // The expected offset uses the collection-time `afterTarget` flag — the
-  // same `offset > targetStart` rule as the header mutation (P4-r1 P4-1: the
-  // old `oldOffset > 0` predicate was a layout assumption that breaks for a
-  // witness positioned before the target at a nonzero offset → false FAILED
-  // on a byte-correct archive).
+  // The expected offset uses the collection-time `shift` (the same summed
+  // delta rule as the header mutation; `afterTarget` remains the readable
+  // boolean for the v0.1 single-target shape where shift == delta or 0 —
+  // P4-r1 P4-1: never a layout assumption).
   for (const witness of spliced.witnesses) {
-    const newOffset = witness.afterTarget ? witness.oldOffset + spliced.delta : witness.oldOffset
+    const newOffset = witness.oldOffset + witness.shift
     const { header, headerSize } = readHeaderPositioned(asarPath)
     const node = headerNodeAt(header, witness.path)
     if (node === undefined || Number(node.offset) !== newOffset) {
@@ -820,7 +1853,7 @@ function verifySplicedArchive(asar, asarPath, targetPath, patchedText, spliced) 
   }
   return {
     ok: true,
-    detail: `target patched (+${spliced.delta} B), witnesses ${spliced.witnesses.length}/${spliced.witnesses.length} byte-identical, archive ${archiveSize} B`,
+    detail: `${spliced.targets.length} targets patched (+${spliced.delta} B total), witnesses ${spliced.witnesses.length}/${spliced.witnesses.length} byte-identical, archive ${archiveSize} B`,
   }
 }
 
@@ -954,37 +1987,70 @@ export async function statusAsar(options) {
     report.patched = 'unknown'
     report.note = `shell version ${String(report.shellVersion)} has no anchor entry — presence checks need the matching anchor set`
   } else {
+    const files = normalizeEntry(supportedEntry)
+    report.files = []
     try {
-      const target = extractPositioned(asarPath, supportedEntry.targetPath)
-      const text = target.toString('utf8')
-      const sha = sha256Hex(target)
-      report.targetSha256 = sha
-      const stubCount = countOccurrences(text, supportedEntry.anchors.stubMarker)
-      report.patched = stubCount > 0
-      // Three-state anchor discrimination (P4-r1 P4-3): the label names the
-      // STATE only; action guidance lives in `guidance` — never merged into
-      // one string (the old single 'mismatch (drift)' label conflated "the
-      // expected post-patch state" with "the official moved beyond the pinned
-      // anchor set", whose actions are opposite).
-      if (stubCount > 0) {
-        // Patched archive: compare against the EXPECTED patched state, not
-        // the pristine hash. Exactness proof without the pristine bytes:
-        // removing the one inserted segment must reconstruct the pinned
-        // pristine hash — the stub is the ONLY thing patchText changes, so
-        // reconstruction equality proves the file is byte-identical to
-        // patchText(pristine).text (marker-independent, so the P4-r1 P4-2
-        // crash window still reports honestly).
-        report.anchorHit = reconstructedPristineSha(text, supportedEntry) === supportedEntry.targetSha256
-          ? 'patched-exact'
-          : 'patched-drifted'
-        if (report.anchorHit === 'patched-drifted') {
-          report.guidance = 'the patched target no longer matches the expected patched content — restore from a backup, then re-patch'
-        }
-      } else if (sha === supportedEntry.targetSha256) {
-        report.anchorHit = 'official-unchanged'
-      } else {
-        report.anchorHit = 'official-drifted'
-        report.guidance = 'official update changed the target beyond the pinned anchor set — refresh the patcher anchor set first, then patch'
+      for (const file of files) {
+        const target = extractPositioned(asarPath, file.targetPath)
+        const text = target.toString('utf8')
+        const sha = sha256Hex(target)
+        const state = fileStateOf(text, file)
+        // State wording (P4-r1 P4-3 carried to the multi-file face): the
+        // label names the STATE only; action guidance lives in `guidance`.
+        const anchorHit = state.state === 'pristine'
+          ? 'official-unchanged'
+          : state.state === 'patched-exact'
+            ? 'patched-exact'
+            : countOccurrences(text, file.presenceMarker) > 0
+              ? 'patched-drifted'
+              : 'official-drifted'
+        report.files.push({
+          target: file.targetPath,
+          sha256: sha,
+          state: state.state,
+          anchorHit,
+          ...(anchorHit === 'patched-drifted'
+            ? { guidance: 'the patched target no longer matches the expected patched content — restore from a backup, then re-patch' }
+            : {}),
+          ...(anchorHit === 'official-drifted'
+            ? { guidance: 'official update changed the target beyond the pinned anchor set — refresh the patcher anchor set first, then patch' }
+            : {}),
+        })
+      }
+      // Top-level fields mirror the FIRST file (the v0.1 single-target face;
+      // the v0.2 aggregate lives in `patchSet`/`files`).
+      report.targetSha256 = report.files[0].sha256
+      report.anchorHit = report.files[0].anchorHit
+      if (report.anchorHit === 'patched-drifted' || report.anchorHit === 'official-drifted') {
+        report.guidance = report.files[0].guidance
+      }
+      // Presence semantics (carried from v0.1): `patched` says the patch face
+      // is present in the bytes — exact OR drifted-with-marker — not that
+      // every file is patched; the aggregate precision lives in
+      // `patchSet.state`.
+      report.patched = report.files.some((file) => file.anchorHit === 'patched-exact' || file.anchorHit === 'patched-drifted')
+      // The patch-set aggregate (P6-B status segment; P6B-R2 re-ordering so
+      // every arm is reachable). Priority, explicitly: ALL files patched-exact
+      // → 'patched'; any patched face mixed with non-patched rows (pristine
+      // or drifted — the official-update re-patch signal) → 'partial'; ALL
+      // files official-unchanged → 'unpatched'; anything else is a face with
+      // NO patch presence at all → 'drifted' (drift never masks patch
+      // presence, and patch presence never masks drift rows — the per-file
+      // face and `driftedFiles` carry that detail).
+      const allPatchedExact = report.files.every((file) => file.anchorHit === 'patched-exact')
+      report.patchSet = {
+        version: PATCH_SET_VERSION,
+        totalFiles: report.files.length,
+        patchedFiles: report.files.filter((file) => file.anchorHit === 'patched-exact').length,
+        pristineFiles: report.files.filter((file) => file.anchorHit === 'official-unchanged').length,
+        driftedFiles: report.files.filter((file) => file.anchorHit === 'patched-drifted' || file.anchorHit === 'official-drifted').length,
+        state: allPatchedExact
+          ? 'patched'
+          : report.patched
+            ? 'partial'
+            : report.files.every((file) => file.anchorHit === 'official-unchanged')
+              ? 'unpatched'
+              : 'drifted',
       }
     } catch (error) {
       report.anchorHit = 'unknown'
@@ -1006,19 +2072,6 @@ export async function statusAsar(options) {
   return report
 }
 
-/**
- * SHA-256 of the text with the one inserted patch segment removed — equals
- * the pinned pristine hash IFF the file is byte-identical to
- * patchText(pristine).text. undefined when the segment does not occur exactly
- * once (exactness unprovable → the caller reports drifted). @internal
- */
-function reconstructedPristineSha(text, entry) {
-  const segment = `${entry.anchors.callSite}\n${entry.stubIndent}${entry.stub}`
-  if (countOccurrences(text, segment) !== 1) return undefined
-  // Function-form replacement: no `$`-pattern substitution semantics.
-  return sha256Hex(Buffer.from(text.replace(segment, () => entry.anchors.callSite), 'utf8'))
-}
-
 /** Read the patch marker (the plugin reads the same file the same way). @internal */
 function readMarkerFile(markerPath) {
   if (!existsSync(markerPath)) return { state: 'absent', path: markerPath }
@@ -1029,6 +2082,14 @@ function readMarkerFile(markerPath) {
       path: markerPath,
       version: typeof parsed.shellVersion === 'string' ? parsed.shellVersion : undefined,
       target: typeof parsed.target === 'string' ? parsed.target : undefined,
+      patchSet: typeof parsed.patchSet === 'string' ? parsed.patchSet : undefined,
+      patcherVersion: typeof parsed.patcherVersion === 'string' ? parsed.patcherVersion : undefined,
+      files: Array.isArray(parsed.files)
+        ? parsed.files.map((file) => ({
+          target: typeof file?.target === 'string' ? file.target : undefined,
+          sha256After: typeof file?.sha256After === 'string' ? file.sha256After : undefined,
+        }))
+        : undefined,
       timestamp: typeof parsed.timestamp === 'string' ? parsed.timestamp : undefined,
     }
   } catch (error) {

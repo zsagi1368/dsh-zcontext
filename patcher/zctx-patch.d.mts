@@ -4,28 +4,52 @@
  * imports — structural, deliberately loose where the tool is dynamic).
  */
 
-/** One per-version anchor-set entry (SUPPORTED values). */
+/**
+ * One file's patch spec in the v0.2 multi-file patch set: an ordered op list
+ * over uniquely-anchored replacements plus the two pins (pristine hash for
+ * the anchor-hash gate; the presence marker for post-asserts/status).
+ */
+export interface ZctxPatchFileEntry {
+  /** asar-relative path of the target bundle file. */
+  readonly targetPath: string
+  /** SHA-256 of the PRISTINE (unpatched) file content. */
+  readonly pristineSha256: string
+  /** A string that exists only in the patched state (post-assert + status). */
+  readonly presenceMarker: string
+  /** Optional shape fingerprint asserted count=1 but never rewritten. */
+  readonly fingerprint?: string
+  /** Ordered anchored replacements (insert-before/after are embedded anchors). */
+  readonly ops: readonly { readonly anchor: string; readonly replacement: string }[]
+}
+
+/** Legacy v0.1 single-target anchor-set entry (still accepted via normalizeEntry). */
 export interface ZctxPatchAnchorEntry {
   readonly shellPackage: string
-  /** asar-relative path of the execution target (lib/index.js). */
   readonly targetPath: string
-  /** SHA-256 of the PRISTINE (unpatched) target content. */
   readonly targetSha256: string
   readonly anchors: {
     readonly callSite: string
     readonly definition: string
     readonly stubMarker: string
   }
-  /** The one-line forwarding stub (complete expression incl. trailing comma). */
   readonly stub: string
-  /** Indentation prefix for the inserted stub line. */
   readonly stubIndent: string
 }
 
+/** v0.2 per-version entry: the ordered multi-file patch set. */
+export interface ZctxPatchSetEntry {
+  readonly shellPackage: string
+  readonly files: readonly ZctxPatchFileEntry[]
+}
+
+/** Either entry shape (the machinery normalizes legacy to multi). */
+export type ZctxPatchEntry = ZctxPatchSetEntry | ZctxPatchAnchorEntry
+
 /** The support matrix keyed by shell (desktop app) version. */
-export const SUPPORTED: Record<string, ZctxPatchAnchorEntry>
+export const SUPPORTED: Record<string, ZctxPatchEntry>
 
 export const PATCHER_VERSION: string
+export const PATCH_SET_VERSION: string
 
 export function desktopLockPath(dshHome?: string): string
 
@@ -42,8 +66,16 @@ export interface PatchTextResult {
   readonly byteLength?: number
 }
 
-/** Pure text patch: anchor uniqueness + idempotence + post-asserts. */
+/** Pure text patch (v0.1 single-op helper): anchor uniqueness + idempotence. */
 export function patchText(text: string, entry: ZctxPatchAnchorEntry): PatchTextResult
+
+export function normalizeEntry(entry: ZctxPatchEntry): readonly ZctxPatchFileEntry[]
+export function patchFile(text: string, fileEntry: ZctxPatchFileEntry): PatchTextResult
+export function reconstructPristineText(text: string, fileEntry: ZctxPatchFileEntry): string | undefined
+export function fileStateOf(
+  text: string,
+  fileEntry: ZctxPatchFileEntry,
+): { state: 'pristine' | 'patched-exact' | 'drifted'; sha256: string }
 
 export interface SpliceResult {
   readonly buffer: Buffer
@@ -56,20 +88,43 @@ export interface SpliceResult {
   readonly witnesses: readonly {
     readonly path: string
     readonly oldOffset: number
-    /** Whether the file sits after the target region (its offset shifts by the splice delta). */
+    /** Whether the file sits after any target region (its offset shifts). */
     readonly afterTarget: boolean
+    /** The exact summed-delta shift applied to this file's offset. */
+    readonly shift: number
     readonly size: number
     readonly integrityHash: string
   }[]
 }
 
-/** Surgical single-file splice (header JSON + payload rebuilt around it). */
+export interface SpliceMultiResult {
+  readonly buffer: Buffer
+  readonly targets: readonly {
+    readonly targetPath: string
+    readonly before: { readonly size: number; readonly sha256: string }
+    readonly after: { readonly size: number; readonly sha256: string }
+    readonly delta: number
+  }[]
+  readonly delta: number
+  readonly headerSizeBefore: number
+  readonly headerSizeAfter: number
+  readonly payloadSizeBefore: number
+  readonly witnesses: SpliceResult['witnesses']
+}
+
+/** Surgical single-file splice (v0.1 shape; wraps spliceAsarMulti). */
 export function spliceAsar(args: {
   asarPath: string
   targetPath: string
-  entry: ZctxPatchAnchorEntry
+  entry: ZctxPatchEntry
   patchedText: string
 }): SpliceResult
+
+/** Multi-target splice: the WHOLE patch set lands in one asar write. */
+export function spliceAsarMulti(args: {
+  asarPath: string
+  targets: readonly { readonly targetPath: string; readonly patchedText: string }[]
+}): SpliceMultiResult
 
 export function resolveAppDir(
   explicit?: string,
@@ -101,8 +156,10 @@ export interface PatchAsarResult {
   readonly steps: readonly PatchStep[]
   readonly shellVersion?: string
   readonly backup?: { readonly dir: string; readonly asarSha256: string; readonly markerBackedUp: boolean }
+  /** First target's before/after (v0.1 face; the per-file list is `files`). */
   readonly before?: { readonly size: number; readonly sha256: string }
   readonly after?: { readonly size: number; readonly sha256: string }
+  readonly files?: readonly { readonly targetPath: string; readonly delta: number }[]
   readonly recovery?: string
 }
 
@@ -110,8 +167,8 @@ export async function patchAsar(args: {
   appDir: string
   dshHome?: string
   probeAppRunning?: () => 'yes' | 'no' | 'unknown'
-  entry?: ZctxPatchAnchorEntry
-  versions?: Record<string, ZctxPatchAnchorEntry>
+  entry?: ZctxPatchEntry
+  versions?: Record<string, ZctxPatchEntry>
 }): Promise<PatchAsarResult>
 
 export async function restoreAsar(args: {
@@ -133,8 +190,8 @@ export async function statusAsar(args: {
   appDir: string
   dshHome?: string
   probeAppRunning?: () => 'yes' | 'no' | 'unknown'
-  versions?: Record<string, ZctxPatchAnchorEntry>
-  entry?: ZctxPatchAnchorEntry
+  versions?: Record<string, ZctxPatchEntry>
+  entry?: ZctxPatchEntry
 }): Promise<{
   appDir: string
   asarPath: string
@@ -148,7 +205,33 @@ export async function statusAsar(args: {
   guidance?: string
   targetSha256?: string
   patched?: boolean | 'unknown'
-  marker?: { readonly state: 'present' | 'absent' | 'unknown'; readonly path: string; readonly version?: string; readonly timestamp?: string; readonly reason?: string }
+  /** Per-file face (P6-B): one row per patch-set target. */
+  files?: readonly {
+    readonly target: string
+    readonly sha256: string
+    readonly state: 'pristine' | 'patched-exact' | 'drifted'
+    readonly anchorHit: 'official-unchanged' | 'official-drifted' | 'patched-exact' | 'patched-drifted'
+    readonly guidance?: string
+  }[]
+  /** The patch-set aggregate (which files patched / pending re-patch). */
+  patchSet?: {
+    readonly version: string
+    readonly totalFiles: number
+    readonly patchedFiles: number
+    readonly pristineFiles: number
+    readonly driftedFiles: number
+    readonly state: 'patched' | 'unpatched' | 'partial' | 'drifted'
+  }
+  marker?: {
+    readonly state: 'present' | 'absent' | 'unknown'
+    readonly path: string
+    readonly version?: string
+    readonly patchSet?: string
+    readonly patcherVersion?: string
+    readonly files?: readonly { readonly target?: string; readonly sha256After?: string }[]
+    readonly timestamp?: string
+    readonly reason?: string
+  }
   backups?: readonly { readonly dir: string }[]
   lock?: { readonly path: string; readonly exists: boolean }
   appRunning?: 'yes' | 'no' | 'unknown'

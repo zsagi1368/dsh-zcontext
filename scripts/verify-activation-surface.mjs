@@ -385,6 +385,15 @@ let zctx
         patcherText.includes('e956da3d7300e1426e13e14f47e6f981dd1ca345633a406568ee5058ad93e9d8'),
       'target path pinned': patcherText.includes('dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js'),
       'call-site anchor pinned': patcherText.includes('...profileOptions(profile, reasoning, apiKey),'),
+      // P6-B v0.2 multi-file base-context patch set face.
+      'patch-set identity registered (zctx-v0.3-base-1)': patcherText.includes('zctx-v0.3-base-1'),
+      'five-file set: agent-loop bundle pinned (f09f6081…, live 2026-11-16)':
+        patcherText.includes('f09f60814d4e96a880f41b9fc3832f33c56a28f954f48810d8439ce83ad6ffa8'),
+      'five-file set: session bundle pinned (d9911b5e…, live 2026-11-16)':
+        patcherText.includes('d9911b5e1585bcb142d03ce46eb2990b3fc7c254de5a76d3ffb124bd2469216c'),
+      'guard event vocabulary pinned ("cache/guard-observe")': patcherText.includes('"cache/guard-observe"'),
+      'gamma inline regions shipped (zctx-guard-observe region tags)':
+        patcherText.includes('zctx-guard-observe.js') && patcherText.includes('zctx-l3-pruning.js'),
       'backup-first discipline (RESTORE.md)': patcherText.includes('RESTORE.md'),
       'marker file contract (<appDir>/.zctx-patch.json)':
         patcherText.includes('.zctx-patch.json'),

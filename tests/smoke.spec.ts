@@ -80,6 +80,11 @@ describe('dsh-zcontext skeleton smoke', () => {
       // configuration — the pin makes every config-contract change conscious).
       preflightMode: 'observe',
       preflightMarginRatio: 0.9,
+      // v0.2.2 P6-C (guard-observe event consumption, plan ZCTX-v03-patch-plan):
+      // the log-only consumer is ON by default — inert when the app.asar patch
+      // is absent (the event type is never appended then); observation-only,
+      // zero interception.
+      'patch.guardObserveEvents': true,
       // v0.2.0 V5 (S2 adapter): the volatile providers section defaults to an
       // EMPTY declaration list — zero routes, the adapter face stays a
       // keep-alive under the default configuration.

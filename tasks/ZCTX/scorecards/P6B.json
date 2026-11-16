@@ -1,0 +1,94 @@
+{
+  "block": "P6-B/P6-C",
+  "task": "ZCTX v0.2.2 P6-B 底座补丁集波 — patcher v0.2 多文件机制（5 文件有序 op 集/γ 全内联/点火 hunk/marker v0.2/三态门/单 asar 写）+ 补丁集数据 + 多文件测试（Z27 修复）+ 插件伴随 v0.2.2（guard-observe-bridge/config patch.guardObserveEvents/status 段 7）+ 终态台账；含返工第 1 轮（P6B-R1/R2/H1）",
+  "range": "第 1 轮评审 9d0aa2b..bb00dc3（5 提交，96 打回）+ 返工第 1 轮 b52ad26..9272f84（评审件 b52ad26 + 98ad145 R1+R2 修复+4 钉 / 970a6e3 H1 词表 / 9272f84 台账，HEAD=9272f84）",
+  "reviewer": "reviewer-P6B (independent subagent; reviewer ≠ P6-B coder; 两轮为同一评审角色连续执行)",
+  "date": "2026-11-16",
+  "verdict": "通过（返工第 1 轮后总分 100 ≥ 98）→ 放行，建议合并 main 进 P6-D；[阻断] 0；第 1 轮 [建议] P6B-R1/P6B-R2 + 卫生记事 P6B-H1 三条全部 closed（disposition=fixed，status=verified，证据=98ad145/970a6e3 + 本文件 rework_round1_review 亲验）；P6B-H2 not_applicable（README 归 P6-E，登记防漏）。closure 机器数 120：fixed/verified 114 · duplicate/closed 3 · uad 2（1 closed + 1 verified=P6B-3 真机执行归用户命令）· not_applicable/verified 1 · OPEN=0",
+  "total": 100,
+  "threshold": 98,
+  "scores": {
+    "correctness": 25,
+    "completeness": 20,
+    "consistency": 20,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 10
+  },
+  "round1_original": {
+    "total": 96,
+    "verdict": "打回（96 < 98）：[阻断] 0 + [建议] 2（P6B-R1 patchAsar 混合面被幂等分支吞掉 / P6B-R2 status patchSet.state 'partial' 死臂）+ 卫生记事 2（P6B-H1 词表 / P6B-H2 README 归 P6-E）",
+    "scores": {
+      "correctness": 24,
+      "completeness": 19,
+      "consistency": 19,
+      "verifiability": 15,
+      "safety_rollback": 10,
+      "maintainability": 9
+    },
+    "note": "第 1 轮全部评分依据与独立复验（21 锚真机 count=1 / onGuardObserve 运行时全链追证 / 点火 hunk 标识符运行时核查 / splice-Z27 数学 / 内联保真 / R1-R8 / 真机零写入双证 / 541+五探针+closure 120）保留于本文件各节与 handoffs/REVIEW-P6B.md 原稿——未被返工推翻；返工只针对两条 [建议] + H1"
+  },
+  "rework_round1_review": {
+    "range": "b52ad26..9272f84（3 提交：98ad145 R1+R2 修复+4 钉 / 970a6e3 H1 词表 / 9272f84 p6b-rework-r1 台账）",
+    "reviewer_own_battery": {
+      "test": "npm test（Z19 链 tsdown+vitest）→ 545/545（26 files = 541 + 4 新钉）EXIT 0；定向 patcher.spec+patcher-multifile.spec = 43/43（39 基线 + 4 新钉具名亲见）；重建后 git status --porcelain = 0（lib 新鲜度/树净双证）",
+      "lint": "npx tsc --noEmit → 0 错 EXIT 0",
+      "probes": "五探针全 EXIT 0：artifact 6/0/0 · host-imports 16/0/0 · real-mount 5/0/0 · smoke-real-loader 3/0/0 · verify-activation-surface 11 PASS/0 FAIL（A11 17 断言亲见 PASS 行）；两探针报告 timestamp-only diff 按先例亲读后还原（树归零）",
+      "closure_machine_count": "node 遍历 closure.json = 120 items：fixed/verified 114 · duplicate/closed 3 · uad/closed 1 · uad/verified 1 · not_applicable/verified 1 · fixed/closed 0 · OPEN=0；W5-A6-INSTALL 现为 fixed/verified（verified=true 保留，updatedAt 按 P3-4 先例仅动 status 词+updatedAt）",
+      "tree": "git status --porcelain = 0（探针还原后）；真机 asar 全文 SHA-256 复核 = 14cfd81c9135bf0afb89417543c94f9ecfe09266574452a9b106890c698725ae（与本评审第 1 轮两次读数一致，零写入三证）",
+      "ledger": "checkpoint p6b-rework-r1 done（steps 8→9，next=independent reviewer re-score）；progress 两行收据（返工明细 + RSI 草稿归并既有条目）；§5 备份 del/20261116-p6b-r1r2-prechange 在案"
+    },
+    "per_item_closure": [
+      {
+        "id": "P6B-R1",
+        "disposition": "fixed",
+        "verified": true,
+        "evidence": "98ad145 + 评审人实读与钉测亲验：patchAsar 新增专用 mixed-face gate（drifted 拒收之后、幂等分支之前，zctx-patch.mjs:1657-1676）——条件 0<pristine<total 精确（drifted 已先行过滤），返回 ok:false+refused:true+per-file face（target/state/sha256 三元组，与 drift 拒收同形）+recovery 指引（restore --app-dir 默认最新备份，与 restoreAsar 默认逻辑一致，或手工处置）；幂等分支注释改为『the only remaining case after the drifted and mixed-face refusals』——此后 pristineFiles.length<total ⟺ pristine==0 ⟺ 全 patched-exact，'(N/N files patched-exact)' 消息自此恒真（第 1 轮的失实消息面消除）；文件头 gate 清单第 5 条同步补注混合面拒收。钉测亲验（patcher-multifile.spec 'P6B-R1: a MIXED face…refuses loudly'）：全量 patch → 外来部分写入器（spliceAsarMulti 单目标回写 pristine 文本——补丁器自身写不出的面）→ 重跑 patch 断言 ok:false+refused+『mixed-face gate'refused』+detail 含 '1 pristine + 4 patched-exact' 与 'dsh-session'+recovery 含 restore --app-dir+per-file face（session=pristine/4 行 patched-exact）+三零动（拒收跑前后 asar 字节哈希不变/备份数不变/marker 字节不变——基线取 splice 后状态，方法论正确）",
+        "reviewer_note": "钉测以 splice 模拟外来部分写入器构造混合面——正是第 1 轮指认的不可达-by-own-writes 面，钉法与修复面精确对位"
+      },
+      {
+        "id": "P6B-R2",
+        "disposition": "fixed",
+        "verified": true,
+        "evidence": "98ad145 + 评审人实读与四臂可达性推演：patchSet.state 聚合重排（zctx-patch.mjs:2040-2054）——allPatchedExact 全 patched-exact→'patched'；report.patched（任一 patched-exact/patched-drifted）→'partial'（pristine-mix 与 drifted-mix 双形态，官方更新重打信号）；全 official-unchanged→'unpatched'；无补丁面（有 drift 无 patched）→'drifted'。四臂全可达（第 1 轮死臂消除）：3 patched-exact+2 drifted→partial（第 1 轮误报 'patched' 的场景现正确）；1 patched+4 pristine→partial；5/5→patched；5/5 unchanged→unpatched；0 patched+有 drift→drifted。优先级注释显式化（drift 不掩盖补丁存在、补丁存在不掩盖 drift 行——per-file face 与 driftedFiles 承载细节）。钉测三条亲验：partial pristine-mix（counts 4/1/0+anchorHit 逐行）、partial drifted-mix（patched 文本追加外来行→patched-drifted，counts 4/0/1+guidance 在场）、unpatched→drifted 优先级（全 pristine=unpatched→外来 drift 一行=drifted 非 unpatched）。CHANGELOG :32 'patched / unpatched / partial / drifted' 措辞现与实现一致（partial 复活后宣传态全真）",
+        "reviewer_note": "全 5 行 patched-drifted（无一 patched-exact）聚合 'partial' 而非 'drifted'：与臂定义一致（drifted 臂=无补丁存在面），per-file face+guidance 仍指向 restore——语义自洽，非缺陷"
+      },
+      {
+        "id": "P6B-H1",
+        "disposition": "fixed",
+        "verified": true,
+        "evidence": "970a6e3 + 评审人机器复核：closure.json W5-A6-INSTALL status closed→verified（diff 仅 status 词+updatedAt 两行，verified=true 原已在位）；机器数 120：fixed/verified 113→114、fixed/closed 1→0、OPEN=0——与 P3-4 统一裁定（fixed 配 verified；closed 保留给 duplicate/uad 终态）全表一致",
+        "reviewer_note": "与第 1 轮 hygiene 记事逐字对位；无越界改动（单条目两字段）"
+      },
+      {
+        "id": "P6B-H2",
+        "disposition": "not_applicable",
+        "verified": true,
+        "evidence": "patcher/README.md v0.1 叙述——计划波次表明确把补丁集/重打/回滚文档归 P6-E 发布波（reports/plans/ZCTX-v03-patch-plan.md 波次表 P6-E 行）；第 1 轮即裁 not_applicable，维持；登记为 P6-E 检查项（checkpoint next 行已含 P6-E 指针）"
+      }
+    ],
+    "new_code_adversarial_pass": "修复面新鲜代码对抗性复读：①混合面 gate 不改变 happy path 步序列（gate 仅在拒收路径 step，全链 8 步钉测仍逐字通过=545 亲证）；②gate 返回与 drift 拒收同形（files 三元组/refused:true/report 摊开）——消费方面无新形状；③recovery 指引的 restore 默认行为与 restoreAsar(backup=undefined→latestBackupDir) 一致=指引可执行；④聚合重排对 v0.1 单文件入口（normalizeEntry legacy）安全：patched→patched/unchanged→unpatched/patched-drifted→partial（比旧 'patched' 更诚实，per-file guidance 承载行动），legacy status 钉测全绿=无回归；⑤新鲜代码无新增 $-pattern/eval/动态拼接（纯字符串字面量+模板插值 appDir——同既有面）；⑥R1-R8 复扫：修复不触碰 body/请求内容/WS/attribution 面（diff 仅 patchAsar 分支+statusAgg+测试），红线保持"
+  },
+  "attack_direction_results": {
+    "five_file_ops_vs_spec": "五文件 op 集逐文件对照 RES-port-feasibility §2/§3 + Go e63ceff2d7 实读：llm-pi-ai 7 ops（P4 桩原样/import 面/Config guardObserve default(true)（计划点火裁定，Go 源 default(false) 的显式偏离已注释）/apply 接线/guardSink 两行与 Go adapter.ts hunk 逐字同义（void 0 编译形）/fetch 展开/内联簇）· agent-loop 3 ops（点火 hunk 为新写件——(options.guardObserve ?? true)===true：默认 true+显式 false 退出，与 config default(true) 构成双门且 config 为唯一 kill switch，与裁定一致；请求 sink 注入与 Go buildRequest hunk 同义）/ session 词汇（字典序插入点与 Go +1 hunk 同）/ compaction-basic 预算（Go index.ts hunk 逐字同义，computeBudget 三公式与 model-slots budget.ts:87/96/106 逐字核对一致 + DEFAULT_OUTPUT_CAP=32768 + toolCapToByteLimit×3.5=l3.ts:63-64）/ pruner 8 ops（Go diff 7 hunks 逐一对应 + limitFor 含 minRepresentable 下限回退语义与 Go 一致）",
+    "inline_fidelity": "内联保真四件套对照 Go 树实读：wrapper 簇逐函数同义（A6 不可探测 proceed 为文档化偏离——理由=asar fs 不可读时 fail-loud 会砖死默认点火下的每个请求，真旧 pi-ai 仍 fail-loud）/ stableStringify+verifyMonotonic 剪裁与 cache-guardian.ts:160/:451 逐字（仅编译形差异）/ GuardObserver+分类器与 agent-loop guard-observe.ts + llm-pi-ai 分类段逐字同义/剪裁语义无破坏（REGION B 补 verifyMonotonic 为自审捕获，progress 在案）/ l3 词汇剪裁 pruningMeta（官方无在树声明工具，文档化）/ 预算公式三函数+两常量逐字",
+    "multi_target_single_write": "spliceAsarMulti 实读：shiftFor 严格 offset>target.start = Z27 own-delta 排除正解；duplicate start 拒绝；payload 分段拼接数学正确；header 原地变异仅 size/integrity/offset；pickle 格式与真机 round-trip 注记一致；witness 采集先于变异（P4-1 谓词延续）；patchAsar 单次 writeFileSync(tmp)+renameSync 原子写 = 崩溃窗只余全 pristine/全 patched 两态；verifySplicedArchive 官方 API 读回 + witness 期望偏移 + 体积记账三重后校验",
+    "three_state_gate": "重构法正确性：reconstructPristineText 逆序逐 op（replacement count==1 强制）→ 哈希等于钉值才算 patched-exact；apply 期锚唯一性使 op 互嵌不可能 ⟹ 重构 sound；三态枚举完备；返工后 patchAsar 决策树= drifted 拒收 → mixed 拒收 → 幂等（全 patched-exact，可证明）→ 全 pristine 补丁，四分支互斥完备",
+    "plugin_bridge": "guard-observe-bridge log-only 纪律实读：consume 全 try/catch fail-soft warn-once、malformed feeds nothing（HF-05 同规）、会话桶 process-memory、session/disposed 遗忘与 observe listener 同位；config patch.guardObserveEvents 默认 true+注册+firehose 门；marker v0.2 读 face 向后兼容 v0.1；与 P0 五键 inject 纪律无交互",
+    "r1_r8_rerun": "R1 零 body 赋值面（src+patcher grep 无命中；行为钉 releases[0].body===full 字节不动）+ 新红线：点火 hunk 只加构造器行/请求只加 onGuardObserve 键（sessionId 与 signal 之间，messages/toolHistory/config 未触碰）✓ R2 preflightMode 默认 observe（config.ts:173）✓ R3 无 ctx.llm.stream 调用 ✓ R4 maxRetries:0 单点（zctx-adapter.ts:478）✓ R5 补丁面标识全 zctx 命名空间 ✓ R6 无 WS 面 ✓ R7 attributionHeaders wire 在位（wire.ts:139+patch-bridge.ts:177）✓ R8 pi-ai 1.3.0 钉内联 ✓（返工 diff 不触任何红线面，复扫通过）"
+  },
+  "positive_verifications": [
+    "真机零写入三证（第 1 轮两次 + 返工轮一次）：全 asar SHA 14cfd81c… 三次读数一致、status 严格只读、patch/restore 未执行（P6B-3 uad 归用户命令）",
+    "21 锚真机 count=1 全中（评审人独立探针）+ 5 presence marker 全 0 + 五哈希钉与 P2/P4 双证互洽",
+    "onGuardObserve 运行时全链存活实证（三 bundle 只读追链）——补丁链非纸面 inert，点火裁定真实生效",
+    "点火 hunk 标识符运行时全在位（loopCtx=cordis ctx 有 logger 官方自证 agent-loop :1408）",
+    "Z27 修复数学正确 + between-target witness 钉测行为学有效",
+    "电池两轮全绿：541/541 → 545/545 + tsc 0 + 五探针（A11 17 断言）+ closure 120（OPEN=0）+ 树净",
+    "R1-R8 两轮全绿 + 新红线成立；返工 diff 不触红线面",
+    "内联保真对照 Go e63ceff2d7 无语义破坏；偏离三处全部文档化且理由成立",
+    "插件桥 fail-soft/遗忘/惰性纪律齐备；marker v0.2/v0.1 双读兼容",
+    "返工第 1 轮三关闭项全部 verified：混合面拒收（面+指引+三零动钉）/四臂聚合（双混面+优先级钉）/词表（机器数亲验）"
+  ],
+  "rework_rounds_used": 1,
+  "release_note": "总分 100 ≥ 98 → 放行。建议：合并 main（--no-ff，merge-batch-protocol 检查）→ tag/台账 → 进 P6-D（基准对照实验）→ P6-E 发布波（README/补丁集文档/重打流程/回滚文档 + patcher/README v0.2 化=P6B-H2 检查项）。真机 patch 执行仍归 W5-A6-INSTALL 用户命令。第 1 轮 [建议] 与卫生记事零 OPEN 残留"
+}

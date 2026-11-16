@@ -76,8 +76,10 @@ import {
   STATUS_OBS_NO_SAMPLES,
   STATUS_PARTIAL_PREFIX,
   STATUS_PATCH_HEADER,
+  STATUS_GUARD_OBSERVE,
   STATUS_PATCH_MARKER,
   STATUS_PATCH_MOUNT,
+  STATUS_PATCH_SET,
   STATUS_PREFLIGHT_BASIS,
   STATUS_PREFLIGHT_EMPTY,
   STATUS_PREFLIGHT_HEADER,
@@ -493,10 +495,28 @@ export interface ZctxToolRuntime {
     readonly marker: {
       readonly state: 'present' | 'absent' | 'unknown'
       readonly version?: string
+      readonly patchSet?: string
+      readonly patcherVersion?: string
+      readonly files?: readonly { readonly target?: string; readonly sha256After?: string }[]
       readonly timestamp?: string
       readonly reason?: string
     }
     readonly hostFaces: string
+    /**
+     * The P6-C guard-observe summary lookup for one session id (the log-only
+     * consumer of the patched chain's cache/guard-observe records); undefined
+     * when the session has no records (or the runtime predates the face).
+     */
+    readonly guardObserve?: (sessionId: string) => {
+      readonly total: number
+      readonly segmented: number
+      readonly degraded: number
+      readonly unclassified: number
+      readonly lastSeq?: number
+      readonly lastClassId?: string
+      readonly lastMonotonic?: string
+      readonly providers: readonly string[]
+    } | undefined
   }
 }
 
@@ -925,14 +945,45 @@ export async function renderStatus(runtime: ZctxToolRuntime, session: SessionLik
     )
   }
 
-  // Segment 7 (P4): the patch bridge — the external app.asar patch's
+  // Segment 7 (P4/P6-B): the patch bridge — the external app.asar patch's
   // receiving face, rendered as FACTS from BOTH sources (filesystem marker +
-  // runtime mount). Absent hook (older test runtimes) → honestly skipped.
+  // runtime mount), plus the v0.2 base-context patch-set face (set identity +
+  // patched-file count) and the P6-C guard-observe record counters (log-only
+  // chain observability, per THIS session). Absent hook (older test
+  // runtimes) → honestly skipped.
   if (runtime.patchFace !== undefined) {
     const patch = runtime.patchFace()
     lines.push(fill(STATUS_PATCH_HEADER, {}))
     lines.push(fill(STATUS_PATCH_MARKER, { state: patch.marker.state, detail: patchMarkerDetail(patch.marker) }))
+    const markerFiles = patch.marker.state === 'present' ? patch.marker.files ?? [] : []
+    const patchSetId = patch.marker.state === 'present' ? patch.marker.patchSet : undefined
+    // The set identity is a FACT per marker state: v0.2 markers carry the
+    // patch-set id + the recorded file count; a v0.1-era marker predates the
+    // set shape (stub only); an absent marker means nothing is applied.
+    const patchSetLabel =
+      patchSetId ?? (patch.marker.state === 'present' ? 'v0.1 stub (pre-set marker)' : patch.marker.state === 'absent' ? 'not applied (official bundles pristine)' : 'unknown (marker unreadable)')
+    lines.push(
+      fill(STATUS_PATCH_SET, {
+        set: patchSetLabel,
+        files: markerFiles.length > 0 ? String(markerFiles.length) : patch.marker.state === 'absent' ? '0' : 'unknown',
+      }),
+    )
     lines.push(fill(STATUS_PATCH_MOUNT, { mount: `${patch.mount} / host faces: ${patch.hostFaces}` }))
+    const sessionId = (session as { id?: unknown }).id
+    if (typeof sessionId === 'string' && patch.guardObserve !== undefined) {
+      const summary = patch.guardObserve(sessionId)
+      if (summary !== undefined) {
+        lines.push(
+          fill(STATUS_GUARD_OBSERVE, {
+            total: String(summary.total),
+            segmented: String(summary.segmented),
+            degraded: String(summary.degraded),
+            unclassified: String(summary.unclassified),
+            providers: summary.providers.length > 0 ? summary.providers.join(', ') : '(none)',
+          }),
+        )
+      }
+    }
   }
 
   // ---- degraded rows first-class ----------------------------------------------
@@ -1155,11 +1206,13 @@ function formatPct(value: number): string {
 function patchMarkerDetail(marker: {
   readonly state: 'present' | 'absent' | 'unknown'
   readonly version?: string
+  readonly patcherVersion?: string
   readonly timestamp?: string
   readonly reason?: string
 }): string {
   if (marker.state === 'present') {
-    return ` (v${marker.version ?? 'unknown'}${marker.timestamp !== undefined ? `, patched ${marker.timestamp}` : ''})`
+    const patcher = marker.patcherVersion !== undefined ? ` by patcher ${marker.patcherVersion}` : ''
+    return ` (v${marker.version ?? 'unknown'}${patcher}${marker.timestamp !== undefined ? `, patched ${marker.timestamp}` : ''})`
   }
   if (marker.state === 'absent') return ' (official adapter unpatched — pure-plugin face)'
   return ` (${marker.reason ?? 'unreadable'})`

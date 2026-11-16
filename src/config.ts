@@ -98,6 +98,17 @@ export interface ZcontextConfig {
    */
   preflightMarginRatio: number
   /**
+   * Guard-observe event consumption (v0.2.2 P6-C; plan ZCTX-v03-patch-plan):
+   * when true the plugin's session/event firehose listener feeds the patched
+   * base-context chain's log-only `cache/guard-observe` records into the
+   * guard-observe bridge (process-memory summary per session, surfaced in
+   * zctx_status). Inert by construction when the app.asar patch is absent
+   * (the event type is never appended then) — this switch is the plugin-side
+   * opt-out for patched installs. Default true: observation-only, zero
+   * interception, no session-state writes.
+   */
+  'patch.guardObserveEvents': boolean
+  /**
    * The structured S2 adapter section (v0.2.0 V5, task card product 8; plan
    * §3 structured-settings relaxation, official llm-pi-ai schemastery
    * precedent config.ts:340-361): `providers[]` entries declare the routes
@@ -158,6 +169,7 @@ export const configDefaults: Readonly<ZcontextConfig> = deepFreeze<ZcontextConfi
   cleanSampleFloor: 0.6,
   'observe.enabled': true,
   'observe.attemptCapture': false,
+  'patch.guardObserveEvents': true,
   preflightMode: 'observe',
   preflightMarginRatio: 0.9,
   // V5 S2: the structured providers section defaults to an EMPTY declaration
@@ -185,6 +197,7 @@ const CONFIG_FIELD_SPECS = {
   cleanSampleFloor: { type: 'number', default: configDefaults.cleanSampleFloor },
   'observe.enabled': { type: 'boolean', default: configDefaults['observe.enabled'] },
   'observe.attemptCapture': { type: 'boolean', default: configDefaults['observe.attemptCapture'] },
+  'patch.guardObserveEvents': { type: 'boolean', default: configDefaults['patch.guardObserveEvents'] },
   preflightMode: { type: 'string', default: configDefaults.preflightMode },
   preflightMarginRatio: { type: 'number', default: configDefaults.preflightMarginRatio },
   // The S2 structured section (R5 V5-3: ONE unified statement of the
