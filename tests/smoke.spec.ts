@@ -85,6 +85,18 @@ describe('dsh-zcontext skeleton smoke', () => {
       // is absent (the event type is never appended then); observation-only,
       // zero interception.
       'patch.guardObserveEvents': true,
+      // v0.3 P6-E (autoFold, RES-bc §9.1 MUST 5): server-initiated folding is
+      // OFF by default — v0.3 explicit opt-in (card: 校准后转默认); the
+      // compaction supply is the default summary lane; the three budget
+      // constants are the bc F2.6 data-ified values (16 / 4 / 32768).
+      'autofold.enabled': false,
+      'autofold.summarizer': 'compaction',
+      'autofold.external.url': '',
+      'autofold.external.model': '',
+      'autofold.external.apiKeyEnv': '',
+      'autofold.maxRounds': 16,
+      'autofold.maxBatch': 4,
+      'autofold.maxSummaryOutputTokens': 32768,
       // v0.2.0 V5 (S2 adapter): the volatile providers section defaults to an
       // EMPTY declaration list — zero routes, the adapter face stays a
       // keep-alive under the default configuration.
