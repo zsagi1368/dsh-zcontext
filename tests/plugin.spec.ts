@@ -5,6 +5,7 @@ import { STATUS_NO_SESSION } from '../src/texts.ts'
 import { NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, ZcontextPlugin } from '../src/plugin.ts'
 import type { HostContextLike } from '../src/plugin.ts'
 import type { SessionEventLike, SessionLike } from '../src/types.ts'
+import type { LlmRuntimeLike } from '../src/tools.ts'
 import { disciplinedCtx, routeOverrides } from './helpers/mock-host.ts'
 import { MockSession, msg, seedConversation } from './helpers/mock-session.ts'
 
@@ -785,5 +786,83 @@ describe('plugin: observe face (llm/stream wiring, v0.2.0 V2 c5)', () => {
     const snapshots = storeOf(plugin, session).requestSnapshots()
     expect(snapshots).toHaveLength(2)
     expect(snapshots[1].attemptSeq).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// P6-E: the autoFold face wiring gates (third llm/stream listener; loud
+// config discipline; enforce precedence).
+// ---------------------------------------------------------------------------
+
+describe('plugin: autofold face wiring gates (v0.3 P6-E)', () => {
+  /** The mock llm stub gains the official stream channel (compaction supply). */
+  function llmWithStream(window = 200000): LlmRuntimeLike {
+    return {
+      resolveModelInfo: async () => ({ context: { contextWindow: window }, defaultMaxTokens: 8192 }),
+      stream: async function* () {
+        yield { type: 'text-delta', index: 0, text: 'stub' }
+        yield { type: 'finish', reason: { kind: 'stop' } }
+      },
+    }
+  }
+
+  it('autofold.enabled=false (DEFAULT) registers no third listener — the face is unreachable under the default configuration', () => {
+    const ctx = mockCtx({ llm: llmWithStream() })
+    new ZcontextPlugin(ctx)
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(2) // preflight + observe
+    expect(ctx.logLines.some((l) => l.level === 'info' && l.message.includes('autofold face disabled by config'))).toBe(true)
+  })
+
+  it('autofold.enabled=true arms the third llm/stream listener (innermost) with the compaction supply', () => {
+    const ctx = mockCtx({ llm: llmWithStream() })
+    new ZcontextPlugin(ctx, { 'autofold.enabled': true })
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(3)
+    expect(ctx.logLines.some((l) => l.level === 'info' && l.message.includes('autofold face armed'))).toBe(true)
+    expect(ctx.logLines.some((l) => l.message.includes('summarizer=compaction'))).toBe(true)
+  })
+
+  it('an illegal autofold.summarizer is a LOUD skip — the face never silently maps to another supply (bc R9 discipline)', () => {
+    const ctx = mockCtx({ llm: llmWithStream() })
+    new ZcontextPlugin(ctx, { 'autofold.enabled': true, 'autofold.summarizer': 'llm' })
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(2)
+    expect(
+      ctx.logLines.some(
+        (l) => l.level === 'warn' && l.message.includes('autofold.summarizer "llm"') && l.message.includes('no silent supply fallback'),
+      ),
+    ).toBe(true)
+  })
+
+  it('summarizer=external with an empty url/model is a LOUD skip (the user asked for THAT supply)', () => {
+    const ctx = mockCtx({ llm: llmWithStream() })
+    new ZcontextPlugin(ctx, { 'autofold.enabled': true, 'autofold.summarizer': 'external' })
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(2)
+    expect(
+      ctx.logLines.some((l) => l.level === 'warn' && l.message.includes('autofold.external.url') && l.message.includes('no silent supply fallback')),
+    ).toBe(true)
+  })
+
+  it('summarizer=compaction without ctx.llm.stream is a loud skip (the official one-shot channel is the supply)', () => {
+    const ctx = mockCtx({ llm: { resolveModelInfo: async () => ({ context: { contextWindow: 200000 } }) } })
+    new ZcontextPlugin(ctx, { 'autofold.enabled': true })
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(2)
+    expect(
+      ctx.logLines.some((l) => l.level === 'warn' && l.message.includes('without ctx.llm.stream') && l.message.includes('autofold face skipped')),
+    ).toBe(true)
+  })
+
+  it('summarizer=digest arms the face with NO supply (CPU-only path) and does not need llm.stream', () => {
+    const ctx = mockCtx({ llm: { resolveModelInfo: async () => ({ context: { contextWindow: 200000 } }) } })
+    new ZcontextPlugin(ctx, { 'autofold.enabled': true, 'autofold.summarizer': 'digest' })
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(3)
+    expect(ctx.logLines.some((l) => l.message.includes('summarizer=digest'))).toBe(true)
+  })
+
+  it('preflightMode=enforce + autofold.enabled warns the documented precedence (the outermost enforce short-circuit suppresses autofold)', () => {
+    const ctx = mockCtx({ llm: llmWithStream() })
+    new ZcontextPlugin(ctx, { 'autofold.enabled': true, preflightMode: 'enforce' })
+    expect(ctx.listeners.get('llm/stream')).toHaveLength(3)
+    expect(
+      ctx.logLines.some((l) => l.level === 'warn' && l.message.includes('preflightMode=enforce short-circuits hits BEFORE the autofold face')),
+    ).toBe(true)
   })
 })

@@ -467,3 +467,47 @@ export const RECALL_REPLY_EMPTY = 'No recall hits for "{{query}}".'
 
 export const FOLD_PARSE_EMPTY =
   'parsed 0 valid fold ranges from content; expected blocks like "fold <startSeq>..<endSeq>" followed by a summary line, or a JSON array of {startRef, endRef, summary}'
+
+// ---------------------------------------------------------------------------
+// P6-E autoFold lines — the summary-call instruction (model-facing, original
+// wording; clean-room: mechanism semantics aligned with the billion-context
+// preflight research, zero copied prompt text) + the deterministic digest
+// framing + the status segment. Byte-stability contract (S10) applies to the
+// model-facing constants below: no timestamps or counters.
+// ---------------------------------------------------------------------------
+
+/**
+ * The directive appended AFTER the folded span's materialized text in the
+ * autoFold summary call (official compaction precedent shape: instruction as
+ * the final user message, summarizer.ts:32-67 mechanism — original wording).
+ * Delivered as ONE user message whose head is this instruction and whose body
+ * is the span text.
+ */
+export const AUTOFOLD_SUMMARY_INSTRUCTION = `You are acting as the context-folding engine for this coding assistant. The text below is an older span of the current conversation, materialized verbatim. Condense it into one checkpoint that lets work continue with no loss of essential context.
+
+Write terse engineering prose in the same language as the span. Preserve exactly: the user's goals and constraints, decisions and their reasons, still-needed facts (paths, commands, identifiers, errors, versions, function signatures), and any unfinished objective (an unfinished objective stays phrased as an instruction, not a historical note). Drop superseded drafts, retries, and raw tool output whose conclusions already appear in your summary. Do not mention this summarization request or that anything was folded. Output ONLY the checkpoint text: do not call any tool and do not add preambles.`
+
+/** Deterministic CPU digest header (bc EMERGENCY digest form A, mechanism only). */
+export const AUTOFOLD_DIGEST_HEADER =
+  '[Automatically folded span — deterministic structural digest (no model summary was available). Original content is recoverable via zctx_unfold.]'
+
+/** One digest row per materialized block (head fragment bounded by the constant). */
+export const AUTOFOLD_DIGEST_ROW = '  - seq {{seq}} {{role}} (~{{chars}} chars): {{head}}'
+
+export const AUTOFOLD_DIGEST_TAIL =
+  '  - (further blocks omitted by the deterministic size bound; recover via zctx_unfold)'
+
+// Status segment 8 (facts only).
+export const STATUS_AUTOFOLD_HEADER = 'AutoFold face (server-initiated folding, {{summarizer}} supply):'
+
+export const STATUS_AUTOFOLD_LINE =
+  '  runs: {{runs}} / fold commits: {{count}} / net saved: ~{{net}} tokens / rounds total: {{rounds}}'
+
+export const STATUS_AUTOFOLD_LAST =
+  '  last run: {{outcome}} (estimate {{estimate}}{{window}}, folds {{folds}}, calls {{calls}}, transient retries {{transient}}, halvings {{halvings}}, digest fallbacks {{digest}})'
+
+export const STATUS_AUTOFOLD_STICKY =
+  '  - dead-probe sticky: summary supply judged dead for this session ({{limit}} consecutive normal-finish empty answers); digest-only until a canary probe succeeds'
+
+export const STATUS_AUTOFOLD_EMPTY = '  (no autoFold runs yet — face armed but the trigger line has not been crossed)'
+

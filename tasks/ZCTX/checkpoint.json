@@ -1,52 +1,49 @@
 {
-  "task": "ZCTX-P6D2",
-  "updatedAt": "2026-11-16T20:50:05.218Z",
-  "baseCommit": "af4c65a (P6-D bench terminal; BENCH-L1 registered)",
+  "task": "ZCTX-P6E",
+  "updatedAt": "2026-11-16T22:55:00.000Z",
+  "baseCommit": "3083ced (P6-D2 terminal; main)",
+  "branch": "feat/ZCTX-P6E",
   "steps": [
     {
-      "id": "p6d2s0",
+      "id": "p6es0",
       "status": "done",
-      "name": "wave start: registry check (Z28/Z21/Z25/Z19 as checks); card read; §5 backup del/20261116-122206-p6d2-diag-prechange (src 2 + bench install lib 7 + later bench cordis.patch.yml + bench switch-group.mjs; RESTORE.md + SHA256SUMS); bench install lib hash 12e909df… == repo lib"
+      "name": "wave start: registry check (Z15/Z19/Z20/Z21/Z23/Z28/Z29/A43 as checks); card + RES-bc §2/§9.1 read; official summarizer read IN FULL; R3 variant ruling recorded; §5 backup del/20261116-p6e-prechange (6 src files + SHA256SUMS.pre + RESTORE.md)"
     },
     {
-      "id": "p6d2s1-diag-instrument",
+      "id": "p6es1-engine",
       "status": "done",
-      "name": "commit e34b6a7: src/debug.ts env-gated stderr sink + plugin.ts face instrumentation + tools.ts defineTool debug; tsc 0; battery 545/545; five probes 6/16/5/3/11; gate verified default zero output"
+      "name": "commit c7c75c3: src/autofold.ts full chain (trigger/selection/three supplies/degradation chain/commit/anti-feedback-loop) + preflight projectAndEstimateRequest extraction + config autofold.* 8 keys + texts 9 constants + 37 pins tests/autofold.spec.ts; tsc 0"
     },
     {
-      "id": "p6d2s2-verdict",
+      "id": "p6es2-wiring",
       "status": "done",
-      "name": "runtime verdict (stderr-diag1-disabled.txt): plugin mounted, real cordis Service, ctx surface FULL, official defineTool resolved — ctor took disabled-by-config branch; root cause = bench cordis.patch.yml TWO enabled:false blocks (B-group residue); harness defects mechanically proven: sticky-at-0 removal regex + dump enabledFalse regex blind to name: line (C/C2 false PASS)"
+      "name": "commit 36178af: plugin wireAutoFoldFace (innermost third face; loud gates: illegal summarizer/external-empty/no-stream fail-skip + enforce precedence warn; onFoldCommitted nudge-baseline clear) + status segment 8 + LlmRuntimeLike.stream + smoke config pin +7 wiring-gate pins"
     },
     {
-      "id": "p6d2s3-fix",
+      "id": "p6es3-regression",
       "status": "done",
-      "name": "fix: removed both blocks from bench patch yml (backed up); fixed live switch-group.mjs both regexes (mechanically re-verified); post-fix diag2: all faces wired 4/4 tools via official defineTool; fix criterion MET — model testimony lists all four zctx tools (toolprobe-p6d2-stdout.txt)"
+      "name": "battery 589/589 (545 baseline + 37 autofold + 7 wiring gates) + tsc 0 + five probes 6/16/5/3/11; commit ae779a4 lib rebuild committed (d.ts +113 / js +1043)"
     },
     {
-      "id": "p6d2s4-retest10",
+      "id": "p6es4-pilot",
       "status": "done",
-      "name": "retest done: C(960k) 10/10 ok 0 fold; C2(40k) 10/10 ok 0 fold; C2b(40k+instrumented) 10/10 ok 0 fold, nudge 615 chars fired at 25%/50% crossings (stderr-diag3), pressure 26.0→52.6% — adoption face honestly zero; BENCH-L5 registered",
+      "name": "pilot: bench install lib synced (sha256 cca6d84a... == repo); armed via arm-autofold.mjs (Z29: exact-line ops + structural dump verify + idempotent arm/disarm 2x2); session e98c4f6f 20 turns — SERVER-INITIATED FOLD REAL: f297 [9..202] 5471→864 tokens net ~4607 (-84%), 0 model tool calls, compaction supply (not digest); offline replay reproduces selection [9..202]/5471 exactly; turns 15-19 post-fold reachability collapse (W3-2 invariant, honest coverage boundary BENCH-L6 candidate); turn 20 official compaction failed on truncated summary (plugin fail-open correct); bench profile disarmed clean",
       "artifacts": [
-        "reports/bench/harness/summary-p6d2-retest-C.jsonl",
-        "reports/bench/harness/summary-p6d2-retest-C2.jsonl",
-        "reports/bench/harness/summary-p6d2-retest-C2b.jsonl",
-        "reports/bench/harness/stderr-diag3-c2b-turn9-nudge-fired.txt"
+        "reports/bench/raw/p6e-autofold-fold-f297-evidence.json",
+        "reports/bench/raw/p6e-autofold-session-e98c4f6f.jsonl",
+        "reports/bench/harness/summary-p6e-autofold.jsonl",
+        "reports/bench/harness/arm-autofold.mjs",
+        "reports/bench/harness/pilot-p6e-stdout.log"
       ]
     },
     {
-      "id": "p6d2s5-regression",
+      "id": "p6es5-report",
       "status": "done",
-      "name": "tsc 0 + 545/545 + probes 6/16/5/3/11 green; lib deterministic, install synced"
-    },
-    {
-      "id": "p6d2s6-report",
-      "status": "done",
-      "name": "BENCH-report §11 (verdict+retest+final answers; §8 L1→fixed/verified, L5 registered; §10 correction quote) + closure ledger (BENCH-L1/P6D2-H1/H2 verified, BENCH-L5 closed deferred) + RSI Z29 + INDEX capture line; commits e34b6a7/afc826f/ecafe64"
+      "name": "BENCH-report §12 (pilot verdict/timeline/honest boundaries incl. BENCH-L6 candidate registered in leftover-ledger, OPEN pending planner); RSI Z30 into ZDSH-LESSONS.md (multi-frame zstd session log + stderrTail truncation sampling) + INDEX capture line; registry backups del/20261116-p6e-rsi-prechange; final telemetry commit with lib rebuild"
     }
   ],
-  "next": "terminal — coder handoff to reviewer/verifier",
+  "next": "terminal — coder handoff to reviewer/verifier (merge review includes P6-D2 4 unreviewed commits per card)",
   "hashChain": {
-    "prevCheckpoint": "P6B terminal 2026-11-16T18:40:14Z (archived to checkpoint-history.jsonl line 67)"
+    "prevCheckpoint": "ZCTX-P6D2 terminal 2026-11-16T20:50:05Z (archived to checkpoint-history.jsonl)"
   }
 }

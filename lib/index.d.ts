@@ -210,6 +210,49 @@ interface ZcontextConfig {
    */
   'patch.guardObserveEvents': boolean;
   /**
+   * P6-E autoFold master switch (v0.3; task card product 2; RES-bc-server-
+   * orchestration §9.1 MUST 5 + F1.20/F2.21): when true, the plugin registers
+   * the third llm/stream face — server-initiated folding. On a V4-preflight
+   * trigger hit (estimate > triggerLine × margin) the face runs the full
+   * chain deterministically: conservative span selection → summary supply →
+   * W2 validator gates → fold-engine surface replace → degradation chain
+   * (transient retry → halving cascade → CPU digest). NO model tool call is
+   * required — the model's inaction is the failure mode this face removes.
+   *
+   * DEFAULT FALSE (v0.3 explicit opt-in, card: 校准后转默认): the face
+   * commits folds the user did not ask for; it stays opt-in until the pilot
+   * battery and the calibration ledger say the trigger is safe. The face is
+   * registered INNERMOST (after the preflight listener): preflight 'enforce'
+   * short-circuits first, so with preflightMode='enforce' this face stays
+   * suppressed (documented precedence, wired face logs a warn when both on).
+   */
+  'autofold.enabled': boolean;
+  /**
+   * P6-E summary supply selector (card product 2; RES-bc §9.1 MUST 5 three
+   * choices). 'compaction' (DEFAULT): one-shot `ctx.llm.stream` call with the
+   * official `purpose: 'compaction'` marker (compaction-basic precedent,
+   * summarizer.ts read in full before implementation) to the parent request's
+   * provider/model. 'external': an independent summary service (own URL /
+   * model / credential env, bc externalSummary 同型). 'digest': CPU-only
+   * deterministic structural digest (zero model, bc EMERGENCY 同型).
+   * An ILLEGAL value is a loud config error — the face is skipped with a
+   * warn, never silently mapped to another supply (bc R9: invalid settings
+   * fail loudly, never silently fall back).
+   */
+  'autofold.summarizer': string;
+  /** 'external' supply: summary-service endpoint URL (POST JSON). Required for 'external'. */
+  'autofold.external.url': string;
+  /** 'external' supply: model id sent in the request body. Required for 'external'. */
+  'autofold.external.model': string;
+  /** 'external' supply: env var name holding the bearer credential ('' = unauthenticated). */
+  'autofold.external.apiKeyEnv': string;
+  /** P6-E chain budget (bc F2.6 MAX_PREFLIGHT_ROUNDS=16, data-ified): max span attempts per triggered run. */
+  'autofold.maxRounds': number;
+  /** P6-E chain budget (bc F2.6 MAX_PREFLIGHT_SUMMARY_BATCH=4, data-ified): max disjoint spans per selection batch. */
+  'autofold.maxBatch': number;
+  /** P6-E output clamp (bc F2.6 MAX_SUMMARY_OUTPUT_TOKENS=32768, data-ified): summary-call maxTokens cap. */
+  'autofold.maxSummaryOutputTokens': number;
+  /**
    * The structured S2 adapter section (v0.2.0 V5, task card product 8; plan
    * §3 structured-settings relaxation, official llm-pi-ai schemastery
    * precedent config.ts:340-361): `providers[]` entries declare the routes
@@ -1878,6 +1921,23 @@ declare function foldableRanges(surfaceNodes: readonly SurfaceNode[], config: Va
 declare function renderFoldReply(result: FoldCommitResult): string;
 /** Render the unfold result as the zctx_unfold tool reply (fail-soft wording). */
 declare function renderUnfoldReply(foldId: string | undefined, result: FoldCommitResult): string;
+/** One run's record (facts only; the status segment renders these). */
+interface AutofoldRunRecord {
+  readonly time: number;
+  readonly estimate: number;
+  readonly window?: number;
+  readonly hitLine?: number;
+  readonly rounds: number;
+  readonly summaryCalls: number;
+  readonly foldsCommitted: number;
+  readonly netTokensSaved: number;
+  readonly transientRetries: number;
+  readonly halvingSplits: number;
+  readonly digestFallbacks: number;
+  readonly deadProbeSticky: boolean;
+  readonly outcome: 'folds-committed' | 'no-qualified-span' | 'budget-exhausted' | 'supply-dead' | 'no-committed-fold';
+  readonly faults: readonly string[];
+}
 /** One parameter of the author prop-map (official ParamSpec subset). */
 interface ParamSpec {
   readonly type: 'string' | 'number' | 'boolean';
@@ -2028,6 +2088,13 @@ interface LlmRuntimeLike {
    * face is skipped with a warn while the adapter registration stands.
    */
   registerConfigurableProviders?(entries: readonly unknown[]): unknown;
+  /**
+   * Official `ctx.llm.stream` (llm/src/index.ts), probed by the P6-E autoFold
+   * face for the purpose-marked one-shot summary call (official compaction
+   * precedent; R3 variant ruling in autofold.ts). Optional: absent → the
+   * compaction supply is not constructible (the face is skipped with a warn).
+   */
+  stream?(options: Record<string, unknown>): AsyncIterable<unknown>;
 }
 /** Everything the four tools (and the /zctx command) need from the host. */
 interface ZctxToolRuntime {
@@ -2099,6 +2166,22 @@ interface ZctxToolRuntime {
       readonly providers: readonly string[];
     } | undefined;
   };
+  /**
+   * P6-E autoFold face view (status segment 8): the per-session state the
+   * listener accumulated — facts only. `undefined` = the face is not wired
+   * (autofold.enabled=false or a gate degraded) → the segment is skipped.
+   * A wired-but-idle session renders the zeroed view with the armed
+   * summarizer kind (the armed-but-idle marker line).
+   */
+  readonly autofoldFace?: (session: SessionLike) => {
+    readonly summarizer: string;
+    readonly runs: number;
+    readonly roundsTotal: number;
+    readonly foldsCommitted: number;
+    readonly netTokensSaved: number;
+    readonly deadProbeSticky: boolean;
+    readonly lastRun?: AutofoldRunRecord;
+  } | undefined;
 }
 /**
  * Render the full status report. Every host face is capability-probed and
@@ -2204,6 +2287,13 @@ declare class ZcontextPlugin extends ServiceBase {
   private observe;
   /** The S1 preflight face's listener; undefined when preflightMode is 'off'. */
   private preflight;
+  /**
+   * The P6-E autoFold face's listener; undefined when the face is gated off
+   * (autofold.enabled=false or a loud config gate failed). Registered
+   * INNERMOST (after the preflight listener — enforce precedence documented
+   * in autofold.ts).
+   */
+  private autofold;
   /**
    * The S2 adapter face's registration continuation (undefined when the face
    * gated off synchronously). The constructor is synchronous (cordis), so
@@ -2342,6 +2432,29 @@ declare class ZcontextPlugin extends ServiceBase {
    * @internal
    */
   private resolveWatchedSession;
+  /**
+   * The P6-E autoFold face (v0.3, task card product 1; RES-bc §9.1 MUST 5):
+   * the third llm/stream waterfall listener — server-initiated folding on a
+   * V4 trigger hit. Gates, each honest and none boot-breaking:
+   *   - autofold.enabled=false (DEFAULT) → info, nothing registered (v0.3
+   *     explicit opt-in, card: 校准后转默认).
+   *   - ctx.on / llm runtime / llm.stream unavailable → warn, skipped (the
+   *     compaction supply needs the official one-shot stream channel).
+   *   - autofold.summarizer illegal → warn LOUD, skipped — never silently
+   *     mapped to another supply (bc R9: invalid settings fail loudly).
+   *   - summarizer='external' with an empty url/model → warn LOUD, skipped
+   *     (same fail-loud discipline; the user asked for THAT supply).
+   *   - preflightMode='enforce' → the preflight listener is OUTERMOST and
+   *     short-circuits before this face runs; warn the precedence fact.
+   *
+   * 防反馈环 (bc F2.20 + compress.ts:927-929 同型): after a fold-committing
+   * run the onFoldCommitted hook clears the nudge baseline (lastPressure)
+   * for the session, re-basing the threshold state machine on the post-fold
+   * reality. The summary calls themselves are purpose-marked and exempt from
+   * every listener + the session log (autofold.ts R3 variant ruling).
+   * @internal
+   */
+  private wireAutoFoldFace;
   /**
    * The single wire-ledger receive port for BOTH wire producers (the S2
    * adapter's wireSink and the P4 patch bridge): session-bound records land

@@ -30,6 +30,8 @@
 
 import { createRequire } from 'node:module'
 
+import type { AutofoldRunRecord } from './autofold.ts'
+import { DEAD_PROBE_STICKY_LIMIT } from './autofold.ts'
 import { zctxDebug } from './debug.ts'
 import { computeBudget } from './budget.ts'
 import { DEFAULT_RECALL_LIMIT, recall } from './search.ts'
@@ -39,6 +41,11 @@ import {
   RECALL_REPLY_EMPTY,
   RECALL_REPLY_HEADER,
   RECALL_REPLY_ROW,
+  STATUS_AUTOFOLD_EMPTY,
+  STATUS_AUTOFOLD_HEADER,
+  STATUS_AUTOFOLD_LAST,
+  STATUS_AUTOFOLD_LINE,
+  STATUS_AUTOFOLD_STICKY,
   STATUS_ANOMALIES_EMPTY,
   STATUS_ANOMALIES_HEADER,
   STATUS_ANOMALY_ROW,
@@ -439,6 +446,13 @@ export interface LlmRuntimeLike {
    * face is skipped with a warn while the adapter registration stands.
    */
   registerConfigurableProviders?(entries: readonly unknown[]): unknown
+  /**
+   * Official `ctx.llm.stream` (llm/src/index.ts), probed by the P6-E autoFold
+   * face for the purpose-marked one-shot summary call (official compaction
+   * precedent; R3 variant ruling in autofold.ts). Optional: absent → the
+   * compaction supply is not constructible (the face is skipped with a warn).
+   */
+  stream?(options: Record<string, unknown>): AsyncIterable<unknown>
 }
 
 /**
@@ -522,6 +536,22 @@ export interface ZctxToolRuntime {
       readonly providers: readonly string[]
     } | undefined
   }
+  /**
+   * P6-E autoFold face view (status segment 8): the per-session state the
+   * listener accumulated — facts only. `undefined` = the face is not wired
+   * (autofold.enabled=false or a gate degraded) → the segment is skipped.
+   * A wired-but-idle session renders the zeroed view with the armed
+   * summarizer kind (the armed-but-idle marker line).
+   */
+  readonly autofoldFace?: (session: SessionLike) => {
+    readonly summarizer: string
+    readonly runs: number
+    readonly roundsTotal: number
+    readonly foldsCommitted: number
+    readonly netTokensSaved: number
+    readonly deadProbeSticky: boolean
+    readonly lastRun?: AutofoldRunRecord
+  } | undefined
 }
 
 /**
@@ -986,6 +1016,47 @@ export async function renderStatus(runtime: ZctxToolRuntime, session: SessionLik
             providers: summary.providers.length > 0 ? summary.providers.join(', ') : '(none)',
           }),
         )
+      }
+    }
+  }
+
+  // Segment 8 (P6-E): the autoFold face — server-initiated folding state,
+  // rendered as FACTS (runs / commits / net saved / last-run counters /
+  // dead-probe verdict). Absent hook (older test runtimes or the face gated
+  // off) → honestly skipped.
+  if (runtime.autofoldFace !== undefined) {
+    const view = runtime.autofoldFace(session)
+    if (view !== undefined) {
+      lines.push(fill(STATUS_AUTOFOLD_HEADER, { summarizer: view.summarizer }))
+      if (view.runs > 0) {
+        lines.push(
+          fill(STATUS_AUTOFOLD_LINE, {
+            runs: view.runs,
+            count: view.foldsCommitted,
+            net: view.netTokensSaved,
+            rounds: view.roundsTotal,
+          }),
+        )
+        const last = view.lastRun
+        if (last !== undefined) {
+          lines.push(
+            fill(STATUS_AUTOFOLD_LAST, {
+              outcome: last.outcome,
+              estimate: last.estimate,
+              window: last.window !== undefined ? ` of window ${last.window}` : '',
+              folds: last.foldsCommitted,
+              calls: last.summaryCalls,
+              transient: last.transientRetries,
+              halvings: last.halvingSplits,
+              digest: last.digestFallbacks,
+            }),
+          )
+        }
+      } else {
+        lines.push(STATUS_AUTOFOLD_EMPTY)
+      }
+      if (view.deadProbeSticky) {
+        lines.push(fill(STATUS_AUTOFOLD_STICKY, { limit: DEAD_PROBE_STICKY_LIMIT }))
       }
     }
   }

@@ -31,6 +31,15 @@
  *     process-memory ledgers; attemptCapture is opt-in (`observe.attemptCapture`).
  *     Strictly observational — never short-circuits (the preflight listener
  *     above is the only short-circuiting face).
+ *   - `llm/stream` (inner)  → the P6-E autoFold listener (v0.3, RES-bc §9.1
+ *     MUST 5): the THIRD face beyond observe/enforce, armed by
+ *     `autofold.enabled` (default false — v0.3 explicit opt-in). On a V4
+ *     trigger hit the chain folds server-side (deterministic selection →
+ *     purpose-marked summary supply → validator gates → fold-engine surface
+ *     replace → transient-retry/halving/digest degradation), then passes the
+ *     request through unconditionally (fail-open, bc F1.20). Registered
+ *     INNERMOST: a preflight 'enforce' short-circuit suppresses it (warned
+ *     at wire time when both are on).
  *   - `globalThis.__zctxPatch__` → the P4 patch-bridge face (v0.2.1, plan §3
  *     补丁连接设计): the receiving side of the ONE-LINE forwarding stub the
  *     external app.asar patcher inserts into the OFFICIAL PiAiAdapter — wire
@@ -56,6 +65,13 @@
 
 import { createRequire } from 'node:module'
 
+import {
+  AutoFoldListener,
+  createCompactionSupply,
+  createExternalSupply,
+  parseSummarizerKind,
+  resolveBudgetField,
+} from './autofold.ts'
 import { zctxDebug, zctxDebugJson, zctxDebugEnabled } from './debug.ts'
 import {
   assertZctxProvidersResolvable,
@@ -271,6 +287,13 @@ export class ZcontextPlugin extends ServiceBase {
   /** The S1 preflight face's listener; undefined when preflightMode is 'off'. */
   private preflight: PreflightListener | undefined
   /**
+   * The P6-E autoFold face's listener; undefined when the face is gated off
+   * (autofold.enabled=false or a loud config gate failed). Registered
+   * INNERMOST (after the preflight listener — enforce precedence documented
+   * in autofold.ts).
+   */
+  private autofold: AutoFoldListener | undefined
+  /**
    * The S2 adapter face's registration continuation (undefined when the face
    * gated off synchronously). The constructor is synchronous (cordis), so
    * the async registration is a tracked continuation: failures log honestly
@@ -350,6 +373,35 @@ export class ZcontextPlugin extends ServiceBase {
           : 'loading',
         guardObserve: (sessionId: string) => this.guardBridge.summary(sessionId),
       }),
+      // P6-E status segment 8: the autoFold face view. When the face is not
+      // wired (disabled or a loud gate failed) the hook returns undefined and
+      // the segment is skipped; a wired-but-idle session renders the zeroed
+      // view with the armed summarizer kind.
+      autofoldFace: (session: SessionLike) => {
+        const listener = this.autofold
+        if (listener === undefined) return undefined
+        const summarizer = this.config['autofold.summarizer']
+        const state = listener.statusFor(session)
+        if (state !== undefined) {
+          return {
+            summarizer,
+            runs: state.runs,
+            roundsTotal: state.roundsTotal,
+            foldsCommitted: state.foldsCommitted,
+            netTokensSaved: state.netTokensSaved,
+            deadProbeSticky: state.deadProbeSticky,
+            ...(state.lastRun !== undefined ? { lastRun: state.lastRun } : {}),
+          }
+        }
+        return {
+          summarizer,
+          runs: 0,
+          roundsTotal: 0,
+          foldsCommitted: 0,
+          netTokensSaved: 0,
+          deadProbeSticky: false,
+        }
+      },
     }
 
     if (!this.config.enabled) {
@@ -367,6 +419,7 @@ export class ZcontextPlugin extends ServiceBase {
     this.wireAdapterFace()
     this.wirePreflightFace()
     this.wireObserveFace()
+    this.wireAutoFoldFace()
     this.wirePatchFace()
     zctxDebug('constructor: all wire*Face calls returned')
   }
@@ -855,6 +908,130 @@ export class ZcontextPlugin extends ServiceBase {
       if (typeof id === 'string' && id === sessionId) return session as SessionLike
     }
     return undefined
+  }
+
+  /**
+   * The P6-E autoFold face (v0.3, task card product 1; RES-bc §9.1 MUST 5):
+   * the third llm/stream waterfall listener — server-initiated folding on a
+   * V4 trigger hit. Gates, each honest and none boot-breaking:
+   *   - autofold.enabled=false (DEFAULT) → info, nothing registered (v0.3
+   *     explicit opt-in, card: 校准后转默认).
+   *   - ctx.on / llm runtime / llm.stream unavailable → warn, skipped (the
+   *     compaction supply needs the official one-shot stream channel).
+   *   - autofold.summarizer illegal → warn LOUD, skipped — never silently
+   *     mapped to another supply (bc R9: invalid settings fail loudly).
+   *   - summarizer='external' with an empty url/model → warn LOUD, skipped
+   *     (same fail-loud discipline; the user asked for THAT supply).
+   *   - preflightMode='enforce' → the preflight listener is OUTERMOST and
+   *     short-circuits before this face runs; warn the precedence fact.
+   *
+   * 防反馈环 (bc F2.20 + compress.ts:927-929 同型): after a fold-committing
+   * run the onFoldCommitted hook clears the nudge baseline (lastPressure)
+   * for the session, re-basing the threshold state machine on the post-fold
+   * reality. The summary calls themselves are purpose-marked and exempt from
+   * every listener + the session log (autofold.ts R3 variant ruling).
+   * @internal
+   */
+  private wireAutoFoldFace(): void {
+    const { ctx } = this
+    if (!this.config['autofold.enabled']) {
+      zctxDebug('wireAutoFoldFace: SKIP — disabled by config (autofold.enabled=false)')
+      ctx.logger?.info?.('dsh-zcontext: autofold face disabled by config (autofold.enabled=false; explicit opt-in only)')
+      return
+    }
+    const kind = parseSummarizerKind(this.config['autofold.summarizer'])
+    if (kind === undefined) {
+      zctxDebug(`wireAutoFoldFace: illegal summarizer "${String(this.config['autofold.summarizer'])}" — face skipped (fail-loud)`)
+      ctx.logger?.warn?.(
+        `dsh-zcontext: autofold.summarizer "${String(this.config['autofold.summarizer'])}" is not one of 'compaction'|'external'|'digest' — autofold face skipped (fail-loud: no silent supply fallback)`,
+      )
+      return
+    }
+    const chainConfig = {
+      maxRounds: resolveBudgetField(this.config['autofold.maxRounds'], configDefaults['autofold.maxRounds']),
+      maxBatch: resolveBudgetField(this.config['autofold.maxBatch'], configDefaults['autofold.maxBatch']),
+      maxSummaryOutputTokens: resolveBudgetField(
+        this.config['autofold.maxSummaryOutputTokens'],
+        configDefaults['autofold.maxSummaryOutputTokens'],
+      ),
+      summarizer: kind,
+    }
+    if (typeof ctx.on !== 'function') {
+      zctxDebug('wireAutoFoldFace: SKIP — ctx.on unavailable')
+      ctx.logger?.warn?.('dsh-zcontext: ctx.on unavailable — autofold face skipped (no bus to register the llm/stream listener on)')
+      return
+    }
+    if (ctx.llm === undefined) {
+      zctxDebug('wireAutoFoldFace: SKIP — ctx.llm undefined')
+      ctx.logger?.warn?.('dsh-zcontext: llm service unavailable — autofold face skipped (the summary supply rides the llm runtime)')
+      return
+    }
+    const llm = ctx.llm
+    let supply
+    if (kind === 'compaction') {
+      if (typeof llm.stream !== 'function') {
+        zctxDebug('wireAutoFoldFace: SKIP — llm runtime without stream (compaction supply unconstructible)')
+        ctx.logger?.warn?.('dsh-zcontext: llm runtime without ctx.llm.stream — autofold face skipped (the compaction summary supply needs the official one-shot stream channel)')
+        return
+      }
+      const stream = llm.stream.bind(llm)
+      supply = createCompactionSupply(
+        { stream: (options) => stream(options) },
+        chainConfig.maxSummaryOutputTokens,
+      )
+    } else if (kind === 'external') {
+      const url = this.config['autofold.external.url']
+      const model = this.config['autofold.external.model']
+      if (url === '' || model === '') {
+        zctxDebug('wireAutoFoldFace: SKIP — summarizer=external with empty url/model (fail-loud)')
+        ctx.logger?.warn?.(
+          'dsh-zcontext: autofold.summarizer=external requires autofold.external.url and autofold.external.model — autofold face skipped (fail-loud: no silent supply fallback)',
+        )
+        return
+      }
+      supply = createExternalSupply({
+        url,
+        model,
+        apiKeyEnv: this.config['autofold.external.apiKeyEnv'],
+        maxTokens: chainConfig.maxSummaryOutputTokens,
+      })
+    } // 'digest' → supply stays undefined (the CPU-only digest path)
+    if (this.config.preflightMode === 'enforce') {
+      zctxDebug('wireAutoFoldFace: enforce precedence — the outermost preflight listener short-circuits before this face runs')
+      ctx.logger?.warn?.(
+        'dsh-zcontext: preflightMode=enforce short-circuits hits BEFORE the autofold face (outermost listener) — autofold will not fire on enforce short-circuits; prefer preflightMode=observe with autofold.enabled',
+      )
+    }
+    zctxDebug(`wireAutoFoldFace: registering llm/stream listener (summarizer=${kind})`)
+    const listener = new AutoFoldListener({
+      summarizer: kind,
+      marginRatio: this.config.preflightMarginRatio,
+      chain: chainConfig,
+      ...(supply !== undefined ? { supply } : {}),
+      resolveSession: (sessionId) => this.resolveWatchedSession(sessionId),
+      storeFor: (session) => this.storeFor(session as SessionLike),
+      validatorConfig: (session) => this.validatorConfig(session as SessionLike),
+      // Official ModelInfo (window source F6.2 + image gating); failures
+      // degrade inside the listener (bounded cache).
+      resolveModelInfo: async (provider, model) => llm.resolveModelInfo(provider, model),
+      ...(typeof llm.fileRequestText === 'function'
+        ? { fileRequestText: (ref: unknown) => llm.fileRequestText?.(ref) }
+        : {}),
+      ...(typeof llm.imageRequestPricing === 'function'
+        ? { imageRequestPricing: (provider: string, model: string) => llm.imageRequestPricing?.(provider, model) }
+        : {}),
+      // 防反馈环: clear the nudge baseline after a fold-committing run.
+      onFoldCommitted: (session) => {
+        this.lastPressure.delete(session as object)
+        zctxDebug('autoFold committed folds — nudge baseline cleared (bc compress.ts:927-929 同型)')
+      },
+      logger: ctx.logger,
+    })
+    this.autofold = listener
+    ctx.on('llm/stream', listener.onStream)
+    ctx.logger?.info?.(
+      `dsh-zcontext: autofold face armed (summarizer=${kind}, maxRounds=${chainConfig.maxRounds}, maxBatch=${chainConfig.maxBatch}, output cap ${chainConfig.maxSummaryOutputTokens}) — the server folds on a V4 trigger hit without waiting for a model tool call`,
+    )
   }
 
   /**
