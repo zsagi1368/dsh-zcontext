@@ -1191,7 +1191,47 @@
       "owner": "mainline",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "P6B-1",
+      "source": "task card P6-B (multi-file patch set + gamma inline) — scope ruling: cache-metrics inert (RES-port-feasibility §2.14: official build has no cache/ledger producer, projection folds to permanent zero) and return-cap chain X-二期 (§2.17, >=7 files) — both registered 二期 by the plan convergence (drop-in 1466 lines = guard-observe x2 + cache-guardian cut + l3)",
+      "type": "scope-deferred",
+      "disposition": "not_applicable",
+      "evidence": "patch set ships 5 files = llm-pi-ai/agent-loop/session/compaction-basic/pruner (SUPPORTED pin tests); cache-metrics/return-cap absent by spec ruling; tests/patcher-multifile.spec.ts 15 pins + patcher.spec 24 pins green",
+      "owner": "coder-P6B",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6B-2",
+      "source": "ignition realization deviation — plan ruled config default flipped true, but config alone cannot ignite (RES-port-feasibility F9: no composition-root opt-in in ANY tree; the official composition root is a dynamic plugin load, unknown file)",
+      "type": "design-note",
+      "disposition": "fixed",
+      "evidence": "agent constructor ignition hunk ((options.guardObserve ?? true) === true — explicit opt-out honored) + adapter config switch default true = the sole kill switch; both asserted in patcher.spec ignition pin; honest deviation documented in the patch-set data comments; A6 probe adapted best-effort (unprobeable runtime proceeds, fail-loud preserved for a really-parsed old pi-ai)",
+      "owner": "coder-P6B",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6B-3",
+      "source": "real-machine patch/restore execution (W5-A6-INSTALL umbrella, same as P4 precedent)",
+      "type": "post-merge",
+      "disposition": "user_approved_deferred",
+      "evidence": "patcher v0.2 shipped fixture-verified (39 patcher pins); real-machine READ-ONLY status run 2026-11-16: all 5 pinned hashes pristine on the live asar (full-asar SHA 14cfd81c unchanged before/after the read), patchSet state unpatched, marker absent; actual patch/restore execution stays user-commanded per the card",
+      "owner": "user (patch command)",
+      "status": "verified",
+      "phase": "post-merge"
+    },
+    {
+      "id": "P6C-1",
+      "source": "task card P6-C (plugin companion) — guard-observe log-only consumption + status patch-set face + version 0.2.2",
+      "type": "implementation",
+      "disposition": "fixed",
+      "evidence": "commit 260ea7f: src/guard-observe-bridge.ts + config patch.guardObserveEvents (default true, smoke pin updated consciously) + patch-bridge marker v0.2 read (v0.1 markers readable) + plugin firehose wiring + tools.ts segment 7 upgrade + texts 2 lines + A11 17 assertions; 541/541 vitest, tsc clean, five probes green",
+      "owner": "coder-P6B",
+      "status": "verified",
+      "phase": "block"
     }
   ],
-  "updatedAt": "2026-11-14T12:21:28-08:00"
+  "updatedAt": "2026-11-16T17:59:59.871Z"
 }

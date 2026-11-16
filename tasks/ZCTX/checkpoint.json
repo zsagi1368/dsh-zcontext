@@ -1,6 +1,6 @@
 {
-  "task": "ZCTX-P4",
-  "updatedAt": "2026-11-14T12:24:00-08:00",
+  "task": "ZCTX-P6B",
+  "updatedAt": "2026-11-16T18:01:46.175Z",
   "baseCommit": "d9bd4fd (P3-r1 terminal, 472/472, five probes green, review 99 pass)",
   "steps": [
     {
@@ -94,7 +94,21 @@
         "closure machine count 113 -> 116 (fixed/verified 111, closed 4, open 1 = W5-A6-INSTALL mainline-owned); P0-4 evidence honestly notes 391990f (plan/card commit) + 33854a1 (audit chain cited by P3-r1 review)",
         "no src/ touch -> lib untouched; npm test rebuild leaves git status clean (Z19 no stale-artifact face)"
       ]
+    },
+    {
+      "id": "p6b-terminal",
+      "name": "P6-B/P6-C terminal: patcher v0.2 five-file base-context patch set (commits 9d0aa2b machinery / efa0132 production data / 5a37d94 tests+splice-fix / 260ea7f P6-C companion v0.2.2); multi-target single-asar-write splice (Z27 fix: target offsets shift by preceding deltas); per-file three-state gates + reconstruction exactness; marker files[] + status patchSet aggregate; guard-observe-bridge + firehose + status segment 7 + config patch.guardObserveEvents; battery 541/541 vitest (507+34) + tsc 0 errors + five probes (6/16/5/3/11, A11=17 assertions) + real-machine read-only status (5/5 hashes pristine on the live asar, full-asar sha 14cfd81c unchanged) + R1-R8 grep audit clean; del/20261116-p6b-rsi-prechange = §5 remediation backup for the two registry appends (round-trip verified)",
+      "status": "done",
+      "artifacts": [
+        "patcher/zctx-patch.mjs (v0.2.0, PATCH_SET zctx-v0.3-base-1)",
+        "patcher/zctx-patch.d.mts (v0.2 type surface)",
+        "tests/patcher-multifile.spec.ts (15 pins incl. inline-region behavioral evals)",
+        "tests/patcher.spec.ts (24 pins, production-op fixture)",
+        "src/guard-observe-bridge.ts + tests/guard-observe-bridge.spec.ts (11 pins)",
+        "src/plugin.ts / src/tools.ts / src/texts.ts / src/config.ts / src/patch-bridge.ts (P6-C)",
+        "CHANGELOG.md 0.2.2 + package.json 0.2.2 + lib/ rebuilt in-lockstep"
+      ]
     }
   ],
-  "next": "re-review of P4-r1 per REVIEW-P4 checklist (reviewer-P4), then W5-A6-INSTALL umbrella (post-merge): real-machine patch execution + full-install smoke"
+  "next": "P6-D baseline comparison experiment (patched chain now runs on the official host) -> P6-E release/docs; real-machine patch execution stays under W5-A6-INSTALL (user-commanded)"
 }
