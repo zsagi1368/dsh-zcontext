@@ -67,3 +67,71 @@ ATTACHMENTS: tasks/ZCTX/scorecards/P6B.json（本评审评分件，含全部证�
 ## 放行建议
 
 **暂不合并 main。** 返工第 1 轮（≤2 轮限额）：R1+R2 修复 + 各 ≥1 钉测 + H1 词表行，同波重跑 npm test/tsc/五探针回报证据 → 评审人重评（修复面小，预计 ≥98 放行）。真机 patch 执行仍归 W5-A6-INSTALL 用户命令（P6B-3 uad 在案），不受本打回影响。
+
+---
+
+# REVIEW-P6B 返工复审（第 1 轮 · 2026-11-16）
+
+```
+FROM: reviewer-P6B (independent subagent)
+TO: 主线 (orchestrator)
+MODE: verify → 通过放行
+TASK_REF: ZCTX P6-B 返工第 1 轮 — b52ad26..9272f84（98ad145 R1+R2 修复+4 钉 / 970a6e3 H1 词表 / 9272f84 台账）
+PAYLOAD: 本节 + scorecards/P6B.json rework_round1_review（全证据）
+ATTACHMENTS: tasks/ZCTX/scorecards/P6B.json
+```
+
+## 复述理解（≤3 行）
+
+第 1 轮 96 打回（0 阻断 + 2 建议 + 2 记事）后的返工：R1 混合面显式拒收 + R2 patchSet.state 聚合重排（98ad145，+4 钉测）+ H1 closure 词表（970a6e3）+ p6b-rework-r1 台账（9272f84）。复审=逐项亲验 + 修复面新鲜代码对抗性复读 + 电池独立重跑。
+
+## 结论
+
+**通过放行（返工第 1 轮后总分 100 ≥ 98）→ 建议合并 main 进 P6-D。[阻断] 0；第 1 轮全部条目 closed（R1/R2/H1 = fixed/verified；H2 = not_applicable 归 P6-E）。**
+
+## 逐项亲验
+
+### P6B-R1 · fixed/verified（98ad145）
+- **实读**：patchAsar 新增专用 mixed-face gate（`patcher/zctx-patch.mjs:1657-1676`，drifted 拒收之后、幂等分支之前）：条件 `0 < pristine < total` 精确（drifted 已先行过滤）；返回 `ok:false + refused:true + per-file face（target/state/sha256）+ recovery 指引`（restore --app-dir 默认最新备份——与 restoreAsar 默认逻辑一致，指引可执行；或手工处置）。幂等分支注释改为「the only remaining case after the drifted and mixed-face refusals」——此后 `pristine < total ⟺ pristine == 0 ⟺ 全 patched-exact`，第 1 轮失实的 `(N/N files patched-exact)` 消息面自此恒真。文件头 gate 清单第 5 条同步补注。
+- **钉测亲验**：全量 patch → 外来部分写入器（spliceAsarMulti 单目标把 session bundle 回写 pristine 文本——补丁器自身写不出的面）→ 重跑 patch：断言 ok:false + refused + `mixed-face gate:refused` + detail 含 `1 pristine + 4 patched-exact` 与 `dsh-session` + recovery 含 restore 指引 + per-file face 逐行（session=pristine / 4 行 patched-exact）+ **三零动**（拒收跑前后 asar 字节哈希不变 / 备份数不变 / marker 字节不变；基线取 splice 后状态——方法论正确）。
+
+### P6B-R2 · fixed/verified（98ad145）
+- **实读**：`patcher/zctx-patch.mjs:2040-2054` 聚合重排——全 patched-exact→`patched`；任一 patched 面（patched-exact/patched-drifted）→`partial`；全 official-unchanged→`unpatched`；无补丁面（有 drift 无 patched）→`drifted`。**四臂全可达**（第 1 轮死臂消除）：第 1 轮误报场景 3 patched-exact + 2 drifted 现正确报 `partial`。优先级注释显式化（drift 不掩盖补丁存在、补丁存在不掩盖 drift 行；per-file face + driftedFiles 承载细节）。
+- **钉测亲验**：partial pristine-mix（counts 4/1/0 + anchorHit 逐行）· partial drifted-mix（patched 文本追加外来行 → patched-drifted，counts 4/0/1 + guidance 在场）· unpatched→drifted 优先级（全 pristine=unpatched → 外来 drift 一行=drifted 非 unpatched）。
+- **CHANGELOG 措辞**：`:32` 四态列举现与实现全同（partial 复活后宣传态全真），无需改动——与 coder 自报「核对=无矛盾不展开」一致。
+- **裁定记录**：全 5 行 patched-drifted（无一 patched-exact）聚合 `partial` 而非 `drifted`——与臂定义一致（drifted 臂=无补丁存在面），per-file guidance 仍指向 restore，语义自洽，非缺陷。
+
+### P6B-H1 · fixed/verified（970a6e3）
+- closure.json W5-A6-INSTALL `status: closed→verified`（diff 仅 status 词 + updatedAt 两行；verified=true 原已在位）——与 P3-4 统一裁定逐字对位。机器复核：120 items = fixed/verified **114** · duplicate/closed 3 · uad 2（1 closed + 1 verified）· not_applicable/verified 1 · fixed/closed **0** · **OPEN=0**。
+
+### P6B-H2 · not_applicable（维持）
+- patcher/README v0.1 叙述归 P6-E 发布波（计划波次表 P6-E 行在案）；登记为 P6-E 检查项。
+
+## 修复面新鲜代码对抗性复读（6 项全过）
+
+① 混合面 gate 不改变 happy path 步序列（gate 仅拒收路径 step——全链 8 步钉测仍逐字通过）；② gate 返回与 drift 拒收同形（files 三元组/refused/report 摊开）——消费面无新形状；③ recovery 指引的 restore 默认行为与 restoreAsar 一致=可执行；④ 聚合重排对 v0.1 单文件入口安全（patched-drifted→partial 比旧 'patched' 更诚实，legacy status 钉测全绿=无回归）；⑤ 新鲜代码无 $-pattern/eval/动态拼接；⑥ R1-R8 复扫：返工 diff 不触碰 body/请求内容/WS/attribution 面，红线保持。
+
+## 评审人独立电池（返工后）
+
+- **test**：npm test → **545/545**（26 files = 541 + 4 新钉；patcher 双 spec 定向 43/43 具名亲见）EXIT 0；重建后 porcelain=0（lib 新鲜度）。
+- **lint**：tsc --noEmit → 0 错 EXIT 0。
+- **probes**：五探针全 EXIT 0（artifact 6/0/0 · host-imports 16/0/0 · real-mount 5/0/0 · smoke-real-loader 3/0/0 · activation-surface 11 PASS/0 FAIL，A11 17 断言亲见）；探针报告 timestamp-only diff 按先例还原（树归零）。
+- **closure**：机器数 120，OPEN=0（见 H1）。
+- **真机**：asar 全文 SHA-256 复核 = `14cfd81c…`（与本评审第 1 轮两次读数一致——零写入三证）；patch/restore 未执行（P6B-3 uad 归用户命令不变）。
+- **台账**：checkpoint p6b-rework-r1 done（steps 8→9，next=reviewer re-score）；progress 收据两行（含 RSI 草稿归并既有条目——不另开坑册行，裁定合理）；§5 备份 del/20261116-p6b-r1r2-prechange 在案。
+
+## 评分（返工后，六维）
+
+| 维度 | 第 1 轮 | 返工后 | 变化依据 |
+|---|---:|---:|---|
+| 正确性 | 24 | 25 | 两决策逻辑缺陷修复且算术可证明（幂等分支=全 patched-exact 可证；混合 gate 精确；聚合四臂互斥完备） |
+| 完整性 | 19 | 20 | 混合面边界钉测补齐（4 钉）；P6-A 15 项→5 文件的收敛映射经 spec γ 裁定可追溯（对账表归 P6-E 发布文档） |
+| 一致性 | 19 | 20 | CHANGELOG 四态宣传现全真；closure 词表全表统一；版本/台账/checkpoint 同步 |
+| 可验证性 | 15 | 15 | 全部声称两轮独立复现 |
+| 安全回滚 | 10 | 10 | 拒收路径零动面获钉测固化 |
+| 可维护性 | 9 | 10 | 死臂与矛盾注释消除；决策树四分支互斥可读；gate 自文档化 |
+| **总分** | **96** | **100** | ≥98 → 放行 |
+
+## 放行建议
+
+**建议合并 main**（--no-ff，merge-batch-protocol 检查；merge ledger + tag）→ P6-D 基准对照实验 → P6-E 发布波（patcher/README v0.2 化 + 补丁集/重打/回滚文档 = P6B-H2 检查项；真机 patch 执行仍归 W5-A6-INSTALL 用户命令）。第 1 轮遗留零 OPEN 残留；返工轮次 1/2。
