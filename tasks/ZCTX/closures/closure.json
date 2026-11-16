@@ -1271,6 +1271,46 @@
       "owner": "插件域主线",
       "status": "closed",
       "phase": "post-merge"
+    },
+    {
+      "id": "P6E-1",
+      "source": "tasks/ZCTX/cards/P6E-autofold.md 产物 1+2",
+      "type": "card-deliverable",
+      "disposition": "fixed",
+      "evidence": "commit c7c75c3: src/autofold.ts 全链（触发/选区/三供给/退化链/提交/防反馈环）+ config autofold.* 8 键（enabled 默认 false 显式 opt-in）+ preflight projectAndEstimateRequest 复用；电池 589/589 + tsc 0",
+      "owner": "coder-p6e",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6E-2",
+      "source": "tasks/ZCTX/cards/P6E-autofold.md 产物 3",
+      "type": "card-deliverable",
+      "disposition": "fixed",
+      "evidence": "commit 36178af: wireAutoFoldFace innermost 第三面 + 响亮门（非法 summarizer/external 空配置 fail-skip，bc R9）+ enforce 优先级 warn + status 段 8 + 7 接线门钉",
+      "owner": "coder-p6e",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6E-3",
+      "source": "tasks/ZCTX/cards/P6E-autofold.md 产物 4 + 验收",
+      "type": "card-deliverable",
+      "disposition": "fixed",
+      "evidence": "tests/autofold.spec.ts 37 钉（bc F2 逐条）+ pilot 实证：f297 [9..202] 5471→864 tokens 0 模型工具调用（reports/bench/raw/p6e-autofold-fold-f297-evidence.json；离线重放选区逐字一致）；BENCH-report §12",
+      "owner": "coder-p6e",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6E-4",
+      "source": "P6-E pilot 发现（BENCH-report §12.3-2，BENCH-L6 候选）",
+      "type": "coverage-boundary-finding",
+      "disposition": "duplicate",
+      "evidence": "折后 surface 数字非单调→后续 hull 落在 validator check-a 可达域外（W3-2 既有不变量的运行时显形，非实现缺陷）；与 W3-2 既有文档同源登记，下一波杠杆=吸收窗资格+跨 checkpoint 区间选择；owner=插件域主线，触发=下一插件域波次开工",
+      "owner": "coder-p6e",
+      "status": "verified",
+      "phase": "post-merge"
     }
   ]
 }

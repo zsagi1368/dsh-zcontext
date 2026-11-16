@@ -100,6 +100,7 @@
  */
 
 import { estimateTokens } from './budget.ts'
+import { zctxDebug } from './debug.ts'
 import { fill } from './texts.ts'
 import {
   AUTOFOLD_DIGEST_HEADER,
@@ -1190,6 +1191,11 @@ export class AutoFoldListener {
     } finally {
       this.running.delete(plan.session as object)
     }
+    if (record !== undefined) {
+      zctxDebug(
+        `autoFold run: outcome=${record.outcome} rounds=${record.rounds} calls=${record.summaryCalls} folds=${record.foldsCommitted} netSaved=${record.netTokensSaved} transient=${record.transientRetries} halvings=${record.halvingSplits} digest=${record.digestFallbacks} sticky=${record.deadProbeSticky}`,
+      )
+    }
     // 防反馈环 (bc F2.20): clear the nudge baseline after a fold-committing
     // run so the threshold state machine re-bases on post-fold reality.
     if (record !== undefined && record.foldsCommitted > 0) this.deps.onFoldCommitted?.(plan.session)
@@ -1238,7 +1244,18 @@ export class AutoFoldListener {
       optionsMaxTokens: record.maxTokens,
       marginRatio: this.deps.marginRatio,
     })
-    if (judgment.hit !== true || judgment.triggerLine === undefined) return undefined
+    if (judgment.hit !== true || judgment.triggerLine === undefined) {
+      // P6-D2 lesson (Z28): an unobservable degradation is a silent one — the
+      // trigger judgment is the face's decisive surface, so every judgment
+      // lands in the env-gated stderr sink (default zero output).
+      zctxDebug(
+        `autoFold judge: estimate=${estimate.tokens} window=${judgment.window ?? 'unknown'} triggerLine=${judgment.triggerLine ?? 'unknown'} × margin=${this.deps.marginRatio} → hit=false (pass-through)`,
+      )
+      return undefined
+    }
+    zctxDebug(
+      `autoFold judge: estimate=${estimate.tokens} window=${judgment.window ?? 'unknown'} triggerLine=${judgment.triggerLine} × margin=${this.deps.marginRatio} → HIT (hit line ${Math.ceil(judgment.triggerLine * this.deps.marginRatio)}) — chain starting`,
+    )
     const signal = record.signal
     return {
       session,

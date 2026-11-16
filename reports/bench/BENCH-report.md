@@ -179,3 +179,35 @@ C2b 插桩逐 assembly 记录（`raw-stderr/`）：窗口解析成功（40000）
 1. **接线面：已解决**。P6-D 发现的"面未生效"根因是基准环境配置禁用 + harness 双校验缺陷，不是插件降级路径或宿主 face 缺失；修复后五面全部实证到达 agent 且机制工作（注册/可见/可调用/guidance 引用/nudge 出文本）。
 2. **采用面：未解决（如实报告）**。修好接线后模型依然 0 自发 fold（20 轮压力臂 + 10 轮正常臂）。"上下文问题解决没有"在 headless 的当前答案 = **接线通了、模型不接**——自发折叠依赖模型在 nudge 在场时主动调用 `zctx_fold`，该 free-flash 路由模型没有这个行为。下一步杠杆在文本面（nudge/guidance 措辞→指令强度）与模型面（更强模型对照），不是插件接线面。
 3. 原 §5.1 主表 A/B/C 数字保持有效（作为"该 disabled 态"下的测量记录）；其组间不可区分性由 §11.1 解释。
+
+## 12. P6-E pilot：autoFold 服务端自主折叠（2026-11-16 · BENCH-L5 的机制解药）
+
+> 任务卡 tasks/ZCTX/cards/P6E-autofold.md。前置事实：§11.3 实证 nudge 在场 20 轮 0 自发 fold（采用面）→ 本波把「等模型自觉」换成「服务端自己折」。装件 lib 升级到 P6-E 构建（SHA-256 仓内/装件全等 cca6d84a…），组态经 `arm-autofold.mjs` arm（zctx config 块 `enabled:true` + `"autofold.enabled": true` + summarizer=compaction + 模型声明窗压到 40000，C2 同型仪测臂；dump-config 结构化校验通过）。
+
+### 12.1 结果：服务端自发折叠真实发生（0 模型工具调用依赖）
+
+| 项 | 值 | 证据 |
+|---|---|---|
+| 服务端自发 fold | **1 次真实提交**：foldId `f297`，checkpoint seq 297，surface replace [9..202]（50 surface 节点被吸收），tokensBefore **5471** → tokensAfter **864**（净省 ~4607 tokens，−84%） | `raw/p6e-autofold-fold-f297-evidence.json`；session log seq 297 `user/message` + `source.kind:'zctx-fold'`（`raw/p6e-autofold-session-e98c4f6f.jsonl`） |
+| 模型工具调用依赖 | **0**——全会话（20 轮）无任何 `zctx_*` tool/call 事件 | 同上 session log `tool/call` 全量扫描 |
+| 摘要供给 | **compaction 供给**（官方 purpose:'compaction' 一次性 ctx.llm.stream，父请求路由 magpie/hy4flash-free）：摘要文本非 digest 形态（无 deterministic-digest 头），经 validator 长度窗 [50,20000] + 净缩门 1.05（5744 > 864 ✓） | seq 297 摘要文本头 + 机制代码路径 |
+| 触发判据 | V4 判据第三态复用：turn 11 起 HIT（estimate 28859 > hit line 26421 = triggerLine 29356 × margin 0.9），此后每轮 HIT（estimates 28859→48002） | `summary-p6e-autofold.jsonl` stderrTail `[zctx-debug] autoFold judge: … → HIT`（turns 11-20 全部） |
+| 提交链路因果复现 | 离线重放：折叠前精确表面（80 节点 12769 tokens）上 selectFoldSpans 返回**唯一候选 [9..202] 5471 tokens——与运行时提交的 span/tokens 逐字一致** | 本波 offline 复现脚本输出（progress.md P6-E 段） |
+| 防反馈环 | 摘要调用 purpose 豁免（不在任何监听判定/不入 session log）；fold 提交后 nudge 基线清零 hook 在位 | autofold.ts + plugin.ts onFoldCommitted（单测 37 钉） |
+
+### 12.2 时间线（session e98c4f6f，20 轮 = 10 轮 pilot 脚本 + 10 轮 matrix 续臂）
+
+| 轮次 | 压力/估算 | autoFold 行为 | 说明 |
+|---|---|---|---|
+| 1-10（pilot 脚本） | meter 25.4%→52.0%；估算未过 hit line | 未触发（正确） | 10 轮脚本压力不足——**trigger 不误发**（保守侧正确性的第一手证据） |
+| 11-13（matrix 续臂） | 估算 28859-36356，HIT | 链启动，`no-qualified-span`（0 calls） | 可选中段 < minFoldableTokens 5000（保护地板+系统头吃掉大半）——诚实不硬折 |
+| **14** | 估算 29912/30395，HIT | **f297 提交**（[9..202]，5471→864） | 可选中段跨过 minFoldable 门槛 → 选区→供给→验证→提交全链走通；轮内后续请求判后折表面 no-qualified-span |
+| 15-19 | 估算 30.8K-47.5K，HIT | `no-qualified-span` | **折后可达域塌缩**（W3-2 不变量：跨 checkpoint 数字非单调 hull 不可达；[checkpoint,checkpoint] 吸收窗 864 tokens < 5000 门槛）——如实呈现的覆盖边界 |
+| 20 | 估算 48002 ≫ 40000 | 插件 fail-open pass-through（bc F1.20 同型） | **官方 compaction 链接管溢出且其摘要截断失败**（compaction/end error "summarization truncated at the token cap"）→ 该轮 exit 1。插件行为正确（fail-open），官方链自身失败与本插件无关 |
+
+### 12.3 诚实边界与残留
+
+1. **nudge 采用面结论不变**：本波 20 轮中 nudge 文本仍在场（turn 3 起每轮 614-709 chars，含 turn 13 的 75.9% emergency 文本），模型 0 自发 zctx_* 调用——§11.3 的 BENCH-L5（文本面/模型面）维持原判；本波证明的是**机制路线（第三态）不依赖该行为**。
+2. **折后覆盖边界（新发现，BENCH-L6 候选）**：单次 fold 后，surface 的数字非单调性使后续 hull 全部落在 validator check-a 可达域之外——插件每个「单调纪元」只能折一次；多次折叠需要按 checkpoint 边界对齐的吸收窗（≥ minFoldableTokens 才可用）。这是 W3-2 既有不变量的运行时显形，不是本波缺陷；下一杠杆=吸收窗资格（[checkpoint,checkpoint] ≥ 门槛时的再折）与 bc #726 式的跨 checkpoint 区间选择。
+3. **官方 compaction 摘要截断**（turn 20）：宿主自链在同场景失败（其摘要调用在 token cap 截断）——插件折既成功过、宿主链失败，两链质量对比的第一手数据点。
+4. 组态残留=零（disarm 幂等循环 2×2 验证：patch yml 0 zctx 行 + 0 窗口 cap；装件 lib 保持 P6-E 构建与仓内全等）。臂内每轮 exit=0（除 turn 20 官方链失败），billedInput 逐轮在 summaries 存档。
