@@ -1,0 +1,16 @@
+{
+  "task": "bench-todo CLI 逐步构建（固定脚本，同任务集跨组复用）",
+  "model": "opencode-zen-free/deepseek-v4.1-flash-free",
+  "prompts": [
+    "在当前目录创建项目文件夹 bench-todo，并在其中创建 package.json（name 为 bench-todo，type 为 module，bin 指向 index.js）。只做这一步，不要创建其他文件。",
+    "在 bench-todo 里创建 index.js，实现命令 `node index.js add \"<文本>\"`：把待办文本追加保存到同目录 todos.json（JSON 数组，元素含 id 和 text 字段）。",
+    "给 index.js 增加 `list` 命令：读取 todos.json 并打印所有待办，每行一条。",
+    "给 index.js 增加 `done <序号>` 命令：把 todos.json 中对应条目标记 done 为 true。",
+    "给 index.js 增加 `rm <序号>` 命令：删除 todos.json 中对应条目。",
+    "运行 `node index.js add \"买牛奶\"` 和 `node index.js list`，把两条命令的输出原样贴出来。",
+    "给 list 输出加序号前缀，已完成的条目在行尾加 [done] 标记；改完后运行一次 list 验证。",
+    "给 index.js 增加 `clear` 命令：删除所有 done 为 true 的条目。",
+    "依次运行：add 三条不同待办、done 1、list、clear、list，把每步输出贴出来。",
+    "在 bench-todo 里创建 README.md，总结这个 CLI 的全部命令和用法。写完后本次任务结束。"
+  ]
+}

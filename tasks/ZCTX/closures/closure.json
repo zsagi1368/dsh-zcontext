@@ -1231,7 +1231,46 @@
       "owner": "coder-P6B",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "BENCH-L1",
+      "source": "reports/bench/BENCH-report.md §8 (P6-D)",
+      "type": "bench-leftover",
+      "disposition": "fixed",
+      "evidence": "P6-D2 verdict: bench patch yml double enabled:false (B-group residue) + switch-group.mjs sticky-removal & dump-shape-blind verification defects; runtime proof stderr-diag1-disabled.txt; post-fix wire proof stderr-diag2-enabled.txt + toolprobe/callprobe/sysprompt-probe + nudge 615 chars stderr-diag3-c2b-turn9; BENCH-report §11",
+      "owner": "coder-p6d2",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6D2-H1",
+      "source": "P6-D2 diagnosis (harness defects, live bench HOME only)",
+      "type": "tooling-defect",
+      "disposition": "fixed",
+      "evidence": "switch-group.mjs sticky-at-0 removal regex replaced with global multiline match + enabledFalse dump regex made shape-tolerant; mechanically re-verified (old dump=true, B-state removal works, clean no-op); fixed switcher exercised end-to-end via C2 and C switches (verified lines in run log); archived reports/bench/harness/switch-group.mjs kept as historical record, defect documented in BENCH-report §11.1",
+      "owner": "coder-p6d2",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6D2-H2",
+      "source": "P6-D2 runner gap (stderrTail drops boot diagnostics)",
+      "type": "tooling-defect",
+      "disposition": "fixed",
+      "evidence": "run-bench.mjs now archives full per-turn stderr to raw-stderr/<key>-turn<N>.txt (enabled C2b nudge analysis); runner pre-change backed up del/20261116-122206-p6d2-diag-prechange/bench-run-bench.mjs",
+      "owner": "coder-p6d2",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "BENCH-L5",
+      "source": "P6-D2 retest finding (BENCH-report §11.3/§11.4)",
+      "type": "bench-leftover",
+      "disposition": "user_approved_deferred",
+      "evidence": "adoption face: 0 spontaneous zctx calls in 20 pressure rounds (C2+C2b) with nudge text on wire; next-wave lever = nudge/guidance wording-strength contrast + stronger-model control; registered §8 row BENCH-L5, owner 插件域主线, trigger 下一插件域波次开工 — pending wave-level user approval at next card; status closed per established deferred-entry convention (P3-S1 precedent), disposition carries the pending-approval semantics",
+      "owner": "插件域主线",
+      "status": "closed",
+      "phase": "post-merge"
     }
-  ],
-  "updatedAt": "2026-11-16T17:59:59.871Z"
+  ]
 }
