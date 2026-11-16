@@ -1,67 +1,75 @@
 {
   "block": "P6-F",
-  "task": "ZCTX-P6F 终波：R1-R5 落账 + autoFold 基准复证（两臂 20 轮真 CLI）+ 发布 v0.3.0（版本面三方一致/README 双语/patcher README v0.2/lib 重建/tag）",
-  "range": "cf15a13 + b58c2ad + c85526d + 393cd40（merge）+ b16c4bb（tag 所指）+ a8298ad（终态台账）；基线 0f487cc = P6-D2/E 评审件入库",
-  "reviewer": "reviewer-P6F (independent subagent; reviewer ≠ coder-p6f)",
+  "task": "ZCTX-P6F 终波：R1-R5 落账 + autoFold 基准复证（两臂 20 轮真 CLI）+ 发布 v0.3.0（版本面三方一致/README 双语/patcher README v0.2/lib 重建/tag）；含 r1 返工复审（P6F-F1/F2/F3 收口）",
+  "range": "cf15a13 + b58c2ad + c85526d + 393cd40（merge）+ b16c4bb（tag 所指）+ a8298ad（终态台账）+ r1 返工 66de631 + c6f73cd + 3088f95 + 5f1e5db（评审件入库）；基线 0f487cc = P6-D2/E 评审件入库",
+  "reviewer": "reviewer-P6F (independent subagent; reviewer ≠ coder-p6f / coder-p6f-r1)",
   "date": "2026-11-16",
-  "verdict": "打回（总分 92 < 98）：[阻断] 1（progress.md:166 + INDEX.md:19 声称的 del/20261116-p6f-rsi-prechange 备份在盘上不存在——§5 声称与盘面矛盾，§9/§12.3 诚实类）；[建议] 2（BENCH §8 台账行 BENCH-L5 未随改判更新且无 BENCH-L7 行；BENCH §13.1 f340『32 seqs』应为 34）。业务与基准事实全部独立复核成立——v0.3.0 发布判定 FAIL 仅因该记录完整性阻断，修复=纯台账/文档更正后重评。",
-  "total": 92,
+  "verdict": "通过（r1 返工复审后总分 99 ≥ 98）→ v0.3.0 发布判定 **PASS**，交主线推送（§8 确认门动作留主线）+最终交付。返工第 1 轮把第 1 轮评审的 1 [阻断]（P6F-F1 声称备份不在盘）+ 2 [建议]（P6F-F2 §8 台账行、P6F-F3 f340 seq 计数）全部 fixed/verified：两处失实声称如实更正（未伪造、原声称保留为引用+更正）、补录快照 del/20261116-p6f-rsi-snapshot 时序真实性经严格前缀关系独立证实、Z32 固化且本波已践行（r1-prechange 开工首步在盘、先 mkdir 后改件）、BENCH §8 两行对齐 closure、f340=34 亲数复核。",
+  "total": 99,
   "threshold": 98,
   "scores": {
     "correctness": 25,
     "completeness": 20,
-    "consistency": 17,
-    "verifiability": 13,
-    "safety_rollback": 7,
+    "consistency": 20,
+    "verifiability": 15,
+    "safety_rollback": 9,
     "maintainability": 10
   },
+  "score_history": {
+    "round1_total": 92,
+    "round1_scores": { "correctness": 25, "completeness": 20, "consistency": 17, "verifiability": 13, "safety_rollback": 7, "maintainability": 10 },
+    "round1_verdict": "打回（<98）：[阻断]1（P6F-F1）+[建议]2（P6F-F2/F3），v0.3.0 FAIL（暂定）",
+    "round1_findings": "P6F-F1 = progress.md:166 + INDEX.md:19 声称 del/20261116-p6f-rsi-prechange 盘上不存在；P6F-F2 = BENCH §8 BENCH-L5 行未随改判更新且无 BENCH-L7 行；P6F-F3 = BENCH §13.1 f340 32 seqs 实为 34"
+  },
+  "rework_r1": {
+    "commits": ["66de631 (F1)", "c6f73cd (F2)", "3088f95 (F3)", "5f1e5db (评审件入库)"],
+    "business_code_delta": "零（diffstat a8298ad..5f1e5db 仅 BENCH-report.md/closure.json/progress.md/REVIEW-P6F.md/P6F.json 五件文档与台账）",
+    "findings_closure": [
+      {
+        "id": "P6F-F1",
+        "disposition": "fixed (verified)",
+        "evidence": "①两处声称如实更正：progress.md [P6-F RSI] 行（66de631 diff：原声称句替换为『未建成、盘上不存在（台账声称与执行不符；reviewer find 全树核实在案）』）；INDEX.md 发布波行（现 :20）保留原声称原文并inline追加【更正 REVIEW-P6F P6F-F1 [阻断]：…未建成、盘上不存在…已补现态快照 del/20261116-p6f-rsi-snapshot…检查项固化=Z32】——未伪造、未静默删除。②补录快照 del/20261116-p6f-rsi-snapshot（4 件：RESTORE.md/SHA256SUMS/ZDSH-LESSONS.post-z31.md 48595B/RSI-INDEX.post-z31.md 85926B）时序真实性评审人独立证实：快照内 ZDSH-LESSONS 含 Z31 无 Z32 且为当前文件的严格前缀（strict prefix），RSI-INDEX 含原失实声称、无 r1 捕获行——取材先于本波任何改动；SHA256SUMS 两哈希（3f5e3543…6c15/50c9eb95…2e47）与快照文件实测全等；RESTORE.md 写明补录性质+两层回滚路径（复制回快照态 / pre-Z31 纯追加逆运算+先例指针 del/20261116-p6e-rsi-prechange 在盘）。③Z32 入 ZDSH-LESSONS.md:195（现象/根因/修法①mkdir→cp→sha256sum→RESTORE.md 全部完成才许台账写声称 ②评审对每个 del/ 声称在盘复核 ③失实声称只许如实更正+补现态快照、禁补建目录冒充改前备份+防复发检查项，含『声称≠在盘即[阻断]、不得以逆运算可推导豁免定级』）；且本波已践行：del/20261116-p6f-r1-prechange（5 件+SHA256SUMS+RESTORE.md）开工首步在盘建立，目录时间戳 14:43 先于首笔返工提交 14:45:29。④closure P6F-2（process-deviation，fixed/verified，phase block）登记在案"
+      },
+      {
+        "id": "P6F-F2",
+        "disposition": "fixed (verified)",
+        "evidence": "c6f73cd diff：BENCH §8 BENCH-L5 行改 fixed/verified（机制解药依据+采用面事实维持 §11.3 原判不抹掉）+ 新增 BENCH-L7 行（not_applicable，v0.4 候选，注明与 closure.json 同源）——BENCH-L7 closure evidence 自述指针『§8 row + §13』现两处都在盘可解析；与 closure BENCH-L5/BENCH-L7 条目语义逐字对齐",
+        "note": "closure P6F-3 fixed/verified"
+      },
+      {
+        "id": "P6F-F3",
+        "disposition": "fixed (verified)",
+        "evidence": "3088f95 diff：BENCH §13.1 f340 行 32→34 并注明『sourceEventSeqs 亲数』口径（[9..128] 含空洞非区间长 120）；评审人第 1 轮已对 evidence JSON 与 session log seq 340 独立亲数 34（f290 行 27 亲数吻合不改）；closure P6F-4 fixed/verified；raw/ 证据件本波零改动（diffstat 亲核）"
+      }
+    ],
+    "hands_on_rerun": "评审人本轮亲验：npx tsc --noEmit EXIT 0；npm test = Test Files 27 / Tests 592/592 EXIT 0；五探针全绿 probe-artifact 6 / probe-host-imports 16 / probe-real-mount 5 / smoke-real-loader 3 / verify-activation-surface 11（A11 含内）；两探针报告 timestamp-only diff 还原后 git status --porcelain = 0（树净亲验）；closure 139 项 OPEN=0 机器数（node 遍历：fixed/verified 131 · duplicate/closed 3 · uad/closed 1 · uad/verified 1 · not_applicable/verified 2 · duplicate/verified 1）；入库评审件（5f1e5db）与第 1 轮评审写盘文件逐字节全等（git blob sha256 2c336157…/64540f7c… 与评审人当时计算值一致——评审件未被返工方篡改）"
+  },
   "score_evidence": {
-    "correctness_25": "评审人亲验全绿：(1) npx tsc --noEmit = 0 错（EXIT 0）；(2) npm test = Test Files 27 / Tests 592/592 passed EXIT 0（589+R3/R4a 新钉 3，亲见 592）；(3) 五探针亲跑全 PASS：probe-artifact 6 / probe-host-imports 16 / probe-real-mount 5 / smoke-real-loader 3 / verify-activation-surface 11（A11 17 断言 PASS 行亲见）；两探针报告 timestamp-only diff 亲读后 git checkout -- 还原、树归零；(4) R3 修复逻辑亲读：plugin.ts wireAutoFoldFace external 分支 apiKeyEnv 非空且 process.env 缺失→zctxDebug+logger.warn（面保持 armed），与 REVIEW-P6D2E 建议修法一致；(5) R4a 修复逻辑亲读：texts.ts REASON_NO_NET_SHRINK_SIGNATURE=模板 split('{{…}}') 后最长无占位片段（运行时派生，措辞改动自动跟随），autofold.ts:884 改用常量，钉=containment+非空+全 REASON_* 跨模板唯一性（tests/autofold.spec.ts 亲读 diff）",
-    "completeness_20": "卡面产物 1-4 全交付且逐项对到载体：(1) R1-R5 六条 disposition 全在 closure.json（P6D2E-R1/R2/R3/R4a/R4b/R5 全 fixed/verified，evidence 栏逐条可溯）；(2) 基准复证两臂 20/20 exit 0（harness/summary-p6f-autofold{,-dbg}.jsonl 各 20 行亲数）、折叠证据 raw/p6f-*.json + session log 入库；(3) 发布面：CHANGELOG [0.3.0] 段 + package.json version 0.3.0 + README.md/README.zh.md badge 0.3.0 + patcher/README.md v0.2 化（五文件表/10 步 patch 流程/restore/status/风险/双源状态面，137 行亲读）+ lib 重建入库；(4) GO-NO-GO §10 纪律：计数与费用分开报（§13.2）、『不做处理效应归因』显式声明、7 指标未闭环项如实保留（hitRate 未重算/breakevenTurns/κη 无单价表——§13.2 第 4 条）",
-    "consistency_17": "扣 3 分理由（两处文档与权威台账矛盾）：(a) −2：reports/bench/BENCH-report.md:119 §8 遗留登记表 BENCH-L5 行仍写 user_approved_deferred（文本面/模型面）——与 closure.json BENCH-L5 fixed/verified 改判矛盾；且该表在本仓是活登记表先例（BENCH-L1 行在 P6-D2 波被更新为 fixed/verified）；BENCH-L7 closure evidence 自述『kept as a v0.4 research candidate in BENCH-report (§8 row + §13 honest boundaries)』但 §8 无 BENCH-L7 行（§13 仅覆盖多折杠杆非采用杠杆）；(b) −1：BENCH-report.md:231 f340 行『[9..128]（32 seqs）』——证据件与 session log 亲数均 34 个 source seqs（f290 行 27 seqs 亲数吻合，证明表口径=individual seqs）。其余一致性核验成立：版本三方一致亲验（package.json=v0.3.0 tagged tree 同值、README badge 双语 0.3.0、CHANGELOG [0.3.0]）、README 双语段镜像（en/zh 全部章节标题行号一一对应 37/50/59/100/112/117/131/142/155/173/182…，autoFold+patcher v0.2 两段逐段内容等价）、CHANGELOG 60 轮口径与 §13.2 3/60 会话口径互洽",
-    "verifiability_13": "扣 2 分理由：progress.md:166 与 ~/.agents/rsi/INDEX.md:19 声称的备份件 del/20261116-p6f-rsi-prechange 在盘上不存在（见 [阻断-1]）——该声称不可复核。其余全部独立复证成立（评审人自有脚本/命令，非转录作者主张）：(1) 折叠事件直读：session log seq 290/340 data.source={kind:zctx-fold,foldId,tokensBefore,tokensAfter} 亲读 JSON，时间戳 1794866680795/1794867217712 → toISOString 与 evidence committedAt 全等（f290 22:04:40.795Z / f340 22:13:37.712Z）；(2) 净省算术亲算：5195−619=4576（88.1%）、5739−638=5101（88.9%）；(3) 0 工具调用断言：两 session log 全量扫描 event type=tool/call 共 39+27 个，名称全量={glob 1,read 14,pwsh 23,write 1}/{write 1,pwsh 21,read 5}，0 个 zctx_*；zctx_ 字符串仅命中 system/guidance/request-header（schema 文本）非调用；(4) 32 HIT/33 run/32 no-qualified-span+1 folds-committed 亲数（stderrTail 行文『→ HIT (hit line 26421)』32 条、『autoFold run: outcome=…』33 条含 netSaved=5101）；(5) billedInput 曲线：两臂逐轮累加 1,255,148/1,208,348 与 §13.1 全等；t18 102,328→t19 57,169、t14 72,578→t15 54,885 亲数；C 组对照 2,253,460 与 turns 11-20 均值 182,586 从 summaries/matrix-C.jsonl 独立重算全等；(6) replay-f297.mjs 亲跑：80 节点/12769 tokens → 唯一候选 [9..202] 5471 → MATCH:true → post-fold []（plain node 可运行）；(7) 折叠会话唯一性：两 log 各恰 1 个 zctx-fold、0 compaction 事件",
-    "safety_rollback_10": "扣 3 分理由：三件声称备份仅两件在盘（见 [阻断-1]）。在盘两件亲验：del/20261116-p6f-prechange（13 件仓内被改文件原像 + RESTORE.md + SHA256SUMS.pre：CHANGELOG/README×2/package.json/patcher_README/BENCH-report/switch-group/src×3/closure/progress/tests×2）+ del/20261116-p6f-bench-prechange（装件 cordis.patch.yml + lib/ + RESTORE.md + SHA256SUMS.pre）。其余全绿：desktop 原 profile 四文件 SHA-256 与 harness/original-profile-baseline.sha256 逐条全等（cac830d0/724cc8c4/c300dcf2/4e34a10c 亲算）；disarm 残留=0（bench cordis.patch.yml grep dsh-zcontext|contextWindow: 40000 = 0；desktop patch yml grep zcontext = 0）；bench 装件 lib/index.js SHA-256 = 5796190163a36fa5… 与仓内 blob 逐字节全等（即 P6-F 构建，含 R3/R4a 修复）；确定性重建亲证（tsdown 重建与 HEAD blob raw sha 全等；M lib/index.js 为 autocrlf 假动，作者已按 Z22 如实记载）",
-    "maintainability_10": "结构化签名派生（texts.ts 注释完整、防回归钉三点）；R3 warn 双通道（zctxDebug + logger.warn）文案自解释且说明『为何不 fail-skip』；归档件头注模式（P6D2E-R5）可推广；README 双语镜像行级对齐降低维护漂移风险；CHANGELOG 0.3.0 段结构化（Added/Fixed 分节、权威路径引用齐全）；台账/检查点/progress 终态三件齐全（checkpoint next=terminal）"
+    "correctness_25": "第 1 轮全量亲验继续有效（业务代码返工零改动）+ 本轮重跑：tsc 0 / 592/592 / 五探针 6/16/5/3/11 全 PASS；R3/R4a 修复逻辑与钉第 1 轮已逐行亲读；f340 计数更正与证据件一致（评审人亲数 34）",
+    "completeness_20": "卡面产物 1-4 全交付（第 1 轮核验不变）+ 返工把评审三条当波收口（P6F-2/3/4 全 fixed/verified，139 项 OPEN=0）——卡面『遗留如实登记』约束满足：v0.4 候选（P6E-4/BENCH-L3/BENCH-L2/BENCH-L7）全部在台账非 OPEN 登记",
+    "consistency_20": "第 1 轮扣分项全部闭合：BENCH §8 与 closure.json 现逐字对齐（BENCH-L5 fixed/verified 行 + BENCH-L7 行亲读 diff）；f340 表值 34 与证据件亲数一致；其余一致性核验（版本三方一致/双语镜像/60 轮口径/128→135→136→137→138→139 计数链）不变且成立",
+    "verifiability_15": "第 1 轮扣分项（备份声称不可复核）已闭合：现态快照在盘、哈希自洽、时序真实性经严格前缀关系证实、两层回滚路径文档化且先例件在盘；本波新增台账声称（r1-prechange 5 件）评审人在盘逐件复核通过（Z32 ②检查项首次执行即有效）——全部结论现在都有在盘可复跑证据",
+    "safety_rollback_9": "扣 1 分（历史残差，如实保留）：pre-Z31 原始字节仍无在盘存档，回滚依赖已证实的逆运算重构（严格前缀证明使重构机械化、两路径文档化）——非本轮可修复项，回滚能力实质齐备。本轮全绿项：本波自身 5 件改前备份在盘（mkdir 先于改件/提交）；补录快照+RESTORE.md 补录声明诚实；desktop 零触碰/disarm 零残留/装件全等（第 1 轮亲验）不变",
+    "maintainability_10": "第 1 轮全部有效 + 返工展示的台账纠错模式（声称原文保留+inline 更正+closure 登记+教训固化+践行）可作为后续波次的标准动作；Z32 防复发检查项含评审执行口径，可直接复用"
   },
   "attack_direction_results": {
-    "R1改判合规性": "成立（判定逻辑链核验）：原 BENCH-L5=『采用面 0 自发 fold』uad 且自述 approval pending（0f487cc closure 亲读）；P6-F 改判=fixed/verified 的依据是机制路线交付使依赖消失——P6-E 引擎+f297（REVIEW-P6D2E §1.8 独立重放在案）+P6-F 两臂复证（f290/f340，本评审独立重证）构成完整证据链；采用面事实未被抹掉（§13.2『模型自发采用面维持 §11.3 原判（两臂仍 0 自发 zctx_* 调用）』+CHANGELOG『0 spontaneous fold calls in 60 pressure rounds』如实）；残余研究杠杆单列 BENCH-L7 not_applicable（非插件缺陷、非 v0.3 验收判据）。改判后无任何 deferred 需要批准 → 不需要用户批准即合规；GO-NO-GO §10.3 门槛 2 的可观测变量由『模型是否调用』扩为『折叠是否真实提交』且报告如实分列两口径",
-    "基准数字真实性": "四方证据互洽且评审人独立重建（见 verifiability_13 (1)-(7)）：f290/f340 的 tokensBefore/After 与净省算术、0 zctx_* 全量扫描、32 HIT/33 run/32+1 逐数亲证、billedInput 曲线与 C 组对照独立重算——『不做处理效应归因』纪律核验成立（§13.2 显式声明 C 组 disabled 态+单会话无重复+步数方差三重不归因理由；RUN2 turns 11-20 mean 67,300 与 RUN1 73,288 亲算吻合 −63.1%）。32 HIT/1 commit 的诚实呈现核验：BENCH §13.1/§13.3 与 CHANGELOG 如实写『32 no-qualified-span 诚实不硬折+单纪元天花板=BENCH-L6/P6E-4』——P6E-4 duplicate→W3-R2（fixed/verified）合规（duplicate 指向真实既有条目）",
-    "发布面": "版本三方一致亲验：package.json(工作树=tagged tree)='0.3.0'、CHANGELOG [0.3.0] - 2026-11-16、README.md/README.zh.md badge version-0.3.0、tag v0.3.0；README 双语 autoFold（155-172 行）与 patcher v0.2（173-181 行）段落内容逐段等价（R3 修复表述、外部供给 warn、覆盖边界、原子写入门全镜像）；patcher/README v0.2 全流程（patch 10 步含 app-运行拒收/版本门/锚哈希/锚唯一/先备份/一次原子写/后校验/marker/幂等 + restore + status + 风险 + 双源状态面 + 自测边界）",
-    "tag内容验证": "git cat-file -p v0.3.0：annotated tag → b16c4bb（附注内容与发布事实相符：autoFold+patcher v0.2+bench+592/592）；diff 393cd40..b16c4bb 仅 governance/merge-ledger.md +10 行、diff v0.3.0..a8298ad 仅 tasks/ZCTX 台账 3 件——发布态=终态电池状态（业务代码/测试/文档自 393cd40 起零变更）；remote：origin/main=a8298ad=HEAD（fetch 亲验）",
-    "R1-R8复扫": "对本波新增 src 行（autofold.ts/texts.ts/plugin.ts diff 全部 + 行）扫描：requestBody 0 / maxRetries 0 / fetch( 0 / authorization 0 / secret|password 0 / unlink|rm -rf 0 / process.env 写 0——红线全数不触；真机 patch 执行仍归用户（patcher/README:8 亲读）",
-    "closure机器数": "评审人 node 遍历：136 项，OPEN=0——fixed/verified 128 · duplicate/closed 3 · uad/closed 1 · uad/verified 1 · not_applicable/verified 2 · duplicate/verified 1；R1-R5+P6F-1+BENCH-L5/BENCH-L7 逐条 evidence 可溯；128→135→136 计数链与提交信息互洽（cf15a13 +7=R1-R5 六条+BENCH-L7；b58c2ad +1=P6F-1）"
+    "R1改判合规性": "成立（第 1 轮核验不变）：机制路线交付使依赖消失、采用面事实维持 §11.3 原判如实、残余杠杆单列 BENCH-L7 not_applicable；本轮 F2 后报告 §8 行与 closure 完全一致",
+    "基准数字真实性": "成立（第 1 轮四方证据独立重建不变：f290/f340 亲读/亲算/亲扫/亲数；raw/ 证据件返工零改动——diffstat 亲核）；f340 表值 32→34 更正后报告与证据件一致",
+    "发布面": "成立：版本三方一致（package.json=CHANGELOG=README badge=tag 0.3.0）、双语行级镜像、patcher README v0.2 全流程（第 1 轮亲验，返工未触）",
+    "tag内容验证": "成立：annotated → b16c4bb=merge+台账-only，发布态=终态电池（返工四提交亦全部为台账/文档+评审件，业务代码零改动，发布态语义保持）；origin/main 推送动作按 §8 确认门留主线（返工四提交未推，如实）",
+    "R1-R8复扫": "本波返工 diff 无 src 变更（diffstat 五件全为文档/台账/评审件）——红线复核天然不触；第 1 轮对 src 增量行的全模式扫描（requestBody/maxRetries/fetch/authorization/secret/删除/env 写=0）继续有效",
+    "closure机器数": "139 项 OPEN=0（本轮 node 遍历亲数）；137→138→139 计数链与 66de631/c6f73cd/3088f95 提交信息互洽；P6F-2/3/4 evidence 逐条与盘面对得上（含快照哈希值与实测全等）"
   },
   "findings": [
-    {
-      "id": "P6F-F1",
-      "severity": "阻断",
-      "location": "tasks/ZCTX/progress.md:166 + C:/Users/ZS/.agents/rsi/INDEX.md:19（声称件）vs del/（盘面）",
-      "issue": "两处台账声称存在备份 del/20261116-p6f-rsi-prechange（2 件+SHA256SUMS+RESTORE.md），但该目录在盘上不存在：find 遍历 /g/000Github/zDSH 全树（maxdepth 4-6）与 C:/Users/ZS/.agents/rsi 均无；先例对照=p6b/p6d/p6e 三波的同名 rsi-prechange 目录全部在盘。被改文件 ZDSH-LESSONS.md 位于非 git 根（G:/000Github/zDSH rev-parse exit 128）、INDEX.md 位于仓外系统目录——预改状态不经 del/ 备份即无任何权威副本可回滚。§5 备份先行被违反或声称与执行不符（§9 诚实底线/§12.3 硬阻断类）。注：两处改动均为纯追加（Z31 块=ZDSH-LESSONS.md:189-193、INDEX 行 19），逆运算可推导，实际回滚风险低——阻断的是记录完整性而非发布物",
-      "fix_suggestion": "三步纯台账更正（不改业务代码）：(1) progress.md:166 与 INDEX.md:19 改为如实陈述（备份未建/未在盘 + 原因）；(2) closure.json 登记 P6F-2（type=process-deviation，evidence=本评审 find 命令输出路径，disposition=fixed——以『记录已更正 + 逆运算可回滚性写明（Z31 追加块行号/INDEX 行号）』关闭）；(3) 若 ZDSH-LESSONS.md/INDEX.md 现态可信，为两文件补做现态基线快照（新增 del/20261116-*-postchange 基线，供后续波次做预改备份的参照），防再犯；RSI 把『改前备份目录名先 mkdir 后写台账』固化为检查项",
-      "disposition": "OPEN → 主线 fixed（台账更正+closure 登记）后重评"
-    },
-    {
-      "id": "P6F-F2",
-      "severity": "建议",
-      "location": "reports/bench/BENCH-report.md:119（§8 遗留登记表）",
-      "issue": "BENCH-L5 行仍为 user_approved_deferred（文本面/模型面，超出本卡接线范围），与 closure.json BENCH-L5 fixed/verified（机制已解）矛盾；§8 表在本仓是活登记表（BENCH-L1 行已在 P6-D2 波更新）；且 BENCH-L7 closure evidence 自述指针『BENCH-report (§8 row + §13 honest boundaries)』中 §8 row 不存在（BENCH-L7 无 §8 行）",
-      "fix_suggestion": "BENCH-L5 行 disposition 更新为 fixed/verified（P6-F，机制解药：服务端路线不依赖模型采用；采用面事实维持 §11.3 原判）并新增 BENCH-L7 行（not_applicable，v0.4 研究候选：nudge/guidance 措辞强度对照 + 更强模型）",
-      "disposition": "OPEN → 主线 fixed（两行文档更正）"
-    },
-    {
-      "id": "P6F-F3",
-      "severity": "建议",
-      "location": "reports/bench/BENCH-report.md:231（§13.1 f340 行）",
-      "issue": "『[9..128]（32 seqs）』与证据不符：raw/p6f-autofold-fold-f340-evidence.json sourceEventSeqs 与 session-9520a57 log seq 340 亲数均 34 个 individual seqs（f290 行 27 seqs 亲数吻合，表口径=individual seqs）——2 之差",
-      "fix_suggestion": "32 seqs → 34 seqs（一处数字更正）",
-      "disposition": "OPEN → 主线 fixed（一处数字）"
-    }
+    { "id": "P6F-F1", "severity": "阻断→已闭合", "disposition": "fixed", "status": "verified", "evidence": "见 rework_r1.findings_closure[0]" },
+    { "id": "P6F-F2", "severity": "建议→已闭合", "disposition": "fixed", "status": "verified", "evidence": "见 rework_r1.findings_closure[1]" },
+    { "id": "P6F-F3", "severity": "建议→已闭合", "disposition": "fixed", "status": "verified", "evidence": "见 rework_r1.findings_closure[2]" }
   ],
   "process_notes": [
-    "diff 体量：业务代码 src 33 行（autofold 5+texts 14+plugin 14）+ 测试 74 行 + 文档/证据/台账约 1450 行——远低于 600 行纪律线（证据归档为主体，符合卡面性质）",
-    "评审亲验造成的树变动均已还原并核验：两探针报告 timestamp-only diff 亲读后 git checkout --；npm test 后 M lib/index.js 为 autocrlf CRLF 假动（git diff 空、raw sha 与 HEAD blob 全等 57961901…，作者 progress.md 已按 Z22 先例记载同型现象）",
-    "评审人独立命中 Z31 所述盲区（首扫用顶层 e.source 得 0，改 data.source 后得 1）——Z31 教训被本评审独立复证为真",
-    "评审人 ≠ 作者：作者 coder-p6f；本评审为独立 subagent；业务代码/测试/配置零改动（最终 git status --porcelain = 0 亲验）；本文件 + handoffs/REVIEW-P6F.md 未提交——入库归主线（沿用 b52ad26/0f487cc 评审件入库先例）",
-    "CHECKPOINT：评审波次不推进任务 checkpoint（P6-F checkpoint 已 terminal）；本文件即评审波次落盘收据"
+    "返工第 1 轮 diff 极小（5 件文档/台账 + 2 评审件入库，业务代码零改动）——无需拆分评审",
+    "评审亲验造成的树变动已全部还原核验（两探针报告 timestamp-only + lib CRLF 假动），最终 git status --porcelain = 0",
+    "评审件 5f1e5db 入库哈希与第 1 轮评审写盘逐字节一致（未篡改）；本轮更新由评审人写入，主线入库时回录新 SHA-256",
+    "评审人 ≠ 作者：r1 作者 coder-p6f-r1；本评审独立 subagent；除两份评审件外零写入",
+    "CHECKPOINT：复审波次不推进任务 checkpoint（P6-F checkpoint terminal 不变）；本轮更新即复审落盘收据"
   ]
 }
