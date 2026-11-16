@@ -229,7 +229,7 @@ C2b 插桩逐 assembly 记录（`raw-stderr/`）：窗口解析成功（40000）
 | fold | 臂/轮 | surface replace | tokensBefore → tokensAfter | 净省 | 摘要 | 证据 |
 |---|---|---|---|---:|---|---|
 | f290 | RUN1 / turn 14 | [9..111]（27 seqs） | **5195 → 619** | **4576（−88.1%）** | compaction 供给模型摘要 | `raw/p6f-autofold-fold-f290-evidence.json` + `raw/p6f-autofold-session-4e57b0e6.jsonl` seq 290 |
-| f340 | RUN2 / turn 18 | [9..128]（32 seqs） | **5739 → 638** | **5101（−88.9%）** | compaction 供给模型摘要 | `raw/p6f-autofold-fold-f340-evidence.json` + `raw/p6f-autofold-session-952e0a57.jsonl` seq 340 |
+| f340 | RUN2 / turn 18 | [9..128]（34 seqs，sourceEventSeqs 亲数） | **5739 → 638** | **5101（−88.9%）** | compaction 供给模型摘要 | `raw/p6f-autofold-fold-f340-evidence.json` + `raw/p6f-autofold-session-952e0a57.jsonl` seq 340 |
 
 RUN2 触发面全程遥测（Z30 纪律：session 日志按多帧 zstd 切分后取证）：**32 次 judge HIT**（首次 turn 4，estimate 26837 > hit line 26421；此后每轮 HIT，estimates 至 39763）→ 33 次 chain run → 32 次 `no-qualified-span`（0 摘要调用，诚实不硬折）+ **1 次 folds-committed**（turn 18）。折叠的计费效应可见：RUN2 turn 18 billedInput 102,328 → turn 19 **57,169**（−44%）；RUN1 turn 14 72,578 → turn 15 **54,885**（−24%）。
 

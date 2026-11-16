@@ -1411,6 +1411,16 @@
       "owner": "coder-p6f-r1",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "P6F-4",
+      "source": "REVIEW-P6F §4 P6F-F3 [建议]（BENCH §13.1 f340 source seqs 表值 32 ≠ 实数 34）",
+      "type": "review-recommendation",
+      "disposition": "fixed",
+      "evidence": "BENCH-report.md §13.1 f340 行 32→34（口径=raw/p6f-autofold-fold-f340-evidence.json sourceEventSeqs 亲数 34 条整数，[9..128] 含空洞非区间长 120；表值已注明亲数口径）。coder 独立亲数复核与评审一致；f290 行 27（25 整数+嵌套对 [42,44]=27 seqs）亲数吻合不改。",
+      "owner": "coder-p6f-r1",
+      "status": "verified",
+      "phase": "block"
     }
   ]
 }
