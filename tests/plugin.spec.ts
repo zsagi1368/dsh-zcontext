@@ -841,6 +841,51 @@ describe('plugin: autofold face wiring gates (v0.3 P6-E)', () => {
     ).toBe(true)
   })
 
+  it('P6D2E-R3: a configured apiKeyEnv with a MISSING environment variable warns at wire time — the face stays armed (missing credentials are a degradation condition, not a skip)', () => {
+    const envName = 'ZCTX_PIN_MISSING_KEY_ENV'
+    const saved = process.env[envName]
+    delete process.env[envName]
+    try {
+      const ctx = mockCtx({ llm: llmWithStream() })
+      new ZcontextPlugin(ctx, {
+        'autofold.enabled': true,
+        'autofold.summarizer': 'external',
+        'autofold.external.url': 'https://example.invalid/v1/messages',
+        'autofold.external.model': 'm',
+        'autofold.external.apiKeyEnv': envName,
+      })
+      expect(ctx.listeners.get('llm/stream')).toHaveLength(3)
+      expect(
+        ctx.logLines.some(
+          (l) => l.level === 'warn' && l.message.includes(`autofold.external.apiKeyEnv "${envName}"`) && l.message.includes('WITHOUT credentials'),
+        ),
+      ).toBe(true)
+    } finally {
+      if (saved !== undefined) process.env[envName] = saved
+    }
+  })
+
+  it('P6D2E-R3 control: a configured apiKeyEnv whose environment variable EXISTS warns nothing', () => {
+    const envName = 'ZCTX_PIN_PRESENT_KEY_ENV'
+    const saved = process.env[envName]
+    process.env[envName] = 'sk-present'
+    try {
+      const ctx = mockCtx({ llm: llmWithStream() })
+      new ZcontextPlugin(ctx, {
+        'autofold.enabled': true,
+        'autofold.summarizer': 'external',
+        'autofold.external.url': 'https://example.invalid/v1/messages',
+        'autofold.external.model': 'm',
+        'autofold.external.apiKeyEnv': envName,
+      })
+      expect(ctx.listeners.get('llm/stream')).toHaveLength(3)
+      expect(ctx.logLines.some((l) => l.message.includes('WITHOUT credentials'))).toBe(false)
+    } finally {
+      if (saved === undefined) delete process.env[envName]
+      else process.env[envName] = saved
+    }
+  })
+
   it('summarizer=compaction without ctx.llm.stream is a loud skip (the official one-shot channel is the supply)', () => {
     const ctx = mockCtx({ llm: { resolveModelInfo: async () => ({ context: { contextWindow: 200000 } }) } })
     new ZcontextPlugin(ctx, { 'autofold.enabled': true })

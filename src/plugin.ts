@@ -989,10 +989,22 @@ export class ZcontextPlugin extends ServiceBase {
         )
         return
       }
+      // P6D2E-R3: a configured apiKeyEnv whose environment variable is
+      // missing/empty used to be silent — the remote 401 was the only signal.
+      // Warn at wire time; the face STAYS enabled (missing credentials are a
+      // degradation-chain condition, not a misconfiguration of the supply
+      // itself — fail-loud, not fail-skip).
+      const apiKeyEnv = this.config['autofold.external.apiKeyEnv']
+      if (apiKeyEnv.length > 0 && (process.env[apiKeyEnv] ?? '') === '') {
+        zctxDebug(`wireAutoFoldFace: external apiKeyEnv "${apiKeyEnv}" configured but the environment variable is missing/empty — summary requests will go out WITHOUT credentials`)
+        ctx.logger?.warn?.(
+          `dsh-zcontext: autofold.external.apiKeyEnv "${apiKeyEnv}" is configured but the environment variable is missing/empty — external summary requests go out WITHOUT credentials (the remote 401 would be the only signal); the face stays enabled because missing credentials feed the degradation chain, they are not a supply misconfiguration`,
+        )
+      }
       supply = createExternalSupply({
         url,
         model,
-        apiKeyEnv: this.config['autofold.external.apiKeyEnv'],
+        apiKeyEnv,
         maxTokens: chainConfig.maxSummaryOutputTokens,
       })
     } // 'digest' → supply stays undefined (the CPU-only digest path)

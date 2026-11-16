@@ -192,7 +192,7 @@ C2b 插桩逐 assembly 记录（`raw-stderr/`）：窗口解析成功（40000）
 | 模型工具调用依赖 | **0**——全会话（20 轮）无任何 `zctx_*` tool/call 事件 | 同上 session log `tool/call` 全量扫描 |
 | 摘要供给 | **compaction 供给**（官方 purpose:'compaction' 一次性 ctx.llm.stream，父请求路由 magpie/hy4flash-free）：摘要文本非 digest 形态（无 deterministic-digest 头），经 validator 长度窗 [50,20000] + 净缩门 1.05（5744 > 864 ✓） | seq 297 摘要文本头 + 机制代码路径 |
 | 触发判据 | V4 判据第三态复用：turn 11 起 HIT（estimate 28859 > hit line 26421 = triggerLine 29356 × margin 0.9），此后每轮 HIT（estimates 28859→48002） | `summary-p6e-autofold.jsonl` stderrTail `[zctx-debug] autoFold judge: … → HIT`（turns 11-20 全部） |
-| 提交链路因果复现 | 离线重放：折叠前精确表面（80 节点 12769 tokens）上 selectFoldSpans 返回**唯一候选 [9..202] 5471 tokens——与运行时提交的 span/tokens 逐字一致** | 本波 offline 复现脚本输出（progress.md P6-E 段） |
+| 提交链路因果复现 | 离线重放：折叠前精确表面（80 节点 12769 tokens）上 selectFoldSpans 返回**唯一候选 [9..202] 5471 tokens——与运行时提交的 span/tokens 逐字一致** | 归档脚本 `harness/replay-f297.mjs`（P6D2E-R2 入库；输出：`MATCH: true` + post-fold `[]`，2026-11-16 复跑核验；原始独立复现=REVIEW-P6D2E §1.8） |
 | 防反馈环 | 摘要调用 purpose 豁免（不在任何监听判定/不入 session log）；fold 提交后 nudge 基线清零 hook 在位 | autofold.ts + plugin.ts onFoldCommitted（单测 37 钉） |
 
 ### 12.2 时间线（session e98c4f6f，20 轮 = 10 轮 pilot 脚本 + 10 轮 matrix 续臂）
@@ -211,3 +211,37 @@ C2b 插桩逐 assembly 记录（`raw-stderr/`）：窗口解析成功（40000）
 2. **折后覆盖边界（新发现，BENCH-L6 候选）**：单次 fold 后，surface 的数字非单调性使后续 hull 全部落在 validator check-a 可达域之外——插件每个「单调纪元」只能折一次；多次折叠需要按 checkpoint 边界对齐的吸收窗（≥ minFoldableTokens 才可用）。这是 W3-2 既有不变量的运行时显形，不是本波缺陷；下一杠杆=吸收窗资格（[checkpoint,checkpoint] ≥ 门槛时的再折）与 bc #726 式的跨 checkpoint 区间选择。
 3. **官方 compaction 摘要截断**（turn 20）：宿主自链在同场景失败（其摘要调用在 token cap 截断）——插件折既成功过、宿主链失败，两链质量对比的第一手数据点。
 4. 组态残留=零（disarm 幂等循环 2×2 验证：patch yml 0 zctx 行 + 0 窗口 cap；装件 lib 保持 P6-E 构建与仓内全等）。臂内每轮 exit=0（除 turn 20 官方链失败），billedInput 逐轮在 summaries 存档。
+
+## 13. P6-F 复证臂：autoFold 开 × 两臂 20 轮（2026-11-16 · v0.3.0 发布证据）
+
+> 任务卡 tasks/ZCTX/cards/P6F-bench-release.md。装件 lib 同步至 P6-F 构建（含 R3/R4a 修复；SHA-256 逐件断言 repo==装件，index.js 5796190163a36fa5…）；arm 经 arm-autofold.mjs（dump 结构化校验 verified）；路由 workbuddy/hy4flash-free 固定；原 profile 零触碰；跑前 §5 备份 del/20261116-p6f-bench-prechange。跑完 disarm 幂等验证（patch yml 0 zctx 行 + 0 窗口 cap）。
+
+### 13.1 结果：服务端自发折叠在两个独立新会话各自发生一次
+
+| 臂 | 会话 | 脚本形态 | 遥测 | 轮次 | 累计 billedInput | 服务端 fold | 模型 zctx_* 调用 |
+|---|---|---|---|---|---:|---|---:|
+| RUN1 | `4e57b0e6`（session key p6f-autofold） | 10 pilot + 10 matrix（P6-E 同型） | 无（ZCTX_DEBUG 未设） | 20/20 exit 0 | 1,255,148 | **1（f290，turn 14）** | 0 |
+| RUN2 | `952e0a57`（p6f-autofold-dbg） | matrix 1-20 直跑 | ZCTX_DEBUG=1 全程 | 20/20 exit 0 | 1,208,348 | **1（f340，turn 18）** | 0 |
+
+折叠事实（与 P6-E f297 同机制、同 compaction 供给、0 模型工具调用依赖）：
+
+| fold | 臂/轮 | surface replace | tokensBefore → tokensAfter | 净省 | 摘要 | 证据 |
+|---|---|---|---|---:|---|---|
+| f290 | RUN1 / turn 14 | [9..111]（27 seqs） | **5195 → 619** | **4576（−88.1%）** | compaction 供给模型摘要 | `raw/p6f-autofold-fold-f290-evidence.json` + `raw/p6f-autofold-session-4e57b0e6.jsonl` seq 290 |
+| f340 | RUN2 / turn 18 | [9..128]（32 seqs） | **5739 → 638** | **5101（−88.9%）** | compaction 供给模型摘要 | `raw/p6f-autofold-fold-f340-evidence.json` + `raw/p6f-autofold-session-952e0a57.jsonl` seq 340 |
+
+RUN2 触发面全程遥测（Z30 纪律：session 日志按多帧 zstd 切分后取证）：**32 次 judge HIT**（首次 turn 4，estimate 26837 > hit line 26421；此后每轮 HIT，estimates 至 39763）→ 33 次 chain run → 32 次 `no-qualified-span`（0 摘要调用，诚实不硬折）+ **1 次 folds-committed**（turn 18）。折叠的计费效应可见：RUN2 turn 18 billedInput 102,328 → turn 19 **57,169**（−44%）；RUN1 turn 14 72,578 → turn 15 **54,885**（−24%）。
+
+### 13.2 对照（GO-NO-GO §10 口径：计数与费用分开报）
+
+- **自发折叠发生率（服务端 route，不依赖模型采用）**：P6-F 两臂 2/40 轮（每臂各 1 次，均真实提交、0 模型工具调用）；P6-E pilot 1/20；合计机制路线 **3/60 轮、三会话各自恰好 1 次**。对照 P6-D2 复测（同 40k 窗口、faces enabled、无 autofold）：0/20。模型自发采用面维持 §11.3 原判（两臂仍 0 自发 zctx_* 调用）。
+- **每次净省**：4576 / 5101 tokens（−88%量级），与 P6-E f297 的 4607 同量级——三次独立会话的净省稳定在 ~4.6-5.1k tokens（≈单次可选中段的体量，受 minFoldableTokens 5000 地板与 maxFoldFraction 0.6 上限约束）。
+- **累计 billedInput 曲线**：RUN1 1,255,148 / RUN2 1,208,348（40 轮合计 2,463,496）。对照 P6-D C 组同前 20 轮（同提示词脚本、但 disabled 态）：2,253,460——RUN2 低于 C 组同窗口（其 turns 11-20 均值 182,586 vs RUN2 67,300，−63.1%；RUN1 73,288），**但该对照不构成处理效应声称**：C 组是 disabled 态（§11.1）、单会话无重复、步数方差主导（§7）——如实呈现曲线，不做归因。
+- **7 指标口径的诚实边界**：本轮只报 billedInput（input+cacheRead；cacheWrite 该路由仍不上报，BENCH-L4 不变）、fold 计数与净省、hitRate 曲线未重算（逐轮 cacheRead 在 summaries 存档可复核）；breakevenTurns 与 κ/η 折算仍属 §10.3 未闭环项（免费路由无单价表，如实保留）。
+
+### 13.3 诚实边界与残留
+
+1. **每臂恰好 1 次折叠 = 覆盖边界的再次显形（BENCH-L6/P6E-4）**：RUN2 的 32 次 HIT 全部以 no-qualified-span 告终——触发面工作正常（HIT→链启动），限制在选区可达域（minFoldableTokens 5000 地板 + W3-2 可达性 + maxFoldFraction），提交一次后表面数字塌缩，本纪元再无可折区间。三次会话（P6-E f297、P6-F f290/f340）同型：**单纪元一次折叠是当前诚实天花板**，多折需要 checkpoint 对齐吸收窗（v0.4 候选）。
+2. RUN1 无 ZCTX_DEBUG 遥测（启动环境未导出该变量）——其折叠事实以 session 日志 seq 290 的一手事件为据（Z30 全量取证），判定链遥测以 RUN2 为据；两臂互为独立复证。
+3. 无官方 compaction 接管事件（两臂 40 轮 0 compaction 事件、0 exit≠0 轮）——P6-E turn 20 的宿主链截断失败在本轮未复现（步数方差）。
+4. 组态残留=零；装件 lib 保持 P6-F 构建与仓内全等（release 后随 0.3.0 lib 再同步）。

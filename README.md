@@ -4,11 +4,11 @@
 
 [![CI](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml/badge.svg)](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version: 0.2.1](https://img.shields.io/badge/version-0.2.1-blue.svg)](CHANGELOG.md)
+[![version: 0.3.0](https://img.shields.io/badge/version-0.3.0-blue.svg)](CHANGELOG.md)
 
 Model-driven incremental context folding for the [DeepSeek Harness](https://github.com/deepseek-ai) — the model folds finished stretches of a conversation into short summaries it writes itself, keeping the working window small over very long sessions, through the official surface-replace channel only.
 
-- **What it is** — a third-party plugin package (`dsh-zcontext`) for the official DeepSeek Harness: four tools (`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`), one static guidance section, one pressure nudge, one `/zctx` command, an always-on observability ledger, an opt-in-able preflight gate, and an opt-in zctx router for your own providers — all surfaced through one settings page (nine primitive fields plus the v0.2.0 sections below). No host patches, no forks; the only wire-facing face is the declared S2 router, which never rewrites a request body.
+- **What it is** — a third-party plugin package (`dsh-zcontext`) for the official DeepSeek Harness: four tools (`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`), one static guidance section, one pressure nudge, one `/zctx` command, an always-on observability ledger, an opt-in-able preflight gate, an opt-in zctx router for your own providers, and an opt-in **server-initiated autoFold** face that folds without waiting for the model to act — all surfaced through one settings page (nine primitive fields plus the v0.2.0/v0.3.0 sections below). No required host patches, no forks; the only wire-facing plugin face is the declared S2 router, which never rewrites a request body. A separate, strictly optional external patcher (`patcher/`, user-run) exists for the guard-observe wire domain.
 - **Why it exists** — the official harness ships compaction-basic, which summarizes the whole window under pressure; it has no model-driven incremental folding. The [billion-context](https://github.com/ranxianglei/billion-context) research demonstrated the mechanism (model writes summaries, model picks ranges, cache-aware nudges, sessions run long with low window occupancy). This plugin reimplements that capability through the official plugin surface — the same mechanism, the harness's own proper channel.
 
   <a id="clean-room"></a>
@@ -24,6 +24,8 @@ Model-driven incremental context folding for the [DeepSeek Harness](https://gith
 - [Observability ledger (installed = recording)](#observability-ledger)
 - [Preflight (S1): judge the window before the wire](#preflight-s1)
 - [zctx router (S2): bring-your-own providers, honestly](#zctx-router)
+- [autoFold: server-initiated folding (opt-in, v0.3.0)](#autofold)
+- [The optional base-context patcher (external, user-run, v0.2)](#the-optional-patcher)
 - [Settings](#settings)
 - [Behavior notes](#behavior-notes)
 - [Limitations](#limitations)
@@ -149,10 +151,37 @@ The one place v0.2.0 touches the wire — as a declared exception, not a takeove
 - **Redlines honored.** `maxRetries: 0` (the agent recovery layer owns retries), attribution headers ride every request including one-shots, HTTP(SSE) protocols only (no WebSocket transport), text-only — zctx routes carry no image/file content on the wire. P3 honesty note: the official runtime projects images to placeholder text BEFORE the adapter is dispatched (the adapter declares `inputModalities: ['text']`), so a zctx-routed image request completes with the model seeing only placeholder text and no failure signal. The adapter's own `UNSUPPORTED_CONTENT` gate is a defensive mirror for direct-adapter calls, and every wire-ledger row carries an `imageCount` field (0 on the official path) pinning what reached the adapter boundary.
 - **Wire ledger coverage.** Only sessions the router actually drives get wire-domain byte-hash rows; everything else stays harness-domain only, and every row carries its `domain` label (plus `imageCount`, the P3 HF-01 observability field).
 
+<a id="autofold"></a>
+## autoFold: server-initiated folding (opt-in, v0.3.0)
+
+Model-driven folding has one honest dependency: the model must choose to call `zctx_fold`. Measured on the headless bench, a free-flash route model with tools on the wire, guidance on the wire, and nudge text on the wire still made **zero spontaneous fold calls in 20 pressure rounds** (`reports/bench/BENCH-report.md` §11.3 — the adoption face). v0.3.0 adds the mechanism route that removes the dependency: **the plugin folds server-side**, without any model tool call.
+
+`autofold.enabled` (default **false**, explicit opt-in) arms a third `llm/stream` waterfall listener — the innermost face, after preflight and observe:
+
+1. **Trigger** — the V4 judgment is REUSED, not reimplemented: the preflight listener's projection + estimate (`projectAndEstimateRequest`) feeds the same trigger-line inequality with the same margin. A hit starts the chain; no hit means the request passes through untouched.
+2. **Selection** — a conservative span set from the validator's own reachability domain (node 0, first user, latest user protected; tool calls folded with their results; pair-safe boundaries; `maxFoldFraction` cap; `minFoldableTokens` floor), oldest-first, batch-capped. A selection that cannot pass the validator's own gates is skipped honestly — never force-folded.
+3. **Summary supply** — one of three, config-picked, never silently re-routed:
+   - `compaction` (default) — the official one-shot `ctx.llm.stream({ purpose: 'compaction' })` channel, same shape as the official summarizer (purpose-marked, so it is invisible to all three listeners and never re-enters the chain; it does not enter the session log);
+   - `external` — one bounded POST to your own endpoint (Bearer via `autofold.external.apiKeyEnv` indirection; a configured-but-missing environment variable warns loudly at wire time, and the face stays armed because missing credentials feed the degradation chain);
+   - `digest` — a deterministic CPU-only fallback summary (no model call).
+4. **Degradation chain** — transient empty answers retry (bounded), unsplittable failures halve at pair-safe midpoints to the floor, digest is the terminal fallback, dead supplies go sticky with one canary per run; every rejection is a logged fault, and nothing ever breaks the request (fail-open: the original stream proceeds unconditionally after the chain).
+5. **Commit** — the same `fold()` engine and the same fresh-surface re-verification the model-facing path uses; a fold that no longer verifies mid-run aborts honestly. After a committing run the nudge baseline resets (anti-feedback-loop, mirroring the official compaction handler's own re-basing).
+
+Measured reality (headless bench, `workbuddy/hy4flash-free`, declared window 40000): the trigger fired conservatively (turns 1-10 no hit), then committed a real server-initiated fold — span [9..202], 5471 → 864 estimated tokens (−84%), **zero model tool calls** in the whole 20-round session (BENCH-report §12; independent reviewer replay archived at `reports/bench/harness/replay-f297.mjs`). Known coverage boundary: within one monotonic epoch a committed fold collapses the reachable span below the fold floor — multiple folds per epoch need checkpoint-aligned absorption windows (BENCH-report §12.3/§13, honest limit, not a silent gap).
+
+<a id="the-optional-patcher"></a>
+## The optional base-context patcher (external, user-run, v0.2)
+
+`patcher/zctx-patch.mjs` is a **standalone, strictly optional** tool for the official desktop build. It applies the five-file base-context patch set (`zctx-v0.3-base-1`) — one atomic asar write — to light up the guard-observe wire domain (per-request hash-then-passthrough fetch wrapper + adapter guard sink) on official routes. The plugin is fully functional without it; the patch only widens what the observability ledger can see on routes the plugin's own adapter does not drive. **Real-machine patch/restore execution is the user's command and responsibility** — the repository never runs it against a live install.
+
+- **What it touches** — exactly five files inside the official asar (`llm-pi-ai` carrying the P4 wire stub + guard wiring; `agent-loop` guard observer; `session` persistence vocabulary; `compaction-basic` L3 budget; `compaction-tool-result-pruner` pruning declaration). Zero new asar entries, zero official export-face changes, zero request-body rewriting (redline R1).
+- **Gates** — app-not-running, version ∈ supported set, per-file pristine-hash anchors (drift = official update = refuse), anchor uniqueness, idempotent re-run (already patched → no-op success), one atomic write for the whole set (no partial multi-file state can persist), per-file post-verification, sibling backup outside the install dir before touching anything.
+- **Re-patch** — the patch survives only until the official updater replaces the install directory; after an update, `status` reports drift and you re-patch against the new build's anchor set. **Rollback** — `restore` puts the original bytes back from the hash-verified backup and clears the marker; `status` is strictly read-only and reports the per-file face plus the `patchSet` aggregate (patched / unpatched / partial / drifted). Full flow: `patcher/README.md`.
+
 <a id="settings"></a>
 ## Settings
 
-Nine primitive fields plus the v0.2.0 sections (observe switches, preflight, and the S2 providers declaration); the static `Config` schema generates the settings page automatically.
+Nine primitive fields plus the v0.2.0/v0.3.0 sections (observe switches, preflight, the S2 providers declaration, the guard-observe bridge switch, and the autoFold face); the static `Config` schema generates the settings page automatically.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
@@ -177,6 +206,15 @@ The v0.2.0 sections ride the same schema:
 | `preflightMode` | string | `"observe"` | `'off' \| 'observe' \| 'enforce'` — see [Preflight (S1)](#preflight-s1). |
 | `preflightMarginRatio` | number | `0.9` | Preflight hit margin (uncalibrated — see [Limitations](#limitations)). |
 | `providers` | provider[] | `[]` | S2 router declarations (see [zctx router](#zctx-router)); zero routes = the adapter face stays a legal keep-alive. Configured through a profile overlay patch. |
+| `patch.guardObserveEvents` | boolean | `true` | The log-only consumer of the patched chain's `cache/guard-observe` events (inert by construction without the external patcher). |
+| `autofold.enabled` | boolean | `false` | Server-initiated folding face (see [autoFold](#autofold)); explicit opt-in in v0.3.0. |
+| `autofold.summarizer` | string | `"compaction"` | Summary supply: `'compaction' \| 'external' \| 'digest'`. An illegal value is a loud skip, never a silent fallback. |
+| `autofold.external.url` | string | `""` | External supply endpoint (required when `summarizer: 'external'`; empty = loud skip). |
+| `autofold.external.model` | string | `""` | External supply model id (required with `external`). |
+| `autofold.external.apiKeyEnv` | string | `""` | Name of the environment variable holding the external Bearer credential; configured-but-missing warns at wire time. |
+| `autofold.maxRounds` | number | `16` | Chain span-attempt budget per run. |
+| `autofold.maxBatch` | number | `4` | Selection batch width per chain round. |
+| `autofold.maxSummaryOutputTokens` | number | `32768` | Output cap for model-driven summary calls (clamped). |
 
 Independent of these settings, the whole automatic face (nudge + engine gate) stays off below a context window of 32768 tokens — the estimation formulas' legal domain. Tools remain usable; status renders an explicit note.
 
@@ -194,7 +232,8 @@ Three behaviors that are deliberate, not bugs:
 <a id="limitations"></a>
 ## Limitations
 
-- **Tool adoption depends on the model.** Folding happens when the model follows the guidance and nudges. Weaker instruction-following means fewer folds — and the official compaction-basic remains the hard floor either way.
+- **Tool adoption depends on the model.** Folding happens when the model follows the guidance and nudges. Weaker instruction-following means fewer folds — and the official compaction-basic remains the hard floor either way. v0.3.0's `autofold.enabled` opt-in removes this dependency with the server-initiated face (see [autoFold](#autofold)).
+- **autoFold's per-epoch coverage boundary.** Within one monotonic epoch (no intervening compaction/checkpoint shift), a committed fold collapses the reachable span below the `minFoldableTokens` floor — one fold per epoch is the honest ceiling until checkpoint-aligned absorption windows land (measured headless; BENCH-report §12.3).
 - **No wire-level fallback.** Folding rides the official surface replace channel only. There is no request rewriting, no fetch proxy, no prompt-level truncation fallback; if the channel is unavailable, the plugin does not degrade to hacky alternatives.
 - **Cross-checkpoint absorption is boundary-aligned.** A fold window may absorb an earlier fold's checkpoint only when the window is exactly `[checkpoint, checkpoint]`; wider spans across a checkpoint are rejected with an explicit reason.
 - **Single-session scope.** `zctx_recall` and the ledger are per-session; no cross-session retrieval.

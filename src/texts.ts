@@ -252,6 +252,20 @@ export const REASON_WINDOW_TOO_LARGE =
 export const REASON_NO_NET_SHRINK =
   'fold window [{{start}}, {{end}}] would grow the window: {{folded}} folded tokens x {{tolerance}} tolerance must exceed {{summary}} summary tokens'
 
+/**
+ * Machine signature for the rendered net-shrink rejection (P6D2E-R4a):
+ * derived from REASON_NO_NET_SHRINK itself (the longest placeholder-free
+ * fragment), so a wording edit automatically carries the classifier with it.
+ * Consumers must match on this constant — never on a copied literal, which a
+ * texts edit would silently strand (halving would degrade to abort without
+ * any test failing on the wording alone). Pinned in tests/autofold.spec.ts
+ * (containment in the rendered reason + cross-template uniqueness).
+ */
+export const REASON_NO_NET_SHRINK_SIGNATURE = REASON_NO_NET_SHRINK.split(/\{\{[^}]*\}\}/).reduce(
+  (best, fragment) => (fragment.length > best.length ? fragment : best),
+  '',
+)
+
 // ---------------------------------------------------------------------------
 // W3 engine reasons (compaction mutex, fold identity, unreadable surface).
 // ---------------------------------------------------------------------------

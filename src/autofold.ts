@@ -107,6 +107,7 @@ import {
   AUTOFOLD_DIGEST_ROW,
   AUTOFOLD_DIGEST_TAIL,
   AUTOFOLD_SUMMARY_INSTRUCTION,
+  REASON_NO_NET_SHRINK_SIGNATURE,
 } from './texts.ts'
 import { fold, foldableRanges } from './fold-engine.ts'
 import type { FoldCommitResult, FoldSessionLike } from './fold-engine.ts'
@@ -880,7 +881,9 @@ export async function runAutoFoldChain(deps: AutofoldChainDeps): Promise<Autofol
     // The validator's own net-shrink gate also feeds the halving path (bc
     // F2.12); every structural rejection is a selection error — abort the
     // span honestly (halving cannot fix protected-zone or pair violations).
-    const netShrink = result.reasons.some((reason) => reason.includes('tolerance must exceed'))
+    // P6D2E-R4a: match the machine signature derived from the template
+    // (src/texts.ts), not a copied wording literal.
+    const netShrink = result.reasons.some((reason) => reason.includes(REASON_NO_NET_SHRINK_SIGNATURE))
     return netShrink ? { kind: 'halve' } : { kind: 'abort', detail: reasons }
   }
 

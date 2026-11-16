@@ -1266,10 +1266,10 @@
       "id": "BENCH-L5",
       "source": "P6-D2 retest finding (BENCH-report §11.3/§11.4)",
       "type": "bench-leftover",
-      "disposition": "user_approved_deferred",
-      "evidence": "adoption face: 0 spontaneous zctx calls in 20 pressure rounds (C2+C2b) with nudge text on wire; next-wave lever = nudge/guidance wording-strength contrast + stronger-model control; registered §8 row BENCH-L5, owner 插件域主线, trigger 下一插件域波次开工 — pending wave-level user approval at next card; status closed per established deferred-entry convention (P3-S1 precedent), disposition carries the pending-approval semantics",
-      "owner": "插件域主线",
-      "status": "closed",
+      "disposition": "fixed",
+      "evidence": "re-dispositioned P6D2E-R1 per task card P6F: the adoption-face blocker is MECHANISM-SOLVED — the server-initiated autoFold route no longer depends on model adoption: P6-E delivered the engine (commit c7c75c3+36178af) and pilot committed real fold f297 [9..202] 5471->864 tokens with 0 model tool calls (reports/bench/raw/p6e-autofold-fold-f297-evidence.json; BENCH-report §12), independently replayed verbatim by the reviewer (REVIEW-P6D2E §1.8, archived harness/replay-f297.mjs MATCH:true); P6-F adds the 20-round autofold arm replication (BENCH-report §13). Residual research lever (nudge/guidance wording strength + stronger-model adoption) is NOT a plugin defect and is part of no v0.3 acceptance criterion — moved to BENCH-L7 (v0.4 candidate). P6-F replication (BENCH §13): two fresh 20-round arms each committed exactly one server-initiated fold (f290 5195->619 net 4576; f340 5739->638 net 5101), 0 model zctx_* calls — the mechanism route works without adoption, re-verified.",
+      "owner": "coder-p6f",
+      "status": "verified",
       "phase": "post-merge"
     },
     {
@@ -1311,6 +1311,86 @@
       "owner": "coder-p6e",
       "status": "verified",
       "phase": "post-merge"
+    },
+    {
+      "id": "P6D2E-R1",
+      "source": "REVIEW-P6D2E §5 R1 (closure BENCH-L5 uad with pending approval)",
+      "type": "review-recommendation",
+      "disposition": "fixed",
+      "evidence": "BENCH-L5 re-dispositioned user_approved_deferred -> fixed/verified: mechanism route delivered (P6-E engine + f297 pilot + reviewer independent replay) removes the dependency on model adoption that the deferred entry was waiting on; residual research lever registered as BENCH-L7. Task card tasks/ZCTX/cards/P6F-bench-release.md item 1-R1.",
+      "owner": "coder-p6f",
+      "status": "verified",
+      "phase": "post-merge"
+    },
+    {
+      "id": "P6D2E-R2",
+      "source": "REVIEW-P6D2E §5 R2 (offline replay script not archived)",
+      "type": "review-recommendation",
+      "disposition": "fixed",
+      "evidence": "harness/replay-f297.mjs archived into reports/bench/harness (reviewer provenance noted in header); rerun 2026-11-16: surface 80 nodes/12769 tokens, unique span [{startSeq:9,endSeq:202,foldedTokens:5471}] MATCH:true, post-fold spans [] — reproduces the runtime commit verbatim; BENCH-report §12.1 evidence column now points at the archived script.",
+      "owner": "coder-p6f",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6D2E-R3",
+      "source": "REVIEW-P6D2E §5 R3 (external apiKeyEnv missing env var was silent)",
+      "type": "review-recommendation",
+      "disposition": "fixed",
+      "evidence": "src/plugin.ts wireAutoFoldFace external branch: configured apiKeyEnv with missing/empty env var now warns LOUD at wire time (face stays enabled — missing credentials feed the degradation chain, not a supply misconfiguration); pins tests/plugin.spec.ts (missing-env warn + present-env no-warn control); battery 592/592 + tsc 0.",
+      "owner": "coder-p6f",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6D2E-R4a",
+      "source": "REVIEW-P6D2E §5 R4a (net-shrink classification depended on a texts substring)",
+      "type": "review-recommendation",
+      "disposition": "fixed",
+      "evidence": "src/texts.ts exports REASON_NO_NET_SHRINK_SIGNATURE (derived from the template at runtime — longest placeholder-free fragment); src/autofold.ts commitSpan classifies via the constant, no copied literal; pin tests/autofold.spec.ts (containment in rendered reason + non-empty + cross-template uniqueness over all REASON_* exports); battery 592/592 + tsc 0.",
+      "owner": "coder-p6f",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6D2E-R4b",
+      "source": "REVIEW-P6D2E §5 R4b (progress.md wording said leftover-ledger, carrier is closure.json)",
+      "type": "review-recommendation",
+      "disposition": "fixed",
+      "evidence": "tasks/ZCTX/progress.md P6-E pilot line: wording changed to 'closure.json 台账 P6E-4 登记' matching the actual carrier (no leftover-ledger.md exists in-repo; P6E-4 is the registered coverage-boundary entry).",
+      "owner": "coder-p6f",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "P6D2E-R5",
+      "source": "REVIEW-P6D2E §5 R5 (archived pre-fix switch-group.mjs had no evidence header)",
+      "type": "review-recommendation",
+      "disposition": "fixed",
+      "evidence": "reports/bench/harness/switch-group.mjs header now declares ARCHIVED PRE-FIX EVIDENCE COPY with both defect descriptions and the live fixed script location (bench home harness/switch-group.mjs); file kept verbatim as BENCH-report §11.1 mechanical proof.",
+      "owner": "coder-p6f",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "BENCH-L7",
+      "source": "BENCH-L5 residual research lever (text-face/model-face adoption)",
+      "type": "bench-leftover",
+      "disposition": "not_applicable",
+      "evidence": "nudge/guidance wording-strength contrast + stronger-model spontaneous-adoption control: NOT a plugin defect — with the server-initiated mechanism delivered (P6-E/P6-F), model spontaneous adoption is part of no v0.3 acceptance criterion; kept as a v0.4 research candidate in BENCH-report (§8 row + §13 honest boundaries).",
+      "owner": "coder-p6f",
+      "status": "verified",
+      "phase": "post-merge"
+    },
+    {
+      "id": "P6F-1",
+      "source": "tasks/ZCTX/cards/P6F-bench-release.md 产物 2（基准重跑 autofold 开）",
+      "type": "card-deliverable",
+      "disposition": "fixed",
+      "evidence": "两臂 20 轮真 CLI headless（workbuddy/hy4flash-free 固定，原 profile 零触碰，跑前 del/20261116-p6f-bench-prechange 备份，跑后 disarm 残留=0）：RUN1 session 4e57b0e6 20/20 exit0 cum billedInput 1,255,148 服务端 fold f290 turn14 [9..111] 5195->619 净省4576；RUN2 session 952e0a57 20/20 exit0 cum 1,208,348 fold f340 turn18 [9..128] 5739->638 净省5101，全程遥测 32 HIT/33 chain/32 no-qualified-span+1 committed、0 模型 zctx_* 调用。对照：P6-D2 复测同窗无 autofold 0/20；P6-E f297 净省 4607 同量级。证据 reports/bench/BENCH-report.md §13 + raw/p6f-autofold-* + harness/summary-p6f-autofold*.jsonl。owner coder-p6f",
+      "owner": "coder-p6f",
+      "status": "verified",
+      "phase": "block"
     }
   ]
 }
