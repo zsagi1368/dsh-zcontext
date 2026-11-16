@@ -56,6 +56,7 @@
 
 import { createRequire } from 'node:module'
 
+import { zctxDebug, zctxDebugJson, zctxDebugEnabled } from './debug.ts'
 import {
   assertZctxProvidersResolvable,
 } from './adapter/providers.ts'
@@ -182,14 +183,23 @@ const nodeRequire = createRequire(import.meta.url)
 function loadCordisService(): ServiceCtor | undefined {
   try {
     const mod = nodeRequire('@deepseek-ai/cordis') as { Service?: unknown }
-    return typeof mod?.Service === 'function' ? (mod.Service as ServiceCtor) : undefined
-  } catch {
+    const resolved = typeof mod?.Service === 'function' ? (mod.Service as ServiceCtor) : undefined
+    zctxDebug(
+      `loadCordisService: '@deepseek-ai/cordis' import OK; Service is ${resolved === undefined ? 'NOT a function (undefined chosen)' : 'a function (real Service base)'}`,
+    )
+    return resolved
+  } catch (error: unknown) {
+    zctxDebug(
+      `loadCordisService: '@deepseek-ai/cordis' import FAILED (${error instanceof Error ? error.message : String(error)}) — falling back to the structural shim base (inject discipline inactive)`,
+    )
     return undefined
   }
 }
 
 /** The Service base this plugin extends: the host's real one when resolvable. */
 const ServiceBase: ServiceCtor = loadCordisService() ?? StructuralServiceShim
+
+zctxDebug(`module loaded from ${import.meta.url}; ServiceBase = ${ServiceBase === StructuralServiceShim ? 'StructuralServiceShim (shim)' : 'real cordis Service'}`)
 
 /** Parse "25,50,75,90" into ascending threshold numbers (invalid entries dropped). */
 export function parseThresholds(spec: string): number[] {
@@ -303,6 +313,25 @@ export class ZcontextPlugin extends ServiceBase {
     super(ctx, SERVICE_NAME)
     this.ctx = ctx
     this.config = Object.freeze<ZcontextConfig>({ ...configDefaults, ...config })
+    if (zctxDebugEnabled()) {
+      // P6-D2 diagnostic: the decisive surface — what the host actually
+      // handed over in THIS composition. Dumped through the env-gated
+      // stderr sink (Z28), never through ctx.logger.
+      const face = (value: unknown): string =>
+        value === undefined ? 'undefined' : typeof value === 'function' ? 'function' : typeof value
+      zctxDebug(
+        `constructor: ctx surface = { on: ${face(ctx.on)}, tools: ${face(ctx.tools)}, tools.register: ${face(ctx.tools?.register)}, ` +
+          `systemPrompt: ${face(ctx.systemPrompt)}, systemPrompt.section: ${face(ctx.systemPrompt?.section)}, systemPrompt.context: ${face(ctx.systemPrompt?.context)}, ` +
+          `commands: ${face(ctx.commands)}, commands.register: ${face(ctx.commands?.register)}, ` +
+          `llm: ${face(ctx.llm)}, llm.registerAdapter: ${face((ctx.llm as { registerAdapter?: unknown } | undefined)?.registerAdapter)}, ` +
+          `tokenMeter: ${face(ctx.tokenMeter)}, logger: ${face(ctx.logger)}, reflect.provide: ${face(ctx.reflect?.provide)} }`,
+      )
+      zctxDebug(
+        `constructor: ctx own keys = ${zctxDebugJson(Object.getOwnPropertyNames(ctx))}; ` +
+          `this instanceof shim = ${Object.getPrototypeOf(this).constructor === StructuralServiceShim}; ` +
+          `config keys = ${zctxDebugJson(Object.keys(config))}`,
+      )
+    }
     this.guardBridge = createGuardObserveBridge(ctx.logger)
     this.runtime = {
       logger: ctx.logger,
@@ -325,9 +354,11 @@ export class ZcontextPlugin extends ServiceBase {
 
     if (!this.config.enabled) {
       this.patchMountState = 'idle (plugin disabled by config)'
+      zctxDebug('constructor: disabled by config — all faces stay unwired')
       ctx.logger?.info?.('dsh-zcontext: disabled by config — staying passive (official compaction remains the hard floor)')
       return
     }
+    zctxDebug('constructor: enabled — wiring all faces')
     this.wireSessionFeed()
     this.wireToolFace()
     this.wireGuidanceFace()
@@ -337,6 +368,7 @@ export class ZcontextPlugin extends ServiceBase {
     this.wirePreflightFace()
     this.wireObserveFace()
     this.wirePatchFace()
+    zctxDebug('constructor: all wire*Face calls returned')
   }
 
   // -- face wiring -----------------------------------------------------------
@@ -345,9 +377,11 @@ export class ZcontextPlugin extends ServiceBase {
   private wireSessionFeed(): void {
     const { ctx } = this
     if (typeof ctx.on !== 'function') {
+      zctxDebug('wireSessionFeed: SKIP — ctx.on unavailable')
       ctx.logger?.warn?.('dsh-zcontext: ctx.on unavailable — session feed face skipped (stores attach lazily on first use)')
       return
     }
+    zctxDebug('wireSessionFeed: ctx.on available — registering session/created|disposed|event listeners')
     ctx.on('session/created', (session: unknown) => {
       this.liveSessions.add(session as object)
       void this.warmWindow(session as SessionLike)
@@ -392,30 +426,39 @@ export class ZcontextPlugin extends ServiceBase {
   private wireToolFace(): void {
     const { ctx } = this
     if (typeof ctx.tools?.register !== 'function') {
+      zctxDebug(`wireToolFace: SKIP — ctx.tools.register unavailable (tools=${typeof ctx.tools}, register=${typeof ctx.tools?.register})`)
       ctx.logger?.warn?.('dsh-zcontext: tools service unavailable — tool face skipped')
       return
     }
     const defineTool = resolveDefineTool()
+    let built = 0
+    let registered = 0
     // P3 HF-15: the official tools.register has multiple throw paths (output
     // shape, assertSupportedJsonSchema, reserved names — tools/src/index.ts:
     // 1069-1093). Absence AND throw are both degrade-to-skip now: the plugin
     // never breaks boot on a registration refusal, it logs and continues.
     for (const definition of buildZctxTools(defineTool, this.runtime)) {
+      built += 1
       try {
         ctx.tools.register(definition)
+        registered += 1
+        zctxDebug(`wireToolFace: register OK — ${(definition as { name?: unknown }).name}`)
       } catch (error: unknown) {
         const name = (definition as { name?: unknown }).name
+        zctxDebug(`wireToolFace: register REFUSED "${String(name)}" — ${error instanceof Error ? error.message : String(error)}`)
         ctx.logger?.warn?.(
           `dsh-zcontext: tools.register refused "${String(name)}" (${error instanceof Error ? error.message : String(error)}) — tool face degraded, boot continues`,
         )
       }
     }
+    zctxDebug(`wireToolFace: done — built ${built}, registered ${registered}`)
   }
 
   /** The static byte-stable guidance section (S10: never sets complete). @internal */
   private wireGuidanceFace(): void {
     const { ctx } = this
     if (typeof ctx.systemPrompt?.section !== 'function') {
+      zctxDebug(`wireGuidanceFace: SKIP — systemPrompt.section unavailable (systemPrompt=${typeof ctx.systemPrompt}, section=${typeof ctx.systemPrompt?.section})`)
       ctx.logger?.warn?.('dsh-zcontext: systemPrompt.section unavailable — guidance face skipped')
       return
     }
@@ -423,7 +466,9 @@ export class ZcontextPlugin extends ServiceBase {
     // absence check above — "缺席/抛错双态都降级").
     try {
       ctx.systemPrompt.section(buildGuidanceSection())
+      zctxDebug('wireGuidanceFace: systemPrompt.section OK — guidance registered')
     } catch (error: unknown) {
+      zctxDebug(`wireGuidanceFace: REFUSED — ${error instanceof Error ? error.message : String(error)}`)
       ctx.logger?.warn?.(
         `dsh-zcontext: systemPrompt.section refused the guidance face (${error instanceof Error ? error.message : String(error)}) — guidance skipped, boot continues`,
       )
@@ -434,6 +479,7 @@ export class ZcontextPlugin extends ServiceBase {
   private wireNudgeFace(): void {
     const { ctx } = this
     if (typeof ctx.systemPrompt?.context !== 'function') {
+      zctxDebug(`wireNudgeFace: SKIP — systemPrompt.context unavailable (context=${typeof ctx.systemPrompt?.context})`)
       ctx.logger?.warn?.('dsh-zcontext: systemPrompt.context unavailable — nudge face skipped')
       return
     }
@@ -449,7 +495,9 @@ export class ZcontextPlugin extends ServiceBase {
         // assembly's AssembleContext (system-prompt/src/index.ts:85).
         text: (assembly: AssembleContextLike) => this.nudgeProvider(assembly),
       })
+      zctxDebug('wireNudgeFace: systemPrompt.context OK — nudge registered (required: true)')
     } catch (error: unknown) {
+      zctxDebug(`wireNudgeFace: REFUSED — ${error instanceof Error ? error.message : String(error)}`)
       ctx.logger?.warn?.(
         `dsh-zcontext: systemPrompt.context refused the nudge face (${error instanceof Error ? error.message : String(error)}) — nudge skipped, boot continues`,
       )
@@ -460,6 +508,7 @@ export class ZcontextPlugin extends ServiceBase {
   private wireCommandFace(): void {
     const { ctx } = this
     if (typeof ctx.commands?.register !== 'function') {
+      zctxDebug(`wireCommandFace: SKIP — commands.register unavailable (commands=${typeof ctx.commands}, register=${typeof ctx.commands?.register})`)
       ctx.logger?.warn?.('dsh-zcontext: commands service unavailable — command face skipped')
       return
     }
@@ -467,7 +516,9 @@ export class ZcontextPlugin extends ServiceBase {
     // absence check above — "缺席/抛错双态都降级").
     try {
       ctx.commands.register(buildZctxCommand(this.runtime))
+      zctxDebug('wireCommandFace: commands.register OK — /zctx registered')
     } catch (error: unknown) {
+      zctxDebug(`wireCommandFace: REFUSED — ${error instanceof Error ? error.message : String(error)}`)
       ctx.logger?.warn?.(
         `dsh-zcontext: commands.register refused the /zctx command (${error instanceof Error ? error.message : String(error)}) — command face skipped, boot continues`,
       )
@@ -508,18 +559,22 @@ export class ZcontextPlugin extends ServiceBase {
       // P3 HF-11: an illegal mode (e.g. a 'enforcae' typo) used to run
       // silently as observe — warn-once (symmetric with the margin
       // warn-once in preflight.ts), then continue in the observe fallback.
+      zctxDebug(`wirePreflightFace: illegal preflightMode "${String(mode)}" — running as observe (warn-once)`)
       ctx.logger?.warn?.(
         `dsh-zcontext: preflightMode "${String(mode)}" is not one of 'off'|'observe'|'enforce' — running as observe (warn-once)`,
       )
     }
     if (typeof ctx.on !== 'function') {
+      zctxDebug('wirePreflightFace: SKIP — ctx.on unavailable')
       ctx.logger?.warn?.('dsh-zcontext: ctx.on unavailable — preflight face skipped (no bus to register the llm/stream listener on)')
       return
     }
     if (ctx.llm === undefined) {
+      zctxDebug('wirePreflightFace: SKIP — ctx.llm undefined')
       ctx.logger?.warn?.('dsh-zcontext: llm service unavailable — preflight face skipped (estimation rides the llm/stream waterfall)')
       return
     }
+    zctxDebug(`wirePreflightFace: registering llm/stream listener (mode=${mode})`)
     const llm = ctx.llm
     // Capture the optional helper members once (capability-probed, `this`
     // bound to the runtime) so the deps surface carries exactly the narrow
@@ -576,11 +631,13 @@ export class ZcontextPlugin extends ServiceBase {
     const { ctx } = this
     const declared = this.config.providers ?? []
     if (declared.length === 0) {
+      zctxDebug('wireAdapterFace: SKIP — no providers declared (legal keep-alive)')
       ctx.logger?.info?.('dsh-zcontext: adapter face: no providers declared — zero routes registered (declare zctx providers under the "providers" settings section)')
       this.adapterFaceHealth = { state: 'off (no providers declared)', routes: [] }
       return
     }
     if (ctx.llm === undefined || typeof ctx.llm.registerAdapter !== 'function') {
+      zctxDebug(`wireAdapterFace: SKIP — llm runtime without registerAdapter (llm=${typeof ctx.llm})`)
       ctx.logger?.warn?.('dsh-zcontext: llm runtime without registerAdapter — adapter face skipped')
       this.adapterFaceHealth = { state: 'skipped (llm runtime without registerAdapter)', routes: [] }
       return
@@ -749,17 +806,21 @@ export class ZcontextPlugin extends ServiceBase {
   private wireObserveFace(): void {
     const { ctx } = this
     if (!this.config['observe.enabled']) {
+      zctxDebug('wireObserveFace: SKIP — disabled by config (observe.enabled=false)')
       ctx.logger?.info?.('dsh-zcontext: observe face disabled by config (observe.enabled=false)')
       return
     }
     if (typeof ctx.on !== 'function') {
+      zctxDebug('wireObserveFace: SKIP — ctx.on unavailable')
       ctx.logger?.warn?.('dsh-zcontext: ctx.on unavailable — observe face skipped (no bus to register the llm/stream listener on)')
       return
     }
     if (ctx.llm === undefined) {
+      zctxDebug('wireObserveFace: SKIP — ctx.llm undefined')
       ctx.logger?.warn?.('dsh-zcontext: llm service unavailable — observe face skipped (cache observation rides the llm/stream waterfall)')
       return
     }
+    zctxDebug('wireObserveFace: registering llm/stream listener')
     const llm = ctx.llm
     const listener = new ObserveListener({
       resolveSession: (sessionId) => this.resolveWatchedSession(sessionId),

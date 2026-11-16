@@ -30,6 +30,7 @@
 
 import { createRequire } from 'node:module'
 
+import { zctxDebug } from './debug.ts'
 import { computeBudget } from './budget.ts'
 import { DEFAULT_RECALL_LIMIT, recall } from './search.ts'
 import {
@@ -182,8 +183,11 @@ interface DshToolsModule {
 function loadHostDefineTool(): DefineToolFn | undefined {
   try {
     const mod = nodeRequire('@deepseek-ai/dsh-tools') as DshToolsModule
-    return typeof mod?.defineTool === 'function' ? (mod.defineTool as DefineToolFn) : undefined
-  } catch {
+    const resolved = typeof mod?.defineTool === 'function' ? (mod.defineTool as DefineToolFn) : undefined
+    zctxDebug(`loadHostDefineTool: '@deepseek-ai/dsh-tools' import OK; defineTool ${resolved === undefined ? 'NOT a function — shim takes over' : 'resolved (official authoring contract)'}`)
+    return resolved
+  } catch (error: unknown) {
+    zctxDebug(`loadHostDefineTool: '@deepseek-ai/dsh-tools' import FAILED (${error instanceof Error ? error.message : String(error)}) — shim defineTool takes over`)
     return undefined
   }
 }
