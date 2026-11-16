@@ -50,6 +50,20 @@
  * SUBCOMMANDS: patch / restore / status (restore = copy the backup asar back +
  * remove the marker; status = strictly read-only).
  *
+ * v0.2 (P6-B, plan ZCTX-v03-patch-plan + RES-port-feasibility P6-A spec): the
+ * anchor set grows from ONE file/one stub to a MULTI-FILE base-context patch
+ * set (γ all-inline selection — zero new asar entries, zero export-face
+ * changes): the guard-observe wrapper cluster inlines into the llm-pi-ai
+ * bundle, the GuardObserver + chain classifier into the agent-loop bundle,
+ * the L3 pruning vocabulary into the pruner bundle, and the budget formula
+ * into compaction-basic. Every patched bundle stays SELF-CONTAINED (the
+ * classifier ships in both consumer bundles) so a hypothetical partial state
+ * leaves each bundle individually consistent. The set applies in ONE asar
+ * write (multi-target splice) — no partial multi-file state can persist.
+ * guardObserve ignition (user ruling "完整功能生效"): the patched llm-pi-ai
+ * Config defaults the observe switch to TRUE; the sole kill switch. Observe
+ * only — the interception half does not exist in any tree and is not invented.
+ *
  * REAL-MACHINE EXECUTION IS OUT OF THIS WAVE (W5-A6-INSTALL umbrella,
  * post-merge): this wave ships the tool + fixture-verified tests only.
  *
@@ -80,8 +94,16 @@ import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 
-/** Patcher version (plan §3 wave table: patcher v0.1.0). */
-export const PATCHER_VERSION = '0.1.0'
+/** Patcher version (plan P6 wave table: patcher v0.2.0). */
+export const PATCHER_VERSION = '0.2.0'
+
+/**
+ * Identity of the base-context patch set data shipped in this file (the P6-A
+ * convergence: surgical hunks + γ-inline drop-ins; return-cap and the inert
+ * cache-metrics face are registered v0.3 二期 by plan ruling). Bump when the
+ * patch-set data changes so markers/status can tell applied sets apart.
+ */
+export const PATCH_SET_VERSION = 'zctx-v0.3-base-1'
 
 /** The asar-relative path of the shell manifest (version gate source). */
 const SHELL_PACKAGE_PATH = 'package.json'
@@ -272,6 +294,96 @@ export function patchText(text, entry) {
 }
 
 // ---------------------------------------------------------------------------
+// v0.2 multi-file patch-set layer (γ all-inline).
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize an anchor-set entry into the v0.2 multi-file shape. A legacy
+ * single-target entry (P4 v0.1 shape: targetPath/targetSha256/anchors/stub/
+ * stubIndent) becomes a one-file entry whose single op is the stub insert —
+ * so v0.1 entries (and the v0.1 fixture tests) keep flowing through the
+ * v0.2 machinery unchanged.
+ */
+export function normalizeEntry(entry) {
+  if (Array.isArray(entry?.files)) return entry.files
+  return [
+    {
+      targetPath: entry.targetPath,
+      pristineSha256: entry.targetSha256,
+      presenceMarker: entry.anchors.stubMarker,
+      ...(entry.anchors.definition !== undefined ? { fingerprint: entry.anchors.definition } : {}),
+      ops: [
+        {
+          anchor: entry.anchors.callSite,
+          replacement: `${entry.anchors.callSite}\n${entry.stubIndent}${entry.stub}`,
+        },
+      ],
+    },
+  ]
+}
+
+/**
+ * Apply an ordered op list to one file's text. Every op is {anchor,
+ * replacement}: the anchor must occur EXACTLY once and is replaced wholesale
+ * (insert-after/insert-before are expressed as replacements that embed the
+ * anchor). Any anchor count ≠ 1 refuses — never patch blind. This runs only
+ * on files the gate chain proved PRISTINE, so per-op idempotence is not
+ * needed here (the file-level reconstruction gate owns that).
+ */
+export function patchFile(text, fileEntry) {
+  let patched = text
+  for (let index = 0; index < fileEntry.ops.length; index++) {
+    const op = fileEntry.ops[index]
+    const count = countOccurrences(patched, op.anchor)
+    if (count !== 1) {
+      return {
+        ok: false,
+        reason: `op ${index} anchor occurs ${count} times (must be exactly 1) — refusing`,
+      }
+    }
+    // Function-form replacement: no `$`-pattern substitution semantics.
+    patched = patched.replace(op.anchor, () => op.replacement)
+  }
+  if (countOccurrences(patched, fileEntry.presenceMarker) === 0) {
+    return { ok: false, reason: 'post-patch presence marker absent — patch text incomplete, refusing' }
+  }
+  return { ok: true, text: patched, byteLength: Buffer.byteLength(patched, 'utf8') }
+}
+
+/**
+ * Reconstruct the pristine text from a patched text by reversing every op in
+ * REVERSE order (replace op.replacement → op.anchor, each exactly once).
+ * Returns undefined when any reversal is unprovable — the caller then reports
+ * drifted (P4-r1 P4-3 reconstruction proof, generalized to op lists).
+ */
+export function reconstructPristineText(text, fileEntry) {
+  let current = text
+  for (let index = fileEntry.ops.length - 1; index >= 0; index--) {
+    const op = fileEntry.ops[index]
+    if (countOccurrences(current, op.replacement) !== 1) return undefined
+    current = current.replace(op.replacement, () => op.anchor)
+  }
+  return current
+}
+
+/**
+ * Three-state discrimination of ONE target file (the gate's unit):
+ *   'pristine'     — bytes match the pinned pristine hash
+ *   'patched-exact' — reversing every op reconstructs the pinned pristine
+ *                     hash (marker-independent exactness proof)
+ *   'drifted'      — anything else (official update or foreign modification)
+ */
+export function fileStateOf(text, fileEntry) {
+  const sha = sha256Hex(Buffer.from(text, 'utf8'))
+  if (sha === fileEntry.pristineSha256) return { state: 'pristine', sha256: sha }
+  const reconstructed = reconstructPristineText(text, fileEntry)
+  if (reconstructed !== undefined && sha256Hex(Buffer.from(reconstructed, 'utf8')) === fileEntry.pristineSha256) {
+    return { state: 'patched-exact', sha256: sha }
+  }
+  return { state: 'drifted', sha256: sha }
+}
+
+// ---------------------------------------------------------------------------
 // Positional asar reads (cache-free; the splice must never see stale caches).
 // ---------------------------------------------------------------------------
 
@@ -322,95 +434,150 @@ function extractPositioned(asarPath, asarPath_) {
 // ---------------------------------------------------------------------------
 
 /**
- * Splice ONE patched target file into the archive: header JSON mutated
- * in place (offsets after the target shift by the byte delta; the target gets
- * new size + integrity), payload rebuilt around the target region — every
- * other packed byte IDENTICAL, unpacked-file flags untouched. Returns the
- * complete new archive buffer plus accounting + pristine witnesses for the
- * post-verify.
+ * Splice ONE patched target file into the archive (v0.1 shape kept for the
+ * v0.1 fixture tests): a thin single-target wrapper over
+ * {@link spliceAsarMulti}.
  */
 export function spliceAsar({ asarPath, targetPath, entry, patchedText }) {
-  const { header, headerSize } = readHeaderPositioned(asarPath)
-  const targetNode = headerNodeAt(header, targetPath)
-  if (targetNode === undefined) {
-    throw new Error(`target file not present in the asar header: ${targetPath}`)
+  const result = spliceAsarMulti({ asarPath, targets: [{ targetPath, patchedText }] })
+  return {
+    buffer: result.buffer,
+    before: result.targets[0].before,
+    after: result.targets[0].after,
+    delta: result.targets[0].delta,
+    headerSizeBefore: result.headerSizeBefore,
+    headerSizeAfter: result.headerSizeAfter,
+    payloadSizeBefore: result.payloadSizeBefore,
+    witnesses: result.witnesses,
   }
-  if (targetNode.unpacked === true || targetNode.offset === undefined) {
-    throw new Error(`target file is unpacked (not stored inside this asar) — unsupported: ${targetPath}`)
-  }
+}
 
-  const targetStart = Number(targetNode.offset)
-  const oldSize = targetNode.size
-  const newBuf = Buffer.from(patchedText, 'utf8')
-  const delta = newBuf.length - oldSize
+/**
+ * Splice SEVERAL patched target files into the archive in ONE operation (the
+ * v0.2 multi-file patch set applies as a single asar write — no partial
+ * multi-file state can persist past a crash): header JSON mutated in place
+ * (each target gets new size + integrity; every non-target offset shifts by
+ * the SUM of the deltas of the target regions positioned before it), payload
+ * rebuilt around the sorted target regions — every other packed byte
+ * IDENTICAL, unpacked-file flags untouched. Returns the complete new archive
+ * buffer plus per-target accounting + pristine witnesses for the post-verify.
+ */
+export function spliceAsarMulti({ asarPath, targets }) {
+  const { header, headerSize } = readHeaderPositioned(asarPath)
+  const resolved = targets.map(({ targetPath, patchedText }) => {
+    const node = headerNodeAt(header, targetPath)
+    if (node === undefined) {
+      throw new Error(`target file not present in the asar header: ${targetPath}`)
+    }
+    if (node.unpacked === true || node.offset === undefined) {
+      throw new Error(`target file is unpacked (not stored inside this asar) — unsupported: ${targetPath}`)
+    }
+    return {
+      targetPath,
+      node,
+      start: Number(node.offset),
+      oldSize: node.size,
+      newBuf: Buffer.from(patchedText, 'utf8'),
+    }
+  })
+  // Overlapping targets are a spec error, not a splice case.
+  const starts = resolved.map((target) => target.start).sort((a, b) => a - b)
+  for (let index = 1; index < starts.length; index++) {
+    if (starts[index] === starts[index - 1]) throw new Error('duplicate target offset in the patch set — refusing')
+  }
 
   // Pristine witnesses BEFORE the header mutation: the first packed file in
-  // header order and the first packed file positioned after the target —
+  // header order and the first packed file positioned after ALL targets —
   // their bytes must be untouched (pristine integrity hash) after the splice.
-  // The target itself is NEVER a witness (it is the file being replaced; in
-  // small archives it can be the very first packed file).
+  // No target is ever its own witness.
   //
-  // Layout premise, made explicit (P4-r1 P4-1): a file's header offset shifts
-  // by `delta` IFF `offset > targetStart` — the exact predicate of the
-  // mutation loop below. The post-verify expectation previously used
-  // `oldOffset > 0`, which silently relied on "@electron/asar packs the first
-  // file at offset 0, so witness #1 is either at offset 0 (before the target)
-  // or after the target". True for archives this toolchain produces (verified
-  // on the real rc.3 asar: first packed node offset = 0), but an assumption
-  // about the layout, not a rule — a witness positioned BEFORE the target at
-  // a nonzero offset would have produced a false post-verify FAILED on a
-  // correct archive. `afterTarget` is recorded from the collection-time
-  // offset, so the expectation no longer depends on the layout at all.
+  // Layout premise made explicit (P4-r1 P4-1): a file's header offset shifts
+  // by the summed deltas of the target regions BEFORE it; `afterTarget` is
+  // recorded from the collection-time offset, so the post-verify expectation
+  // never depends on the archive layout.
+  const targetStarts = new Set(resolved.map((target) => target.start))
+  const lastTargetEnd = Math.max(...resolved.map((target) => target.start + target.oldSize))
+  const shiftFor = (offset) =>
+    resolved.reduce((sum, target) => (offset > target.start ? sum + (target.newBuf.length - target.oldSize) : sum), 0)
   const witnesses = []
   visitPackedNodes(header, (node, path) => {
     if (witnesses.length >= 2 || node.integrity === undefined) return
     const offset = Number(node.offset)
-    if (offset === targetStart) return
-    if (witnesses.length === 0 || offset >= targetStart + oldSize) {
+    if (targetStarts.has(offset)) return
+    if (witnesses.length === 0 || offset >= lastTargetEnd) {
       witnesses.push({
         path,
         oldOffset: offset,
-        afterTarget: offset > targetStart,
+        afterTarget: shiftFor(offset) !== 0,
+        shift: shiftFor(offset),
         size: node.size,
         integrityHash: node.integrity.hash,
       })
     }
   })
 
-  // Header mutation: shift offsets of files positioned after the target
-  // region; reset the target's size + integrity. In-place → JSON.stringify
-  // preserves the original key order for everything else.
+  // Header mutation: reset each target's size + integrity; shift every other
+  // packed file's offset by the summed deltas of the targets before it.
   visitPackedNodes(header, (node) => {
     const offset = Number(node.offset)
-    if (offset === targetStart) {
-      node.size = newBuf.length
-      node.integrity = computeIntegrity(newBuf)
-    } else if (offset > targetStart) {
-      node.offset = String(offset + delta)
+    const target = resolved.find((candidate) => candidate.start === offset)
+    if (target !== undefined) {
+      target.before = { size: target.oldSize, sha256: sha256Hex(wholeFor(asarPath, payloadBaseOf(headerSize), target.start, target.oldSize)) }
+      target.after = { size: target.newBuf.length, sha256: sha256Hex(target.newBuf) }
+      node.size = target.newBuf.length
+      node.integrity = computeIntegrity(target.newBuf)
+    } else if (shiftFor(offset) !== 0) {
+      node.offset = String(offset + shiftFor(offset))
     }
   })
 
-  // Payload splice around the target region (one whole-file read).
+  // Payload splice around the sorted target regions (one whole-file read).
   const whole = readFileSync(asarPath)
   const payloadBase = 8 + headerSize
-  const absTargetStart = payloadBase + targetStart
-  const newPayload = Buffer.concat([
-    whole.subarray(payloadBase, absTargetStart),
-    newBuf,
-    whole.subarray(absTargetStart + oldSize),
-  ])
+  const sorted = [...resolved].sort((a, b) => a.start - b.start)
+  const pieces = []
+  let cursor = 0
+  for (const target of sorted) {
+    pieces.push(whole.subarray(payloadBase + cursor, payloadBase + target.start))
+    pieces.push(target.newBuf)
+    cursor = target.start + target.oldSize
+  }
+  pieces.push(whole.subarray(payloadBase + cursor))
 
   const headerPickle = buildHeaderPickle(JSON.stringify(header))
-  const buffer = Buffer.concat([buildSizePickle(headerPickle.length), headerPickle, newPayload])
+  const buffer = Buffer.concat([buildSizePickle(headerPickle.length), headerPickle, Buffer.concat(pieces)])
   return {
     buffer,
-    before: { size: oldSize, sha256: sha256Hex(whole.subarray(absTargetStart, absTargetStart + oldSize)) },
-    after: { size: newBuf.length, sha256: sha256Hex(newBuf) },
-    delta,
+    targets: resolved.map(({ targetPath, before, after, newBuf, oldSize }) => ({
+      targetPath,
+      before,
+      after,
+      delta: newBuf.length - oldSize,
+    })),
+    delta: resolved.reduce((sum, target) => sum + (target.newBuf.length - target.oldSize), 0),
     headerSizeBefore: headerSize,
     headerSizeAfter: headerPickle.length,
     payloadSizeBefore: whole.length - payloadBase,
     witnesses,
+  }
+}
+
+/** @internal payload base offset of an archive with the given header size. */
+function payloadBaseOf(headerSize) {
+  return 8 + headerSize
+}
+
+/** @internal positional read of one file region (used for target before-hashes). */
+function wholeFor(asarPath, payloadBase, start, size) {
+  const fd = openSync(asarPath, 'r')
+  try {
+    const buf = Buffer.alloc(size)
+    if (readSync(fd, buf, 0, size, payloadBase + start) !== size) {
+      throw new Error(`short read for the target region (${size} B at ${payloadBase + start})`)
+    }
+    return buf
+  } finally {
+    closeSync(fd)
   }
 }
 
@@ -650,36 +817,65 @@ export async function patchAsar(options) {
   }
   step('version gate', 'ok', `${shellVersion}`)
 
-  // Pre-state: pristine or already patched? (Cache-free positional read.)
-  let currentText
-  try {
-    currentText = extractPositioned(asarPath, supportedEntry.targetPath).toString('utf8')
-  } catch (error) {
-    step('target read', 'refused', `${supportedEntry.targetPath}: ${error instanceof Error ? error.message : String(error)}`)
-    return { ok: false, refused: true, ...report, shellVersion }
+  // Pre-state per file (cache-free positional reads): pristine, patched-exact,
+  // or drifted. The whole set must be uniformly pristine (→ patch) or
+  // uniformly patched-exact (→ idempotent no-op); anything else refuses — a
+  // mixed face cannot arise from this patcher (the set applies in ONE asar
+  // write) and reports honestly instead of guessing.
+  const files = normalizeEntry(supportedEntry)
+  const fileTexts = []
+  for (const file of files) {
+    let text
+    try {
+      text = extractPositioned(asarPath, file.targetPath).toString('utf8')
+    } catch (error) {
+      step('target read', 'refused', `${file.targetPath}: ${error instanceof Error ? error.message : String(error)}`)
+      return { ok: false, refused: true, ...report, shellVersion }
+    }
+    const state = fileStateOf(text, file)
+    fileTexts.push({ file, text, ...state })
   }
-  const currentSha = sha256Hex(Buffer.from(currentText, 'utf8'))
-  const markerCount = countOccurrences(currentText, supportedEntry.anchors.stubMarker)
-  if (markerCount > 0) {
-    step('idempotence', 'skip', `patch stub already present (${markerCount} occurrence) — the asar stays untouched`)
+  const drifted = fileTexts.filter((entry) => entry.state === 'drifted')
+  if (drifted.length > 0) {
+    const detail = drifted
+      .map((entry) => `${entry.file.targetPath}: SHA-256 ${entry.sha256} is neither the pinned pristine hash nor a reconstructable patched state (anchor drift)`)
+      .join(' | ')
+    step('anchor hash gate', 'refused', `${detail} — official update or foreign modification; update the patcher anchor set first`)
+    return {
+      ok: false,
+      refused: true,
+      ...report,
+      shellVersion,
+      targetSha256: drifted[0].sha256,
+      files: fileTexts.map(({ file, state, sha256 }) => ({ target: file.targetPath, state, sha256 })),
+    }
+  }
+  const pristineFiles = fileTexts.filter((entry) => entry.state === 'pristine')
+  if (pristineFiles.length < fileTexts.length) {
+    // All patched-exact (the only remaining case): idempotence branch.
+    step('idempotence', 'skip', `patch set ${PATCH_SET_VERSION} already applied (${fileTexts.length}/${fileTexts.length} files patched-exact) — the asar stays untouched`)
     if (existsSync(markerPath)) {
       return { ok: true, alreadyPatched: true, ...report, shellVersion }
     }
-    // Crash-window self-heal (P4-r1 P4-2): the stub is live in the asar but
-    // the marker file is missing — a crash (or a failed marker write)
-    // between the splice rename and the marker write. The re-run is the only
-    // write path that can reconcile, so backfill the marker from derivable
-    // facts; the asar stays untouched. Derivation: the patcher writes stubs
-    // ONLY onto files that passed the anchor-hash gate (pristine pinned
-    // bytes), so the pre-patch content was the pinned hash; the after-hash is
-    // the patched file as it stands now.
+    // Crash-window self-heal (P4-r1 P4-2, v0.2 set shape): the patched files
+    // are live but the marker is missing. The re-run is the only write path
+    // that can reconcile, so backfill the marker from derivable facts; the
+    // asar stays untouched. Derivation: each file's pristine content was its
+    // pinned hash (the patcher writes only past the anchor-hash gate) and the
+    // after-hash is the patched file as it stands now.
     const backfill = writeMarker(markerPath, {
       patcher: 'zctx-patch',
       patcherVersion: PATCHER_VERSION,
+      patchSet: PATCH_SET_VERSION,
       shellVersion,
-      target: supportedEntry.targetPath,
-      sha256Before: supportedEntry.targetSha256,
-      sha256After: currentSha,
+      target: fileTexts[0].file.targetPath,
+      sha256Before: fileTexts[0].file.pristineSha256,
+      sha256After: fileTexts[0].sha256,
+      files: fileTexts.map((entry) => ({
+        target: entry.file.targetPath,
+        sha256Before: entry.file.pristineSha256,
+        sha256After: entry.sha256,
+      })),
       // The crashed run's own backup dir is not recoverable from the archive;
       // the latest sibling backup is the best-known pointer (restore defaults
       // to the latest dir when --backup is omitted anyway).
@@ -694,26 +890,28 @@ export async function patchAsar(options) {
         : backfill.reason,
     )
     if (!backfill.ok) {
-      report.recovery = `the patch stub IS live but the marker could not be written (${markerPath}) — fix the marker path and re-run patch (idempotent, backfills the marker), or restore with: node patcher/zctx-patch.mjs restore --app-dir "${appDir}"`
+      report.recovery = `the patch IS live but the marker could not be written (${markerPath}) — fix the marker path and re-run patch (idempotent, backfills the marker), or restore with: node patcher/zctx-patch.mjs restore --app-dir "${appDir}"`
       return { ok: false, ...report, shellVersion }
     }
     return { ok: true, alreadyPatched: true, markerBackfilled: true, ...report, shellVersion }
   }
 
-  // Gate: anchor hash (pristine content must match the pinned hash).
-  if (currentSha !== supportedEntry.targetSha256) {
-    step('anchor hash gate', 'refused', `target SHA-256 ${currentSha} != pinned ${supportedEntry.targetSha256} — official update changed the file (anchor drift); update the patcher anchor set first`)
-    return { ok: false, refused: true, ...report, shellVersion, targetSha256: currentSha }
-  }
-  step('anchor hash gate', 'ok', currentSha)
+  // Gate: anchor hash — every file matched its pinned pristine hash.
+  step('anchor hash gate', 'ok', `${fileTexts.length}/${fileTexts.length} files match the pinned pristine hashes`)
 
-  // Pure text patch (anchor uniqueness asserts inside).
-  const patched = patchText(currentText, supportedEntry)
-  if (!patched.ok) {
-    step('anchor patch', 'refused', patched.reason)
-    return { ok: false, refused: true, alreadyPatched: patched.alreadyPatched === true, ...report, shellVersion }
+  // Pure text patches (op-list application; anchor uniqueness asserts inside).
+  const patchedFiles = []
+  let addedBytes = 0
+  for (const entry of fileTexts) {
+    const patched = patchFile(entry.text, entry.file)
+    if (!patched.ok) {
+      step('anchor patch', 'refused', `${entry.file.targetPath}: ${patched.reason}`)
+      return { ok: false, refused: true, ...report, shellVersion }
+    }
+    addedBytes += patched.byteLength - Buffer.byteLength(entry.text, 'utf8')
+    patchedFiles.push({ targetPath: entry.file.targetPath, patchedText: patched.text, before: entry.sha256, after: sha256Hex(Buffer.from(patched.text, 'utf8')) })
   }
-  step('anchor patch', 'ok', `stub inserted at the call site (+${patched.byteLength - Buffer.byteLength(currentText, 'utf8')} B)`)
+  step('anchor patch', 'ok', `${patchedFiles.length} files patched, +${addedBytes} B total`)
 
   // Backup FIRST (§5): copy + hash-verify before any modification.
   let backup
@@ -726,10 +924,11 @@ export async function patchAsar(options) {
   step('backup', 'ok', `${backup.dir} (sha ${backup.asarSha256}${backup.markerBackedUp ? ', marker included' : ''})`)
   report.backup = backup
 
-  // Surgical splice + atomic write (temp in the same dir → rename).
+  // Multi-target surgical splice + atomic write (temp in the same dir →
+  // rename): ONE operation for the whole set.
   let spliced
   try {
-    spliced = spliceAsar({ asarPath, targetPath: supportedEntry.targetPath, entry: supportedEntry, patchedText: patched.text })
+    spliced = spliceAsarMulti({ asarPath, targets: patchedFiles })
   } catch (error) {
     step('splice', 'refused', error instanceof Error ? error.message : String(error))
     return { ok: false, ...report, shellVersion }
@@ -737,14 +936,14 @@ export async function patchAsar(options) {
   const tmpAsar = `${asarPath}.zctx-tmp-${process.pid}`
   writeFileSync(tmpAsar, spliced.buffer)
   renameSync(tmpAsar, asarPath)
-  step('splice', 'ok', `payload delta ${spliced.delta} B, header ${spliced.headerSizeBefore} → ${spliced.headerSizeAfter} B`)
+  step('splice', 'ok', `${spliced.targets.length} targets, payload delta ${spliced.delta} B total, header ${spliced.headerSizeBefore} → ${spliced.headerSizeAfter} B`)
 
   // Post-verify on the WRITTEN archive: the official extract API (cache
   // dropped first) proves the patched archive is readable by the official
   // toolchain; cache-free positional reads check the untouched witnesses and
   // the size accounting.
   asar.uncacheAll()
-  const verify = verifySplicedArchive(asar, asarPath, supportedEntry.targetPath, patched.text, spliced)
+  const verify = verifySplicedArchive(asar, asarPath, patchedFiles, spliced)
   step('post-verify', verify.ok ? 'ok' : 'FAILED', verify.detail)
   if (!verify.ok) {
     // The backup exists; surface the restore command honestly. The tool does
@@ -753,49 +952,57 @@ export async function patchAsar(options) {
     return { ok: false, ...report, shellVersion, verify }
   }
 
-  // Marker (the plugin's status dual-source filesystem truth). A failure here
-  // leaves the stub live with no marker — the crash window the idempotence
-  // branch self-heals on the next patch run — so it surfaces as ok:false +
-  // recovery, never ok:true without the marker (P4-r1 P4-2).
+  // Marker (the plugin's status dual-source filesystem truth), v0.2 set
+  // shape: per-file before/after hashes under `files`, the first file also
+  // mirrored to the v0.1 top-level fields for reader compatibility. A failure
+  // here leaves the patch live with no marker — the crash window the
+  // idempotence branch self-heals on the next patch run — so it surfaces as
+  // ok:false + recovery, never ok:true without the marker (P4-r1 P4-2).
   const markerWrite = writeMarker(markerPath, {
     patcher: 'zctx-patch',
     patcherVersion: PATCHER_VERSION,
+    patchSet: PATCH_SET_VERSION,
     shellVersion,
-    target: supportedEntry.targetPath,
-    sha256Before: spliced.before.sha256,
-    sha256After: spliced.after.sha256,
+    target: spliced.targets[0].targetPath,
+    sha256Before: spliced.targets[0].before.sha256,
+    sha256After: spliced.targets[0].after.sha256,
+    files: spliced.targets.map((target) => ({
+      target: target.targetPath,
+      sha256Before: target.before.sha256,
+      sha256After: target.after.sha256,
+    })),
     backup: backup.dir,
     timestamp: new Date().toISOString(),
   })
   step('marker', markerWrite.ok ? 'ok' : 'FAILED', markerWrite.ok ? markerPath : markerWrite.reason)
   if (!markerWrite.ok) {
     report.recovery = `the patch IS applied but the marker write failed (${markerPath}) — re-run patch (idempotent, backfills the marker), or restore with: node patcher/zctx-patch.mjs restore --app-dir "${appDir}" --backup "${backup.dir}"`
-    return { ok: false, ...report, shellVersion, before: spliced.before, after: spliced.after }
+    return { ok: false, ...report, shellVersion, before: spliced.targets[0].before, after: spliced.targets[0].after, files: spliced.targets }
   }
 
-  return { ok: true, ...report, shellVersion, before: spliced.before, after: spliced.after }
+  return { ok: true, ...report, shellVersion, before: spliced.targets[0].before, after: spliced.targets[0].after, files: spliced.targets }
 }
 
-/** Post-verify the spliced archive on disk. @internal */
-function verifySplicedArchive(asar, asarPath, targetPath, patchedText, spliced) {
-  // 1. Target content == expected patched text, marker exactly once — read
-  // through the OFFICIAL extract API (a header the official toolchain cannot
-  // parse would fail right here).
-  const actualTarget = asar.extractFile(asarPath, nativeAsarPath(targetPath)).toString('utf8')
-  if (actualTarget !== patchedText) {
-    return { ok: false, detail: 'patched target content mismatch after write' }
-  }
-  if (countOccurrences(actualTarget, 'globalThis.__zctxPatch__') !== 1) {
-    return { ok: false, detail: 'patch marker count in the written archive is not exactly 1' }
+/**
+ * Post-verify the spliced archive on disk (multi-target). @internal
+ */
+function verifySplicedArchive(asar, asarPath, patchedFiles, spliced) {
+  // 1. Every target's content == its expected patched text, read through the
+  // OFFICIAL extract API (a header the official toolchain cannot parse would
+  // fail right here); each file's presence marker occurs at least once.
+  for (const target of patchedFiles) {
+    const actualTarget = asar.extractFile(asarPath, nativeAsarPath(target.targetPath)).toString('utf8')
+    if (actualTarget !== target.patchedText) {
+      return { ok: false, detail: `patched target content mismatch after write: ${target.targetPath}` }
+    }
   }
   // 2. Witnesses: bytes at the shifted positions match the pristine hashes.
-  // The expected offset uses the collection-time `afterTarget` flag — the
-  // same `offset > targetStart` rule as the header mutation (P4-r1 P4-1: the
-  // old `oldOffset > 0` predicate was a layout assumption that breaks for a
-  // witness positioned before the target at a nonzero offset → false FAILED
-  // on a byte-correct archive).
+  // The expected offset uses the collection-time `shift` (the same summed
+  // delta rule as the header mutation; `afterTarget` remains the readable
+  // boolean for the v0.1 single-target shape where shift == delta or 0 —
+  // P4-r1 P4-1: never a layout assumption).
   for (const witness of spliced.witnesses) {
-    const newOffset = witness.afterTarget ? witness.oldOffset + spliced.delta : witness.oldOffset
+    const newOffset = witness.oldOffset + witness.shift
     const { header, headerSize } = readHeaderPositioned(asarPath)
     const node = headerNodeAt(header, witness.path)
     if (node === undefined || Number(node.offset) !== newOffset) {
@@ -820,7 +1027,7 @@ function verifySplicedArchive(asar, asarPath, targetPath, patchedText, spliced) 
   }
   return {
     ok: true,
-    detail: `target patched (+${spliced.delta} B), witnesses ${spliced.witnesses.length}/${spliced.witnesses.length} byte-identical, archive ${archiveSize} B`,
+    detail: `${spliced.targets.length} targets patched (+${spliced.delta} B total), witnesses ${spliced.witnesses.length}/${spliced.witnesses.length} byte-identical, archive ${archiveSize} B`,
   }
 }
 
@@ -954,37 +1161,63 @@ export async function statusAsar(options) {
     report.patched = 'unknown'
     report.note = `shell version ${String(report.shellVersion)} has no anchor entry — presence checks need the matching anchor set`
   } else {
+    const files = normalizeEntry(supportedEntry)
+    report.files = []
     try {
-      const target = extractPositioned(asarPath, supportedEntry.targetPath)
-      const text = target.toString('utf8')
-      const sha = sha256Hex(target)
-      report.targetSha256 = sha
-      const stubCount = countOccurrences(text, supportedEntry.anchors.stubMarker)
-      report.patched = stubCount > 0
-      // Three-state anchor discrimination (P4-r1 P4-3): the label names the
-      // STATE only; action guidance lives in `guidance` — never merged into
-      // one string (the old single 'mismatch (drift)' label conflated "the
-      // expected post-patch state" with "the official moved beyond the pinned
-      // anchor set", whose actions are opposite).
-      if (stubCount > 0) {
-        // Patched archive: compare against the EXPECTED patched state, not
-        // the pristine hash. Exactness proof without the pristine bytes:
-        // removing the one inserted segment must reconstruct the pinned
-        // pristine hash — the stub is the ONLY thing patchText changes, so
-        // reconstruction equality proves the file is byte-identical to
-        // patchText(pristine).text (marker-independent, so the P4-r1 P4-2
-        // crash window still reports honestly).
-        report.anchorHit = reconstructedPristineSha(text, supportedEntry) === supportedEntry.targetSha256
-          ? 'patched-exact'
-          : 'patched-drifted'
-        if (report.anchorHit === 'patched-drifted') {
-          report.guidance = 'the patched target no longer matches the expected patched content — restore from a backup, then re-patch'
-        }
-      } else if (sha === supportedEntry.targetSha256) {
-        report.anchorHit = 'official-unchanged'
-      } else {
-        report.anchorHit = 'official-drifted'
-        report.guidance = 'official update changed the target beyond the pinned anchor set — refresh the patcher anchor set first, then patch'
+      for (const file of files) {
+        const target = extractPositioned(asarPath, file.targetPath)
+        const text = target.toString('utf8')
+        const sha = sha256Hex(target)
+        const state = fileStateOf(text, file)
+        // State wording (P4-r1 P4-3 carried to the multi-file face): the
+        // label names the STATE only; action guidance lives in `guidance`.
+        const anchorHit = state.state === 'pristine'
+          ? 'official-unchanged'
+          : state.state === 'patched-exact'
+            ? 'patched-exact'
+            : countOccurrences(text, file.presenceMarker) > 0
+              ? 'patched-drifted'
+              : 'official-drifted'
+        report.files.push({
+          target: file.targetPath,
+          sha256: sha,
+          state: state.state,
+          anchorHit,
+          ...(anchorHit === 'patched-drifted'
+            ? { guidance: 'the patched target no longer matches the expected patched content — restore from a backup, then re-patch' }
+            : {}),
+          ...(anchorHit === 'official-drifted'
+            ? { guidance: 'official update changed the target beyond the pinned anchor set — refresh the patcher anchor set first, then patch' }
+            : {}),
+        })
+      }
+      // Top-level fields mirror the FIRST file (the v0.1 single-target face;
+      // the v0.2 aggregate lives in `patchSet`/`files`).
+      report.targetSha256 = report.files[0].sha256
+      report.anchorHit = report.files[0].anchorHit
+      if (report.anchorHit === 'patched-drifted' || report.anchorHit === 'official-drifted') {
+        report.guidance = report.files[0].guidance
+      }
+      // Presence semantics (carried from v0.1): `patched` says the patch face
+      // is present in the bytes — exact OR drifted-with-marker — not that
+      // every file is pristine-exact; the aggregate precision lives in
+      // `patchSet.state`.
+      report.patched = report.files.some((file) => file.anchorHit === 'patched-exact' || file.anchorHit === 'patched-drifted')
+      // The patch-set aggregate (P6-B status segment): which files are in and
+      // which are pending the official update re-patch.
+      report.patchSet = {
+        version: PATCH_SET_VERSION,
+        totalFiles: report.files.length,
+        patchedFiles: report.files.filter((file) => file.anchorHit === 'patched-exact').length,
+        pristineFiles: report.files.filter((file) => file.anchorHit === 'official-unchanged').length,
+        driftedFiles: report.files.filter((file) => file.anchorHit === 'patched-drifted' || file.anchorHit === 'official-drifted').length,
+        state: report.patched
+          ? 'patched'
+          : report.files.every((file) => file.anchorHit === 'official-unchanged')
+            ? 'unpatched'
+            : report.files.some((file) => file.anchorHit === 'patched-exact')
+              ? 'partial'
+              : 'drifted',
       }
     } catch (error) {
       report.anchorHit = 'unknown'
@@ -1006,19 +1239,6 @@ export async function statusAsar(options) {
   return report
 }
 
-/**
- * SHA-256 of the text with the one inserted patch segment removed — equals
- * the pinned pristine hash IFF the file is byte-identical to
- * patchText(pristine).text. undefined when the segment does not occur exactly
- * once (exactness unprovable → the caller reports drifted). @internal
- */
-function reconstructedPristineSha(text, entry) {
-  const segment = `${entry.anchors.callSite}\n${entry.stubIndent}${entry.stub}`
-  if (countOccurrences(text, segment) !== 1) return undefined
-  // Function-form replacement: no `$`-pattern substitution semantics.
-  return sha256Hex(Buffer.from(text.replace(segment, () => entry.anchors.callSite), 'utf8'))
-}
-
 /** Read the patch marker (the plugin reads the same file the same way). @internal */
 function readMarkerFile(markerPath) {
   if (!existsSync(markerPath)) return { state: 'absent', path: markerPath }
@@ -1029,6 +1249,14 @@ function readMarkerFile(markerPath) {
       path: markerPath,
       version: typeof parsed.shellVersion === 'string' ? parsed.shellVersion : undefined,
       target: typeof parsed.target === 'string' ? parsed.target : undefined,
+      patchSet: typeof parsed.patchSet === 'string' ? parsed.patchSet : undefined,
+      patcherVersion: typeof parsed.patcherVersion === 'string' ? parsed.patcherVersion : undefined,
+      files: Array.isArray(parsed.files)
+        ? parsed.files.map((file) => ({
+          target: typeof file?.target === 'string' ? file.target : undefined,
+          sha256After: typeof file?.sha256After === 'string' ? file.sha256After : undefined,
+        }))
+        : undefined,
       timestamp: typeof parsed.timestamp === 'string' ? parsed.timestamp : undefined,
     }
   } catch (error) {
