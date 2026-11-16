@@ -375,7 +375,12 @@ export const STATUS_PATCH_HEADER = 'Patch bridge (official-adapter wire stub):'
 
 export const STATUS_PATCH_MARKER = '  patch marker: {{state}}{{detail}}'
 
+export const STATUS_PATCH_SET = '  patch set: {{set}} ({{files}} of 5 target bundles recorded)'
+
 export const STATUS_PATCH_MOUNT = '  wireOptions: {{mount}}'
+
+export const STATUS_GUARD_OBSERVE =
+  '  guard-observe records (log-only chain): total {{total}}, segmented {{segmented}}, degraded {{degraded}}, unclassified {{unclassified}}; providers: {{providers}}'
 
 // ---------------------------------------------------------------------------
 // V3 observability lines (zctx_status three-segment upgrade, RES-observe-route

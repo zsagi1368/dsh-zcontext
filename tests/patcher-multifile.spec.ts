@@ -28,6 +28,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import * as asar from '@electron/asar'
 
 import { SUPPORTED, normalizeEntry, patchAsar, patchFile, restoreAsar, spliceAsarMulti, statusAsar } from '../patcher/zctx-patch.mjs'
+import type { ZctxPatchFileEntry, ZctxPatchSetEntry } from '../patcher/zctx-patch.d.mts'
 
 const asarNative = (path: string): string => path.split('/').join(sep)
 
@@ -176,11 +177,11 @@ const EXTRA_CONTENTS: Record<string, string> = {
 }
 
 /** The production entry with per-file fixture pristine hashes substituted. */
-function fixtureEntry() {
-  const rc3 = SUPPORTED['0.2.2-rc.3'] as { shellPackage: string; files: { targetPath: string; pristineSha256: string }[] }
+function fixtureEntry(): ZctxPatchSetEntry {
+  const rc3 = SUPPORTED['0.2.2-rc.3'] as ZctxPatchSetEntry
   return {
     shellPackage: rc3.shellPackage,
-    files: rc3.files.map((file) => ({
+    files: rc3.files.map((file: ZctxPatchFileEntry) => ({
       ...file,
       pristineSha256: sha256(FIXTURE_CONTENTS[file.targetPath]),
     })),
@@ -421,7 +422,8 @@ describe('spliceAsarMulti: between-target witness shift', () => {
 
 /** The inlined region text of one file: the region op's replacement minus the embedded export anchor. */
 function regionText(fileIndex: number, anchorPrefix: string): string {
-  const op = SUPPORTED['0.2.2-rc.3'].files[fileIndex].ops.find((candidate) => candidate.anchor.startsWith(anchorPrefix)) as { anchor: string; replacement: string }
+  const rc3 = SUPPORTED['0.2.2-rc.3'] as ZctxPatchSetEntry
+  const op = rc3.files[fileIndex].ops.find((candidate) => candidate.anchor.startsWith(anchorPrefix)) as { anchor: string; replacement: string }
   return op.replacement.slice(0, op.replacement.length - op.anchor.length - 1)
 }
 
@@ -644,12 +646,13 @@ describe('inlined region A (llm-pi-ai): wrapper capture ladder behaves', () => {
   it('capture ladder: full segments → non-string A7-2 → parse-failed A7-1 → non-anthropic fallback; body never rewritten', async () => {
     const region = await load()
     const model = { provider: 'p', api: 'anthropic-messages', id: 'm' }
-    const releases: unknown[] = []
+    const releases: { body: unknown }[] = []
     const realFetch = globalThis.fetch
-    globalThis.fetch = (async (input: unknown, init: unknown) => {
-      releases.push({ input, body: (init as { body?: unknown } | undefined)?.body })
+    const fakeFetch = (async (input: unknown, init: unknown) => {
+      releases.push({ body: (init as { body?: unknown } | undefined)?.body })
       return 'released'
-    }) as typeof globalThis.fetch
+    }) as unknown as typeof globalThis.fetch
+    globalThis.fetch = fakeFetch
     try {
       const sinks: Record<string, unknown>[] = []
       const wrapper = region.createGuardFetchWrapper({ model, sink: (capture) => sinks.push(capture) })
@@ -657,7 +660,7 @@ describe('inlined region A (llm-pi-ai): wrapper capture ladder behaves', () => {
       await wrapper('url', { body: full })
       await wrapper('url', { body: 12345 })
       await wrapper('url', { body: 'not json' })
-      await wrapper('url', { body: JSON.stringify({ model: 'm' }), extra: 1 })
+      await wrapper('url', { body: JSON.stringify({ model: 'm' }), extra: 1 } as { body?: unknown })
       expect(sinks).toHaveLength(4)
       expect(sinks[0].segments).toBeDefined()
       expect(sinks[0].attemptSeq).toBe(1)

@@ -73,6 +73,8 @@ import { nudgeContextText } from './nudge.ts'
 import { ObserveListener } from './observe.ts'
 import type { ObserveStoreAccess } from './observe.ts'
 import { PreflightListener } from './preflight.ts'
+import { createGuardObserveBridge } from './guard-observe-bridge.ts'
+import type { GuardObserveBridge } from './guard-observe-bridge.ts'
 import { mountPatchBridge, readPatchMarker } from './patch-bridge.ts'
 import { FoldStore } from './store.ts'
 import {
@@ -279,6 +281,15 @@ export class ZcontextPlugin extends ServiceBase {
   private adapterFaceSettled = true
   private warnedWindowFailure = false
   /**
+   * The P6-C guard-observe bridge: the log-only consumer of the patched
+   * base-context chain's `cache/guard-observe` session events (process-memory
+   * summaries per session, surfaced in zctx_status). Created in the
+   * constructor with the ctx logger (zero cost when the patch is absent — no
+   * event ever arrives) and fed from the session/event firehose under the
+   * `patch.guardObserveEvents` switch.
+   */
+  private readonly guardBridge: GuardObserveBridge
+  /**
    * The P4 patch-bridge face (external app.asar patch receiver): the mount
    * state string the status segment renders, the lazily-loaded host faces
    * (attribution headers for the wire faces), and whether that load settled.
@@ -292,6 +303,7 @@ export class ZcontextPlugin extends ServiceBase {
     super(ctx, SERVICE_NAME)
     this.ctx = ctx
     this.config = Object.freeze<ZcontextConfig>({ ...configDefaults, ...config })
+    this.guardBridge = createGuardObserveBridge(ctx.logger)
     this.runtime = {
       logger: ctx.logger,
       tokenMeter: ctx.tokenMeter,
@@ -307,6 +319,7 @@ export class ZcontextPlugin extends ServiceBase {
         hostFaces: this.patchHostLoaded
           ? (this.patchHost === undefined ? 'unreachable' : 'reachable')
           : 'loading',
+        guardObserve: (sessionId: string) => this.guardBridge.summary(sessionId),
       }),
     }
 
@@ -341,11 +354,15 @@ export class ZcontextPlugin extends ServiceBase {
     })
     ctx.on('session/disposed', (session: unknown) => {
       this.liveSessions.delete(session as object)
-      // The observe listener keeps per-session state keyed by session ID
-      // (process memory); a disposed session's entry must not leak past the
-      // session's lifetime (its store dies with the WeakMap key anyway).
+      // The observe listener and the guard-observe bridge keep per-session
+      // state keyed by session ID (process memory); a disposed session's
+      // entry must not leak past the session's lifetime (its store dies with
+      // the WeakMap key anyway).
       const id = (session as { id?: unknown }).id
-      if (typeof id === 'string') this.observe?.forgetSession(id)
+      if (typeof id === 'string') {
+        this.observe?.forgetSession(id)
+        this.guardBridge.forgetSession(id)
+      }
     })
     ctx.on('session/event', (session: unknown, event: unknown) => {
       // P3 HF-05: the outer layer used to read `event.type` unguarded — a
@@ -359,6 +376,14 @@ export class ZcontextPlugin extends ServiceBase {
       if (store !== undefined) store.onEvent(s, event as SessionEventLike)
       if ((event as SessionEventLike).type === 'assistant/message') {
         void this.warmWindow(s)
+      }
+      // P6-C: the patched base-context chain's log-only guard-observe
+      // records feed the bridge (observe-only; inert when the patch is
+      // absent — the event type is never appended then). The consume call is
+      // fail-soft inside the bridge; the firehose never sees a throw.
+      if (this.config['patch.guardObserveEvents'] && (event as SessionEventLike).type === 'cache/guard-observe') {
+        const id = (s as { id?: unknown }).id
+        if (typeof id === 'string') this.guardBridge.consume(id, event as { seq?: unknown; data?: unknown })
       }
     })
   }

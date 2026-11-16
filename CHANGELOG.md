@@ -3,6 +3,46 @@
 All notable changes to `dsh-zcontext` are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com); versioning follows SemVer.
 
+## [0.2.2] - 2026-11-16
+
+The base-context patch-set wave (**P6-B** patcher v0.2 + **P6-C** plugin
+companion; plan `reports/plans/ZCTX-v03-patch-plan.md`, implementation spec
+`RES-port-feasibility.md`). The external patcher grows from the single P4
+wire stub to the **five-file base-context patch set** (γ all-inline: zero new
+asar entries, zero official export-face changes), and the plugin gains the
+log-only consumer of the patched chain's events. Terminal battery: 541/541
+vitest (507 baseline + 34 new pins), `tsc --noEmit` zero errors, five repo
+probes green (A11 extended to 17 patcher-face assertions).
+
+### Added (v0.2.2)
+
+- **patcher v0.2 multi-file machinery** (`patcher/zctx-patch.mjs`): the anchor
+  set becomes the ordered five-file patch set (`zctx-v0.3-base-1`) —
+  llm-pi-ai (P4 stub + config `guardObserve` default TRUE per the user
+  ignition ruling + adapter guardSink + hash-then-passthrough fetch wrapper +
+  the inlined observation cluster), agent-loop (GuardObserver + chain
+  classifier, self-contained; ignition hunk at the agent constructor with
+  explicit opt-out honored), session (`cache/guard-observe` persistence
+  vocabulary), compaction-basic (L3 per-result budget) and
+  compaction-tool-result-pruner (the `l3.pruning` declaration branch +
+  `limitFor`). One asar write applies the whole set (multi-target splice) —
+  no partial multi-file state can persist; per-file three-state gates
+  (pristine / patched-exact by op-list reconstruction / drifted), the v0.2
+  marker carries per-file `files[]` hashes, and `status` reports the
+  per-file face + the `patchSet` aggregate (patched / unpatched / partial /
+  drifted). All pristine hashes were computed live from the real rc.3 asar
+  (read-only positional extraction; llm-pi-ai double-attests the P4 pin).
+- **guard-observe bridge** (`src/guard-observe-bridge.ts`): the plugin's
+  log-only consumer of the patched chain's `cache/guard-observe` session
+  events — per-session process-memory summaries (total / segmented /
+  degraded / unclassified / providers / last record facts), fail-soft into
+  the firehose, forgotten on session disposal; config switch
+  `patch.guardObserveEvents` (default true; inert by construction when the
+  patch is absent).
+- **zctx_status patch-set face**: segment 7 renders the patch-set identity
+  and patched-file count from the v0.2 marker (v0.1 markers stay readable)
+  plus the guard-observe record counters for the current session.
+
 ## [0.2.1] - 2026-11-14
 
 Hardening release with no new features. Two waves: **P0** (the real-device

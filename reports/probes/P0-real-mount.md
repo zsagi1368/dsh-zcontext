@@ -1,6 +1,6 @@
 # P0 real-mount probe report (scripts/probe-real-mount.mjs)
 
-- 运行时间：2026-11-14T15:52:01.737Z
+- 运行时间：2026-11-16T17:57:15.448Z
 - cordis：G:/000Github/zDSH/zDSH-main/vendor/cordis
 - plugin lib：G:\000Github\zDSH\zDSH-plugins\dsh-zcontext\lib\index.js
 - 结果汇总：5 PASS / 0 SKIP / 0 FAIL（exit 0）

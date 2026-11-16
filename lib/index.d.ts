@@ -199,6 +199,17 @@ interface ZcontextConfig {
    */
   preflightMarginRatio: number;
   /**
+   * Guard-observe event consumption (v0.2.2 P6-C; plan ZCTX-v03-patch-plan):
+   * when true the plugin's session/event firehose listener feeds the patched
+   * base-context chain's log-only `cache/guard-observe` records into the
+   * guard-observe bridge (process-memory summary per session, surfaced in
+   * zctx_status). Inert by construction when the app.asar patch is absent
+   * (the event type is never appended then) — this switch is the plugin-side
+   * opt-out for patched installs. Default true: observation-only, zero
+   * interception, no session-state writes.
+   */
+  'patch.guardObserveEvents': boolean;
+  /**
    * The structured S2 adapter section (v0.2.0 V5, task card product 8; plan
    * §3 structured-settings relaxation, official llm-pi-ai schemastery
    * precedent config.ts:340-361): `providers[]` entries declare the routes
@@ -2062,10 +2073,31 @@ interface ZctxToolRuntime {
     readonly marker: {
       readonly state: 'present' | 'absent' | 'unknown';
       readonly version?: string;
+      readonly patchSet?: string;
+      readonly patcherVersion?: string;
+      readonly files?: readonly {
+        readonly target?: string;
+        readonly sha256After?: string;
+      }[];
       readonly timestamp?: string;
       readonly reason?: string;
     };
     readonly hostFaces: string;
+    /**
+     * The P6-C guard-observe summary lookup for one session id (the log-only
+     * consumer of the patched chain's cache/guard-observe records); undefined
+     * when the session has no records (or the runtime predates the face).
+     */
+    readonly guardObserve?: (sessionId: string) => {
+      readonly total: number;
+      readonly segmented: number;
+      readonly degraded: number;
+      readonly unclassified: number;
+      readonly lastSeq?: number;
+      readonly lastClassId?: string;
+      readonly lastMonotonic?: string;
+      readonly providers: readonly string[];
+    } | undefined;
   };
 }
 /**
@@ -2189,6 +2221,15 @@ declare class ZcontextPlugin extends ServiceBase {
   private adapterFaceHealth;
   private adapterFaceSettled;
   private warnedWindowFailure;
+  /**
+   * The P6-C guard-observe bridge: the log-only consumer of the patched
+   * base-context chain's `cache/guard-observe` session events (process-memory
+   * summaries per session, surfaced in zctx_status). Created in the
+   * constructor with the ctx logger (zero cost when the patch is absent — no
+   * event ever arrives) and fed from the session/event firehose under the
+   * `patch.guardObserveEvents` switch.
+   */
+  private readonly guardBridge;
   /**
    * The P4 patch-bridge face (external app.asar patch receiver): the mount
    * state string the status segment renders, the lazily-loaded host faces

@@ -28,7 +28,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import * as asar from '@electron/asar'
 
 import { PATCH_SET_VERSION, SUPPORTED, computeIntegrity, normalizeEntry, patchAsar, patchFile, restoreAsar, spliceAsar, statusAsar } from '../patcher/zctx-patch.mjs'
-import type { ZctxPatchAnchorEntry } from '../patcher/zctx-patch.d.mts'
+import type { ZctxPatchFileEntry, ZctxPatchSetEntry } from '../patcher/zctx-patch.d.mts'
 
 /**
  * @electron/asar 4.3.2's Filesystem.getNode splits lookup paths on
@@ -114,14 +114,15 @@ interface Fixture {
   readonly asarPath: string
   readonly markerPath: string
   originalSha: string
-  readonly entry: ZctxPatchAnchorEntry | ReturnType<typeof buildSingleFileEntry>
+  readonly entry: ZctxPatchSetEntry
 }
 
 /** The production first-file entry with the fixture content's pristine hash. */
-function buildSingleFileEntry() {
-  const [firstFile] = SUPPORTED['0.2.2-rc.3'].files
+function buildSingleFileEntry(): ZctxPatchSetEntry {
+  const rc3 = SUPPORTED['0.2.2-rc.3'] as ZctxPatchSetEntry
+  const [firstFile] = rc3.files
   return {
-    shellPackage: SUPPORTED['0.2.2-rc.3'].shellPackage,
+    shellPackage: rc3.shellPackage,
     files: [
       { ...firstFile, pristineSha256: createHash('sha256').update(Buffer.from(FIXTURE_LIB, 'utf8')).digest('hex') },
     ],
@@ -187,7 +188,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('SUPPORTED patch-set pin (production, P6-B)', () => {
-  const rc3 = SUPPORTED['0.2.2-rc.3'] as { shellPackage: string; files: { targetPath: string; pristineSha256: string; presenceMarker: string; ops: { anchor: string }[] }[] }
+  const rc3 = SUPPORTED['0.2.2-rc.3'] as ZctxPatchSetEntry
 
   it('pins the five target bundles of the base-context patch set', () => {
     expect(rc3.shellPackage).toBe('@deepseek-ai/dsh-desktop')

@@ -98,7 +98,19 @@ export interface PatchBridge {
 
 /** Structural view of one marker file read (status dual-source, filesystem truth). */
 export type PatchMarkerView =
-  | { readonly state: 'present'; readonly path: string; readonly version?: string; readonly target?: string; readonly timestamp?: string }
+  | {
+    readonly state: 'present'
+    readonly path: string
+    readonly version?: string
+    readonly target?: string
+    /** The patch-set identity (v0.2 multi-file marker; undefined on v0.1 markers). */
+    readonly patchSet?: string
+    /** The patcher release that wrote the marker. */
+    readonly patcherVersion?: string
+    /** Per-file before/after identities from the v0.2 multi-file marker. */
+    readonly files?: readonly { readonly target?: string; readonly sha256After?: string }[]
+    readonly timestamp?: string
+  }
   | { readonly state: 'absent'; readonly path: string }
   | { readonly state: 'unknown'; readonly path: string; readonly reason: string }
 
@@ -132,6 +144,19 @@ export function readPatchMarker(appDir?: string): PatchMarkerView {
       path,
       ...(typeof parsed.shellVersion === 'string' ? { version: parsed.shellVersion } : {}),
       ...(typeof parsed.target === 'string' ? { target: parsed.target } : {}),
+      ...(typeof parsed.patchSet === 'string' ? { patchSet: parsed.patchSet } : {}),
+      ...(typeof parsed.patcherVersion === 'string' ? { patcherVersion: parsed.patcherVersion } : {}),
+      ...(Array.isArray(parsed.files)
+        ? {
+          files: parsed.files.map((file: unknown) => {
+            const entry = (typeof file === 'object' && file !== null ? file : {}) as Record<string, unknown>
+            return {
+              ...(typeof entry.target === 'string' ? { target: entry.target } : {}),
+              ...(typeof entry.sha256After === 'string' ? { sha256After: entry.sha256After } : {}),
+            }
+          }),
+        }
+        : {}),
       ...(typeof parsed.timestamp === 'string' ? { timestamp: parsed.timestamp } : {}),
     }
   } catch (error) {
