@@ -12,6 +12,11 @@
  *   - idempotent re-patch (no new backup, marker untouched);
  *   - the crash-window self-heal backfills the v0.2 marker shape;
  *   - a SINGLE drifted file refuses the whole set and modifies nothing;
+ *   - a MIXED face (foreign partial writer splices one bundle back to
+ *     pristine) refuses patch loudly with the per-file face and moves
+ *     nothing (P6B-R1), and status aggregates every face honestly —
+ *     patched / partial (pristine-mix AND drifted-mix) / unpatched /
+ *     drifted, every arm reachable (P6B-R2);
  *   - restore returns every file to its pristine bytes;
  *   - spliceAsarMulti witness accounting (between-target shift);
  *   - the INLINED REGION TEXTS behave: the classifier/observer region and
@@ -229,6 +234,21 @@ async function createMultiFixture(): Promise<MultiFixture> {
   }
 }
 
+/** Index of the session bundle in the patch-set order (the mixed-face guinea pig). */
+const SESSION_INDEX = normalizeEntry(SUPPORTED['0.2.2-rc.3'] as ZctxPatchSetEntry).findIndex((file) => file.targetPath.includes('dsh-session'))
+
+/**
+ * Foreign partial writer: splice ONE file's text over its region in ONE asar
+ * write — a face this patcher can never produce (it writes the whole set in
+ * one operation), used to build mixed-face fixtures (P6B-R1/R2).
+ */
+function spliceFace(fixture: MultiFixture, fileIndex: number, text: string): void {
+  const file = normalizeEntry(fixtureEntry())[fileIndex]
+  const spliced = spliceAsarMulti({ asarPath: fixture.asarPath, targets: [{ targetPath: file.targetPath, patchedText: text }] })
+  writeFileSync(fixture.asarPath, spliced.buffer)
+  asar.uncacheAll()
+}
+
 // ---------------------------------------------------------------------------
 // Full chain on the five-file set.
 // ---------------------------------------------------------------------------
@@ -370,6 +390,94 @@ describe('patchAsar: the five-file base-context set (P6-B)', () => {
     for (const [path, content] of Object.entries(FIXTURE_CONTENTS)) {
       expect(freshExtract(fixture.asarPath, path).toString('utf8')).toBe(content)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// P6B-R1/R2 mixed-face pins: a foreign partial writer splices ONE bundle back
+// to pristine (or drifts it) AFTER a full patch — a face this patcher can
+// never produce. patch must refuse it loudly (R1); status must aggregate it
+// honestly with every aggregate arm reachable (R2).
+// ---------------------------------------------------------------------------
+
+describe('mixed faces: patch refuses (P6B-R1), status aggregates honestly (P6B-R2)', () => {
+  it('P6B-R1: a MIXED face (foreign revert of one patched bundle) refuses loudly — per-file face, asar bytes unchanged, no new backup', async () => {
+    const fixture = await createMultiFixture()
+    const patched = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixtureEntry() })
+    expect(patched.ok).toBe(true)
+    const backupCount = readdirSync(join(fixture.work, 'zctx-backup')).length
+    const markerBefore = readFileSync(fixture.markerPath, 'utf8')
+    // Foreign partial writer: splice the session bundle's PRISTINE text back
+    // over its patched region. (The splice itself moves bytes — the refusal
+    // assertion anchors on the POST-splice state: the refused patch run must
+    // move nothing.)
+    spliceFace(fixture, SESSION_INDEX, FIXTURE_CONTENTS['dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js'])
+    const mixedAsarSha = createHash('sha256').update(readFileSync(fixture.asarPath)).digest('hex')
+
+    const second = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixtureEntry() })
+    expect(second.ok).toBe(false)
+    expect(second.refused).toBe(true)
+    const gate = second.steps.find((candidate) => candidate.name === 'mixed-face gate')
+    expect(gate?.status).toBe('refused')
+    expect(gate?.detail).toContain('1 pristine + 4 patched-exact')
+    expect(gate?.detail).toContain('dsh-session')
+    expect(second.recovery).toContain('restore --app-dir')
+    // The per-file face names which rows are in and which are not.
+    const files = second.files as { target: string; state: string }[] | undefined
+    expect(files?.find((file) => file.target.includes('dsh-session'))?.state).toBe('pristine')
+    expect(files?.filter((file) => file.state === 'patched-exact')).toHaveLength(4)
+    // Nothing moved: asar bytes, backup count, marker.
+    expect(createHash('sha256').update(readFileSync(fixture.asarPath)).digest('hex')).toBe(mixedAsarSha)
+    expect(readdirSync(join(fixture.work, 'zctx-backup')).length).toBe(backupCount)
+    expect(readFileSync(fixture.markerPath, 'utf8')).toBe(markerBefore)
+  })
+
+  it('P6B-R2: a mixed pristine+patched-exact face aggregates to partial (counts honest, patched stays presence-true)', async () => {
+    const fixture = await createMultiFixture()
+    const patched = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixtureEntry() })
+    expect(patched.ok).toBe(true)
+    spliceFace(fixture, SESSION_INDEX, FIXTURE_CONTENTS['dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js'])
+
+    const status = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixtureEntry() })
+    expect(status.patched).toBe(true)
+    expect(status.patchSet).toMatchObject({ state: 'partial', totalFiles: 5, patchedFiles: 4, pristineFiles: 1, driftedFiles: 0 })
+    expect(status.files?.find((file) => file.target.includes('dsh-session'))?.anchorHit).toBe('official-unchanged')
+    expect(status.files?.filter((file) => file.anchorHit === 'patched-exact')).toHaveLength(4)
+  })
+
+  it('P6B-R2: a mixed patched+drifted face aggregates to partial (drift rows never mask patch presence)', async () => {
+    const fixture = await createMultiFixture()
+    const patched = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixtureEntry() })
+    expect(patched.ok).toBe(true)
+    // Foreign drift on the session bundle: the patched text plus one appended
+    // line — the presence marker survives (patched-drifted) while the op-list
+    // reconstruction hash breaks (state drifted).
+    const entry = fixtureEntry()
+    const session = normalizeEntry(entry)[SESSION_INDEX]
+    const driftedPatchedText = `${freshExtract(fixture.asarPath, session.targetPath).toString('utf8')}\n// foreign edit\n`
+    spliceFace(fixture, SESSION_INDEX, driftedPatchedText)
+
+    const status = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixtureEntry() })
+    expect(status.patched).toBe(true)
+    expect(status.patchSet).toMatchObject({ state: 'partial', totalFiles: 5, patchedFiles: 4, pristineFiles: 0, driftedFiles: 1 })
+    const sessionRow = status.files?.find((file) => file.target.includes('dsh-session'))
+    expect(sessionRow?.state).toBe('drifted')
+    expect(sessionRow?.anchorHit).toBe('patched-drifted')
+    expect(sessionRow?.guidance).toContain('restore from a backup')
+  })
+
+  it('P6B-R2: drifted priority — all-pristine is unpatched; any drift with NO patch presence is drifted', async () => {
+    const fixture = await createMultiFixture()
+    const pristine = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixtureEntry() })
+    expect(pristine.patched).toBe(false)
+    expect(pristine.patchSet).toMatchObject({ state: 'unpatched', totalFiles: 5, patchedFiles: 0, pristineFiles: 5, driftedFiles: 0 })
+
+    // Official drift on one bundle (no patch presence anywhere): drifted.
+    spliceFace(fixture, SESSION_INDEX, `${FIX_SESSION}\n// official update edit\n`)
+    const status = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixtureEntry() })
+    expect(status.patched).toBe(false)
+    expect(status.patchSet).toMatchObject({ state: 'drifted', totalFiles: 5, patchedFiles: 0, pristineFiles: 4, driftedFiles: 1 })
+    expect(status.files?.find((file) => file.target.includes('dsh-session'))?.anchorHit).toBe('official-drifted')
   })
 })
 

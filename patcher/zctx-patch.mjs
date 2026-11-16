@@ -34,7 +34,9 @@
  *      backup; marker missing while the stub is live = crash window → the
  *      marker is backfilled from derivable facts, asar untouched)
  *   5. anchor hash gate (target lib/index.js SHA-256 must match the per-version
- *      anchor set — drift = official update = refuse + report, never patch blind)
+ *      anchor set — drift = official update = refuse + report, never patch blind;
+ *      a MIXED face — some pristine + some patched-exact, unreachable by this
+ *      patcher's ONE-write application — is refused with the per-file face too)
  *   6. anchor string uniqueness (count must be exactly 1)
  *   7. BACKUP FIRST (sibling `zctx-backup/<ts>/` OUTSIDE the install dir so
  *      the official updater/uninstaller cannot wipe it — RESTORE.md carries
@@ -1620,9 +1622,12 @@ export async function patchAsar(options) {
 
   // Pre-state per file (cache-free positional reads): pristine, patched-exact,
   // or drifted. The whole set must be uniformly pristine (→ patch) or
-  // uniformly patched-exact (→ idempotent no-op); anything else refuses — a
-  // mixed face cannot arise from this patcher (the set applies in ONE asar
-  // write) and reports honestly instead of guessing.
+  // uniformly patched-exact (→ idempotent no-op); anything else refuses —
+  // drifted (official update or foreign edit) at the hash gate, and a MIXED
+  // face (some pristine + some patched-exact) at the mixed-face gate below.
+  // A mixed face cannot arise from THIS patcher (the set applies in ONE asar
+  // write), so it means a foreign partial writer has been here — it is
+  // reported with the per-file face instead of being guessed through.
   const files = normalizeEntry(supportedEntry)
   const fileTexts = []
   for (const file of files) {
@@ -1652,8 +1657,28 @@ export async function patchAsar(options) {
     }
   }
   const pristineFiles = fileTexts.filter((entry) => entry.state === 'pristine')
+  if (pristineFiles.length > 0 && pristineFiles.length < fileTexts.length) {
+    // MIXED face (some pristine + some patched-exact — the drifted rows are
+    // already refused above): this patcher applies the whole set in ONE asar
+    // write, so it can never leave this state — a foreign partial writer has
+    // been here. Refuse loudly with the per-file face (which rows are in,
+    // which are not) and the two exits (restore → re-patch, or manual
+    // reconciliation); never guess through a half-applied set (P6B-R1).
+    const patchedCount = fileTexts.length - pristineFiles.length
+    const face = fileTexts.map((entry) => `${entry.file.targetPath}: ${entry.state}`).join(' | ')
+    step('mixed-face gate', 'refused', `half-applied patch set (${pristineFiles.length} pristine + ${patchedCount} patched-exact) — this patcher writes the whole set in ONE asar operation, so a foreign partial writer has touched the archive: ${face}`)
+    return {
+      ok: false,
+      refused: true,
+      ...report,
+      shellVersion,
+      recovery: `restore the whole set from the latest backup (node patcher/zctx-patch.mjs restore --app-dir "${appDir}") and re-patch, or reconcile the half-applied set manually — this patcher never applies over a mixed face`,
+      files: fileTexts.map(({ file, state, sha256 }) => ({ target: file.targetPath, state, sha256 })),
+    }
+  }
   if (pristineFiles.length < fileTexts.length) {
-    // All patched-exact (the only remaining case): idempotence branch.
+    // All patched-exact (the only remaining case after the drifted and
+    // mixed-face refusals): idempotence branch.
     step('idempotence', 'skip', `patch set ${PATCH_SET_VERSION} already applied (${fileTexts.length}/${fileTexts.length} files patched-exact) — the asar stays untouched`)
     if (existsSync(markerPath)) {
       return { ok: true, alreadyPatched: true, ...report, shellVersion }
@@ -2001,23 +2026,30 @@ export async function statusAsar(options) {
       }
       // Presence semantics (carried from v0.1): `patched` says the patch face
       // is present in the bytes — exact OR drifted-with-marker — not that
-      // every file is pristine-exact; the aggregate precision lives in
+      // every file is patched; the aggregate precision lives in
       // `patchSet.state`.
       report.patched = report.files.some((file) => file.anchorHit === 'patched-exact' || file.anchorHit === 'patched-drifted')
-      // The patch-set aggregate (P6-B status segment): which files are in and
-      // which are pending the official update re-patch.
+      // The patch-set aggregate (P6-B status segment; P6B-R2 re-ordering so
+      // every arm is reachable). Priority, explicitly: ALL files patched-exact
+      // → 'patched'; any patched face mixed with non-patched rows (pristine
+      // or drifted — the official-update re-patch signal) → 'partial'; ALL
+      // files official-unchanged → 'unpatched'; anything else is a face with
+      // NO patch presence at all → 'drifted' (drift never masks patch
+      // presence, and patch presence never masks drift rows — the per-file
+      // face and `driftedFiles` carry that detail).
+      const allPatchedExact = report.files.every((file) => file.anchorHit === 'patched-exact')
       report.patchSet = {
         version: PATCH_SET_VERSION,
         totalFiles: report.files.length,
         patchedFiles: report.files.filter((file) => file.anchorHit === 'patched-exact').length,
         pristineFiles: report.files.filter((file) => file.anchorHit === 'official-unchanged').length,
         driftedFiles: report.files.filter((file) => file.anchorHit === 'patched-drifted' || file.anchorHit === 'official-drifted').length,
-        state: report.patched
+        state: allPatchedExact
           ? 'patched'
-          : report.files.every((file) => file.anchorHit === 'official-unchanged')
-            ? 'unpatched'
-            : report.files.some((file) => file.anchorHit === 'patched-exact')
-              ? 'partial'
+          : report.patched
+            ? 'partial'
+            : report.files.every((file) => file.anchorHit === 'official-unchanged')
+              ? 'unpatched'
               : 'drifted',
       }
     } catch (error) {
