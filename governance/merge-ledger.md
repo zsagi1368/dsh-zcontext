@@ -37,3 +37,13 @@
 - 报告：reports/W5-A6-INSTALL-acceptance.md；closure 全量 open=0。
 - 用户侧待办：`pnpm update dsh-zcontext` + 重启 app（git 依赖缓存缓解=pnpm store prune 后重装）。
 - patcher 真机执行：代码+209MB asar 副本全链验证已过，实际打补丁待用户确认（建议 0.2.1 纯插件稳定运行后再评估）。
+
+## 2026-11-16 · v0.3.0（autoFold 服务端自主折叠 + patcher v0.2 五文件集发布）
+
+- 云锚：main = 393cd40（merge --no-ff feat/ZCTX-P6F：cf15a13 R1-R5 → b58c2ad 基准复证 → c85526d 发布面）；tag v0.3.0。
+- 波次构成：P6-B/C（patcher v0.2 五文件集 + guard-observe 桥，评审 96→返工→100）→ P6-D/D2（headless 基准 + face 定谳修复，BENCH-L1 closed）→ P6-E（autoFold 引擎+接线，评审 99）→ P6-D2E 合并前评审（100/99，建议 R1-R5）→ **P6-F 终波（本条）**：R1-R5 全落账 fixed/verified（R1=BENCH-L5 改判机制已解、R2=replay-f297.mjs 入库复跑 MATCH:true、R3=external apiKeyEnv wire warn+2 钉、R4a=模板派生签名+3 重钉、R4b=措辞、R5=归档件头注）+ 基准复证 + 发布。
+- 质量证据：电池 592/592（589+R 钉 3）+ tsc 0 + 五探针 6/11/16/3/5 全绿；closure 136 项 OPEN=0；版本面三方一致（package.json=README 双语 badge=CHANGELOG 0.3.0；lib 无版本内嵌）；lib 确定性重建（build 后树净）。
+- 基准复证（BENCH §13）：两臂 20 轮真 CLI headless 各提交 1 次服务端折叠（f290 turn14 5195→619 净省 4576；f340 turn18 5739→638 净省 5101），0 模型 zctx_* 调用，触发面 32 HIT/32 no-qualified-span+1 commit；与 P6-E f297（净省 4607）三会话同型——单纪元一次折叠为诚实天花板（BENCH-L6/P6E-4）。disarm 残留=0；原 desktop profile 零触碰。
+- RSI：查册执行 Z15/Z19/Z20/Z23/Z28/Z29/Z30/A43；Z30 取证法实证（多帧 zstd 切分读 data.source——stdout 流与 message.* 形态均不含 fold 事件）。
+- 备份面：del/20261116-p6f-prechange（13 件仓内文件）+ del/20261116-p6f-bench-prechange（装件 lib 7 件+patch yml）。
+- post-merge 台账沿用：BENCH-L2（桌面 web 组合激活态未测）、BENCH-L3（D/E 组重估）、BENCH-L7（nudge 措辞/模型面研究杠杆，v0.4 候选）、P6E-4（吸收窗资格）。
