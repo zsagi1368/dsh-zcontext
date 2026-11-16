@@ -1,21 +1,23 @@
 /**
- * P4 patcher tests — the full patch/restore/status machinery on a SYNTHETIC
- * mini-asar fixture (task card P4 product 3; the REAL machine is never
- * touched — W5-A6-INSTALL umbrella, post-merge).
+ * P4+P6-B patcher tests — the full patch/restore/status machinery on a
+ * SYNTHETIC mini-asar fixture (task card P4 product 3 + P6-B; the REAL
+ * machine is never touched — W5-A6-INSTALL umbrella, post-merge).
  *
  * Fixture = @electron/asar createPackage over a small src tree whose
- * lib/index.js embeds the REAL rc.3 anchor region verbatim (5-tab call-site
- * spread + definition block; extracted read-only from the real asar,
- * SHA-256 e956da3d… — the production anchor set is pinned to that hash in a
- * dedicated test). The fixture's own anchor entry carries the fixture
+ * lib/index.js embeds the REAL rc.3 anchor lines verbatim (all seven P6-B
+ * llm-pi-ai anchors: the 5-tab call-site spread, the crypto import, the
+ * Config schema line, the apply wiring, the streamSimple call site, the
+ * 4-arg headers line, and the export line — extracted read-only from the
+ * real asar; the production pristine hashes are pinned to their recorded
+ * values in a dedicated test). The fixture's own entry carries the fixture
  * content's hash so the machinery is exercised end-to-end without the real
- * archive.
+ * archive. The multi-file set face gets its own spec (patcher-multifile).
  *
  * Asserted: patch full chain (gates → backup → splice → post-verify →
  * marker), byte-identical restore + marker removal, idempotent re-patch,
  * anchor-drift refusal (nothing modified, no backup), anchor-uniqueness
  * refusal (0 and 2 occurrences), version-gate refusal, lock-face refusal,
- * process-probe refusal, status dual states, and the SUPPORTED matrix pin.
+ * process-probe refusal, status dual states, and the production pin.
  */
 
 import { createHash } from 'node:crypto'
@@ -25,7 +27,7 @@ import { dirname, join, sep } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as asar from '@electron/asar'
 
-import { SUPPORTED, computeIntegrity, patchAsar, patchText, restoreAsar, spliceAsar, statusAsar } from '../patcher/zctx-patch.mjs'
+import { PATCH_SET_VERSION, SUPPORTED, computeIntegrity, normalizeEntry, patchAsar, patchFile, restoreAsar, spliceAsar, statusAsar } from '../patcher/zctx-patch.mjs'
 import type { ZctxPatchAnchorEntry } from '../patcher/zctx-patch.d.mts'
 
 /**
@@ -48,19 +50,22 @@ function freshExtract(asarPath: string, path: string): Buffer {
 }
 
 // ---------------------------------------------------------------------------
-// Fixture: the REAL rc.3 anchor region (5-tab indent, `void 0` — extracted
-// read-only from the real app.asar; keep byte-exact).
+// Fixture: the REAL rc.3 anchor lines (tab indent, `void 0`, double quotes —
+// extracted read-only from the real app.asar; keep byte-exact). The fixture
+// embeds every llm-pi-ai op anchor of the production patch set so the
+// production op list runs end-to-end on the fixture archive.
 // ---------------------------------------------------------------------------
 
 /** The file-unique call-site spread (lib/index.js five-tab depth). */
 const CALL_SITE_LINE = '\t\t\t\t\t...profileOptions(profile, reasoning, apiKey),'
 
 const FIXTURE_LIB = [
-  '// fixture lib/index.js — the rc.3 anchor region embedded verbatim (trimmed)',
+  '// fixture lib/index.js — the rc.3 anchor lines embedded verbatim (trimmed)',
+  'import { createHash } from "node:crypto";',
   'class PiAdapter {',
   '\tstream(request, options) {',
   '\t\tconst snapshot = this.prepare(request)',
-  '\t\tconst events = snapshot.models.streamSimple(model, context, {',
+  '\t\t\t\tconst iterator = toStreamChunks(snapshot.models.streamSimple(model, context, {',
   CALL_SITE_LINE,
   '\t\t\t\t\t...options.temperature === void 0 ? {} : { temperature: options.temperature },',
   '\t\t\t\t\t...options.maxTokens === void 0 ? {} : { maxTokens: options.maxTokens },',
@@ -68,7 +73,7 @@ const FIXTURE_LIB = [
   '\t\t\t\t\tsignal: watchdog.signal,',
   '\t\t\t\t\theaders: requestHeaders(profile.headers, options, model.baseUrl, this.config.prepareHeaders)',
   '\t\t\t})',
-  '\t\t\treturn toStreamChunks(events, model.contextWindow, options.signal, model.id, digest)',
+  '\t\t\treturn toStreamChunks(iterator, model.contextWindow, options.signal, model.id, digest)',
   '\t}',
   '}',
   '',
@@ -81,6 +86,23 @@ const FIXTURE_LIB = [
   '\t\tmaxRetries: 0',
   '\t}',
   '}',
+  '',
+  '/** Runtime schema for the Config section. */',
+  'const Config = z.object({ providers: z.dict(profile).default({}).volatile() });',
+  '',
+  'function apply(ctx, config) {',
+  '\tconst auth = { credentials: null, authContext: null };',
+  '\tconst adapter = new PiAiAdapter({',
+  '\t\tprofiles,',
+  '\t\tresolveApiKey,',
+  '\t\tauth,',
+  '\t\tprepareHeaders: (request, headers) => ctx.waterfall("llm-pi-ai/request-headers", request, headers, () => headers),',
+  '\t\tresolveAttachments: () => ctx.get("attachments")',
+  '\t});',
+  '\treturn adapter;',
+  '}',
+  '',
+  'export { Config, PiAiAdapter, apply, inject, name, recordKeyFor, supportedProtocols };',
 ].join('\n')
 
 const TARGET_PATH = 'dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js'
@@ -92,7 +114,23 @@ interface Fixture {
   readonly asarPath: string
   readonly markerPath: string
   originalSha: string
-  readonly entry: ZctxPatchAnchorEntry
+  readonly entry: ZctxPatchAnchorEntry | ReturnType<typeof buildSingleFileEntry>
+}
+
+/** The production first-file entry with the fixture content's pristine hash. */
+function buildSingleFileEntry() {
+  const [firstFile] = SUPPORTED['0.2.2-rc.3'].files
+  return {
+    shellPackage: SUPPORTED['0.2.2-rc.3'].shellPackage,
+    files: [
+      { ...firstFile, pristineSha256: createHash('sha256').update(Buffer.from(FIXTURE_LIB, 'utf8')).digest('hex') },
+    ],
+  }
+}
+
+/** The first production file entry (fixture hash substituted). */
+function firstFileEntry(): ReturnType<typeof normalizeEntry>[number] {
+  return normalizeEntry(buildSingleFileEntry())[0]
 }
 
 let cleanupDirs: string[] = []
@@ -119,7 +157,7 @@ function buildFixture(appDirName = 'DeepSeek Harness', shellVersion = '0.2.2-rc.
     asarPath,
     markerPath: join(appDir, '.zctx-patch.json'),
     originalSha: '',
-    entry: { ...SUPPORTED['0.2.2-rc.3'], targetSha256: createHash('sha256').update(Buffer.from(FIXTURE_LIB, 'utf8')).digest('hex') },
+    entry: buildSingleFileEntry(),
   }
 }
 
@@ -141,35 +179,71 @@ afterEach(() => {
 })
 
 // ---------------------------------------------------------------------------
-// SUPPORTED matrix pin (the production anchor set is load-bearing).
+// Production patch-set pin (P6-B). The pristine hashes were computed live
+// from the real rc.3 asar by read-only positional extraction (2026-11-16;
+// the llm-pi-ai hash double-attests the P4 pin). An official update changes
+// any of these → the anchor-hash gate refuses → this table gets the new
+// entry first.
 // ---------------------------------------------------------------------------
 
-describe('SUPPORTED anchor-set pin (production)', () => {
-  it('pins rc.3 to the real pristine lib/index.js hash (P2 [F16] / VERIFY-P #8, re-verified live 2026-11-14)', () => {
-    const entry = SUPPORTED['0.2.2-rc.3']
-    expect(entry).toBeDefined()
-    expect(entry.targetPath).toBe('dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js')
-    expect(entry.targetSha256).toBe('e956da3d7300e1426e13e14f47e6f981dd1ca345633a406568ee5058ad93e9d8')
-    expect(entry.anchors.callSite).toBe('...profileOptions(profile, reasoning, apiKey),')
-    expect(entry.anchors.definition).toBe('function profileOptions(profile, reasoning, apiKey) {')
-    expect(entry.anchors.stubMarker).toBe('globalThis.__zctxPatch__')
-    // The stub is the card-pinned one-line defensive forwarder (R1: options
-    // fields only; identity = provider/model + options.sessionId).
-    expect(entry.stub).toBe(
-      '...(globalThis.__zctxPatch__?.wireOptions?.({ provider: options.provider, model: model.id, sessionId: options.sessionId }) ?? {}),',
+describe('SUPPORTED patch-set pin (production, P6-B)', () => {
+  const rc3 = SUPPORTED['0.2.2-rc.3'] as { shellPackage: string; files: { targetPath: string; pristineSha256: string; presenceMarker: string; ops: { anchor: string }[] }[] }
+
+  it('pins the five target bundles of the base-context patch set', () => {
+    expect(rc3.shellPackage).toBe('@deepseek-ai/dsh-desktop')
+    expect(rc3.files.map((file) => file.targetPath)).toEqual([
+      'dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js',
+      'dsh/node_modules/@deepseek-ai/dsh-agent-loop/lib/index.js',
+      'dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js',
+      'dsh/node_modules/@deepseek-ai/dsh-compaction-basic/lib/index.js',
+      'dsh/node_modules/@deepseek-ai/dsh-compaction-tool-result-pruner/lib/index.js',
+    ])
+  })
+
+  it('pins the pristine hashes (live extraction 2026-11-16; llm-pi-ai == P4 pin e956da3d…)', () => {
+    expect(rc3.files.map((file) => file.pristineSha256)).toEqual([
+      'e956da3d7300e1426e13e14f47e6f981dd1ca345633a406568ee5058ad93e9d8',
+      'f09f60814d4e96a880f41b9fc3832f33c56a28f954f48810d8439ce83ad6ffa8',
+      'd9911b5e1585bcb142d03ce46eb2990b3fc7c254de5a76d3ffb124bd2469216c',
+      'e1a3019949d01b22baa91d6eb672d9559d76b97fb5bb45e0428715a316bf11d4',
+      'e86442e9a2403c392482b9035916e5610c251d62f3581892866404d69c064254',
+    ])
+  })
+
+  it('carries the P4 stub as the first llm-pi-ai op (card-pinned forwarder, R1)', () => {
+    const stubOp = rc3.files[0].ops[0]
+    expect(stubOp.anchor).toBe('...profileOptions(profile, reasoning, apiKey),')
+    expect(stubOp.replacement).toBe(
+      `${stubOp.anchor}\n\t\t\t\t\t...(globalThis.__zctxPatch__?.wireOptions?.({ provider: options.provider, model: model.id, sessionId: options.sessionId }) ?? {}),`,
     )
-    expect(entry.stubIndent).toBe('\t\t\t\t\t')
+    expect(rc3.files[0].presenceMarker).toBe('globalThis.__zctxPatch__')
+  })
+
+  it('ignites guardObserve ON (config default true — user ruling; observe-only kill switch)', () => {
+    const configOp = rc3.files[0].ops.find((op) => op.anchor.includes('const Config = z.object'))
+    expect(configOp?.replacement).toContain('guardObserve: z.boolean().default(true).volatile()')
+    // The ignition hunk defaults the observer ON at the agent constructor
+    // (explicit opt-out honored); the adapter side gates on the switch.
+    const ignitionOp = rc3.files[1].ops.find((op) => op.anchor.includes('new RuntimeContextProjection'))
+    expect(ignitionOp?.replacement).toContain('(this.options.guardObserve ?? true) === true')
+  })
+
+  it('registers the guard event vocabulary + the L3 budget face + per-set identity', () => {
+    expect(rc3.files[2].ops[0].replacement).toContain('"cache/guard-observe",')
+    expect(rc3.files[3].ops[0].replacement).toContain('byteCapPerResult: toolCapToByteLimit(budget.toolCap)')
+    expect(rc3.files[4].ops.find((op) => op.anchor.startsWith('\tpruneSession(session) {'))?.replacement).toBe('\tpruneSession(session, opts = {}) {')
+    expect(PATCH_SET_VERSION).toBe('zctx-v0.3-base-1')
   })
 })
 
 // ---------------------------------------------------------------------------
-// patchText (pure text layer).
+// patchFile (pure text layer, op lists).
 // ---------------------------------------------------------------------------
 
-describe('patchText: anchor uniqueness + idempotence', () => {
-  it('inserts exactly one stub line after the call-site spread', () => {
-    const entry = SUPPORTED['0.2.2-rc.3']
-    const result = patchText(FIXTURE_LIB, entry)
+describe('patchFile: anchor uniqueness + idempotence', () => {
+  it('applies the production op list: exactly one stub line, config switch, wiring, inlined region', () => {
+    const entry = firstFileEntry()
+    const result = patchFile(FIXTURE_LIB, entry)
     expect(result.ok).toBe(true)
     const text = result.text as string
     expect(text.split('globalThis.__zctxPatch__').length - 1).toBe(1)
@@ -181,22 +255,45 @@ describe('patchText: anchor uniqueness + idempotence', () => {
     expect(spreadIdx).toBeGreaterThanOrEqual(0)
     expect(stubIdx).toBeGreaterThan(spreadIdx)
     expect(headersIdx).toBeGreaterThan(stubIdx)
-    // Five-tab indent, the line ends with the spread comma.
-    expect(text).toContain(`${CALL_SITE_LINE}\n\t\t\t\t\t${entry.stub}\n`)
+    // The guard sink sits BEFORE the streamSimple call; the fetch wrapper
+    // rides AFTER the official headers key.
+    expect(text.indexOf('const guardSink =')).toBeGreaterThan(0)
+    expect(text.indexOf('const guardSink =')).toBeLessThan(text.indexOf('const iterator = toStreamChunks'))
+    expect(text).toContain('...guardSink === void 0 ? {} : { fetch: createGuardFetchWrapper({ model, sink: guardSink }) }')
+    // Config default true + apply wiring + the inlined region + import face.
+    expect(text).toContain('guardObserve: z.boolean().default(true).volatile()')
+    expect(text).toContain('guardObserve: () => config.guardObserve.get(),')
+    expect(text).toContain('//#region lib/types/zctx-guard-observe.js')
+    expect(text).toContain('import { existsSync, readFileSync } from "node:fs";')
+    // The inlined region precedes the export line (region-ordered bundle).
+    expect(text.indexOf('//#region lib/types/zctx-guard-observe.js')).toBeLessThan(text.indexOf('export { Config, PiAiAdapter'))
+    // Exactly one stub line (five-tab indent, ends with the spread comma).
+    expect(text).toContain(`${CALL_SITE_LINE}\n\t\t\t\t\t...(globalThis.__zctxPatch__?.wireOptions?.({ provider: options.provider, model: model.id, sessionId: options.sessionId }) ?? {}),\n`)
   })
 
-  it('refuses when the anchor occurs 0 or 2 times (never patches blind)', () => {
-    const entry = SUPPORTED['0.2.2-rc.3']
+  it('refuses when an anchor occurs 0 or 2 times (never patches blind)', () => {
+    const entry = firstFileEntry()
     const noAnchor = FIXTURE_LIB.replace(CALL_SITE_LINE, '...profileOptions(profile, reasoning)')
-    expect(patchText(noAnchor, entry)).toMatchObject({ ok: false, reason: expect.stringContaining('0 times') })
+    expect(patchFile(noAnchor, entry)).toMatchObject({ ok: false, reason: expect.stringContaining('0 times') })
     const twice = FIXTURE_LIB.replace('maxRetries: 0', `${CALL_SITE_LINE}\n\t\t\t\t\tmaxRetries: 0`)
-    expect(patchText(twice, entry)).toMatchObject({ ok: false, reason: expect.stringContaining('2 times') })
+    expect(patchFile(twice, entry)).toMatchObject({ ok: false, reason: expect.stringContaining('2 times') })
   })
 
-  it('reports already-patched when the stub marker is present', () => {
-    const entry = SUPPORTED['0.2.2-rc.3']
-    const patched = patchText(FIXTURE_LIB, entry).text as string
-    expect(patchText(patched, entry)).toMatchObject({ ok: false, alreadyPatched: true })
+  it('refuses when the presence marker is already in the text (already-patched)', () => {
+    const entry = firstFileEntry()
+    const patched = patchFile(FIXTURE_LIB, entry).text as string
+    expect(patchFile(patched, entry)).toMatchObject({ ok: false, alreadyPatched: true })
+  })
+
+  it('reverses the whole op list back to the pristine bytes (reconstruction proof)', async () => {
+    // Exercise through the machinery: the patched-exact state reconstructs.
+    const fixture = await createFixture()
+    const result = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(result.ok).toBe(true)
+    const status = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
+    expect(status.anchorHit).toBe('patched-exact')
+    expect(status.patchSet?.state).toBe('patched')
+    expect(status.patchSet?.patchedFiles).toBe(1)
   })
 })
 
@@ -236,8 +333,9 @@ describe('patchAsar: full chain on the mini-asar fixture', () => {
     const marker = JSON.parse(readFileSync(fixture.markerPath, 'utf8')) as Record<string, unknown>
     expect(marker.patcher).toBe('zctx-patch')
     expect(marker.shellVersion).toBe('0.2.2-rc.3')
+    expect(marker.patchSet).toBe('zctx-v0.3-base-1')
     expect(marker.target).toBe(TARGET_PATH)
-    expect(marker.sha256Before).toBe(fixture.entry.targetSha256)
+    expect(marker.sha256Before).toBe(fixture.entry.files[0].pristineSha256)
     expect(marker.backup).toBe(result.backup?.dir)
     expect(typeof marker.timestamp).toBe('string')
 
@@ -295,7 +393,7 @@ describe('patchAsar: full chain on the mini-asar fixture', () => {
     expect(marker.patcher).toBe('zctx-patch')
     expect(marker.shellVersion).toBe('0.2.2-rc.3')
     expect(marker.target).toBe(TARGET_PATH)
-    expect(marker.sha256Before).toBe(fixture.entry.targetSha256)
+    expect(marker.sha256Before).toBe(fixture.entry.files[0].pristineSha256)
     const lib = freshExtract(fixture.asarPath, TARGET_PATH).toString('utf8')
     expect(marker.sha256After).toBe(createHash('sha256').update(Buffer.from(lib, 'utf8')).digest('hex'))
     expect(marker.backup).toBe(first.backup?.dir)
@@ -308,7 +406,7 @@ describe('patchAsar: full chain on the mini-asar fixture', () => {
 
   it('refuses anchor drift (hash gate) and modifies NOTHING', async () => {
     const fixture = await createFixture()
-    const drifted: ZctxPatchAnchorEntry = { ...fixture.entry, targetSha256: 'deadbeef'.repeat(8) }
+    const drifted = { shellPackage: fixture.entry.shellPackage, files: [{ ...fixture.entry.files[0], pristineSha256: 'deadbeef'.repeat(8) }] }
     const result = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: drifted })
     expect(result.ok).toBe(false)
     expect(result.refused).toBe(true)
@@ -443,7 +541,7 @@ describe('statusAsar: read-only dual-state report', () => {
 describe('spliceAsar: header/payload accounting', () => {
   it('shifts exactly the offsets after the target and keeps the target position', async () => {
     const fixture = await createFixture()
-    const patched = patchText(FIXTURE_LIB, fixture.entry)
+    const patched = patchFile(FIXTURE_LIB, firstFileEntry())
     expect(patched.ok).toBe(true)
     const spliced = spliceAsar({
       asarPath: fixture.asarPath,
@@ -560,7 +658,7 @@ describe('P4-r1 P4-1: before-target witness at a nonzero offset', () => {
 
     // Witness flags: #1 = zz-first.bin (before the target, nonzero offset →
     // afterTarget=false); #2 = after the target (shifted by the delta).
-    const patched = patchText(FIXTURE_LIB, fixture.entry)
+    const patched = patchFile(FIXTURE_LIB, firstFileEntry())
     expect(patched.ok).toBe(true)
     const spliced = spliceAsar({
       asarPath: fixture.asarPath,
@@ -622,7 +720,7 @@ describe('P4-r1 P4-3: status anchorHit three-state discrimination', () => {
     const fixture = await createFixture()
     const patched = await patchAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })
     expect(patched.ok).toBe(true)
-    const expectedPatched = patchText(FIXTURE_LIB, fixture.entry).text as string
+    const expectedPatched = patchFile(FIXTURE_LIB, firstFileEntry()).text as string
     overwriteTargetText(fixture, `${expectedPatched}\n// tampered after patch\n`)
 
     const status = await statusAsar({ appDir: fixture.appDir, probeAppRunning: appClosed, entry: fixture.entry })

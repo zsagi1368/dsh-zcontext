@@ -128,36 +128,830 @@ export function desktopLockPath(dshHome = join(homedir(), '.dsh')) {
 // ---------------------------------------------------------------------------
 
 /**
- * Anchor set per supported shell version. `targetSha256` pins the PRISTINE
- * (unpatched) target file; the anchor strings are file-unique in rc.3
- * lib/index.js (tsc output: tab indent, `void 0`, un-minified — P2 [F20],
- * re-verified live 2026-11-14). An official update changes the hash → the
- * anchor-hash gate refuses → this table gets the new entry first (card:
- * "官方升级后锚漂移=预期路径，patcher 更新锚集再支持").
+ * Anchor set per supported shell version — the v0.2 MULTI-FILE base-context
+ * patch set (P6-A convergence in plan ZCTX-v03-patch-plan; implementation
+ * spec RES-port-feasibility.md §2/§3). γ all-inline selection: every Go-tree
+ * module is inlined into an existing compiled bundle — ZERO new asar entries,
+ * ZERO official export-face changes, ZERO package.json edits. All pristine
+ * SHA-256 pins below were computed live from the real rc.3 asar (read-only
+ * positional extraction, 2026-11-16); the llm-pi-ai hash also matches the P4
+ * pin (double-attested across two independent extractions). The five compiled
+ * bundles are un-minified tsc output (tab indent, `void 0`, double-quoted
+ * strings — P2 [F20] shape); every anchor below was verified count=1 in its
+ * bundle by the fixture tests and is re-asserted at patch time.
+ *
+ * An official update changes any pinned hash → the anchor-hash gate refuses →
+ * this table gets the new entry first (card: "官方升级后锚漂移=预期路径，
+ * patcher 更新锚集再支持").
  */
+
+/**
+ * The inlined guard-observation wrapper cluster for the llm-pi-ai bundle:
+ * createGuardFetchWrapper + buildGuardSegments + the wire-form recognizers,
+ * plus the stableStringify/verifyMonotonic cut of cache-guardian.ts (the only
+ * cache-guardian faces the observation chain consumes — P6-A §2.13 trim
+ * ruling). Source of record: Go e63ceff2d7 llm-pi-ai/src/guard-observe.ts;
+ * the assertGuardObserveSupport probe is adapted for the inlined build
+ * (really-parsed OLD pi-ai still fails loud; an UNPROBEABLE runtime proceeds
+ * — the patcher's version + hash gates pin the shipped pair, and a fail-loud
+ * on an unprobeable fs would brick every request under the default-on
+ * ignition). Compiled style: tabs, double quotes, `void 0`.
+ */
+const ZCTX_REGION_LLM_PI_AI_GUARD = [
+  '//#region lib/types/zctx-guard-observe.js',
+  '/**',
+  ' * zctx P6-B inline — wire-body guard observation wrapper cluster (γ all-inline:',
+  ' * zero new asar entries, zero export-face change). Source of record: Go',
+  ' * e63ceff2d7 llm-pi-ai/src/guard-observe.ts + the stableStringify/',
+  ' * verifyMonotonic cut of llm-pi-ai/src/cache-guardian.ts. Observe-only',
+  ' * (D1P2-whitelist-design §1.1): hash-then-passthrough capture of the exact',
+  ' * wire bytes — this layer records, measures, and warns but decides nothing.',
+  ' * The chain classifier + sink maintainer live in the patched agent-loop',
+  ' * bundle (self-contained bundles; no cross-package contract added).',
+  ' */',
+  '/** Stable-key-order JSON serialization (cache-guardian.ts:160 cut, verbatim). */',
+  'function stableStringify(value) {',
+  '\tif (value === null || value === void 0) return "null";',
+  '\tif (typeof value !== "object") return JSON.stringify(value);',
+  '\tif (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;',
+  '\tconst keys = Object.keys(value).sort();',
+  '\tconst pairs = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`);',
+  '\treturn `{${pairs.join(",")}}`;',
+  '}',
+  '/** Frozen-segment + append-only chain check (cache-guardian.ts:451 cut, verbatim). */',
+  'function verifyMonotonic(prev, next) {',
+  '\tif (prev.systemHash !== next.systemHash) return { ok: false, reason: "system segment changed; system is frozen (reset event required)" };',
+  '\tif (prev.toolsHash !== next.toolsHash) return { ok: false, reason: "tools segment changed; tools are frozen (reset event required)" };',
+  '\tif (next.messageHashes.length < prev.messageHashes.length) {',
+  '\t\treturn { ok: false, reason: `messages segment shrank from ${prev.messageHashes.length} to ${next.messageHashes.length} (not monotonic)` };',
+  '\t}',
+  '\tfor (let i = 0; i < prev.messageHashes.length; i++) {',
+  '\t\tif (prev.messageHashes[i] !== next.messageHashes[i]) {',
+  '\t\t\treturn { ok: false, reason: `message at index ${i} was rewritten in place (not monotonic; reset event required)` };',
+  '\t\t}',
+  '\t}',
+  '\treturn { ok: true };',
+  '}',
+  'function guardSha256(text) {',
+  '\treturn createHash("sha256").update(text, "utf8").digest("hex");',
+  '}',
+  'function isRecord(value) {',
+  '\treturn typeof value === "object" && value !== null && !Array.isArray(value);',
+  '}',
+  '/** E-0 (D1P2 §3): deep-walk cache_control off the wire value — type-blind. */',
+  'function stripCacheControl(value) {',
+  '\tif (Array.isArray(value)) return value.map(stripCacheControl);',
+  '\tif (value === null || typeof value !== "object") return value;',
+  '\tconst out = {};',
+  '\tfor (const [key, item] of Object.entries(value)) {',
+  '\t\tif (key === "cache_control") continue;',
+  '\t\tout[key] = stripCacheControl(item);',
+  '\t}',
+  '\treturn out;',
+  '}',
+  'const ANTHROPIC_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);',
+  '/** Class-2 recognizer (D1P2 §4.2): empty-content system message carrying the managed effort. */',
+  'function recognizeEffortSynth(message) {',
+  '\tif (!isRecord(message) || message.role !== "system") return false;',
+  '\tif (!Array.isArray(message.content) || message.content.length !== 0) return false;',
+  '\tconst outputConfig = message.output_config;',
+  '\tif (!isRecord(outputConfig)) return false;',
+  '\tconst effort = outputConfig.effort;',
+  '\treturn typeof effort === "string" && ANTHROPIC_EFFORTS.has(effort);',
+  '}',
+  'const DEFERRED_SYSTEM_BLOCK_TYPES = new Set(["text", "tool_removal", "tool_addition"]);',
+  '/** Class-1 form recognizer (D1P2 §4.1): non-empty system message of deferred-update blocks. */',
+  'function recognizeDeferredReorderSystem(message) {',
+  '\tif (!isRecord(message) || message.role !== "system" || !Array.isArray(message.content)) return false;',
+  '\tif (message.content.length === 0) return false;',
+  '\treturn message.content.every((block) => isRecord(block) && typeof block.type === "string" && DEFERRED_SYSTEM_BLOCK_TYPES.has(block.type));',
+  '}',
+  'const ERROR_IMAGE_CAPTION_PREFIX = "Images from the error result of tool call ";',
+  '/** Class-3 recognizer (D1P2 §4.3): error-result images split behind a caption. */',
+  'function recognizeErrorImageSplit(message) {',
+  '\tif (!isRecord(message) || message.role !== "user" || !Array.isArray(message.content)) return false;',
+  '\tconst blocks = message.content;',
+  '\tlet lastToolResult = -1;',
+  '\tfor (let index = 0; index < blocks.length; index++) {',
+  '\t\tconst block = blocks[index];',
+  '\t\tif (isRecord(block) && block.type === "tool_result") lastToolResult = index;',
+  '\t}',
+  '\tif (lastToolResult === -1) return false;',
+  '\tconst tail = blocks.slice(lastToolResult + 1);',
+  '\tif (tail.length < 2) return false;',
+  '\tconst caption = tail[0];',
+  '\treturn isRecord(caption) && caption.type === "text" && typeof caption.text === "string" && caption.text.startsWith(ERROR_IMAGE_CAPTION_PREFIX) && tail.slice(1).every((block) => isRecord(block) && block.type === "image");',
+  '}',
+  '/** Wire-form label of one observed message (class-2, then class-1/class-3 by shape). */',
+  'function recognizeMessageKind(message) {',
+  '\tif (isRecord(message) && message.role === "system") {',
+  '\t\tif (recognizeEffortSynth(message)) return "class2";',
+  '\t\tif (recognizeDeferredReorderSystem(message)) return "class1";',
+  '\t\treturn "normal";',
+  '\t}',
+  '\tif (recognizeErrorImageSplit(message)) return "class3";',
+  '\treturn "normal";',
+  '}',
+  '/** Three-segment capture of one anthropic-messages wire body (D1P2 §2.2). */',
+  'function buildGuardSegments(params) {',
+  '\tconst system = stripCacheControl(params.system ?? null);',
+  '\tconst tools = stripCacheControl(params.tools ?? null);',
+  '\tconst messages = (Array.isArray(params.messages) ? params.messages : []).map(stripCacheControl);',
+  '\treturn {',
+  '\t\tsystemHash: guardSha256(stableStringify(system)),',
+  '\t\ttoolsHash: guardSha256(stableStringify(tools)),',
+  '\t\tmessagesHash: guardSha256(stableStringify(messages)),',
+  '\t\tmessageHashes: messages.map((message) => guardSha256(stableStringify(message))),',
+  '\t\tmessageKinds: messages.map(recognizeMessageKind)',
+  '\t};',
+  '}',
+  '/** A messages.create-shaped body: the only shape this surface three-segments. */',
+  'function isMessagesCreateBody(params) {',
+  '\treturn isRecord(params) && typeof params.model === "string" && Array.isArray(params.messages);',
+  '}',
+  '/** A6 runtime half: minimum installed pi-ai the observation surface may run on. */',
+  'const PI_AI_GUARD_OBSERVE_MIN_VERSION = "1.3.0";',
+  'let guardSupportMemo = void 0;',
+  '/**',
+  ' * A6 (adapted for the inlined patch build): a REALLY parsed installed',
+  ' * version below the minimum still fails loud (fork semantics preserved);',
+  ' * an UNPROBEABLE runtime proceeds — the patcher gates pin the shipped pair.',
+  ' * @throws LlmError INVALID_CONFIG when the installed pi-ai reads as older',
+  ' * than PI_AI_GUARD_OBSERVE_MIN_VERSION.',
+  ' */',
+  'function assertGuardObserveSupport() {',
+  '\tif (guardSupportMemo === void 0) guardSupportMemo = probePiAiGuardSupport();',
+  '\tif (guardSupportMemo.ok) return;',
+  '\tthrow new LlmError(`llm-pi-ai: guardObserve requires @earendil-works/pi-ai >= ${PI_AI_GUARD_OBSERVE_MIN_VERSION} (ProviderRequestOptions.fetch forwarding, D1P2 A6); installed version reads as ${guardSupportMemo.found ?? "unknown"} — refusing to enable the observation surface`, "INVALID_CONFIG");',
+  '}',
+  'function probePiAiGuardSupport() {',
+  '\ttry {',
+  '\t\tconst manifest = findPiAiManifest(dirname(fileURLToPath(import.meta.url)));',
+  '\t\tconst found = typeof manifest?.version === "string" ? manifest.version : void 0;',
+  '\t\tconst tuple = found?.match(/^(\\d+)\\.(\\d+)\\.(\\d+)/) ?? void 0;',
+  '\t\tif (manifest === void 0 || tuple === void 0) return { ok: true, found, detail: "installed pi-ai version unprobeable in this runtime — proceeding (the patcher gates pin the shipped pair)" };',
+  '\t\tconst minimum = PI_AI_GUARD_OBSERVE_MIN_VERSION.split(".").map(Number);',
+  '\t\tconst installed = tuple.slice(1).map(Number);',
+  '\t\tlet ordering = 0;',
+  '\t\tfor (let index = 0; index < Math.max(installed.length, minimum.length) && ordering === 0; index++) {',
+  '\t\t\tordering = (installed[index] ?? 0) - (minimum[index] ?? 0);',
+  '\t\t}',
+  '\t\treturn ordering >= 0 ? { ok: true, found } : { ok: false, found };',
+  '\t} catch {',
+  '\t\treturn { ok: true, detail: "pi-ai version probe failed — proceeding (the patcher gates pin the shipped pair)" };',
+  '\t}',
+  '}',
+  'function findPiAiManifest(startDir) {',
+  '\tlet dir = startDir;',
+  '\tfor (let depth = 0; depth < 16; depth++) {',
+  '\t\ttry {',
+  '\t\t\tconst manifestPath = join(dir, "node_modules", "@earendil-works", "pi-ai", "package.json");',
+  '\t\t\tif (existsSync(manifestPath)) return JSON.parse(readFileSync(manifestPath, "utf8"));',
+  '\t\t} catch {',
+  '\t\t\t// An unreadable candidate is not a version fact; keep walking.',
+  '\t\t}',
+  '\t\tconst parent = dirname(dir);',
+  '\t\tif (parent === dir) return void 0;',
+  '\t\tdir = parent;',
+  '\t}',
+  '\treturn void 0;',
+  '}',
+  'class NotMessagesCreateBodyError extends Error {',
+  '\tconstructor() {',
+  '\t\tsuper("wire body is not a messages.create request");',
+  '\t\tthis.name = "NotMessagesCreateBodyError";',
+  '\t}',
+  '}',
+  '/**',
+  ' * Hash-then-passthrough fetch wrapper for one logical request (D1P2 §2.1/§6):',
+  ' * per attempt the exact wire bytes are hashed (never rewritten) and the',
+  ' * original call is released to globalThis.fetch. Capture ladder: non-string',
+  ' * body → A7-2; hash failure → A7-3; parse failure → A7-1 (wholeHash kept);',
+  ' * non-anthropic or non-messages.create → whole-package fallback; otherwise',
+  ' * full three-segment capture.',
+  ' */',
+  'function createGuardFetchWrapper(args) {',
+  '\tlet attemptSeq = 0;',
+  '\treturn (input, init) => {',
+  '\t\tconst attempt = ++attemptSeq;',
+  '\t\tconst meta = {',
+  '\t\t\tprovider: args.model.provider,',
+  '\t\t\tapi: args.model.api,',
+  '\t\t\tmodelId: args.model.id,',
+  '\t\t\tbodyBytes: 0',
+  '\t\t};',
+  '\t\tconst release = () => globalThis.fetch(input, init);',
+  '\t\tconst body = init?.body;',
+  '\t\tif (typeof body !== "string") {',
+  '\t\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, degraded: { reason: "non-string-body" }, meta });',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\tmeta.bodyBytes = Buffer.byteLength(body, "utf8");',
+  '\t\tlet wholeHash;',
+  '\t\ttry {',
+  '\t\t\twholeHash = guardSha256(body);',
+  '\t\t} catch {',
+  '\t\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, degraded: { reason: "hash-failed" }, meta });',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\tif (args.model.api !== "anthropic-messages") {',
+  '\t\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, wholeHash, meta });',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\tlet params;',
+  '\t\ttry {',
+  '\t\t\tparams = JSON.parse(body);',
+  '\t\t\tif (!isMessagesCreateBody(params)) throw new NotMessagesCreateBodyError();',
+  '\t\t} catch (error) {',
+  '\t\t\tconst parseFailed = error instanceof SyntaxError || error instanceof NotMessagesCreateBodyError;',
+  '\t\t\targs.sink({',
+  '\t\t\t\tschemaVersion: 1,',
+  '\t\t\t\tattemptSeq: attempt,',
+  '\t\t\t\t...parseFailed ? { wholeHash } : {},',
+  '\t\t\t\tmeta,',
+  '\t\t\t\tdegraded: { reason: parseFailed ? "parse-failed" : "hash-failed" }',
+  '\t\t\t});',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\tlet segments;',
+  '\t\ttry {',
+  '\t\t\tsegments = buildGuardSegments(params);',
+  '\t\t} catch {',
+  '\t\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, degraded: { reason: "hash-failed" }, meta });',
+  '\t\t\treturn release();',
+  '\t\t}',
+  '\t\targs.sink({ schemaVersion: 1, attemptSeq: attempt, wholeHash, segments, meta });',
+  '\t\treturn release();',
+  '\t};',
+  '}',
+  '//#endregion',
+].join('\n')
+
+/**
+ * The inlined host-side GuardObserver + wire-form chain classifier for the
+ * agent-loop bundle. Source of record: Go e63ceff2d7 core/agent-loop/src/
+ * guard-observe.ts + the classifier cut of llm-pi-ai/src/guard-observe.ts.
+ * The classifier ships in BOTH consumer bundles (γ: no official export face
+ * is added, and a hypothetical partial state leaves each bundle individually
+ * consistent). SessionLogOffset rides the bundle's own dsh-session import.
+ */
+const ZCTX_REGION_AGENT_LOOP_GUARD = [
+  '//#region lib/types/zctx-guard-observe.js',
+  '/**',
+  ' * zctx P6-B inline — host-side GuardObserver + wire-form chain classifier (γ',
+  ' * all-inline). Source of record: Go e63ceff2d7 core/agent-loop/src/',
+  ' * guard-observe.ts + the classifier cut of llm-pi-ai/src/guard-observe.ts.',
+  ' * The classifier ships in BOTH consumer bundles (self-contained bundles —',
+  ' * no official export face is added). SessionLogOffset rides the bundle\'s',
+  ' * own dsh-session import. Observe-only: the observer appends the log-only',
+  ' * cache/guard-observe event and decides nothing (D1P2 §1.1).',
+  ' */',
+  'const GUARD_PLACEHOLDER_HASH = "";',
+  '/** Same-shape placeholder pair so the frozen-segment checks pass vacuously. */',
+  'function shapedGuard(segment) {',
+  '\treturn {',
+  '\t\tsystemHash: GUARD_PLACEHOLDER_HASH,',
+  '\t\ttoolsHash: GUARD_PLACEHOLDER_HASH,',
+  '\t\tmessagesHash: segment.messagesHash,',
+  '\t\tmessageHashes: segment.messageHashes',
+  '\t};',
+  '}',
+  '/** Frozen-segment + append-only chain check (cache-guardian.ts:451 cut, verbatim). */',
+  'function verifyMonotonic(prev, next) {',
+  '\tif (prev.systemHash !== next.systemHash) return { ok: false, reason: "system segment changed; system is frozen (reset event required)" };',
+  '\tif (prev.toolsHash !== next.toolsHash) return { ok: false, reason: "tools segment changed; tools are frozen (reset event required)" };',
+  '\tif (next.messageHashes.length < prev.messageHashes.length) {',
+  '\t\treturn { ok: false, reason: `messages segment shrank from ${prev.messageHashes.length} to ${next.messageHashes.length} (not monotonic)` };',
+  '\t}',
+  '\tfor (let i = 0; i < prev.messageHashes.length; i++) {',
+  '\t\tif (prev.messageHashes[i] !== next.messageHashes[i]) {',
+  '\t\t\treturn { ok: false, reason: `message at index ${i} was rewritten in place (not monotonic; reset event required)` };',
+  '\t\t}',
+  '\t}',
+  '\treturn { ok: true };',
+  '}',
+  '/** Class-2 strip for comparison (D1P2 §4.2): drop effort-synth entries, kinds kept aligned. */',
+  'function stripClass2(segments) {',
+  '\tconst messageHashes = [];',
+  '\tconst messageKinds = [];',
+  '\tfor (let index = 0; index < segments.messageHashes.length; index++) {',
+  '\t\tif (segments.messageKinds[index] === "class2") continue;',
+  '\t\tmessageHashes.push(segments.messageHashes[index] ?? "");',
+  '\t\tmessageKinds.push(segments.messageKinds[index] ?? "normal");',
+  '\t}',
+  '\treturn { messagesHash: segments.messagesHash, messageHashes, messageKinds };',
+  '}',
+  'function firstMismatch(prev, next) {',
+  '\tconst shared = Math.min(prev.length, next.length);',
+  '\tfor (let index = 0; index < shared; index++) {',
+  '\t\tif (prev[index] !== next[index]) return index;',
+  '\t}',
+  '\treturn void 0;',
+  '}',
+  'function findSubsequence(haystack, needle, from) {',
+  '\tif (needle.length === 0) return from;',
+  '\touter: for (let start = from; start + needle.length <= haystack.length; start++) {',
+  '\t\tfor (let offset = 0; offset < needle.length; offset++) {',
+  '\t\t\tif (haystack[start + offset] !== needle[offset]) continue outer;',
+  '\t\t}',
+  '\t\treturn start;',
+  '\t}',
+  '\treturn void 0;',
+  '}',
+  '/**',
+  ' * Class-1 deferred-reorder classifier (D1P2 §4.1): the migrating tail must',
+  ' * be class-1-form system messages that reappear in order as a subsequence',
+  ' * after the mismatch point with only new messages interleaved.',
+  ' */',
+  'function classifyDeferredReorder(prevHashes, prevKinds, nextHashes) {',
+  '\tconst mismatch = firstMismatch(prevHashes, nextHashes);',
+  '\tif (mismatch === void 0) return { verdict: "fail" };',
+  '\tconst tail = prevHashes.slice(mismatch);',
+  '\tif (tail.some((_, offset) => prevKinds[mismatch + offset] !== "class1")) return { verdict: "fail" };',
+  '\tconst position = findSubsequence(nextHashes, tail, mismatch);',
+  '\tif (position === void 0) return { verdict: "fail" };',
+  '\tconst interposed = nextHashes.slice(mismatch, position);',
+  '\tif (interposed.some((hash) => prevHashes.includes(hash))) return { verdict: "fail" };',
+  '\tconst strippedPrev = prevHashes.slice(0, mismatch);',
+  '\tconst shared = firstMismatch(strippedPrev, nextHashes);',
+  '\tconst sharedPrefixCount = shared ?? Math.min(strippedPrev.length, nextHashes.length);',
+  '\treturn { verdict: "ok", sharedPrefixCount };',
+  '}',
+  '/**',
+  ' * Class-4 attempt signature (D1P2 §4.4): within one logical request, a',
+  ' * rebuild attempt is legal exactly when system and messages are byte-equal',
+  ' * to attempt 1 and only tools differ.',
+  ' */',
+  'function classifyAttemptEquality(first, attempt) {',
+  '\tif (first === void 0) return "unclassified";',
+  '\tconst sameSystem = first.systemHash === attempt.systemHash;',
+  '\tconst sameMessages = first.messageHashes.length === attempt.messageHashes.length && first.messageHashes.every((hash, index) => hash === attempt.messageHashes[index]);',
+  '\tconst toolsChanged = first.toolsHash !== attempt.toolsHash;',
+  '\treturn sameSystem && sameMessages && toolsChanged ? "class4" : "unclassified";',
+  '}',
+  'function hasKind(segments, kind) {',
+  '\treturn segments.messageKinds.includes(kind);',
+  '}',
+  'function gapFields(gap) {',
+  '\treturn gap ? { chainGap: true } : {};',
+  '}',
+  '/**',
+  ' * messages-segment classification dispatch (D1P2 §4.5, W-G glue): class-4',
+  ' * first (no transitions inside a request), then the transition guard before',
+  ' * any comparison, then the monotonic chain on class-2-stripped hashes with',
+  ' * the class-1 fallback, else unclassified.',
+  ' */',
+  'function classifyGuardObserve(args) {',
+  '\tconst { prev, first, capture, chain, currentSeq, gap } = args;',
+  '\tconst segments = capture.segments;',
+  '\tif (capture.attemptSeq > 1) {',
+  '\t\tif (classifyAttemptEquality(first?.segments, segments) === "class4") {',
+  '\t\t\treturn { classified: true, classId: "class4-strict-downgrade" };',
+  '\t\t}',
+  '\t\treturn { classified: false, monotonic: "unclassified" };',
+  '\t}',
+  '\tif (prev === void 0) {',
+  '\t\tif (hasKind(segments, "class3")) return { classified: true, classId: "class3-error-images" };',
+  '\t\treturn { classified: true };',
+  '\t}',
+  '\tconst byRoute = prev.meta.provider !== capture.meta.provider || prev.meta.api !== capture.meta.api || prev.meta.modelId !== capture.meta.modelId ? "route-change" : void 0;',
+  '\tconst transition = byRoute ?? chain.transitionMarkBetween(prev.seq + 1, currentSeq);',
+  '\tif (transition !== void 0) {',
+  '\t\treturn { classified: true, monotonic: "ok-after-reset", transition: { kind: transition } };',
+  '\t}',
+  '\tconst prevCore = stripClass2(prev.segments);',
+  '\tconst nextCore = stripClass2(segments);',
+  '\tif (verifyMonotonic(shapedGuard(prevCore), shapedGuard(nextCore)).ok) {',
+  '\t\tconst classId = hasKind(segments, "class2") ? "class2-effort-synth" : hasKind(segments, "class3") ? "class3-error-images" : void 0;',
+  '\t\treturn {',
+  '\t\t\tclassified: true,',
+  '\t\t\t...classId === void 0 ? {} : { classId },',
+  '\t\t\tmonotonic: "ok",',
+  '\t\t\t...gapFields(gap),',
+  '\t\t\tsharedPrefixCount: prevCore.messageHashes.length',
+  '\t\t};',
+  '\t}',
+  '\tconst reorder = classifyDeferredReorder(prevCore.messageHashes, prevCore.messageKinds, nextCore.messageHashes);',
+  '\tif (reorder.verdict === "ok") {',
+  '\t\treturn {',
+  '\t\t\tclassified: true,',
+  '\t\t\tclassId: "class1-deferred-reorder",',
+  '\t\t\tmonotonic: "ok-after-classification",',
+  '\t\t\t...gapFields(gap),',
+  '\t\t\tsharedPrefixCount: reorder.sharedPrefixCount',
+  '\t\t};',
+  '\t}',
+  '\tconst mismatch = firstMismatch(prevCore.messageHashes, nextCore.messageHashes);',
+  '\treturn {',
+  '\t\tclassified: false,',
+  '\t\tmonotonic: "unclassified",',
+  '\t\t...gapFields(gap),',
+  '\t\tsharedPrefixCount: mismatch ?? Math.min(prevCore.messageHashes.length, nextCore.messageHashes.length)',
+  '\t};',
+  '}',
+  '/** Session-log events that mark a known-legal context rewrite (D1P2 §4.5 guard 2). */',
+  'const TRANSITION_MARKS = {',
+  '\t"compaction/start": "compaction",',
+  '\t"compaction/end": "compaction",',
+  '\t"cache/ledger": "reset-rewrite"',
+  '};',
+  '/** Classifies captures and appends cache/guard-observe events for one agent session. */',
+  'class GuardObserver {',
+  '\tbase = void 0;',
+  '\tfirstAttempt = void 0;',
+  '\tgap = false;',
+  '\tchainView = {',
+  '\t\ttransitionMarkBetween: (fromSeqInclusive, toSeqExclusive) => this.transitionMarkBetween(fromSeqInclusive, toSeqExclusive)',
+  '\t};',
+  '\tconstructor(session, warn) {',
+  '\t\tthis.session = session;',
+  '\t\tthis.warn = warn;',
+  '\t}',
+  '/**',
+  ' * Sink for GenerateOptions.onGuardObserve: invoked synchronously by the',
+  ' * adapter fetch wrapper once per attempt, in fetch order, so the appends',
+  ' * land in the log in wire order.',
+  ' */',
+  '\tobserve(capture) {',
+  '\t\tif (capture.segments === void 0) {',
+  '\t\t\t// A7 degraded capture, or the whole-package fallback: log-only, no',
+  '\t\t\t// chain participation, and the next segmented record reads the',
+  '\t\t\t// crossing as a gap.',
+  '\t\t\tthis.session.append("cache/guard-observe", {',
+  '\t\t\t\tschemaVersion: 1,',
+  '\t\t\t\tattemptSeq: capture.attemptSeq,',
+  '\t\t\t\t...capture.wholeHash === void 0 ? {} : { wholeHash: capture.wholeHash },',
+  '\t\t\t\tclassified: false,',
+  '\t\t\t\t...capture.degraded === void 0 ? {} : { degraded: capture.degraded },',
+  '\t\t\t\tmeta: capture.meta',
+  '\t\t\t});',
+  '\t\t\tthis.gap = true;',
+  '\t\t\treturn;',
+  '\t\t}',
+  '\t\tconst currentSeq = this.session.seq;',
+  '\t\tconst decision = classifyGuardObserve({',
+  '\t\t\tprev: this.base,',
+  '\t\t\tfirst: this.firstAttempt,',
+  '\t\t\tcapture: { ...capture, segments: capture.segments },',
+  '\t\t\tchain: this.chainView,',
+  '\t\t\tcurrentSeq,',
+  '\t\t\tgap: this.gap',
+  '\t\t});',
+  '\t\tconst event = { ...capture, ...decision };',
+  '\t\tconst { seq } = this.session.append("cache/guard-observe", event);',
+  '\t\tif (decision.monotonic === "unclassified") this.warnUnclassified(capture, decision);',
+  '\t\tconst record = { seq, segments: capture.segments, meta: capture.meta };',
+  '\t\tthis.base = record;',
+  '\t\tthis.gap = false;',
+  '\t\tif (capture.attemptSeq === 1) this.firstAttempt = record;',
+  '\t}',
+  '/** Transition-mark scan over the window (window-bounded read cost, D1P2 §4.5 R2-5). */',
+  '\ttransitionMarkBetween(fromSeqInclusive, toSeqExclusive) {',
+  '\t\tlet kind = void 0;',
+  '\t\tconst events = this.session.snapshotEvents(SessionLogOffset(fromSeqInclusive), SessionLogOffset(toSeqExclusive));',
+  '\t\tfor (const event of events) {',
+  '\t\t\tconst mark = TRANSITION_MARKS[event.type];',
+  '\t\t\tif (mark === void 0) continue;',
+  '\t\t\tif (mark === "compaction") return "compaction";',
+  '\t\t\tkind = mark;',
+  '\t\t}',
+  '\t\treturn kind;',
+  '\t}',
+  '/** D1P2 §8.2: an unclassified form is visible and searchable on the log face. */',
+  '\twarnUnclassified(capture, decision) {',
+  '\t\tconst mismatchAt = decision.sharedPrefixCount;',
+  '\t\tconst kindsAt = mismatchAt === void 0 ? "" : `; kinds at the mismatch: prev=${this.base?.segments.messageKinds[mismatchAt] ?? "none"} next=${capture.segments?.messageKinds[mismatchAt] ?? "none"}`;',
+  '\t\tthis.warn(`cache/guard-observe: unclassified wire form at attempt ${capture.attemptSeq} (first mismatch after ${mismatchAt ?? "unknown"} shared messages${kindsAt}); recorded in full, no action taken`);',
+  '\t}',
+  '}',
+  '//#endregion',
+].join('\n')
+
+/** The inlined L3 tool-result pruning vocabulary for the pruner bundle (Go e63ceff2d7 core/tools/src/l3.ts). pruningMeta is omitted: the official build has no in-tree declaring tool (γ minimal cut; P6-A §2.9). */
+const ZCTX_REGION_PRUNER_L3 = [
+  '//#region lib/types/zctx-l3-pruning.js',
+  '/**',
+  ' * zctx P6-B inline — L3 tool-result pruning vocabulary cut (Go e63ceff2d7',
+  ' * core/tools/src/l3.ts). pruningMeta is omitted: the official build has no',
+  ' * in-tree declaring tool, so the prune declarations ride future tool',
+  ' * patches; undeclared results keep the uniform threshold either way.',
+  ' */',
+  '/** Meta key under which tools attach the pruning declaration. */',
+  'const PRUNING_META_KEY = "l3.pruning";',
+  '/**',
+  ' * Narrow an opaque tool-result meta payload to a pruning declaration.',
+  ' * Absent or malformed metadata yields undefined (the generic fallback), so',
+  ' * logs without the declaration never throw during replay.',
+  ' */',
+  'function pruningFromMeta(meta) {',
+  '\tif (typeof meta !== "object" || meta === null || Array.isArray(meta)) return void 0;',
+  '\tconst value = meta[PRUNING_META_KEY];',
+  '\tif (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;',
+  '\tconst { prunable, bytes } = value;',
+  '\tif (typeof prunable !== "boolean") return void 0;',
+  '\tif (typeof bytes !== "number" || !Number.isSafeInteger(bytes) || bytes < 0) return void 0;',
+  '\treturn { prunable, bytes };',
+  '}',
+  '//#endregion',
+].join('\n')
+
+/**
+ * The inlined budget-formula cut for the compaction-basic bundle: the three
+ * model-slots budget.ts formulas verbatim + DEFAULT_OUTPUT_CAP + the L3 rule
+ * toolCapToByteLimit (l3.ts). Only the toolCap row is materialized — the
+ * patch's single consumer (P6-A §2.10 minimal-inline ruling).
+ */
+const ZCTX_REGION_COMPACTION_BUDGET = [
+  '//#region lib/types/zctx-model-slots-budget.js',
+  '/**',
+  ' * zctx P6-B inline — budget-formula cut mirroring the fork model-slots',
+  ' * budget.ts (computeMaxTokens/computeReserve/computeToolCap verbatim;',
+  ' * DEFAULT_OUTPUT_CAP = 32768) + the L3 rule toolCapToByteLimit (l3.ts).',
+  ' * Only the toolCap row is materialized — the patch\'s single consumer.',
+  ' */',
+  'const DEFAULT_OUTPUT_CAP = 32768;',
+  '/** maxTokens = min(C, floor(W × 0.10)). */',
+  'function computeMaxTokens(w, cap) {',
+  '\treturn Math.min(cap, Math.floor(w * 0.10));',
+  '}',
+  '/** reserve = ceil(maxTokens × 1.25) + 4096. */',
+  'function computeReserve(maxTokens) {',
+  '\treturn Math.ceil(maxTokens * 1.25) + 4096;',
+  '}',
+  '/** toolCap = max(1024, floor(0.25 × (reserve - maxTokens))). */',
+  'function computeToolCap(maxTokens, reserve) {',
+  '\treturn Math.max(1024, Math.floor(0.25 * (reserve - maxTokens)));',
+  '}',
+  '/** The toolCap budget row the L3 per-result cap derives from. */',
+  'function computeBudget(w, cap) {',
+  '\tconst maxTokens = computeMaxTokens(w, cap);',
+  '\tconst reserve = computeReserve(maxTokens);',
+  '\treturn { maxTokens, reserve, toolCap: computeToolCap(maxTokens, reserve) };',
+  '}',
+  '/** L3 rule: byte cap = toolCap × 3.5 characters (UTF-8 bytes), at least 1. */',
+  'function toolCapToByteLimit(toolCapTokens) {',
+  '\treturn Math.max(1, Math.floor(toolCapTokens * 3.5));',
+  '}',
+  '//#endregion',
+].join('\n')
+
 export const SUPPORTED = {
   '0.2.2-rc.3': {
     shellPackage: '@deepseek-ai/dsh-desktop',
-    targetPath: 'dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js',
-    // Pristine lib/index.js SHA-256 (P2 [F16] asar-header double-attested;
-    // re-computed live from the real asar 2026-11-14, VERIFY-P #8 anchor).
-    targetSha256: 'e956da3d7300e1426e13e14f47e6f981dd1ca345633a406568ee5058ad93e9d8',
-    anchors: {
-      // The file-unique call-site spread (count=1 verified live).
-      callSite: '...profileOptions(profile, reasoning, apiKey),',
-      // The file-unique definition line (count=1 verified live) — a shape
-      // fingerprint checked alongside the call site, never a rewrite anchor.
-      definition: 'function profileOptions(profile, reasoning, apiKey) {',
-      // Idempotence/presence marker (the stub itself).
-      stubMarker: 'globalThis.__zctxPatch__',
-    },
-    // The one-line defensive forwarding stub (R1: adds options fields only).
-    // Identity = provider/model + options.sessionId — all three locals are in
-    // scope at the call site (rc.3 adapter.ts:475-482).
-    stub:
-      '...(globalThis.__zctxPatch__?.wireOptions?.({ provider: options.provider, model: model.id, sessionId: options.sessionId }) ?? {}),',
-    // The call-site spread sits at five-tab depth in lib/index.js.
-    stubIndent: '\t\t\t\t\t',
+    files: [
+      // ------------------------------------------------------------------
+      // File 1/5 — llm-pi-ai/lib/index.js: the P4 forwarding stub + the
+      // guard observation wiring (config switch default TRUE per user
+      // ruling, adapter guardSink + hash-then-passthrough fetch wrapper,
+      // plugin apply wiring) + the inlined wrapper cluster.
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js',
+        // Pristine SHA-256: P2 [F16] + P4 VERIFY-P #8 anchor, re-verified
+        // live from the real asar 2026-11-16 (double-attested).
+        pristineSha256: 'e956da3d7300e1426e13e14f47e6f981dd1ca345633a406568ee5058ad93e9d8',
+        presenceMarker: 'globalThis.__zctxPatch__',
+        ops: [
+          // P4 one-line defensive forwarding stub (R1: adds options fields
+          // only; identity = provider/model + options.sessionId in scope at
+          // the call site). Carried into the v0.2 set unchanged.
+          {
+            anchor: '...profileOptions(profile, reasoning, apiKey),',
+            replacement:
+              '...profileOptions(profile, reasoning, apiKey),\n\t\t\t\t\t...(globalThis.__zctxPatch__?.wireOptions?.({ provider: options.provider, model: model.id, sessionId: options.sessionId }) ?? {}),',
+          },
+          // Import face for the inlined cluster (createHash already imported).
+          {
+            anchor: 'import { createHash } from "node:crypto";',
+            replacement:
+              'import { createHash } from "node:crypto";\n'
+              + 'import { existsSync, readFileSync } from "node:fs";\n'
+              + 'import { dirname, join } from "node:path";\n'
+              + 'import { fileURLToPath } from "node:url";',
+          },
+          // Config schema: the observation switch, DEFAULT TRUE (user ruling
+          // "完整功能生效"; observe-only — the sole kill switch; Go source
+          // default false was overridden by the plan's ignition ruling).
+          {
+            anchor: 'const Config = z.object({ providers: z.dict(profile).default({}).volatile() });',
+            replacement:
+              'const Config = z.object({ providers: z.dict(profile).default({}).volatile(), guardObserve: z.boolean().default(true).volatile() });',
+          },
+          // Plugin apply wiring: the adapter reads the switch per request (a
+          // flip reaches the next request without touching the route set).
+          {
+            anchor:
+              '\t\tauth,\n\t\tprepareHeaders: (request, headers) => ctx.waterfall("llm-pi-ai/request-headers", request, headers, () => headers),',
+            replacement:
+              '\t\tauth,\n'
+              + '\t\tguardObserve: () => config.guardObserve.get(),\n'
+              + '\t\tprepareHeaders: (request, headers) => ctx.waterfall("llm-pi-ai/request-headers", request, headers, () => headers),',
+          },
+          // Adapter guard sink (T3 L5-A A1): the surface installs only when
+          // the switch is on AND the request carries a host sink; enabled
+          // wrapping asserts the installed pi-ai forwards fetch (A6).
+          {
+            anchor:
+              '\t\t\t\tconst iterator = toStreamChunks(snapshot.models.streamSimple(model, context, {',
+            replacement:
+              '\t\t\t\tconst guardSink = this.config.guardObserve?.() === true ? options.onGuardObserve : void 0;\n'
+              + '\t\t\t\tif (guardSink !== void 0) assertGuardObserveSupport();\n'
+              + '\t\t\t\tconst iterator = toStreamChunks(snapshot.models.streamSimple(model, context, {',
+          },
+          // Hash-then-passthrough per attempt: the wrapper never touches
+          // init.body, it captures and releases the original bytes.
+          {
+            anchor:
+              '\t\t\t\t\theaders: requestHeaders(profile.headers, options, model.baseUrl, this.config.prepareHeaders)',
+            replacement:
+              '\t\t\t\t\theaders: requestHeaders(profile.headers, options, model.baseUrl, this.config.prepareHeaders),\n'
+              + '\t\t\t\t\t...guardSink === void 0 ? {} : { fetch: createGuardFetchWrapper({ model, sink: guardSink }) }',
+          },
+          // The inlined wrapper cluster (before the export line).
+          {
+            anchor: 'export { Config, PiAiAdapter, apply, inject, name, recordKeyFor, supportedProtocols };',
+            replacement:
+              `${ZCTX_REGION_LLM_PI_AI_GUARD}\nexport { Config, PiAiAdapter, apply, inject, name, recordKeyFor, supportedProtocols };`,
+          },
+        ],
+      },
+      // ------------------------------------------------------------------
+      // File 2/5 — agent-loop/lib/index.js: the GuardObserver + chain
+      // classifier (inlined, self-contained) + the ignition hunk (constructor)
+      // + the request sink injection (buildRequest).
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-agent-loop/lib/index.js',
+        // Pristine SHA-256 computed live from the real asar 2026-11-16.
+        pristineSha256: 'f09f60814d4e96a880f41b9fc3832f33c56a28f954f48810d8439ce83ad6ffa8',
+        presenceMarker: '//#region lib/types/zctx-guard-observe.js',
+        ops: [
+          // Ignition hunk (P6-A U4 ruling realized at the agent constructor —
+          // the fork tree has no composition-root ignition either, F9, and
+          // the official composition root is a dynamic plugin load, so the
+          // constructor is the single-file ignition point): opt-in honored
+          // (explicit false opts out), default ON. The llm-pi-ai config
+          // switch stays the sole kill switch. Observe-only.
+          {
+            anchor: '\t\tthis.runtimeContext = new RuntimeContextProjection(this.ctx, session);',
+            replacement:
+              '\t\tthis.runtimeContext = new RuntimeContextProjection(this.ctx, session);\n'
+              + '\t\tthis.guardObserver = (this.options.guardObserve ?? true) === true ? new GuardObserver(session, (message) => {\n'
+              + '\t\t\tthis.loopCtx.logger?.warn(`agent "${this.id}": ${message}`);\n'
+              + '\t\t}) : void 0;',
+          },
+          // Request sink injection (T3 L5-A): the session-bound chain carries
+          // the observation sink when the observer exists; the adapter
+          // installs its wrapper only when its own switch is also on.
+          {
+            anchor: '\t\t\tsessionId: this.session.id,\n\t\t\tsignal\n\t\t}));',
+            replacement:
+              '\t\t\tsessionId: this.session.id,\n'
+              + '\t\t\t...this.guardObserver === void 0 ? {} : { onGuardObserve: (capture) => { this.guardObserver.observe(capture); } },\n'
+              + '\t\t\tsignal\n\t\t}));',
+          },
+          // The inlined observer + classifier (before the export line).
+          {
+            anchor: 'export { AgentLoop, AgentLoop as default, CONFIGURED_AGENT_IDENTITIES_KEY, DEFAULT_MAX_PARALLEL_TOOL_CALLS };',
+            replacement:
+              `${ZCTX_REGION_AGENT_LOOP_GUARD}\nexport { AgentLoop, AgentLoop as default, CONFIGURED_AGENT_IDENTITIES_KEY, DEFAULT_MAX_PARALLEL_TOOL_CALLS };`,
+          },
+        ],
+      },
+      // ------------------------------------------------------------------
+      // File 3/5 — session/lib/index.js: the cache/guard-observe event
+      // vocabulary (KNOWN_SESSION_EVENT_TYPES — the persistence read path
+      // refuses unknown types without the ignorable marker, so the appended
+      // guard records must be first-class vocabulary).
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js',
+        // Pristine SHA-256 computed live from the real asar 2026-11-16.
+        pristineSha256: 'd9911b5e1585bcb142d03ce46eb2990b3fc7c254de5a76d3ffb124bd2469216c',
+        presenceMarker: '"cache/guard-observe",',
+        ops: [
+          // Alphabetical insertion point (fork known-event-types.ts hunk,
+          // Go diff +1: after 'assistant/message', before 'command/done').
+          {
+            anchor: '\t"assistant/message",\n\t"command/done",',
+            replacement: '\t"assistant/message",\n\t"cache/guard-observe",\n\t"command/done",',
+          },
+        ],
+      },
+      // ------------------------------------------------------------------
+      // File 4/5 — compaction-basic/lib/index.js: the L3 per-result budget
+      // (computeBudget toolCap row → byteCapPerResult on the pressure path)
+      // + the inlined budget formula cut.
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-compaction-basic/lib/index.js',
+        // Pristine SHA-256 computed live from the real asar 2026-11-16.
+        pristineSha256: 'e1a3019949d01b22baa91d6eb672d9559d76b97fb5bb45e0428715a316bf11d4',
+        presenceMarker: '//#region lib/types/zctx-model-slots-budget.js',
+        ops: [
+          // The pressure-path budget (Go index.ts:356-362 hunk): declared
+          // results honor the routed model's toolCap through
+          // toolCapToByteLimit. Undeclared results keep the uniform threshold
+          // (pruningFromMeta → undefined → limitFor falls back) — behavior
+          // neutral until a declaring tool exists.
+          {
+            anchor: '\t\tif (prune !== void 0) {\n\t\t\tprune.pruneSession(agent.session);',
+            replacement:
+              '\t\tif (prune !== void 0) {\n'
+              + '\t\t\tconst budget = computeBudget(info.context.contextWindow, header.config.maxTokens ?? info.defaultMaxTokens ?? DEFAULT_OUTPUT_CAP);\n'
+              + '\t\t\tprune.pruneSession(agent.session, {\n'
+              + '\t\t\t\tbyteCapPerResult: toolCapToByteLimit(budget.toolCap)\n'
+              + '\t\t\t});',
+          },
+          // The inlined budget formula (before the export line).
+          {
+            anchor: 'export { BasicCompactionEngine, BasicCompactionEngine as default };',
+            replacement: `${ZCTX_REGION_COMPACTION_BUDGET}\nexport { BasicCompactionEngine, BasicCompactionEngine as default };`,
+          },
+        ],
+      },
+      // ------------------------------------------------------------------
+      // File 5/5 — compaction-tool-result-pruner/lib/index.js: the
+      // pruneSession opts + l3.pruning declaration branch + per-call
+      // limitFor + the inlined L3 vocabulary (γ: tools bundle untouched).
+      // ------------------------------------------------------------------
+      {
+        targetPath: 'dsh/node_modules/@deepseek-ai/dsh-compaction-tool-result-pruner/lib/index.js',
+        // Pristine SHA-256 computed live from the real asar 2026-11-16.
+        pristineSha256: 'e86442e9a2403c392482b9035916e5610c251d62f3581892866404d69c064254',
+        presenceMarker: '//#region lib/types/zctx-l3-pruning.js',
+        ops: [
+          // pruneContent gains the per-call limit (Go hunk 1).
+          {
+            anchor: '\tpruneContent(blocks) {',
+            replacement: '\tpruneContent(blocks, limitChars = this.config.thresholdChars) {',
+          },
+          // Threshold comparisons ride limitChars (Go hunks 2-3).
+          {
+            anchor: '\t\tif (totalChars <= this.config.thresholdChars) return null;',
+            replacement: '\t\tif (totalChars <= limitChars) return null;',
+          },
+          {
+            anchor:
+              '\t\tif (charsAfter > this.config.thresholdChars || charsAfter >= totalChars) throw new Error("tool-result prune: replacement must be smaller and within threshold");',
+            replacement:
+              '\t\tif (charsAfter > limitChars || charsAfter >= totalChars) throw new Error("tool-result prune: replacement must be smaller and within threshold");',
+          },
+          // pruneSession gains the per-pass budgets (Go hunk 4).
+          {
+            anchor: '\tpruneSession(session) {',
+            replacement: '\tpruneSession(session, opts = {}) {',
+          },
+          // The declaration branch: a non-prunable result is never rewritten
+          // (Go hunk 5).
+          {
+            anchor: '\t\t\tconst original = session.deriveEventMessage(event);',
+            replacement:
+              '\t\t\tconst declared = pruningFromMeta(event.data.meta);\n'
+              + '\t\t\tif (declared !== void 0 && !declared.prunable) continue;\n'
+              + '\t\t\tconst original = session.deriveEventMessage(event);',
+          },
+          // The effective limit for one candidate (Go hunk 6).
+          {
+            anchor: '\t\t\tconst content = this.pruneContent(original.content);',
+            replacement: '\t\t\tconst content = this.pruneContent(original.content, this.limitFor(declared, opts));',
+          },
+          // limitFor (Go hunk 7), inserted before the class close.
+          {
+            anchor:
+              '\t\t\tcharsRemoved += charsBefore - charsAfter;\n\t\t}\n\t\treturn {\n\t\t\tpruned,\n\t\t\tcharsRemoved\n\t\t};\n\t}\n};',
+            replacement:
+              '\t\t\tcharsRemoved += charsBefore - charsAfter;\n'
+              + '\t\t}\n'
+              + '\t\treturn {\n'
+              + '\t\t\tpruned,\n'
+              + '\t\t\tcharsRemoved\n'
+              + '\t\t};\n'
+              + '\t}\n'
+              + '\t/**\n'
+              + '\t * Resolve the effective code-point threshold for one candidate: a\n'
+              + '\t * declared prunable result honors opts.byteCapPerResult; the uniform\n'
+              + '\t * threshold applies whenever the declaration is absent or the cap\n'
+              + '\t * cannot represent a valid replacement.\n'
+              + '\t */\n'
+              + '\tlimitFor(declared, opts) {\n'
+              + '\t\tif (declared === void 0) return this.config.thresholdChars;\n'
+              + '\t\tconst cap = opts.byteCapPerResult;\n'
+              + '\t\tif (typeof cap !== "number" || !Number.isFinite(cap) || cap <= 0) return this.config.thresholdChars;\n'
+              + '\t\tconst minRepresentable = this.config.headChars + codePointLength(PRUNE_MARKER) + this.config.tailChars;\n'
+              + '\t\treturn cap >= minRepresentable ? cap : this.config.thresholdChars;\n'
+              + '\t}\n'
+              + '};',
+          },
+          // The inlined L3 vocabulary (before the export line).
+          {
+            anchor: 'export { DEFAULTS, PRUNE_MARKER, ToolResultPruner, ToolResultPruner as default, codePointLength, resolveConfig };',
+            replacement:
+              `${ZCTX_REGION_PRUNER_L3}\nexport { DEFAULTS, PRUNE_MARKER, ToolResultPruner, ToolResultPruner as default, codePointLength, resolveConfig };`,
+          },
+        ],
+      },
+    ],
   },
 }
 
@@ -331,6 +1125,9 @@ export function normalizeEntry(entry) {
  * needed here (the file-level reconstruction gate owns that).
  */
 export function patchFile(text, fileEntry) {
+  if (countOccurrences(text, fileEntry.presenceMarker) > 0) {
+    return { ok: false, alreadyPatched: true, reason: 'presence marker already in the text — refusing to double-apply' }
+  }
   let patched = text
   for (let index = 0; index < fileEntry.ops.length; index++) {
     const op = fileEntry.ops[index]
