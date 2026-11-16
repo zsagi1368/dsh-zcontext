@@ -1017,13 +1017,22 @@ export class ZcontextPlugin extends ServiceBase {
             ? (fromScope as SessionLike)
             : undefined
       const session = attributed ?? this.currentSession()
-      if (session === undefined) return ''
+      if (session === undefined) {
+        zctxDebug('nudgeProvider: no attributable session — contributing nothing')
+        return ''
+      }
       const window = this.windowCache.get(session as object)
       // Unknown window: cannot judge pressure honestly → no contribution.
       // Below the CCM domain: the automatic folding face is disabled.
-      if (window === undefined || window < CCM_MIN_CONTEXT_WINDOW) return ''
+      if (window === undefined || window < CCM_MIN_CONTEXT_WINDOW) {
+        zctxDebug(`nudgeProvider: window=${window} (CCM_MIN=${CCM_MIN_CONTEXT_WINDOW}) — contributing nothing`)
+        return ''
+      }
       const meter = this.runtime.tokenMeter
-      if (meter === undefined) return ''
+      if (meter === undefined) {
+        zctxDebug('nudgeProvider: tokenMeter unavailable — contributing nothing')
+        return ''
+      }
       const measurement = meter.measure(session)
       const pressurePct = (measurement.totalTokens / window) * 100
       const prev = this.lastPressure.get(session as object) ?? 0
@@ -1039,8 +1048,11 @@ export class ZcontextPlugin extends ServiceBase {
         this.storeFor(session).surfaceNodes(),
         this.validatorConfig(session),
       )
-      return nudgeContextText(prev, pressurePct, parseThresholds(this.config.nudgeThresholds), budget, ranges)
+      const contribution = nudgeContextText(prev, pressurePct, parseThresholds(this.config.nudgeThresholds), budget, ranges)
+      zctxDebug(`nudgeProvider: window=${window} pressure=${pressurePct.toFixed(1)}% prev=${prev.toFixed(1)}% contribution=${contribution.length} chars`)
+      return contribution
     } catch (error: unknown) {
+      zctxDebug(`nudgeProvider: evaluation threw — ${error instanceof Error ? error.message : String(error)}`)
       this.ctx.logger?.warn?.(
         `dsh-zcontext: nudge evaluation failed (${error instanceof Error ? error.message : String(error)}); contributing nothing this assembly`,
       )
