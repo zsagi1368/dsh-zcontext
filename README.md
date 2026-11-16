@@ -1,5 +1,11 @@
 # dsh-zcontext
 
+[English](README.md) | [中文](README.zh.md)
+
+[![CI](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml/badge.svg)](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![version: 0.2.1](https://img.shields.io/badge/version-0.2.1-blue.svg)](CHANGELOG.md)
+
 Model-driven incremental context folding for the [DeepSeek Harness](https://github.com/deepseek-ai) — the model folds finished stretches of a conversation into short summaries it writes itself, keeping the working window small over very long sessions, through the official surface-replace channel only.
 
 - **What it is** — a third-party plugin package (`dsh-zcontext`) for the official DeepSeek Harness: four tools (`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`), one static guidance section, one pressure nudge, one `/zctx` command, an always-on observability ledger, an opt-in-able preflight gate, and an opt-in zctx router for your own providers — all surfaced through one settings page (nine primitive fields plus the v0.2.0 sections below). No host patches, no forks; the only wire-facing face is the declared S2 router, which never rewrites a request body.

@@ -1,0 +1,96 @@
+# CI — build, test, type-check, and the repository probes.
+#
+# Why windows-latest: both the committed artifact and the probe battery are
+# built/validated on Windows first (the desktop host target), and the lockfile
+# resolves rolldown's win32-x64 native binding. A Linux job would validate a
+# different platform than the one this plugin is tested against.
+#
+# Why the build chain lives inside `pnpm test`: `npm test` / `pnpm test` is
+# `tsdown && vitest run`. Several specs import the BUILT `lib/index.js`, so the
+# artifact must be rebuilt before those tests run — a stale artifact would let
+# them pass against code that is not in the tree (RSI lesson Z19). This is the
+# same chain a contributor runs locally (AGENTS.md "命令顺序").
+#
+# Honest-SKIP policy: three probes (probe-host-imports, smoke-real-loader, and
+# the G4 group of probe-real-mount) need a checkout of the harness tree
+# (`zDSH-main`), which does not exist on a GitHub runner. They print SKIP with
+# a reason, exit 0, and this workflow reports SKIP as SKIP — never as a pass.
+# No fake host tree is created to turn those probes green.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: build + test + probes (windows, node 22)
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm 11
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build + test (tsdown && vitest run)
+        run: pnpm test
+
+      - name: Type-check (tsc --noEmit)
+        run: pnpm lint
+
+      - name: Repository probes
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-logs
+          : > ci-logs/probes.log
+          failed=0
+          for probe in probe-artifact verify-activation-surface probe-host-imports smoke-real-loader probe-real-mount; do
+            {
+              echo ""
+              echo "===== node scripts/${probe}.mjs ====="
+            } | tee -a ci-logs/probes.log
+            node "scripts/${probe}.mjs" 2>&1 | tee -a ci-logs/probes.log
+            status=${PIPESTATUS[0]}
+            echo "exit=${status}" | tee -a ci-logs/probes.log
+            if [ "${status}" -ne 0 ]; then
+              failed=$((failed + 1))
+            fi
+          done
+          echo "" | tee -a ci-logs/probes.log
+          echo "probes with nonzero exit: ${failed}" | tee -a ci-logs/probes.log
+          exit "${failed}"
+
+      - name: Upload probe output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-logs
+          path: ci-logs/
+          if-no-files-found: warn
+          retention-days: 14

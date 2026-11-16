@@ -6,6 +6,22 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "context-management",
+    "compaction",
+    "prompt-cache",
+    "token-budget"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zsagi1368/dsh-zcontext.git"
+  },
+  "homepage": "https://github.com/zsagi1368/dsh-zcontext#readme",
+  "bugs": {
+    "url": "https://github.com/zsagi1368/dsh-zcontext/issues"
+  },
   "engines": {
     "node": ">=22.13"
   },

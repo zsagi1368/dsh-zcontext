@@ -1,0 +1,106 @@
+name: Bug report
+description: Something is broken — a tool, the ledger, the settings face, or the patcher.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Two notes before you start:
+
+        - For **security** issues do not open a public issue — see
+          [SECURITY.md](https://github.com/zsagi1368/dsh-zcontext/blob/main/SECURITY.md).
+        - The `zctx_status` excerpt and the host logs are usually what makes a
+          fix possible. Please include both.
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: dsh-zcontext version
+      description: Shown in the settings page, in `package.json`, or in the `zctx_status` header.
+      placeholder: "0.2.1"
+    validations:
+      required: true
+
+  - type: input
+    id: harness-version
+    attributes:
+      label: DeepSeek Harness version
+      description: Desktop app version or CLI version you are running.
+      placeholder: "0.2.2-rc.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How the plugin is installed
+      options:
+        - "dsh plugin add github:zsagi1368/dsh-zcontext (git form)"
+        - "Local tarball or file: install"
+        - "Patched desktop build (zctx-patch applied)"
+        - "Other (describe below)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: The smallest sequence that reproduces the problem, in order.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead — error text verbatim if there is one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: zctx-status
+    attributes:
+      label: zctx_status output
+      description: |
+        Run `zctx_status` in the affected session and paste the output (redact
+        anything private; the ledger contains no message content, but check).
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Host logs, terminal output, or `dsh --dump-config` excerpts around the failure.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        OS and version, desktop vs CLI, Node version, pnpm version if you built
+        from source, and whether the zctx router or preflight gate is enabled.
+      placeholder: |
+        OS: Windows 11 26100
+        Host: desktop 0.2.2-rc.3 (or CLI 0.2.1-alpha.2)
+        Node: 22.13
+        Preflight: observe (default)
+    validations:
+      required: true

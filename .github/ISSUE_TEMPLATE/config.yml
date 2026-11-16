@@ -1,0 +1,23 @@
+# Issue template chooser configuration.
+#
+# Blank issues stay enabled: bug reports and feature requests have structured
+# forms, but the maintainers would rather take an unstructured report than
+# turn one away.
+#
+# NOTE on Discussions: this repository does not have GitHub Discussions
+# enabled, so no contact link points there (a dead link is worse than none).
+# Questions land on the `question` label instead; see CONTRIBUTING.md.
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation (README, English)
+    url: https://github.com/zsagi1368/dsh-zcontext/blob/main/README.md
+    about: Install steps, the four tools, the ledger, preflight, the zctx router, settings, limitations.
+  - name: Documentation (README, Chinese)
+    url: https://github.com/zsagi1368/dsh-zcontext/blob/main/README.zh.md
+    about: 中文文档：安装、四个工具、观测账本、预检、zctx 路由、设置项、限制。
+  - name: Security policy
+    url: https://github.com/zsagi1368/dsh-zcontext/blob/main/SECURITY.md
+    about: Threat model and how to report a vulnerability privately — do not open a public issue.
+  - name: Contributing rules
+    url: https://github.com/zsagi1368/dsh-zcontext/blob/main/CONTRIBUTING.md
+    about: Clean-room discipline, the no-go list, test commands, and the PR checklist.

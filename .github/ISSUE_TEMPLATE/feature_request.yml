@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose a capability, a settings knob, or a behavior change.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please read the "Limitations" section of the README and
+        the no-go list in [CONTRIBUTING.md](https://github.com/zsagi1368/dsh-zcontext/blob/main/CONTRIBUTING.md).
+        Some things are out of bounds on purpose (for example, any request-body
+        rewrite in the adapter layer, or workspace-wide folding without an
+        explicit range).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that the plugin does not do today? Concrete sessions beat abstract wishes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you would like it to work — the tool, the setting, the output shape.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What you tried instead, and why it was not enough.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Version, harness surface, cache/usage numbers, or links that make the case stronger.
+    validations:
+      required: false

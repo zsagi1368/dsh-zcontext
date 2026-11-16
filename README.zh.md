@@ -1,5 +1,11 @@
 # dsh-zcontext
 
+[English](README.md) | [中文](README.zh.md)
+
+[![CI](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml/badge.svg)](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![version: 0.2.1](https://img.shields.io/badge/version-0.2.1-blue.svg)](CHANGELOG.md)
+
 [DeepSeek Harness](https://github.com/deepseek-ai) 的模型驱动增量上下文折叠插件——把对话里已经收尾的段落折叠成模型自己撰写的短摘要，让超长会话的工作窗口始终保持在低位。全部折叠都走官方 surface replace 通道，不改底座、不改请求、不改线缆。
 
 - **这是什么**——官方 DeepSeek Harness 的第三方插件包（`dsh-zcontext`）：四个工具（`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`）、一段静态指导、一条压力提醒（nudge）、一个 `/zctx` 命令、一本装上即记的观测账本、一道可开启的 preflight 预检门、一个接入自有供应商的 zctx 路由（opt-in）——全部经同一张设置页呈现（九个原始字段加下方 v0.2.0 各段）。不 patch 宿主，不 fork；唯一面向线缆的面是显式声明的 S2 路由，且它绝不改写请求体。

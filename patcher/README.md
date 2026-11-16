@@ -4,6 +4,21 @@
 > 测绘依据 `zDSH-docs/R&D/zctx-20261112/RES-install-surface.md` + `VERIFY-P.md` 12/12）。
 > 用户授权：外部覆盖官方安装文件打补丁（2026-11-14 明示）。
 
+## Summary (English)
+
+`zctx-patch` is an optional, standalone patcher for the official desktop build.
+It splices exactly one defensive one-line forwarder into the official
+`PiAiAdapter` call site so the adapter passes `onPayload`/`fetch` through
+(the official whitelist drops them — the only wire-side gap on official
+routes). Rules: it refuses to run while the app is running, refuses on any
+version or anchor-hash mismatch, backs the target up before touching it, and
+verifies with the official asar API afterwards. `restore` puts the original
+bytes back; `status` is strictly read-only. When the plugin is absent or
+disabled the stub evaluates to `{}` and the official request is byte-identical
+to stock. The patched file survives only until the official updater replaces
+the install directory — re-patch after upgrades. The Chinese sections below
+are the authoritative detail (gates, anchor matrix, risks, dual-source status).
+
 ## 它做什么
 
 官方 `PiAiAdapter` 的 profileOptions 白名单不透传 `onPayload`/`fetch`（RES-adapter-route
