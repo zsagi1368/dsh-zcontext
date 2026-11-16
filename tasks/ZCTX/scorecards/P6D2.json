@@ -1,0 +1,56 @@
+{
+  "block": "P6-D2",
+  "task": "ZCTX-P6D2 face 未生效运行时根因定谳+修复（BENCH-L1）：env 门控 stderr 诊断（默认零输出）→ 定谳=bench profile 双份 enabled:false 残留 + switch-group.mjs 双校验缺陷 → 修复（yml 移除 + live 正则修复 + 机械回归三态）→ 复测 3 臂 20 轮如实零自发 fold → 全量回归",
+  "range": "e34b6a7 + afc826f + ecafe64 + 3083ced（4 提交；基线 af4c65a = P6-B/C 合并后 lib 重建）",
+  "reviewer": "reviewer-P6D2E (independent subagent; reviewer ≠ coder-p6d2; P6-D2 与 P6-E 同波合并评审，评分独立成表)",
+  "date": "2026-11-16",
+  "verdict": "通过（总分 100 ≥ 98）→ 放行中间合入；[阻断] 0；[建议] 2（P6D2E-R1 BENCH-L5 uad 审批语义 / P6D2E-R5 归档 switch-group.mjs 缺 pre-fix 标注）——均不阻塞中间合入，按 §11 记账后阻塞最终验收",
+  "total": 100,
+  "threshold": 98,
+  "scores": {
+    "correctness": 25,
+    "completeness": 20,
+    "consistency": 20,
+    "verifiability": 15,
+    "safety_rollback": 10,
+    "maintainability": 10
+  },
+  "score_evidence": {
+    "correctness_25": "根因链机械证实（评审人亲验，非转录）：(1) 备份 del/20261116-122206-p6d2-diag-prechange/bench-cordis.patch.yml grep -c 'id: dsh-zcontext' = 2（双份块实存）；(2) reports/bench/harness/dumpconfig-before-fix.txt:753-756 实渲染 '- id: dsh-zcontext / name: dsh-zcontext / config: / enabled: false'——name: 行隔断使旧校验正则 '- id:\\n  config:' 结构性失明（旧正则见归档 harness/switch-group.mjs:79-83 区）；(3) stderr-diag1-disabled.txt:10 决定性一行 'constructor: disabled by config — all faces stay unwired'。修复有效性评审人亲跑机械回归三态：旧 dump 形态判 enabledFalse=true（容忍中间行）、双块文件全局移除后 0 zctx 行且注释/其余行完好、净文件 no-op（node 直跑 live 版两正则）；修复判据四件证据齐（stderr-diag2-enabled.txt:12-16 defineTool resolved + 4/4 register OK；toolprobe/callprobe/sysprompt-probe-p6d2-stdout.txt 为原始 stdout 事件流，callId 配对与 usage 数字内部自洽：10731/40000=26.8%）。复测诚实：3 臂 20 轮 0 自发 fold 如实入 §11.3，nudge 插桩臂实见 615 chars 跨越注入（stderr-diag3-c2b-turn9-nudge-fired.txt）。无错误输出：npm test 589/589 + tsc 0（评审人亲跑）",
+    "completeness_20": "卡面 4 任务逐项：①诊断（src/debug.ts 全文 42 行 env 门控 ==='1' 直写 stderr、never throws、默认零输出——评审人逐行读）②定谳（§11.1 双 harness 缺陷 + 影响面更正 §10 更正段）③修复（yml 双块移除+live 正则修复+三态回归；卡面修复判据『模型必须能看到并调用』由 toolprobe 证词+callprobe 真实 tool_call→tool_result 达成）④复测（10 轮 C + C2 + C2b 插桩，BENCH-report §11.3 表）⑤回归（当时 545/545+tsc 0+五探针；评审日全量 589/589=545+37 P6E+7 wiring 钉）",
+    "consistency_20": "BENCH-report §10 更正段明确改写旧结论并保留原数字口径；BENCH-L1 closure fixed/verified（closure.json 128 项机器数 OPEN=0，评审人 node 遍历亲数）；RSI Z29 固化（sticky 正则→精确行操作）并已被 P6-E arm-autofold.mjs 头注释引用（Z29 纪律：NO sticky regexes）；提交切分符合波次语义（fix/chore 两类）",
+    "verifiability_15": "每条关键结论有可复跑命令或归档原件：双块（备份件 grep=2）/dump 形态（751-756 行）/诊断行（grep 行号）/桌面零触碰（grep -c zcontext /c/Users/ZS/.dsh/profiles/desktop/cordis.patch.yml = 0，评审人亲跑）/bench 当前组态 0 zctx 行 0 窗口 cap（评审人亲跑）。唯一扣分候选不成立：『机械回归三态』当时无归档输出文件，但评审人以 live 版正则独立复跑三态全 true——可验证性由独立复现闭合，不扣",
+    "safety_rollback_10": "§5 备份链在案且内容核对：del/20261116-122206-p6d2-diag-prechange/{RESTORE.md,SHA256SUMS.txt,bench-cordis.patch.yml,bench-switch-group.mjs,bench-run-bench.mjs,src,bench-install}；备份 yml 即双块原值=还原路径真实可用；诊断插桩默认零输出（ZCTX_DEBUG!=='1' 全部 return，生产字节不变）；桌面 profile 只读零触碰双证",
+    "maintainability_10": "debug.ts 单一职责三函数、JSON 循环安全；插桩行全部走统一 sink 与前缀；nudgeProvider 遥测只加 zctxDebug 行不改逻辑路径（afc826f diff 评审人逐行读：早退分支补日志、返回值不变）"
+  },
+  "attack_direction_results": {
+    "B组残留根因证据": "备份 yml 双块 grep=2 + dumpconfig-before-fix.txt:753-756 + stderr-diag1-disabled.txt:10 三证互洽；'B 被切换两次→两份块'与 sticky 正则 no-op 机制自洽（B 插入、移除永不生效）",
+    "switcher修复机械回归": "评审人亲跑 live 版两正则三态：T1 旧 dump（name: 隔断）判 true ✓ T2 双块+注释头文件移除后 0 残留且其余行完好 ✓ T3 净文件 no-op ✓（输出见 handoffs/REVIEW-P6D2E.md 附录 A）",
+    "桌面profile只读核验": "grep -c zcontext 桌面 cordis.patch.yml = 0（grep exit 1）——用户真实环境无覆盖块，claim 成立",
+    "模型证词/tool_call真实性": "toolprobe（模型逐字列出 4 工具）/callprobe（真 tool_call zctx_status → tool_result 完整 status 输出，'window: ~10731 tokens (26.8% of 40000)'）/sysprompt（逐字引用 guidance 首句）均为原始 stdout 事件流格式（session id/turn/step/usage 字段齐备，内部数字自洽），无事后拼接痕迹",
+    "复测诚实性": "C/C2/C2b 三臂 0 自发 fold 如实入表；『C2 未插桩不可回放』如实标注（11.3 口径注记）；残留明确说『nudge 文本内容有效性未测』为文本面问题不越权定谳"
+  },
+  "findings": [
+    {
+      "id": "P6D2E-R1",
+      "severity": "建议",
+      "location": "tasks/ZCTX/closures/closure.json BENCH-L5 条目 + BENCH-report §11.3/§11.4",
+      "issue": "BENCH-L5 disposition=user_approved_deferred 但条目自述『pending wave-level user approval at next card』——按 §11.1 uad 须用户真实批准；当前以『P3-S1 先例约定 closed』入账，批准尚未发生",
+      "fix_suggestion": "下一插件域波次卡开工时向用户显式请求该遗留的 defer 批准并把批准记录（消息 ID/原话）回填 evidence；在此之前该条目不应视为已闭合的 uad，最终验收（-Phase all）前必须补批准或改判",
+      "disposition": "OPEN → 由主线在下一波卡开工时闭环（fixed=补批准记录 / user_approved_deferred=用户真实批准）"
+    },
+    {
+      "id": "P6D2E-R5",
+      "severity": "建议",
+      "location": "reports/bench/harness/switch-group.mjs（归档件）",
+      "issue": "仓内归档的是修复前缺陷版本（sticky 正则 + 旧 dump 校验），文件头无『pre-fix 证据件，修复版在 bench HOME harness/』标注；单读仓内件会误以为这就是现行工具",
+      "fix_suggestion": "文件头加两行注释标注其历史证据身份与 live 修复件位置（或并入 BENCH-report §11.2 一句指针）；P6D2-H1 closure 证据已文字说明，此条为防误读的文档补强",
+      "disposition": "OPEN → 主线选择 fixed（补标注）或 not_applicable（closure 已说明）——二选一落账"
+    }
+  ],
+  "process_notes": [
+    "diff 体量：P6-D2 业务代码约 135 行（debug.ts 42 + plugin.ts 插桩 + tools.ts 8），其余为证据归档（bench harness/raw/summaries）与台账——远低于 600 行纪律线",
+    "协调者简报称『6 提交未评』但列出 P6-D2 四笔 + P6-E 四笔共 8 笔哈希；本评审按 8 笔全数评审（e34b6a7/afc826f/ecafe64/3083ced + c7c75c3/36178af/ae779a4/a2503af）",
+    "评审人 ≠ 作者：作者 coder-p6d2（progress.md 150-151 记录），评审为本波独立 subagent"
+  ]
+}

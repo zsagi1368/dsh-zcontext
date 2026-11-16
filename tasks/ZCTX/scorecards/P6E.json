@@ -1,0 +1,66 @@
+{
+  "block": "P6-E",
+  "task": "ZCTX-P6E autoFold 服务端自主折叠引擎（v0.3）：触发（V4 判据第三面）/确定性选区（保守集+可达域+pair-safe 尾裁）/摘要三供给（compaction/external/digest）/退化链（F2.9-F2.14）/surface replace 提交（复用 fold() 单提交路）/防反馈环（purpose 豁免+nudge 基线清零）/预算钳——pilot 实证服务端自发折叠真实发生（f297）",
+  "range": "c7c75c3 + 36178af + ae779a4 + a2503af（4 提交；基线 3083ced = P6-D2 终点）",
+  "reviewer": "reviewer-P6D2E (independent subagent; reviewer ≠ coder-p6e)",
+  "date": "2026-11-16",
+  "verdict": "通过（总分 99 ≥ 98）→ 放行中间合入；[阻断] 0；[建议] 3（P6D2E-R2 离线重放脚本未归档 / P6D2E-R3 external 供给 apiKeyEnv 缺失静默无凭据请求 / P6D2E-R4 净缩分类字符串耦合 texts 模板 + progress『leftover-ledger 登记』措辞与实际载体不符）——均不阻塞中间合入，按 §11 记账后阻塞最终验收",
+  "total": 99,
+  "threshold": 98,
+  "scores": {
+    "correctness": 25,
+    "completeness": 20,
+    "consistency": 20,
+    "verifiability": 14,
+    "safety_rollback": 10,
+    "maintainability": 10
+  },
+  "score_evidence": {
+    "correctness_25": "src/autofold.ts 1273 行全文逐行读 + 关键算术独立复算：(1) pairStructure 前缀-max/后缀-min 边界安全谓词两个方向都查（prefHi[i]<=i 与 sufLo[i+1]>i），fail-closed（无安全边界→end=-1→undefined，autofold.ts:252-256,320）；start 前推循环对『span 内节点有前向 partner』正确推进到对闭合位（:313-319）；(2) 触发=judgeEstimate 复用（windowOf undefined→hit undefined→pass-through，preflight.ts:327-348——hit 必有 window→capTokens 必定义，选区上限无未定义窗路径）；(3) 退化链有界性推演：maxRounds=16 每轮一 span、halving 需 ≥2×splitFloor、预算耗尽 give-up→halve/digest 兜底，无无限环；(4) 提交唯一路径=fold()（fold-engine.ts:220 同 zctx_fold 工具；validator+surface replace+generation 验证同一套）；(5) 亲验电池：npm test 589/589 EXIT 0 + tsc 0 错 + 五探针 6/16/5/3/11 全 PASS（评审人亲跑，探针报告 timestamp-only diff 亲读后还原树归零）",
+    "completeness_20": "卡面产物 1-4 全交付：autofold.ts 全链（commit c7c75c3）/config 8 键 + status 段 8 事实（36178af）/测试 37 钉 bc F2 逐条标号（tests/autofold.spec.ts grep -c '  it(' = 37：config 3+selection 5+compaction 4+external 3+digest 1+chain 11+listener 6+status 3+fresh-surface 1）/验收 pilot：turn 14 f297 提交、0 zctx_* 工具调用、触发不误发（turns 1-10 未过线不触发）——卡面验收句『服务端自发折叠真实发生（0 模型工具调用依赖）』逐字达成",
+    "consistency_20": "R3 变体裁定三件官方源证据全核（评审人实读官方树）：①purpose 闭联集 'compaction'|'session-title'（zDSH-main/packages/llm/llm/src/types.ts:552）②官方 compaction-basic/src/summarizer.ts:120-181 全文——ctx.llm.stream 一次性直呼+purpose:'compaction'+sessionId 传递+max-tokens→finishError fail-closed，插件 createCompactionSupply 的 finish 分类（error/aborted→fault、max-tokens→fault、stop 零文本→deterministic empty）与官方 finishError 一一对应③matchesMainChain purpose 一票豁免（observe.ts:246）且 preflight/observe/autofold 三监听共用（preflight.ts:482）——递归结构性排除，非 adapter 内自调（R3 no-go 形态不成立）。R1-R8 复扫：不触 body/请求改写面（fail-open yield* next()）、maxRetries 单点未动、无 WS 面。config 命名 autofold.* 扁平键与既有 patch.guardObserveEvents 同型",
+    "verifiability_14": "折叠实证由评审人独立重放闭合（不止转录作者主张）：从归档 session log 重建折叠前表面（80 节点 12769 tokens）→ FoldStore.attach+resync → selectFoldSpans 返回唯一候选 [{startSeq:9,endSeq:202,foldedTokens:5471}] 与运行时提交逐字一致；折后表面 91 节点 0 候选复现覆盖边界。session log seq 297 user/message source={kind:'zctx-fold',foldId:'f297',tokensBefore:5471,tokensAfter:864}（评审人 JSON 直读）+ 时间戳 1794864327102=2026-11-16T21:25:27.102Z 与 evidence commitTime 全等；tool/call 全量扫描=pwsh20/edit14/read13/write1，0 zctx_*。turns 11-20 judge HIT 行 10/10 在归档 tails 亲验（28859→48002）。扣 1 分理由：BENCH §12.1 证据栏引用的 offline 复现脚本未归档（reports/bench/harness/ 无 replay 件），progress.md 仅记结论——本评审以独立重放代偿但可复现性依赖评审人脚本（见 P6D2E-R2）",
+    "safety_rollback_10": "§5 备份三件套在案（del/20261116-p6e-prechange 6 件 src + p6e-bench-prechange 装件 7 件 + p6e-rsi-prechange）；disarm 终态评审人亲验：bench patch yml 0 zctx 行 + 0 contextWindow:40000（grep 双零）+ 桌面 profile 0 zctx 命中 + 装件 lib/index.js 与仓内 sha256 全等（f7c5f276c70432a5 双端同值）；fail-open 结构（链不阻塞请求、chain 异常 warn 继续）；opt-in 默认 false 有钉（autofold.spec 'R2-symmetric pin'）；external 凭据=env 变量名间接引用非明文",
+    "maintainability_10": "autofold.ts 依赖注入无宿主 import（仅既有 fail-soft 面）；常量数据化与 bc F2 锚点一一注释；37 钉与 F 编号对齐可溯；texts 模板集中；status 段事实化不渲染推断"
+  },
+  "attack_direction_results": {
+    "R3变体裁定": "成立（证据见 consistency_20 ①②③）。安全等价性论证：官方先例同形态（listener 持 waterfall、一次性顺序调用、purpose 官方值、sessionId 同传）；递归不可能（三监听 purpose 豁免+再入 WeakSet 守卫 autofold.ts:1221）；cordis waterfall 语义（llm/src/index.ts:76-78 @mode waterfall，注册序=外→内）使 enforce 优先级声明成立。实证背书：f297 真实提交且 20 轮无递归失控（若递归则进程/账单爆炸，实测单次提交+每轮 2 次 judge）",
+    "触发与选区算术": "judgeEstimate 复用为共享函数 projectAndEstimateRequest（preflight.ts 新提取，P6-E diff 评审人逐行核对=原 S1 估算路径逐语句搬移，两监听零漂移）；选区=validator 保守集（foldableRanges 非保护 run）+check-a 可达域预筛+maxFoldFraction×window 尾裁（pair-safe 边界 only）+minFoldableTokens 地板——每一步都对着 validator 既有门预演，bc projectUnit 语义差异（插件无 projectUnit/turn-integrity 撤回显式层，靠 validator 同门兜底）为保守向：宁可 no-qualified-span 不硬折（turns 11-13/15-19 实证）",
+    "三供给对应": "compaction=官方 purpose 一次性调用（§consistency）；external=独立端点 POST/Bearer env/超时 120s/三形态解析（choices/content-blocks/text），URL 仅来自 config（操作者信任边界，模型不可控——SSRF 面与官方 externalSummary 同型），无显性注入面（JSON.stringify body）；digest=CPU-only 确定性结构摘要（DIGEST_HEAD_CHARS=120 对 bc F2.16、行级 ceiling 裁剪+tail 标记、同输入必同输出有钉），digest 被净缩拒→诚实 abort 不硬折（autofold.ts:888-900 bc F2.13 futility 同型）",
+    "退化链F2对照": "F2.10 瞬态重试≤2/全局4（TRANSIENT_EMPTY_RETRIES/BUDGET 钉测:554）✓ F2.11 正常 finish 零文本≠blip→不原地重试+sticky 计数 3+canary 每 run 一次（钉:581/608/639/663）✓ F2.9 halving pair-safe 中点+地板 2×max(2000,minFoldable)（钉:686）✓ F2.12 净缩门 1.05 预检同单位+validator 自门双保险（钉:724）✓ F2.13 无候选 fail-closed（钉:794）✓ F2.6 预算 16/4/32K 数据化（resolveBudgetField 钉:214）✓",
+    "防反馈环三监听交互": "purpose 调用：preflight 判定豁免（matchesMainChain）→不触发 enforce；observe 豁免→不进压力计算/快照；autofold 自监听豁免→不触发自身；宿主 session log 实证不记录该调用（归档 log 有 20 条 session/title-llm-request 而 0 条 compaction 摘要请求事件——一手事件流证据）；fold 提交后 onFoldCommitted→lastPressure.delete（plugin.ts:1024-1027，防反馈环 bc compress.ts:927-929 同型）；摘要调用不进 tokenMeter 主链压力（observe 豁免是插件侧压力唯一来源）",
+    "折叠实证真实性": "评审人独立重放逐字复现（见 verifiability_14）——造假=0 的指控不成立：session log/诊断流/计费数字/离线重放四方证据互洽且评审人可复跑"
+  },
+  "findings": [
+    {
+      "id": "P6D2E-R2",
+      "severity": "建议",
+      "location": "reports/bench/BENCH-report.md §12.1 证据栏 + tasks/ZCTX/progress.md:160 vs reports/bench/harness/（无 replay 件）",
+      "issue": "『离线重放 selectFoldSpans 与运行时逐字一致』的证据脚本与输出未归档入库，只以结论文字在案；本评审已用独立脚本（重建 session 0..296 表面→selectFoldSpans）复现同结果，但第三方可复现性依赖未入库的脚本",
+      "fix_suggestion": "把重放脚本（含 zstd 多帧解包→FoldStore 摄入→selectFoldSpans 断言）落 reports/bench/harness/replay-f297.mjs 并在 §12.1 证据栏指向它；或以本评审 handoff 的复现命令为准补记",
+      "disposition": "OPEN → 主线下一波 fixed（脚本入库）或以本评审独立复现记录记 user_approved_deferred（须用户批准）"
+    },
+    {
+      "id": "P6D2E-R3",
+      "severity": "建议",
+      "location": "src/autofold.ts:529-544（createExternalSupply）+ src/plugin.ts:982-990（external 门）",
+      "issue": "wire 门只校验 url/model 非空；apiKeyEnv 已配置但对应环境变量缺失/为空时静默以无凭据请求发出（headers.authorization 不设置），只能靠远端 401→fault 才显形——与卡面『响亮』纪律（bc R9 invalid settings fail loudly）不完全对齐",
+      "fix_suggestion": "wireAutoFoldFace external 门在 apiKeyEnv 非空时检查 process.env 值存在并 warn（或 fail-skip）；保持运行时不中断（缺凭据走退化链是合法路径），只补 wire 时的响亮提示",
+      "disposition": "OPEN → 主线 fixed（补 warn）或 not_applicable（论证 401 路径已足够响亮）——需落账"
+    },
+    {
+      "id": "P6D2E-R4",
+      "severity": "建议",
+      "location": "src/autofold.ts:883（'tolerance must exceed' 字符串匹配）+ src/texts.ts:253 + tasks/ZCTX/progress.md:160",
+      "issue": "(a) commitSpan 用渲染后 REASON 模板子串分类 validator 拒收类型——texts.ts:253 措辞一旦改动，halving 路径静默降级为 abort（行为不变但退化覆盖收窄且无测试拦截）；(b) progress.md:160 称『leftover-ledger 登记』而仓内 governance/ 无 leftover-ledger.md（实际载体=closure.json P6E-4）",
+      "fix_suggestion": "(a) validator 返回结构化 reason code（或 texts.ts 导出可匹配常量供 autofold 引用），补一条措辞变更防回归钉；(b) progress 措辞改为『closure.json P6E-4 登记』或在收口建 leftover-ledger.md",
+      "disposition": "OPEN → 主线 fixed（两处小改）或按项 not_applicable 落账"
+    }
+  ],
+  "process_notes": [
+    "diff 体量：P6-E 业务代码约 1448 行（autofold.ts 1273 + config 59 + preflight 89 + texts 44）+ 测试钉 1105 行——超 600 行评审纪律线；处理=按卡面既定两块拆分（P6-D2/P6-E 各自成卡、各自评分）且 autofold.ts 为单引擎模块不可再拆（拆开无独立编译语义），协调者简报亦明确合并评审指令；特此如实记录该过程偏差，未静默吞掉",
+    "协调者简报『6 提交未评』与列出的 8 笔哈希不一致——按 8 笔全数评审",
+    "评审人独立重放脚本存于会话临时区（C:\\Users\\ZS\\AppData\\Local\\Temp\\zctx-p6d2e-review\\replay-select.mjs），未入库；入库与否见 P6D2E-R2",
+    "评审人 ≠ 作者：作者 coder-p6e；本评审为独立 subagent，评分表/scorecard 由评审人写入 tasks/ZCTX/scorecards/（落盘纪律允许），业务代码零改动（git status 全程除探针报告 timestamp 还原后归零）"
+  ]
+}
