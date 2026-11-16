@@ -4,11 +4,11 @@
 
 [![CI](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml/badge.svg)](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version: 0.2.1](https://img.shields.io/badge/version-0.2.1-blue.svg)](CHANGELOG.md)
+[![version: 0.3.0](https://img.shields.io/badge/version-0.3.0-blue.svg)](CHANGELOG.md)
 
 [DeepSeek Harness](https://github.com/deepseek-ai) 的模型驱动增量上下文折叠插件——把对话里已经收尾的段落折叠成模型自己撰写的短摘要，让超长会话的工作窗口始终保持在低位。全部折叠都走官方 surface replace 通道，不改底座、不改请求、不改线缆。
 
-- **这是什么**——官方 DeepSeek Harness 的第三方插件包（`dsh-zcontext`）：四个工具（`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`）、一段静态指导、一条压力提醒（nudge）、一个 `/zctx` 命令、一本装上即记的观测账本、一道可开启的 preflight 预检门、一个接入自有供应商的 zctx 路由（opt-in）——全部经同一张设置页呈现（九个原始字段加下方 v0.2.0 各段）。不 patch 宿主，不 fork；唯一面向线缆的面是显式声明的 S2 路由，且它绝不改写请求体。
+- **这是什么**——官方 DeepSeek Harness 的第三方插件包（`dsh-zcontext`）：四个工具（`zctx_fold` / `zctx_unfold` / `zctx_recall` / `zctx_status`）、一段静态指导、一条压力提醒（nudge）、一个 `/zctx` 命令、一本装上即记的观测账本、一道可开启的 preflight 预检门、一个接入自有供应商的 zctx 路由（opt-in），以及一个 opt-in 的**服务端自主折叠（autoFold）**面——不再等模型自己动手。全部经同一张设置页呈现（九个原始字段加下方 v0.2.0/v0.3.0 各段）。不强制 patch 宿主，不 fork；插件唯一面向线缆的面是显式声明的 S2 路由，且它绝不改写请求体。另有严格可选的外部补丁器（`patcher/`，由用户执行），仅服务于 guard-observe wire 域。
 - **为什么做它**——官方自带的 compaction-basic 只做「窗口压力触发时的全量摘要」，没有模型驱动的增量折叠。[billion-context](https://github.com/ranxianglei/billion-context) 研究证明了这套机制的可行性（模型自己写摘要、自己选区间、缓存感知的 nudge，长会话窗口占用保持低位）。本插件把这套能力装进官方插件面——同样的机制，走宿主自己的正道。
 
   <a id="clean-room"></a>
@@ -24,6 +24,8 @@
 - [观测账本（装上即开始记）](#observability-ledger)
 - [Preflight 预检（S1）：上线缆之前先判窗口](#preflight-s1)
 - [zctx 路由（S2）：接入自有供应商，且诚实](#zctx-router)
+- [autoFold：服务端自主折叠（opt-in，v0.3.0）](#autofold)
+- [可选的 base-context 补丁器（外部工具，用户执行，v0.2）](#the-optional-patcher)
 - [设置项](#settings)
 - [行为说明](#behavior-notes)
 - [限制](#limitations)
@@ -149,10 +151,37 @@ v0.2.0 唯一触碰线缆的地方——作为显式声明的例外，不是接�
 - **红线全守。** `maxRetries: 0`（重试归 agent 恢复层独占）、归因头随每一次请求上行（含一次性调用）、仅 HTTP(SSE) 协议（无 WebSocket 传输）、纯文本——zctx 路由的线缆上不承载任何 image/file 内容。P3 诚实注记：官方运行时在派发 adapter **之前**就把图片投影为占位文本（adapter 声明 `inputModalities: ['text']`），因此经 zctx 路由的图片请求会正常完成——模型只看到占位文本，且没有任何失败信号。adapter 自己的 `UNSUPPORTED_CONTENT` 门是直呼 adapter 路径上的防御镜像；wire 账本的每一行都携带 `imageCount` 字段（官方路径上恒为 0），把到达 adapter 边界的内容钉进账本。
 - **wire 账本覆盖。** 只有路由实际驱动的会话才有 wire 域字节哈希行；其余会话保持 harness 域，每行携带自己的 `domain` 标注（外加 `imageCount`——P3 HF-01 的可观测字段）。
 
+<a id="autofold"></a>
+## autoFold：服务端自主折叠（opt-in，v0.3.0）
+
+模型驱动折叠有一个诚实的依赖：模型必须自己选择调用 `zctx_fold`。headless 基准实测：免费 flash 路由的模型在工具在线、指导在线、nudge 文本在线的条件下，20 轮压力会话中自发折叠调用仍是 **0 次**（`reports/bench/BENCH-report.md` §11.3——采用面）。v0.3.0 交付了不依赖该行为的机制路线：**插件在服务端自己折**，全程零模型工具调用。
+
+`autofold.enabled`（默认 **false**，显式 opt-in）武装第三条 `llm/stream` waterfall 监听——最内层面，位于 preflight 与 observe 之后：
+
+1. **触发**——V4 判据是**复用**不是重写：preflight 监听的投影与估算（`projectAndEstimateRequest`）喂给同一条触发线不等式、同一个 margin。命中启动折叠链；未命中则请求原样直通。
+2. **选区**——来自 validator 自身可达域的保守区间集（node 0、首条 user、最新 user 受保护；tool 调用与其结果成组折叠；pair-safe 边界；`maxFoldFraction` 上限；`minFoldableTokens` 地板），最老优先、批宽封顶。过不了 validator 自身门的选区诚实跳过——绝不硬折。
+3. **摘要供给**——三选一，配置指定，绝不静默换道：
+   - `compaction`（默认）——官方一次性 `ctx.llm.stream({ purpose: 'compaction' })` 通道，与官方 summarizer 同形态（purpose 标记使其对三条监听全部不可见、永不重入折叠链，也不进会话日志）；
+   - `external`——向自有端点发一次有界 POST（Bearer 经 `autofold.external.apiKeyEnv` 间接引用；配了环境变量名但变量缺失时 wire 时响亮 warn，面保持 armed——缺凭据是退化链条件，不是 skip 理由）；
+   - `digest`——确定性的 CPU-only 兜底摘要（零模型调用）。
+4. **退化链**——瞬时空回答有界重试；不可再分的失败在 pair-safe 中点对半折到地板；digest 是终端兜底；死供给 sticky 化、每 run 一次金丝雀探测；每次拒收都是一条日志 fault，任何情况下都不破坏请求（fail-open：链后原始流无条件继续）。
+5. **提交**——走与模型侧完全相同的 `fold()` 引擎与同一套新鲜表面重验证；run 中途不再可达的区间诚实中止。提交折叠后 nudge 基线清零（防反馈环，与官方 compaction 处理器自己的 re-base 同型）。
+
+实测现实（headless 基准，`workbuddy/hy4flash-free`，声明窗口 40000）：触发保守正确（前 10 轮不误发），随后提交了一次真实的服务端折叠——区间 [9..202]，估算 5471 → 864 tokens（−84%），全会话 **0 模型工具调用**（BENCH-report §12；评审独立重放归档于 `reports/bench/harness/replay-f297.mjs`）。已知覆盖边界：同一单调纪元内，一次已提交折叠会把可达区间压到折叠地板之下——每纪元多次折叠需要按 checkpoint 对齐的吸收窗（BENCH-report §12.3/§13，如实声明的边界，不是藏起来的缺口）。
+
+<a id="the-optional-patcher"></a>
+## 可选的 base-context 补丁器（外部工具，用户执行，v0.2）
+
+`patcher/zctx-patch.mjs` 是**独立、严格可选**的官方桌面版补丁工具。它把五文件 base-context 补丁集（`zctx-v0.3-base-1`）以**一次原子 asar 写入**应用到官方安装，点亮 guard-observe wire 域（逐请求 hash-then-passthrough fetch 包装层 + adapter guard sink），让观测账本在插件自有 adapter 不驱动的官方路由上也能看到线缆。没有补丁，插件功能完整；补丁只拓宽可见域。**真机 patch/restore 执行权与责任在用户**——本仓从不对真实安装执行它。
+
+- **触碰面**——官方 asar 内恰五个文件（`llm-pi-ai` 携带 P4 wire 桩 + guard 接线；`agent-loop` guard observer；`session` 持久化词汇；`compaction-basic` L3 预算；`compaction-tool-result-pruner` 裁剪声明）。零新增 asar 条目、零官方导出面变更、零请求体改写（红线 R1）。
+- **门**——app 未运行、版本 ∈ 支持集、逐文件原始哈希锚（漂移 = 官方更新 = 拒收）、锚串唯一性、幂等重跑（已打 = no-op 成功）、整集一次原子写入（不存在部分多文件状态）、逐文件后校验、动原件前先备份到安装目录外的 sibling 目录。
+- **重打**——补丁只存活到官方更新器替换安装目录为止；更新后 `status` 报告漂移，对新构建更新锚集后重打。**回滚**——`restore` 从哈希校验过的备份原子还原原始字节并清除 marker；`status` 严格只读，报告逐文件面与 `patchSet` 聚合（patched / unpatched / partial / drifted）。全流程见 `patcher/README.md`。
+
 <a id="settings"></a>
 ## 设置项
 
-九个原始类型字段加 v0.2.0 各段（observe 开关、preflight、S2 providers 声明）；static `Config` schema 自动生成设置页。
+九个原始类型字段加 v0.2.0/v0.3.0 各段（observe 开关、preflight、S2 providers 声明、guard-observe 桥开关、autoFold 面）；static `Config` schema 自动生成设置页。
 
 | 字段 | 类型 | 默认值 | 含义 |
 |---|---|---|---|
@@ -177,6 +206,15 @@ v0.2.0 各段共用同一 schema：
 | `preflightMode` | string | `"observe"` | `'off' \| 'observe' \| 'enforce'`——见 [Preflight 预检（S1）](#preflight-s1)。 |
 | `preflightMarginRatio` | number | `0.9` | Preflight 命中裕度（未标定——见[限制](#limitations)）。 |
 | `providers` | provider[] | `[]` | S2 路由声明（见 [zctx 路由](#zctx-router)）；零路由 = adapter 面保持合法 keep-alive。经 profile overlay patch 配置。 |
+| `patch.guardObserveEvents` | boolean | `true` | 补丁链 `cache/guard-observe` 事件的只读消费者（无外部补丁时按构造即惰性）。 |
+| `autofold.enabled` | boolean | `false` | 服务端自主折叠面（见 [autoFold](#autofold)）；v0.3.0 显式 opt-in。 |
+| `autofold.summarizer` | string | `"compaction"` | 摘要供给：`'compaction' \| 'external' \| 'digest'`。非法值响亮 skip，绝不静默换道。 |
+| `autofold.external.url` | string | `""` | external 供给端点（`summarizer: 'external'` 时必填；为空 = 响亮 skip）。 |
+| `autofold.external.model` | string | `""` | external 供给模型 id（与 `external` 配套必填）。 |
+| `autofold.external.apiKeyEnv` | string | `""` | 保存 external Bearer 凭据的环境变量名；已配置但变量缺失时 wire 时 warn。 |
+| `autofold.maxRounds` | number | `16` | 每 run 折叠链的区间尝试预算。 |
+| `autofold.maxBatch` | number | `4` | 折叠链每轮的选区批宽。 |
+| `autofold.maxSummaryOutputTokens` | number | `32768` | 模型摘要调用的输出钳制上限。 |
 
 与设置项无关的一条独立约束：上下文窗口低于 32768 token 时，整个自动面（nudge + 引擎门）保持关闭——这是估算公式的法定域。工具仍可用；status 会渲染明确的说明行。
 
@@ -194,7 +232,8 @@ v0.2.0 各段共用同一 schema：
 <a id="limitations"></a>
 ## 限制
 
-- **工具采用率依赖模型。** 折叠发生在模型遵循指导与 nudge 的时候。指令遵循越弱，折叠越少——无论如何，官方 compaction-basic 始终是硬底。
+- **工具采用率依赖模型。** 折叠发生在模型遵循指导与 nudge 的时候。指令遵循越弱，折叠越少——无论如何，官方 compaction-basic 始终是硬底。v0.3.0 的 `autofold.enabled` opt-in 以服务端自主折叠面移除了这一依赖（见 [autoFold](#autofold)）。
+- **autoFold 的单纪元覆盖边界。** 同一单调纪元内（无 compaction/checkpoint 位移介入），一次已提交折叠会把可达区间压到 `minFoldableTokens` 地板之下——在按 checkpoint 对齐的吸收窗落地之前，每纪元一次折叠是如实的天花板（headless 实测；BENCH-report §12.3）。
 - **没有线缆级兜底。** 折叠只走官方 surface replace 通道。没有请求改写、没有 fetch 代理、没有提示词级截断兜底；通道不可用时，本插件不会退化成 hack 方案。
 - **跨 checkpoint 吸收要求边界对齐。** 折叠窗口吸收更早折叠的 checkpoint 时，窗口必须恰为 `[checkpoint, checkpoint]`；更宽的跨 checkpoint 窗口会被以明确理由拒收。
 - **单会话范围。** `zctx_recall` 与台账都是每会话独立的；不做跨会话检索。

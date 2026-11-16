@@ -1267,7 +1267,7 @@
       "source": "P6-D2 retest finding (BENCH-report §11.3/§11.4)",
       "type": "bench-leftover",
       "disposition": "fixed",
-      "evidence": "re-dispositioned P6D2E-R1 per task card P6F: the adoption-face blocker is MECHANISM-SOLVED — the server-initiated autoFold route no longer depends on model adoption: P6-E delivered the engine (commit c7c75c3+36178af) and pilot committed real fold f297 [9..202] 5471->864 tokens with 0 model tool calls (reports/bench/raw/p6e-autofold-fold-f297-evidence.json; BENCH-report §12), independently replayed verbatim by the reviewer (REVIEW-P6D2E §1.8, archived harness/replay-f297.mjs MATCH:true); P6-F adds the 20-round autofold arm replication (BENCH-report §13). Residual research lever (nudge/guidance wording strength + stronger-model adoption) is NOT a plugin defect and is part of no v0.3 acceptance criterion — moved to BENCH-L7 (v0.4 candidate).",
+      "evidence": "re-dispositioned P6D2E-R1 per task card P6F: the adoption-face blocker is MECHANISM-SOLVED — the server-initiated autoFold route no longer depends on model adoption: P6-E delivered the engine (commit c7c75c3+36178af) and pilot committed real fold f297 [9..202] 5471->864 tokens with 0 model tool calls (reports/bench/raw/p6e-autofold-fold-f297-evidence.json; BENCH-report §12), independently replayed verbatim by the reviewer (REVIEW-P6D2E §1.8, archived harness/replay-f297.mjs MATCH:true); P6-F adds the 20-round autofold arm replication (BENCH-report §13). Residual research lever (nudge/guidance wording strength + stronger-model adoption) is NOT a plugin defect and is part of no v0.3 acceptance criterion — moved to BENCH-L7 (v0.4 candidate). P6-F replication (BENCH §13): two fresh 20-round arms each committed exactly one server-initiated fold (f290 5195->619 net 4576; f340 5739->638 net 5101), 0 model zctx_* calls — the mechanism route works without adoption, re-verified.",
       "owner": "coder-p6f",
       "status": "verified",
       "phase": "post-merge"
@@ -1381,6 +1381,16 @@
       "owner": "coder-p6f",
       "status": "verified",
       "phase": "post-merge"
+    },
+    {
+      "id": "P6F-1",
+      "source": "tasks/ZCTX/cards/P6F-bench-release.md 产物 2（基准重跑 autofold 开）",
+      "type": "card-deliverable",
+      "disposition": "fixed",
+      "evidence": "两臂 20 轮真 CLI headless（workbuddy/hy4flash-free 固定，原 profile 零触碰，跑前 del/20261116-p6f-bench-prechange 备份，跑后 disarm 残留=0）：RUN1 session 4e57b0e6 20/20 exit0 cum billedInput 1,255,148 服务端 fold f290 turn14 [9..111] 5195->619 净省4576；RUN2 session 952e0a57 20/20 exit0 cum 1,208,348 fold f340 turn18 [9..128] 5739->638 净省5101，全程遥测 32 HIT/33 chain/32 no-qualified-span+1 committed、0 模型 zctx_* 调用。对照：P6-D2 复测同窗无 autofold 0/20；P6-E f297 净省 4607 同量级。证据 reports/bench/BENCH-report.md §13 + raw/p6f-autofold-* + harness/summary-p6f-autofold*.jsonl。owner coder-p6f",
+      "owner": "coder-p6f",
+      "status": "verified",
+      "phase": "block"
     }
   ]
 }

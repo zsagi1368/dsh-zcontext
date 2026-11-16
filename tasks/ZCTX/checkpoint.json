@@ -1,6 +1,6 @@
 {
  "task": "ZCTX-P6F",
- "updatedAt": "2026-11-16T22:00:17.240Z",
+ "updatedAt": "2026-11-16T22:19:17.120Z",
  "baseCommit": "67d3415 (P6-D2/E merged; main)",
  "branch": "feat/ZCTX-P6F",
  "steps": [
@@ -13,7 +13,12 @@
    "id": "p6fs1-rfixes",
    "status": "done",
    "name": "R1-R5 landed: BENCH-L5 uad->fixed/verified (+BENCH-L7 not_applicable), replay-f297.mjs archived (MATCH:true rerun), external apiKeyEnv wire warn +2 pins, net-shrink signature constant + pin, progress.md wording, archived switch-group header; tsc 0 + battery 592/592; closure 128->135 OPEN=0; commit pending"
+  },
+  {
+   "id": "p6fs2-bench",
+   "status": "done",
+   "name": "two 20-round autofold arms on real CLI (f290 turn14 5195->619 net 4576; f340 turn18 5739->638 net 5101; 32 HIT/1 commit in instrumented arm; 0 model zctx calls; cum billedInput 1,255,148/1,208,348; disarm residue 0); BENCH §13 + evidence archived; closure P6F-1 + BENCH-L5 evidence; commit pending"
   }
  ],
- "next": "bench arm + 20-round autofold run (lib sync SHA assert) -> collect incidence/net-saving/billedInput curve vs C group"
+ "next": "release v0.3.0: CHANGELOG section + lib rebuild + battery/tsc/probes + tag"
 }
