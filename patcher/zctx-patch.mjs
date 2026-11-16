@@ -1313,8 +1313,11 @@ export function spliceAsarMulti({ asarPath, targets }) {
     }
   })
 
-  // Header mutation: reset each target's size + integrity; shift every other
-  // packed file's offset by the summed deltas of the targets before it.
+  // Header mutation: reset each target's size + integrity; shift EVERY other
+  // packed file's offset by the summed deltas of the targets positioned
+  // before it. Targets shift too: a target sitting after a GROWN earlier
+  // target region moves back in the payload (its own delta is excluded —
+  // shiftFor sums only starts strictly below the file's offset).
   visitPackedNodes(header, (node) => {
     const offset = Number(node.offset)
     const target = resolved.find((candidate) => candidate.start === offset)
@@ -1323,7 +1326,8 @@ export function spliceAsarMulti({ asarPath, targets }) {
       target.after = { size: target.newBuf.length, sha256: sha256Hex(target.newBuf) }
       node.size = target.newBuf.length
       node.integrity = computeIntegrity(target.newBuf)
-    } else if (shiftFor(offset) !== 0) {
+    }
+    if (shiftFor(offset) !== 0) {
       node.offset = String(offset + shiftFor(offset))
     }
   })
