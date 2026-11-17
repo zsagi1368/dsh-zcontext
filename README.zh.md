@@ -4,7 +4,10 @@
 
 [![CI](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml/badge.svg)](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version: 0.3.0](https://img.shields.io/badge/version-0.3.0-blue.svg)](CHANGELOG.md)
+[![version: 0.3.0 beta](https://img.shields.io/badge/version-0.3.0-orange.svg)](CHANGELOG.md)
+[![status: BETA 测试中](https://img.shields.io/badge/status-BETA_测试中-orange.svg)](#limitations)
+
+> ⚠️ **测试版（BETA）——仍在测试中。** 本插件为测试发布：机制较新、估算阈值未经真机标定、真机验证仍在进行。可能有粗糙之处；官方 compaction 始终是硬底兜底。欢迎真实会话的反馈与 `zctx_status` 输出。
 
 [DeepSeek Harness](https://github.com/deepseek-ai) 的模型驱动增量上下文折叠插件——把对话里已经收尾的段落折叠成模型自己撰写的短摘要，让超长会话的工作窗口始终保持在低位。全部折叠都走官方 surface replace 通道，不改底座、不改请求、不改线缆。
 

@@ -4,7 +4,10 @@
 
 [![CI](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml/badge.svg)](https://github.com/zsagi1368/dsh-zcontext/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version: 0.3.0](https://img.shields.io/badge/version-0.3.0-blue.svg)](CHANGELOG.md)
+[![version: 0.3.0 beta](https://img.shields.io/badge/version-0.3.0-orange.svg)](CHANGELOG.md)
+[![status: BETA — still in testing](https://img.shields.io/badge/status-BETA_testing-orange.svg)](#limitations)
+
+> ⚠️ **BETA — still in testing.** This plugin is a test release: the mechanism is new, the estimator thresholds are uncalibrated, and real-machine validation is ongoing. Expect rough edges; the official compaction remains the hard floor. Feedback and `zctx_status` output from real sessions are welcome.
 
 Model-driven incremental context folding for the [DeepSeek Harness](https://github.com/deepseek-ai) — the model folds finished stretches of a conversation into short summaries it writes itself, keeping the working window small over very long sessions, through the official surface-replace channel only.
 
