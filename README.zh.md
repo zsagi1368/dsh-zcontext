@@ -58,6 +58,24 @@ dsh plugin add github:zsagi1368/dsh-zcontext
 
 环境要求：支持插件的 DeepSeek Harness，Node.js >= 22.13。构建产物随仓库发布（`lib/` 已入库），git 形态安装不触发任何构建步骤，也不会向 pnpm 请求构建审批（`allowBuilds`）。唯一 peer 依赖是 `@deepseek-ai/cordis`（optional，由宿主提供）。装好后设置页会出现本插件的专属段（static `Config` schema，字段见下），会话里可用 `/zctx`。观测账本装上即开始记录；折叠无需任何额外配置。
 
+<a id="install-desktop"></a>
+### 在 Windows 桌面版安装
+
+官方 Electron 桌面应用持有保留的 `desktop` profile，插件事务由其内置 pnpm 执行（官方架构文档原文："Desktop's bundled CLI manages its initialized plugins"）。两条安装路径：
+
+1. **应用内（推荐）**——打开桌面应用的插件管理界面（插件市场 / 设置 → 插件），选择*从 GitHub 添加*，填入 `zsagi1368/dsh-zcontext`。应用提示时重启。
+2. **CLI 对桌面 profile**——从任何共享同一 Harness home 的 dsh CLI：
+
+   ```sh
+   dsh plugin --profile desktop add github:zsagi1368/dsh-zcontext
+   ```
+
+   然后重启桌面应用。
+
+验证：设置页出现 **dsh-zcontext** 段（字段见[设置](#install)），会话里 `/zctx` 有应答。**桌面版诚实说明：**桌面组合下的 face 激活已完成探针设计但尚未真机验证（BENCH-L2 登记）——若桌面会话中工具或 status 段未出现，请带 `zctx_status` 输出提 issue；headless 组合已全量验证（见[开发](#development)）。
+
+升级：在桌面 profile 内重复同款 add 或 `pnpm update dsh-zcontext` 后重启应用（桌面 profile 独立维护自己的 packages 与 lockfile，与任何 npm CLI 安装互不共享）。
+
 <a id="the-four-tools"></a>
 ## 四个工具
 

@@ -58,6 +58,24 @@ dsh plugin add github:zsagi1368/dsh-zcontext
 
 Requirements: the DeepSeek Harness with plugin support, Node.js >= 22.13. The built artifact ships in the repository (`lib/`), so a git-form install never runs a build step and never asks for pnpm build approvals (`allowBuilds`). The only peer dependency is `@deepseek-ai/cordis` (optional, resolved from the host). After installing, the plugin appears in the settings page under its own section (static `Config` schema, the fields below), and `/zctx` becomes available in sessions. The observability ledger starts recording immediately; folding needs nothing else.
 
+<a id="install-desktop"></a>
+### Install on the Windows desktop app
+
+The official Electron desktop app owns the reserved `desktop` profile and runs plugin transactions through its bundled pnpm (official architecture docs: "Desktop's bundled CLI manages its initialized plugins"). Two routes:
+
+1. **In-app (recommended)** — open the desktop app's plugin management UI (plugin market / settings → plugins), choose *add from GitHub*, and enter `zsagi1368/dsh-zcontext`. Restart the app when it asks.
+2. **CLI against the desktop profile** — from any dsh CLI that shares the same Harness home:
+
+   ```sh
+   dsh plugin --profile desktop add github:zsagi1368/dsh-zcontext
+   ```
+
+   Then restart the desktop app.
+
+Verify: the settings page shows the **dsh-zcontext** section (the fields under [Settings](#settings)), and `/zctx` answers in a session. **Desktop note (honest ceiling):** face activation on the desktop composition is probe-designed but not yet machine-verified (tracked as BENCH-L2) — if the tools or status section do not appear in a desktop session, please open an issue with your `zctx_status` output; the headless composition is fully verified (see [Development](#development)).
+
+Upgrading: repeat the same add/`pnpm update dsh-zcontext` inside the desktop profile and restart the app (the desktop profile keeps its own packages and lockfile, separate from any npm CLI install).
+
 <a id="the-four-tools"></a>
 ## The four tools
 
