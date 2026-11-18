@@ -55,3 +55,11 @@
 - 质量证据：671/671 测试+tsc 0；B3 评审三轮 96.5→97.5→100 PASS（evaluator≠author）；B4 verifier 100 PASS（V1-V14 逐项，真机 status/auto 只读实测）；R1 红线三波字节不变式（SUPPORTED 段 8e2d0b7e… 口径钉死）；Mimosa 深扫终态 scanId=scan-2026-11-18T19-03-51.979Z-8cf71c6fd981 seal=befb1949… coverage 73/73 truncated=false，5 findings 全分诊误报（mock-session 不在产物束/mongo 全仓零命中/env 只喂模块解析与调试门），依赖风险 0。
 - 真机预检：check-official 实测 pending rc.5（feed 2026-11-18T11:35Z，staging 30%，本机 0.4347% 不含，[U1] 保留）；发现并热修 P1（严格解析器拒收真实 feed 的 >- 块标量 → D8e 6556789，fixture=真实 nightly.yml 钉 SHA bd30dc2d…）。
 - 开放项移交：B5 真机面（真 300MB 下载 [U2]/真 7z [U3]/V4/V6/V8 主树复测）；插件 pin a4ae662 无需轮转（本波零插件 src 变更）。
+
+### B5 真机留守补记（2026-11-18，同 tag patcher-auto-20261118a）
+
+- 真机 patch 落地：H:\AiAgent\DeepSeekHarness 0.2.2-rc.3 → patched 5/5+marker（全门绿：fuse OFF/app-closed/锚哈希 5/5/witnesses 2/2），备份=H:\AiAgent\zctx-backup\20261118-110448\{RESTORE.md, app.asar}，还原命令在 RESTORE.md。
+- 计划任务：ZCTX-Patch-Auto（hourly）注册→可见→卸载→不可见→重装留守，全链留痕（V4 双向证明）。
+- rc.5 预适配演练（真链路）：check-official（feed rc.5/staging 30%/本机 0.4347% 不含）→ preadapt --yes（真 300MB 下载+sha512 校验+真 7z 双层提取+fuse 前置检查+reanchor 5/5 ALIVE+模拟全量 patch+status 5/5）→ --accept 落盘 patcher/anchors/0.2.2-rc.5.json（SHA 7df48246d9a43b40…）[U2][U3] 关闭。
+- auto 终态：feed-pending "anchors already prepared (data); the update will auto-repatch when it lands" + already-ok（patched 5/5）——官方更新落地后保护零断档。
+- 锚集数据文件入库：patcher/anchors/0.2.2-rc.5.json 随本提交入库（防仓库外丢失）。
