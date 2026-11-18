@@ -139,6 +139,41 @@ export function appRunningGate(args: {
 
 export function backupRootFor(appDir: string): string
 
+// -- Electron fuse wire (VERIFY-P #11) ---------------------------------------
+
+export const FUSE_SENTINEL: string
+export const FUSE_V1_STATE_COUNT: number
+export const FUSE_INTEGRITY_INDEX: number
+
+/**
+ * The fuse-wire face of one exe. `states` is the raw 9-char state string
+ * (e.g. rc.3's `101100011`); `integrity` is its index-4 byte
+ * (EnableEmbeddedAsarIntegrityValidation). Every anomaly (exe missing or
+ * unreadable, sentinel absent, wrong version, wire-length overflow, length
+ * ≠ 9, illegal state byte) reports `found:false` + `reason` — never a guess.
+ */
+export interface FuseWireFace {
+  readonly found: boolean
+  readonly exePath: string
+  readonly exeSize?: number
+  readonly version?: number
+  readonly stateCount?: number
+  readonly states?: string
+  readonly integrity?: '0' | '1' | 'r'
+  readonly rawHex?: string
+  readonly sentinelOffset?: number
+  readonly sentinelHits?: number
+  readonly reason?: string
+}
+
+/** The desktop exe carrying the fuse wire (`<appDir>\DeepSeek Harness.exe`). */
+export function desktopExePath(appDir: string): string
+
+export function readFuseWire(exePath: string): FuseWireFace
+
+/** Never-throw variant for the read-only surfaces (status/auto). */
+export function safeReadFuseWire(exePath: string): FuseWireFace
+
 export interface PatchStep {
   readonly name: string
   readonly status: string
@@ -160,6 +195,8 @@ export interface PatchAsarResult {
   readonly before?: { readonly size: number; readonly sha256: string }
   readonly after?: { readonly size: number; readonly sha256: string }
   readonly files?: readonly { readonly targetPath: string; readonly delta: number }[]
+  /** The fuse face when the gate engaged (absent on the exe-less skip arm). */
+  readonly fuse?: FuseWireFace
   readonly recovery?: string
 }
 
@@ -169,6 +206,8 @@ export async function patchAsar(args: {
   probeAppRunning?: () => 'yes' | 'no' | 'unknown'
   entry?: ZctxPatchEntry
   versions?: Record<string, ZctxPatchEntry>
+  /** Data anchor-set dir (default patcher/anchors/ next to the script). */
+  anchorsDir?: string
 }): Promise<PatchAsarResult>
 
 export async function restoreAsar(args: {
@@ -186,27 +225,22 @@ export async function restoreAsar(args: {
   recovery?: string
 }>
 
-export async function statusAsar(args: {
-  appDir: string
-  dshHome?: string
-  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
-  versions?: Record<string, ZctxPatchEntry>
-  entry?: ZctxPatchEntry
-}): Promise<{
-  appDir: string
-  asarPath: string
-  asarExists: boolean
-  shellVersion?: string
-  anchorHit?: 'official-unchanged' | 'official-drifted' | 'patched-exact' | 'patched-drifted' | 'unknown'
+/** The read-only status face (the JSON `status` prints; runAuto consumes it). */
+export interface StatusAsarResult {
+  readonly appDir: string
+  readonly asarPath: string
+  readonly asarExists: boolean
+  readonly shellVersion?: string
+  readonly anchorHit?: 'official-unchanged' | 'official-drifted' | 'patched-exact' | 'patched-drifted' | 'unknown'
   /**
    * Action guidance for the non-healthy anchor states (P4-r1 P4-3: the state
    * label and the action guidance are separate strings, never merged).
    */
-  guidance?: string
-  targetSha256?: string
-  patched?: boolean | 'unknown'
+  readonly guidance?: string
+  readonly targetSha256?: string
+  readonly patched?: boolean | 'unknown'
   /** Per-file face (P6-B): one row per patch-set target. */
-  files?: readonly {
+  readonly files?: readonly {
     readonly target: string
     readonly sha256: string
     readonly state: 'pristine' | 'patched-exact' | 'drifted'
@@ -214,7 +248,7 @@ export async function statusAsar(args: {
     readonly guidance?: string
   }[]
   /** The patch-set aggregate (which files patched / pending re-patch). */
-  patchSet?: {
+  readonly patchSet?: {
     readonly version: string
     readonly totalFiles: number
     readonly patchedFiles: number
@@ -222,7 +256,7 @@ export async function statusAsar(args: {
     readonly driftedFiles: number
     readonly state: 'patched' | 'unpatched' | 'partial' | 'drifted'
   }
-  marker?: {
+  readonly marker?: {
     readonly state: 'present' | 'absent' | 'unknown'
     readonly path: string
     readonly version?: string
@@ -232,8 +266,406 @@ export async function statusAsar(args: {
     readonly timestamp?: string
     readonly reason?: string
   }
-  backups?: readonly { readonly dir: string }[]
-  lock?: { readonly path: string; readonly exists: boolean }
-  appRunning?: 'yes' | 'no' | 'unknown'
-  note?: string
-}>
+  readonly backups?: readonly { readonly dir: string }[]
+  readonly lock?: { readonly path: string; readonly exists: boolean }
+  readonly appRunning?: 'yes' | 'no' | 'unknown'
+  /** The Electron fuse face of `<appDir>\DeepSeek Harness.exe` (VERIFY-P #11). */
+  readonly fuse?: FuseWireFace
+  /** Where this version's anchor entry resolved from (D5). */
+  readonly anchorSetSource?: 'data' | 'in-code' | 'none' | 'error' | 'argument'
+  /** Inventory of available anchor sets: the in-code map + the data dir. */
+  readonly availableAnchorSets?: {
+    readonly dir: string
+    readonly inCode: readonly string[]
+    readonly dataDir: readonly string[]
+  }
+  readonly note?: string
+}
+
+export async function statusAsar(args: {
+  appDir: string
+  dshHome?: string
+  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
+  versions?: Record<string, ZctxPatchEntry>
+  entry?: ZctxPatchEntry
+  /** Data anchor-set dir (default patcher/anchors/ next to the script). */
+  anchorsDir?: string
+}): Promise<StatusAsarResult>
+
+// -- auto — the hourly self-heal state machine -------------------------------
+
+/** The default auto log file: `%LOCALAPPDATA%\zctx-patch\auto.log` (Z28). */
+export function defaultAutoLogPath(): string
+
+/** One contract line: `[ISO8601] [auto] state=<X> detail=<...>`. */
+export function autoLogLine(state: string, detail: string): string
+
+export function makeAutoSink(logFile: string): {
+  readonly lines: readonly string[]
+  write(line: string): void
+  error(): string | undefined
+}
+
+export interface AutoRunResult {
+  readonly ok: boolean
+  /** The judgment-table state label (app-running / fuse-on / would-patch / …). */
+  readonly state: string
+  readonly exitCode: 0 | 1
+  readonly detail: string
+  readonly lines: readonly string[]
+  readonly logFile: string
+  readonly sinkError?: string
+}
+
+/** Args runAuto forwards to its injected status/patch hooks. */
+export interface AutoHookArgs {
+  appDir: string
+  dshHome?: string
+  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
+  entry?: ZctxPatchEntry
+}
+
+export function runAuto(args: {
+  appDir: string
+  dshHome?: string
+  yes?: boolean
+  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
+  statusFn?: (args: AutoHookArgs) => Promise<StatusAsarResult>
+  patchFn?: (args: AutoHookArgs) => Promise<PatchAsarResult>
+  logFile?: string
+  /** D8c: enable the official feed face (proactive preadapt). Module default OFF; the CLI turns it ON. */
+  feedFace?: boolean
+  checkOfficialFn?: (args: { appDir: string; logFile?: string; quiet?: boolean }) => Promise<CheckOfficialResult>
+  preadaptFn?: (args: { appDir: string; yes: boolean; accept: boolean; logFile?: string; anchorsDir?: string }) => Promise<PreadaptResult>
+  anchorsDir?: string
+}): Promise<AutoRunResult>
+
+// -- install-task / uninstall-task — the Windows scheduled task --------------
+
+export const TASK_NAME: string
+
+/** The absolute path of THIS script (fileURLToPath of import.meta.url). */
+export function thisScriptPath(): string
+
+/**
+ * `cmd /c ""<node>" "<script>" auto --yes >> "<log>" 2>&1"` — every path
+ * quoted, plus the outer pair cmd.exe's /C rule 2 consumes (spaced paths).
+ */
+export function buildTaskAction(args: {
+  nodePath?: string
+  scriptPath: string
+  logPath: string
+}): string
+
+export interface TaskStep {
+  readonly name: string
+  readonly status: string
+  readonly detail?: string
+}
+
+export interface TaskResult {
+  readonly ok: boolean
+  readonly refused?: boolean
+  readonly taskName: string
+  readonly action?: string
+  readonly steps: readonly TaskStep[]
+  readonly recovery?: string
+}
+
+export function installScheduledTask(args?: {
+  nodePath?: string
+  scriptPath?: string
+  logFile?: string
+  taskName?: string
+  platform?: NodeJS.Platform
+  run?: (args: readonly string[]) => { status: number | null; stdout?: string; stderr?: string }
+}): TaskResult
+
+export function uninstallScheduledTask(args?: {
+  taskName?: string
+  platform?: NodeJS.Platform
+  run?: (args: readonly string[]) => { status: number | null; stdout?: string; stderr?: string }
+}): TaskResult
+
+// -- External anchor sets (patcher/anchors/<version>.json, D5) ---------------
+
+export function defaultAnchorsDir(): string
+
+/** The five probe target paths of the patch set of record. */
+export function knownTargetPaths(versions?: Record<string, ZctxPatchEntry>): string[]
+
+/** `<version>.json` basenames (version keys) available in the data dir, sorted. */
+export function listAnchorSetVersions(anchorsDir?: string): string[]
+
+export interface AnchorSetValidation {
+  readonly ok: boolean
+  readonly reason?: string
+  readonly entry?: { readonly shellPackage: string; readonly files: readonly ZctxPatchFileEntry[] }
+}
+
+/**
+ * Per-field schema check (metadata fields, shellPackage, exactly the five
+ * known targets each once, 64-hex hashes, non-empty presence markers, op
+ * lists with unique non-empty anchors). Every violation is a loud refusal.
+ */
+export function validateAnchorSetData(data: unknown, knownPaths?: string[]): AnchorSetValidation
+
+export interface AnchorSetLoad {
+  /** True when no data file exists for the version (clean fallthrough). */
+  readonly absent?: boolean
+  readonly ok: boolean
+  readonly entry?: ZctxPatchSetEntry
+  readonly path?: string
+  readonly meta?: {
+    readonly anchorSetVersion: string
+    readonly generatedAt: string
+    readonly sourceReport: string
+  }
+  readonly reason?: string
+}
+
+/**
+ * Load `<anchorsDir>/<version>.json`: absent → fallthrough; exists but
+ * corrupt/invalid → ok:false + reason (the caller refuses, NO fallback to
+ * the in-code map); valid → ok:true with the validated entry.
+ */
+export function loadAnchorSetData(version: string, anchorsDir?: string, knownPaths?: string[]): AnchorSetLoad
+
+export interface AnchorSetResolution {
+  readonly entry?: ZctxPatchEntry
+  readonly source: 'data' | 'in-code' | 'none' | 'error'
+  readonly reason?: string
+  readonly path?: string
+  readonly meta?: AnchorSetLoad['meta']
+}
+
+/** Data file first, in-code map second; 'error' = refuse (fail-closed). */
+export function resolveAnchorEntry(
+  shellVersion: string | undefined,
+  args?: { versions?: Record<string, ZctxPatchEntry>; anchorsDir?: string; knownPaths?: string[] },
+): AnchorSetResolution
+
+// -- reanchor (D6) -----------------------------------------------------------
+
+export interface ReanchorStep {
+  readonly name: string
+  readonly status: string
+  readonly detail?: string
+}
+
+export interface ReanchorOpFace {
+  readonly anchor: string
+  readonly expected: number
+  readonly actual: number
+  readonly locatedBy?: 'anchor' | 'first-line' | 'prefix-60' | 'none'
+  readonly line?: number
+  readonly context?: string
+  readonly note?: string
+}
+
+export interface ReanchorClassificationRow {
+  readonly target: string
+  readonly oldPristineSha256: string
+  readonly newSha256: string
+  readonly class: 'ALIVE' | 'DRIFTED'
+  readonly ops: readonly ReanchorOpFace[]
+}
+
+export interface ReanchorResult {
+  readonly ok: boolean
+  readonly refused?: boolean
+  readonly accepted?: boolean
+  readonly appDir: string
+  readonly newVersion?: string
+  readonly candidateJson?: string
+  readonly writtenTo?: string
+  readonly writtenSha256?: string
+  readonly classification?: readonly ReanchorClassificationRow[]
+  readonly driftedMaterials?: readonly ReanchorClassificationRow[]
+  readonly recovery?: string
+  readonly steps: readonly ReanchorStep[]
+}
+
+/**
+ * Build a candidate anchor set for a NEW official build: read-only
+ * extraction + per-op classification (ALIVE/DRIFTED/patched-refuse);
+ * candidate only when 5/5 ALIVE; --accept is the only path into
+ * patcher/anchors/.
+ */
+export function reanchorAnchorSet(args: {
+  appDir: string
+  anchorsDir?: string
+  out?: string
+  accept?: boolean
+  versions?: Record<string, ZctxPatchEntry>
+}): ReanchorResult
+
+/**
+ * The SINGLE write path into patcher/anchors/: validate with the loader's
+ * validator, refuse an existing file for the version (never clobber), atomic
+ * tmp+rename write. Both reanchor (--accept) and preadapt (after the full
+ * simulated pipeline) land through here.
+ */
+export function landAnchorSet(
+  version: string,
+  candidate: unknown,
+  anchorsDir?: string,
+  knownPaths?: string[],
+): { ok: boolean; reason?: string; path?: string; sha256?: string }
+
+// -- check-official (D8a) ----------------------------------------------------
+
+/** One pipeline contract line: `[ISO8601] [<tag>] state=<X> detail=<...>`. */
+export function pipelineLogLine(tag: string, state: string, detail: string): string
+
+/**
+ * Minimal YAML-subset parser for the two electron-updater manifests — flat
+ * keys, the files list, and BLOCK SCALARS (`>`/`|` + chomping/indent, the
+ * real nightly.yml's folded url/sha512 shape). Loud on any foreign shape;
+ * with knownTopKeys an unknown top-level key refuses (feed drift = loud).
+ */
+export function parseUpdateYaml(
+  text: string,
+  opts?: { knownTopKeys?: readonly string[] },
+): {
+  ok: boolean
+  reason?: string
+  doc?: Record<string, unknown> & { files?: readonly (Record<string, unknown> & { url?: string; size?: number; sha512?: string })[] }
+}
+
+/** electron-updater isStagingMatch replica (DR1-5; confidence medium-high, [U1] reserved). */
+export function machineStagingPercentage(updaterId: string): { ok: boolean; percentage?: number; reason?: string }
+
+/** `deepseek-harness-<version>-win-x64.exe` → version; undefined otherwise. */
+export function installerVersionFromFileName(fileName: string | undefined): string | undefined
+
+/** Prerelease-aware compare for the 0.2.2[-rc.N] shape (incomparable = raw-string fallback). */
+export function compareVersions(a: string, b: string): { order: -1 | 0 | 1; comparable: boolean }
+
+export interface CheckOfficialResult {
+  readonly ok: boolean
+  readonly state: string
+  readonly exitCode: 0 | 1
+  readonly detail: string
+  readonly logFile: string
+  readonly lines?: readonly string[]
+  readonly sinkError?: string
+  readonly updateState?: 'up-to-date' | 'pending'
+  readonly comparable?: boolean
+  readonly feedVersion?: string
+  readonly installedVersion?: string
+  readonly feedSha512?: string
+  readonly feedSize?: number
+  readonly feedUrl?: string
+  readonly installerUrl?: string
+  readonly channel?: string
+  readonly releaseDate?: string
+  readonly stagingPercentage?: number | null
+  readonly machinePercentage?: number
+  readonly stagedIn?: boolean
+  readonly updaterIdPath?: string
+  readonly pendingInstaller?: {
+    readonly path: string
+    readonly fileName?: string
+    readonly version?: string
+    readonly sha512?: string
+  }
+  readonly appDir?: string
+}
+
+/**
+ * Read the official update feed and compare against the local install. ONE
+ * outbound GET (the channel yml); NEVER downloads the installer; every
+ * anomaly refuses loudly.
+ */
+export function checkOfficial(args?: {
+  appDir?: string
+  logFile?: string
+  quiet?: boolean
+  fetchImpl?: typeof fetch
+  /** Feed GET bound (default 20 s; B3 review B-4). */
+  feedTimeoutMs?: number
+  updaterIdPath?: string
+  localAppData?: string
+}): Promise<CheckOfficialResult>
+
+// -- auto tick mutex (B3 review B-4) -----------------------------------------
+
+/** The auto tick mutex file: %LOCALAPPDATA%\zctx-patch\auto.lock. */
+export function defaultAutoLockPath(): string
+
+/**
+ * Take the auto tick lock (CreateNew semantics + a 30-min lease): a fresh
+ * holder skips the round politely; a stale (crashed) holder is taken over
+ * once; a non-EEXIST create error is fatal and loud.
+ */
+export function tryAcquireAutoLock(lockPath?: string, leaseMs?: number, now?: number): {
+  ok: boolean
+  release?: () => void
+  tookOverStale?: boolean
+  staleAgeMs?: number
+  fresh?: boolean
+  holderAgeMs?: number
+  reason?: string
+}
+
+// -- preadapt (D8b) ----------------------------------------------------------
+
+/** Default work root: %LOCALAPPDATA%\zctx-patch\preadapt\. */
+export function defaultPreadaptWorkRoot(): string
+
+export function locateSevenZip(args?: {
+  explicitPath?: string
+  platform?: NodeJS.Platform
+  standardPaths?: readonly string[]
+  whereImpl?: (name: string) => string | undefined
+}): {
+  ok: boolean
+  path?: string
+  source?: 'explicit' | 'standard-install' | 'path-lookup'
+  volatile?: boolean
+  reason?: string
+  guidance?: string
+}
+
+export interface PreadaptResult {
+  readonly ok: boolean
+  readonly state: string
+  readonly exitCode: 0 | 1
+  readonly detail: string
+  readonly logFile: string
+  readonly lines?: readonly string[]
+  readonly sinkError?: string
+  readonly check?: CheckOfficialResult
+  readonly candidate?: ZctxPatchSetEntry
+  readonly writtenTo?: string
+  readonly writtenSha256?: string
+}
+
+/**
+ * Pre-adaptation pipeline for the PENDING official build: sha512-verified
+ * download → 7z double extraction → fuse pre-check (integrity must be '0')
+ * → reanchor on the extracted tree → simulated FULL patch + status 5/5 →
+ * --accept lands the candidate. The real install is never touched.
+ */
+export function preadaptAnchorSet(args?: {
+  appDir?: string
+  yes?: boolean
+  accept?: boolean
+  keepWorkdir?: boolean
+  anchorsDir?: string
+  workRoot?: string
+  logFile?: string
+  quiet?: boolean
+  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
+  sevenZipPath?: string
+  locate7zImpl?: typeof locateSevenZip
+  run7zImpl?: (args: { installerPath: string; workDir: string; sevenZip: { path: string } }) => Promise<{ appTree: string }>
+  downloadImpl?: (url: string, destPath: string, expectedSize?: number | null, timeoutMs?: number) => Promise<void>
+  /** Installer GET bound (default 600 s; B3 review B-4). */
+  downloadTimeoutMs?: number
+  checkOfficialImpl?: () => Promise<CheckOfficialResult>
+  /** Injected faces for the internal check-official read (hermetic tests). */
+  updaterIdPath?: string
+  localAppData?: string
+}): Promise<PreadaptResult>

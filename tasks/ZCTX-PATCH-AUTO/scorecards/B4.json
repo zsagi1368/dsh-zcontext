@@ -1,0 +1,109 @@
+{
+  "schema": "scorecard/v1",
+  "task": "ZCTX-PATCH-AUTO",
+  "block": "B4",
+  "round": "final-verification（B3 r3=100 PASS 放行后的独立终验；全部结论 verifier-B4 独立实测/复算/复跑，不采信文档自述）",
+  "scope": "worktree 分支 feat/ZCTX-PATCH-AUTO HEAD=8de1bff 全分支 d951ebf..HEAD（18 文件）+ 真机只读面（status / auto 无 --yes）+ checkpoint 链 + Mimosa 安全门证据链",
+  "evaluator": "verifier-B4",
+  "author": "coder+main",
+  "independence": "验证人 ≠ 作者；R1 哈希、checkpoint 链（链接+内容哈希公式）、seal 哈希、测试全量与三 spec 单独复跑、真机 status/auto 均为本验证人亲跑",
+  "evaluatedAt": "2026-11-18T19:20:00+08:00",
+  "dimensions": [
+    {
+      "name": "正确性",
+      "max": 25,
+      "score": 25,
+      "evidence": [
+        "亲跑 tsc --noEmit exit 0；pnpm test exit 0 = 31 文件 665/665 PASS（跑后 git checkout -- lib/ 还原构建 churn，工作树干净）",
+        "单 spec 复跑全绿：reanchor 11/11、auto 24/24、preadapt 26/26（含 MONEY TEST/超时两臂/mutex 两臂/未知选项 RC=2）",
+        "R1 锚哈希独立复算：d951ebf 与 HEAD 均为 8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9（chars=14889/bytes=14926），与 README 钉死值精确一致",
+        "真机只读实测：status exit 0 且 fuse.integrity='0'（states=101100011/version=1/stateCount=9）；auto 无 --yes exit 0=would-patch 未执行"
+      ]
+    },
+    {
+      "name": "完整性",
+      "max": 20,
+      "score": 20,
+      "evidence": [
+        "V1/V2/V3/V5/V7/V8/V9/V10/V11/V14 及 V12/V13 编排级（mock）全部有独立实测证据；V4/V6/V12 真机动作面与 V13 真下载按 plan §5 属 B5 承接（非缺口，不扣分）",
+        "progress.md STEP-0001..0011 无缺口；task.json V1-V14 与 diff 18 文件对齐，无占位符"
+      ]
+    },
+    {
+      "name": "一致性",
+      "max": 20,
+      "score": 20,
+      "evidence": [
+        "checkpoint-history.jsonl 12 条逐行 prev_hash→hash 链接全对且内容哈希公式（sha256(JSON.stringify(entry 去 hash 字段))）逐条复现；checkpoint.json step=11 一致",
+        "review-B3.md 三段齐全（r1 96.5 打回/r2 97.5 打回/r3 终审 100 PASS）；B3.json 六维=100、evaluator=reviewer-B3≠author=coder、C-1..C-5 与 B-1..B-8 全 fixed",
+        "README R1 口径段三个数字（14926 字节/14889 字符/8e2d0b7e…）与独立复算逐一吻合；auto.log 行格式与 plan §4 契约逐字一致"
+      ]
+    },
+    {
+      "name": "可验证性",
+      "max": 15,
+      "score": 15,
+      "evidence": [
+        "13 项验证逐条附可重放命令/脚本输出（verify-B4.md 附注 A 含 R1 复算脚本口径）",
+        "Mimosa seal.json 3 个 artifact 哈希独立重算全 MATCH；findings 5 条分诊逐条核到文件/行（mock-session bundle=0、bundle mongo=0、env 两 sink 均 pass-through 非 URL 控制）",
+        "一处边界口径差异（R1 切片末行换行含/不含）已如实记录两种结果并定谳钉死口径，无未复现声称"
+      ]
+    },
+    {
+      "name": "安全回滚",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "真机零副作用实测：无 .zctx-patch.json、无 patcher/anchors/ 目录、app.asar mtime 不变（Nov 12）、backups=[]；写入面仅 auto.log 追加 3 行（plan 允许面）",
+        "lib/ 构建 churn 按 Z3 纪律 git checkout -- lib/ 还原；全程未触碰 del/ 与业务代码",
+        "全 diff 无请求体改写面（两处 GET 仅 cache-control 头，无 body/POST）；fail-closed 真机现场成立（feed 响应响亮拒收→WARN→本地判定自足 exit 0）"
+      ]
+    },
+    {
+      "name": "可维护性",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "verify-B4.md 逐项三值+影响+B5 承接清单结构化落盘；观察项（真 feed nightly.yml 现形态不被严格解析器接受）显式移交 B5，非静默",
+        "评分/证据路径可追溯；R1 口径注记使后续波次可直接重放"
+      ]
+    }
+  ],
+  "total": 100,
+  "gate": 98,
+  "hardBlockCheck": {
+    "forgeryEvidence": false,
+    "securityViolation": false,
+    "correctnessBelow23": false,
+    "safetyRollbackBelow9": false,
+    "testFailureOrP0P1": false,
+    "openLegacyUnrecorded": false,
+    "delUnauthorizedChange": false
+  },
+  "verdict": "PASS（B4 终验通过，放行 B5 真机 OPS：合并回主树 → 备份→patch→status 5/5→RESTORE.md→install-task→schtasks 佐证）",
+  "findings": {
+    "blockers": [],
+    "refuted": [],
+    "unverifiableBelongsB5": [
+      "V4 真机 schtasks install/uninstall 动作面（fixture 级 9 臂单测已锁定）",
+      "V6 真机 patch 5/5 + SHA256SUMS/RESTORE.md 口径（B5 验收时定）",
+      "V12 真机 check-official 完整读数（pending/灰度百分比/本机灰度判定）",
+      "V13 真下载 ~300MB + 真 7z 双层提取"
+    ],
+    "observations": [
+      "OBS-B4-1: 真机 auto 实测中真实 feed nightly.yml 响应被严格 update-yaml 解析器响亮拒收（feed-unreachable WARN→本地判定自足 exit 0，fail-closed 行为正确）；B5 做 V12 真机读数时需核对该 feed 形态或按 fail-closed 记账。disposition: not_applicable（本块非阻断，移交 B5 参考）"
+    ],
+    "verificationMatrix": "13 项：CONFIRMED 11（V5/V7/V9-11/V3+V14 编排/V12+V13 编排级/V1/V2 单测面/V8/checkpoint 链/评审证据链/Mimosa 分诊/R1 全 diff）+ UNVERIFIABLE(属 B5) 1 项（V12/V13 真机面，plan §5 定义承接）+ REFUTED 0"
+  },
+  "artifactsVerified": [
+    "patcher/zctx-patch.mjs（R1 切片双 ref 复算；diff fetch 上下文抽查）",
+    "tests/patcher-{reanchor,auto,preadapt,fuse}.spec.ts（单跑+全量）",
+    "tasks/ZCTX-PATCH-AUTO/{checkpoint-history.jsonl,checkpoint.json,progress.md}",
+    "tasks/ZCTX-PATCH-AUTO/{handoffs/review-B3.md,scorecards/B3.json}",
+    "C:/Users/ZS/.mimosa/security-scans/project-0bdeced2d5e7f2d35b85a604/scan-2026-11-18T18-29-18.521Z-1b34e1d440a9/{coverage,findings,seal,scan-manifest}.json",
+    "H:/AiAgent/DeepSeekHarness（只读 status + auto 无 --yes + 副作用零残留复核）",
+    "%LOCALAPPDATA%/zctx-patch/auto.log（14→17 行，契约格式）"
+  ],
+  "report": "tasks/ZCTX-PATCH-AUTO/handoffs/verify-B4.md",
+  "note": "score-gate.ps1 缺位沿用 STEP-0009a 台账裁定（人工 JSON 校验替代）；真机日志面写入仅为 auto 无 --yes 巡检的 3 行追加，属 plan §4 允许面"
+}

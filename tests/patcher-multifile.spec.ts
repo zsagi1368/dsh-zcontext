@@ -261,6 +261,9 @@ describe('patchAsar: the five-file base-context set (P6-B)', () => {
     const stepNames = result.steps.map((step) => `${step.name}:${step.status}`)
     expect(stepNames).toEqual([
       'app-running gate:ok',
+      // The fixture layout has no desktop exe → the fuse gate skips honestly
+      // (no runtime to enforce asar integrity; ZCTX-PATCH-AUTO D1).
+      'fuse integrity gate:skip',
       'version gate:ok',
       'anchor hash gate:ok',
       'anchor patch:ok',

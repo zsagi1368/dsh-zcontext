@@ -1,0 +1,47 @@
+{
+  "schema": "task/v1",
+  "id": "ZCTX-PATCH-AUTO",
+  "title": "zctx 补丁版彻底开发：自愈三件套 + 官方升级快速适配架构（reanchor+锚集数据外置）+ 真机留守",
+  "type": "DEV",
+  "owner": "main",
+  "depends": [],
+  "priority": "high",
+  "budget": {
+    "max_minutes": 300,
+    "max_agents": 4,
+    "max_rework_rounds": 2
+  },
+  "base_sha": "329ee61",
+  "branch": "feat/ZCTX-PATCH-AUTO",
+  "worktree": "worktrees/ZCTX-PATCH-AUTO",
+  "acceptance": [
+    "V1 status 输出 fuse 字段，真机 rc.3 integrity='0'",
+    "V2 integrity='1' 或 fuse 格式异常时 patch 拒绝（合成 exe 单测）",
+    "V3 auto 六态机逐态符合判定表（单测）",
+    "V4 install-task/uninstall-task 真机 schtasks /Query 可见/不可见",
+    "V5 tsc→build→vitest 全绿零回归（含 patcher 三既有 spec）",
+    "V6 真机 patch 后 status=patched 5/5 + 备份 SHA256SUMS 在盘",
+    "V7 R1 红线不回归（零请求体改写）",
+    "V8 auto.log 落盘且行格式符合契约",
+    "V9 锚集数据外置：patcher/anchors/<version>.json 可被加载并选中，未知版本仍拒绝",
+    "V10 reanchor 对模拟漂移 fixture 自动产出候选锚集，端到端 reanchor→patch→verify 零人工编辑",
+    "V11 reanchor 对 patched/坏输入拒收（fail-closed）",
+    "V12 check-official 读真机 app-update.yml→nightly.yml feed→报告 pending 版本/灰度百分比/本机灰度判定（RES-PATCH-DEEPEN DR-1/DR-2）",
+    "V13 preadapt 管线：下载→sha512 校验→7z 双层提取→fuse 前置检查（对提取件 exe）→reanchor→对提取件模拟 patch 5/5→--accept 落盘（编排级单测+真机演练）",
+    "V14 auto 联动：pending 检测进 auto 日志；--yes 下 pending+无锚集时触发 preadapt"
+  ],
+  "artifacts": [
+    "patcher/zctx-patch.mjs",
+    "patcher/README.md",
+    "tests/patcher*.spec.ts",
+    "tasks/ZCTX-PATCH-AUTO/*"
+  ],
+  "constraints": [
+    "R1 红线：补丁只加观测面与透传字段，零请求体改写",
+    "fail-closed：一切门拒绝要响亮，绝不静默硬干",
+    "坑册检查项（开工查命中，写卡面）：Z26 asar path.sep+缓存陈旧头/Z27 多目标 splice offset 平移/Z32 备份先在盘+SHA256SUMS/Z29 auto 重打必须全量 status 复核/Z19+Z15 先 build+tsc/Z17 产物断言先剥注释/Z23 禁 heredoc/Z28 auto 日志必须文件 sink/A68 绝对路径/条目32 .mjs 代码用 Edit/Write 工具",
+    "代码改动全部在 worktrees/ZCTX-PATCH-AUTO 内；主树只由主线合并",
+    "真机 OPS 块（B5）在合并后于主树执行"
+  ],
+  "status": "open"
+}
