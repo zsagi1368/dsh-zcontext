@@ -63,6 +63,8 @@ node patcher/zctx-patch.mjs auto          [--app-dir <dir>] [--dsh-home <dir>] [
 node patcher/zctx-patch.mjs install-task  [--script <path>] [--log-file <path>]
 node patcher/zctx-patch.mjs uninstall-task
 node patcher/zctx-patch.mjs reanchor      --app-dir <新构建目录> [--out <path>] [--accept]
+node patcher/zctx-patch.mjs check-official [--app-dir <dir>] [--log-file <path>]
+node patcher/zctx-patch.mjs preadapt      [--app-dir <dir>] [--yes] [--accept] [--seven-zip <path>] [--keep-workdir] [--log-file <path>]
 ```
 
 - app 目录定位：`--app-dir` 优先 → 注册表（HKCU Uninstall 键 InstallLocation）→
@@ -188,6 +190,84 @@ count==1；错数据在动手前必被拒。加载器逐字段校验（元数据
 回退在码 map**；未知版本照旧拒绝。锚始终用精确串（count=1 实证），不用正则锚。
 端到端零人工编辑链路由 `tests/patcher-reanchor.spec.ts` 的 money test 锁定。
 
+## 预适配官方升级（check-official / preadapt / auto 联动，v0.3-preadapt）
+
+依据 RES-PATCH-DEEPEN（DR-1 feed 定谳 / DR-2 管线设计 / DR-5 fuse 前置）。
+真机安装全程只读；全部写动作只落在 `%LOCALAPPDATA%\zctx-patch\` 下。
+
+### check-official（读侧，零下载）
+
+读 `<install>\resources\app-update.yml`（provider/url/channel/updaterCacheDirName，
+provider 非 generic 响亮拒收）→ **只发一个 GET**：`<url>/<channel>.yml`（nightly →
+nightly.yml；latest.yml 返回 SPA HTML 是预期且永不被当探针——DR1-3）→ 解析
+version/files[].url/size/sha512/stagingPercentage/releaseDate → 与已装版本比对
+（prerelease 感知比较）→ 输出 JSON：
+
+- `updateState: pending | up-to-date`；`feedVersion / installedVersion / feedSha512 / feedSize / installerUrl / releaseDate`；
+- **灰度判定**：`machinePercentage = UUID.parse(.updaterId).readUInt32BE(12) / 0xffffffff`
+  （electron-updater isStagingMatch 逐字复刻，DR1-5；置信中高，内置版本未读出留
+  [U1]——rc.3 真机实测 0.4347，官方 stagingPercentage=30 → 30% 不含本机）；
+  `.updaterId` 缺席/坏 UUID → stagedIn unknown（WARN，不阻断）；
+- **第二信号**：`<LOCALAPPDATA>\<updaterCacheDirName>\pending\update-info.json` 读
+  "官方下载器已下载待装"的版本（DR1-11），严格只读；
+- 网络失败 / 非 200 / HTML fallback / 字段缺失 / provider 不认识 → **响亮拒收
+  exit 1**（绝不静默"已最新"）。
+
+### preadapt（写侧候选管线，--yes 才动）
+
+`preadapt [--app-dir <真机>] [--yes] [--accept] [--seven-zip <path>] [--keep-workdir]`：
+
+1. check-official → 无 pending = 已最新，exit 0；
+2. **天然幂等**：`anchors/<feedVersion>.json` 已在 = 此前已成功预适配，约 300MB
+   下载不重复（同版本数据文件损坏 → 响亮拒收，先人工删除再重跑）；
+3. **--yes 门**：下载/写盘全部在门后；无 `--yes` 只打印 would-preadapt（体量
+   显式报，如 "~285.7 MB"）；
+4. **下载**：GET 安装包 → size + sha512（feed 为权威，与 electron-updater 同信任根）
+   双校验 → 不匹配 = **删残留 + 响亮 exit 1**；
+5. **7z 双层提取**：7z 定位顺序 = 显式 `--seven-zip` → 标准安装位 → PATH 查找
+   （命中即标 **VOLATILE**——如 TRAE 捆绑位，随宿主更新/卸载可能消失）；全部缺席
+   → 响亮拒绝 + 安装指引；`7z x 安装包` → `$PLUGINSDIR/app-64.7z`（或 .zip，U2
+   兼容两态）→ `7z x` → 完整 app 树；断言 asar+exe 在场且版本 == feedVersion；
+6. **fuse 前置检查（DR5-4）**：对提取树 exe 实读 fuse 线——integrity 必须 '0'
+   （'1' 或不可读或 'r' 一律拒收候选，故障半径缩到流水线；人工路径的 warn-through
+   不受影响）；
+7. **reanchor**（D6 全门）对提取树 → 5/5 ALIVE 才出候选；DRIFTED → 候选不产出，
+   交人工分析材料；
+8. **模拟全量 patch**：候选注入对提取树跑完整 patch 门链 → 全量 status 复核
+   5/5 + marker（Z29 级证明，全程不碰 H:\ 与已装目录）→ 不过 = 候选作废响亮报告；
+9. **--accept**：全绿才允许落盘（landAnchorSet：同一校验器 + 永不覆盖 + 原子写 +
+   stdout 打印 SHA-256）；无 `--accept` 到 candidate-ready 为止；
+10. **workdir**：成功默认清理（`--keep-workdir` 保留人工复核）；失败保留诊断残留。
+
+**只发两个 GET**（feed yml + 安装包），禁其它外联。~300MB 每版本一次性质——
+anchors 文件在即幂等跳过。
+
+### auto 联动（D8c）
+
+auto tick（CLI 默认启用 feed 面；模块层 feedFace 默认关，单测保持离线）新增判定：
+feed pending **且** 该版本无锚集 → 无 `--yes` 记 `would-preadapt`（体量显式报）；
+有 `--yes` 则自动触发 preadapt 全管线（`state=preadapting…`），成功后本 tick 继续
+本地判定；feed 不可达 = 响亮 WARN 行，本地判定照常继续（离线自愈不依赖网络）。
+feed pending 且锚集已在 → `feed-pending` 信息行（更新落地即自动重打）。
+
+### DR-6 桌面验收 SOP（patch 落地后的活性确认）
+
+打补丁只保证磁盘面；链条活性按 RES-PATCH-DEEPEN §6 逐级确认（硬指标）：
+
+1. DeepSeek Harness 已退出再打补丁（app 运行门会拒收）；
+2. 启动应用，正常登录进入主界面（补丁后首启动即 fuse/完整性事实检验）；
+3. 会话内执行 `/zctx status`，确认 **Patch bridge** 段：`patch marker: present`
+   （5 of 5）、patch set 标识对应、`wireOptions: armed`；
+4. 发起一轮**真实模型对话**（走官方 PiAiAdapter streamSimple 路径——桥只覆盖
+   llm-pi-ai 路由，别的新路由不在此观测面，属预期边界非故障）；
+5. 再 `/zctx status`：`guard-observe records` 行 total 增长、providers 列出实际
+   provider、wire 快照哈希行出现（每 attempt 一条）；total 停 0 时先查
+   `patch.guardObserveEvents` 开关（默认 true）；
+6. **软指标**：cache 三态（estimated → measured/semi）升级可观察但不作为补丁生效
+   判据——measured 的必要条件是官方会话日志自带 usage（[DR6-4]，补丁提升的是
+   semi 与归因完整性，上游数据面的功劳/黑锅不计入补丁）；
+7. 留证：`/zctx status` 全文 + patcher `status` 输出（真机只读态 5/5 判定）。
+
 ## 风险与限制（如实）
 
 - **补丁存活期 = 官方更新覆盖**：electron-updater 全量替换安装目录（nightly 实测
@@ -232,7 +312,10 @@ count==1；错数据在动手前必被拒。加载器逐字段校验（元数据
   计划任务形态在 `tests/patcher-auto.spec.ts`（仅进程探针 mock，patch/status 真跑；
   schtasks 仅 fixture 级形态断言）；快速适配架构（reanchor 分类/候选/accept + 数据
   锚集加载器/校验器 + reanchor→patch→status 零人工编辑 money test）在
-  `tests/patcher-reanchor.spec.ts`。
+  `tests/patcher-reanchor.spec.ts`；预适配链路（真实本地 HTTP mock feed + 注入式
+  7z 提取器编排级验证：check-official 字段面/灰度数学真机 UUID DR1-7 锁定/sha512
+  不匹配拒收/fuse 前置拒绝/模拟 patch 拒收→不落盘/auto 联动臂）在
+  `tests/patcher-preadapt.spec.ts`（真 feed 下载与真 7z 提取在 B5 演练，[U2]/[U3]）。
 - **真机 patch/restore/计划任务注册不由本仓执行**（W5-A6-INSTALL 伞下 post-merge；
   执行权在用户；B5 真机 OPS 在合并后主树执行，计划任务用 `--script` 指主树路径）。
 - 运行时依赖 `@electron/asar`（仓内 devDependency；独立运行请

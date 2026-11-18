@@ -333,6 +333,11 @@ export function runAuto(args: {
   statusFn?: (args: AutoHookArgs) => Promise<StatusAsarResult>
   patchFn?: (args: AutoHookArgs) => Promise<PatchAsarResult>
   logFile?: string
+  /** D8c: enable the official feed face (proactive preadapt). Module default OFF; the CLI turns it ON. */
+  feedFace?: boolean
+  checkOfficialFn?: (args: { appDir: string; logFile?: string; quiet?: boolean }) => Promise<CheckOfficialResult>
+  preadaptFn?: (args: { appDir: string; yes: boolean; accept: boolean; logFile?: string; anchorsDir?: string }) => Promise<PreadaptResult>
+  anchorsDir?: string
 }): Promise<AutoRunResult>
 
 // -- install-task / uninstall-task — the Windows scheduled task --------------
@@ -494,3 +499,125 @@ export function reanchorAnchorSet(args: {
   accept?: boolean
   versions?: Record<string, ZctxPatchEntry>
 }): ReanchorResult
+
+// -- check-official (D8a) ----------------------------------------------------
+
+/** One pipeline contract line: `[ISO8601] [<tag>] state=<X> detail=<...>`. */
+export function pipelineLogLine(tag: string, state: string, detail: string): string
+
+/** Minimal YAML-subset parser for the two electron-updater manifests (loud on any foreign shape). */
+export function parseUpdateYaml(text: string): {
+  ok: boolean
+  reason?: string
+  doc?: Record<string, unknown> & { files?: readonly (Record<string, unknown> & { url?: string; size?: number; sha512?: string })[] }
+}
+
+/** electron-updater isStagingMatch replica (DR1-5; confidence medium-high, [U1] reserved). */
+export function machineStagingPercentage(updaterId: string): { ok: boolean; percentage?: number; reason?: string }
+
+/** `deepseek-harness-<version>-win-x64.exe` → version; undefined otherwise. */
+export function installerVersionFromFileName(fileName: string | undefined): string | undefined
+
+/** Prerelease-aware compare for the 0.2.2[-rc.N] shape (incomparable = raw-string fallback). */
+export function compareVersions(a: string, b: string): { order: -1 | 0 | 1; comparable: boolean }
+
+export interface CheckOfficialResult {
+  readonly ok: boolean
+  readonly state: string
+  readonly exitCode: 0 | 1
+  readonly detail: string
+  readonly logFile: string
+  readonly lines?: readonly string[]
+  readonly sinkError?: string
+  readonly updateState?: 'up-to-date' | 'pending'
+  readonly comparable?: boolean
+  readonly feedVersion?: string
+  readonly installedVersion?: string
+  readonly feedSha512?: string
+  readonly feedSize?: number
+  readonly feedUrl?: string
+  readonly installerUrl?: string
+  readonly channel?: string
+  readonly releaseDate?: string
+  readonly stagingPercentage?: number | null
+  readonly machinePercentage?: number
+  readonly stagedIn?: boolean
+  readonly updaterIdPath?: string
+  readonly pendingInstaller?: {
+    readonly path: string
+    readonly fileName?: string
+    readonly version?: string
+    readonly sha512?: string
+  }
+  readonly appDir?: string
+}
+
+/**
+ * Read the official update feed and compare against the local install. ONE
+ * outbound GET (the channel yml); NEVER downloads the installer; every
+ * anomaly refuses loudly.
+ */
+export function checkOfficial(args?: {
+  appDir?: string
+  logFile?: string
+  quiet?: boolean
+  fetchImpl?: typeof fetch
+  updaterIdPath?: string
+  localAppData?: string
+}): Promise<CheckOfficialResult>
+
+// -- preadapt (D8b) ----------------------------------------------------------
+
+/** Default work root: %LOCALAPPDATA%\zctx-patch\preadapt\. */
+export function defaultPreadaptWorkRoot(): string
+
+export function locateSevenZip(args?: {
+  explicitPath?: string
+  platform?: NodeJS.Platform
+  standardPaths?: readonly string[]
+  whereImpl?: (name: string) => string | undefined
+}): {
+  ok: boolean
+  path?: string
+  source?: 'explicit' | 'standard-install' | 'path-lookup'
+  volatile?: boolean
+  reason?: string
+  guidance?: string
+}
+
+export interface PreadaptResult {
+  readonly ok: boolean
+  readonly state: string
+  readonly exitCode: 0 | 1
+  readonly detail: string
+  readonly logFile: string
+  readonly lines?: readonly string[]
+  readonly sinkError?: string
+  readonly check?: CheckOfficialResult
+  readonly candidate?: ZctxPatchSetEntry
+  readonly writtenTo?: string
+  readonly writtenSha256?: string
+}
+
+/**
+ * Pre-adaptation pipeline for the PENDING official build: sha512-verified
+ * download → 7z double extraction → fuse pre-check (integrity must be '0')
+ * → reanchor on the extracted tree → simulated FULL patch + status 5/5 →
+ * --accept lands the candidate. The real install is never touched.
+ */
+export function preadaptAnchorSet(args?: {
+  appDir?: string
+  yes?: boolean
+  accept?: boolean
+  keepWorkdir?: boolean
+  anchorsDir?: string
+  workRoot?: string
+  logFile?: string
+  quiet?: boolean
+  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
+  sevenZipPath?: string
+  locate7zImpl?: typeof locateSevenZip
+  run7zImpl?: (args: { installerPath: string; workDir: string; sevenZip: { path: string } }) => Promise<{ appTree: string }>
+  downloadImpl?: (url: string, destPath: string, expectedSize?: number | null) => Promise<void>
+  checkOfficialImpl?: () => Promise<CheckOfficialResult>
+}): Promise<PreadaptResult>
