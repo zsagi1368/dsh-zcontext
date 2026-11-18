@@ -1,0 +1,18 @@
+{
+  "schema": "closure/v1",
+  "task": "ZCTX-PATCH-AUTO",
+  "items": [
+    { "id": "C-001", "source": "review-B3 r1 96.5 打回（B-1..B-7）", "type": "blocker", "disposition": "fixed", "evidence": "返工 r1（f6e993a/295c5ae）六项修齐，r2 复核全 FIXED（review-B3.md §r2）", "owner": "coder", "status": "verified", "phase": "block" },
+    { "id": "C-002", "source": "review-B3 r2 97.5 打回（C-1..C-5）", "type": "blocker", "disposition": "fixed", "evidence": "返工 r2（9ac2b99/464ec5d）五行级修齐，r3 终审 100/100 PASS 逐项 FIXED（review-B3.md §终审）", "owner": "coder", "status": "verified", "phase": "block" },
+    { "id": "C-003", "source": "B-8 治理项（scorecards 台账/progress 笔误/score-gate.ps1 缺位）", "type": "process", "disposition": "fixed", "evidence": "e0959ae STEP-0009a（灰度笔误更正 43.47%≥30% 不含本机、评分表合并裁定、机器校验改人工 JSON 校验记账）", "owner": "main", "status": "verified", "phase": "block" },
+    { "id": "C-004", "source": "B5 真机预检 P1：严格解析器拒收真实 nightly.yml（>- 块标量）", "type": "blocker", "disposition": "fixed", "evidence": "D8e 6556789（块标量支持+knownTopKeys 白名单+字段形态门，fixture=真实 feed 钉 SHA bd30dc2d…，671 测试）；真机 check-official 实测 exit 0 pending rc.5", "owner": "coder", "status": "verified", "phase": "block" },
+    { "id": "C-005", "source": "[U2] 真 300MB 下载 / [U3] 真 7z 提取", "type": "open-question", "disposition": "fixed", "evidence": "B5 演练关闭：真 feed 下载 299,593,552B（=feed size 精确）+sha512 校验+真 7z 双层提取+模拟 patch 5/5（auto.log 与 preadapt JSON 全链留痕）", "owner": "main", "status": "verified", "phase": "block" },
+    { "id": "C-006", "source": "[U1] isStagingMatch 算法置信（中高）", "type": "open-question", "disposition": "user_approved_deferred", "evidence": "诚实标注 [U1] 保留于代码注释/README/日志行（DR1-5 口径）；用户 standing order 全自主推进下按'标注+监控'处置，触发条件=官方 staging 行为与复算不符时人工复核", "owner": "main", "status": "verified", "phase": "post-merge" },
+    { "id": "C-007", "source": "评审人零分观察：statusAsar note 措辞叠词", "type": "suggestion", "disposition": "not_applicable", "evidence": "纯文案冗余零行为面，评审人自裁 disposition=not_applicable（review-B3.md 终审节）", "owner": "main", "status": "verified", "phase": "block" },
+    { "id": "C-008", "source": "BENCH-L7 nudge 措辞/更强模型自发采用对照（v0.4 候选）", "type": "suggestion", "disposition": "not_applicable", "evidence": "非本任务范围（autoFold 已解机制面）；v0.4 研究杠杆保留（BENCH §8 原判）", "owner": "main", "status": "verified", "phase": "post-merge" },
+    { "id": "C-009", "source": "return-cap 二期（固定开销治理，DR-4 备忘）", "type": "suggestion", "disposition": "not_applicable", "evidence": "与 R1 红线冲突分析已入 RES-PATCH-DEEPEN.md DR-4；v0.4 产品门后决策，本任务不动", "owner": "main", "status": "verified", "phase": "post-merge" },
+    { "id": "C-010", "source": "fuse 翻转预案（DR-5）", "type": "suggestion", "disposition": "not_applicable", "evidence": "定性=无旁路、auto CRITICAL 监控即正确应对；官方从未翻转 fuse（P1.5 事实），patch 前置门已实装", "owner": "main", "status": "verified", "phase": "post-merge" },
+    { "id": "C-011", "source": "插件 pin a4ae662 轮转评估", "type": "process", "disposition": "not_applicable", "evidence": "本波零插件 src 变更（只动 patcher/tests/README），a4ae662 与 HEAD 无功能差，不轮转", "owner": "main", "status": "verified", "phase": "block" },
+    { "id": "C-012", "source": "RSI 收口（新坑固化）", "type": "process", "disposition": "fixed", "evidence": "Z33 入 ZDSH-LESSONS.md（解析器夹具形态≠线上形态）+ A69 入 GLOBAL-LESSONS.md（Edit-Read 循环，根因待证）+ INDEX 捕获行；改前备份 del/ 双处", "owner": "main", "status": "verified", "phase": "block" }
+  ]
+}
