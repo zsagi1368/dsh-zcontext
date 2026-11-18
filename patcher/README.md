@@ -74,23 +74,28 @@ node patcher/zctx-patch.mjs preadapt      [--app-dir <dir>] [--yes] [--accept] [
 
 1. **app 运行中拒收**（tasklist 探到 `DeepSeek Harness.exe` 或 `~/.dsh/profiles/desktop/lock`
    存在）→ 拒收；补丁器永不删除 app 的锁文件。
-2. **版本门**：asar 根 package.json ∈ 支持集（现 `0.2.2-rc.3`），否则拒收。
-3. **逐文件面核**：五文件逐一判定 pristine / patched-exact（按 op 清单重建逐字节复算）/
+2. **fuse 完整性门**（VERIFY-P #11）：读 `<appDir>\DeepSeek Harness.exe` 的 fuse 线——
+   `EnableEmbeddedAsarIntegrityValidation='1'` 或 fuse 面不可读（sentinel 缺席/格式异常）
+   → 拒收（打过补丁的 asar 必被运行时拒载）；`'r'`（removed=不强制）警告放行；
+   无 exe 的非标布局（fixture/测试装置）诚实 skip。
+3. **版本门**：asar 根 package.json ∈ 支持集（现 `0.2.2-rc.3`，或数据锚集
+   `patcher/anchors/<version>.json`），否则拒收。
+4. **逐文件面核**：五文件逐一判定 pristine / patched-exact（按 op 清单重建逐字节复算）/
    drifted——**全部 pristine 才继续；任一 drifted 拒收整个集合且不动盘**；混合面
    （部分 pristine + 部分 patched-exact）响亮拒收并附逐文件面。
-4. **锚哈希门**：目标文件 SHA-256 必须命中支持集锚——官方更新 = 锚漂移 = 拒收 +
+5. **锚哈希门**：目标文件 SHA-256 必须命中支持集锚——官方更新 = 锚漂移 = 拒收 +
    报告（绝不盲打；更新锚集后再支持新版本）。
-5. **锚串唯一性断言**：每个锚串在目标文件中出现次数必须恰为 1。
-6. **先备份**：app 目录 sibling `zctx-backup/<时间戳>/`（安装目录**外**，官方更新/
+6. **锚串唯一性断言**：每个锚串在目标文件中出现次数必须恰为 1。
+7. **先备份**：app 目录 sibling `zctx-backup/<时间戳>/`（安装目录**外**，官方更新/
    卸载不会顺手清掉），含 RESTORE.md 与全量 SHA-256；**备份哈希校验通过才动原件**。
-7. **一次原子写入**：多目标 splice——header JSON 与 payload 除五个目标文件外逐字节
+8. **一次原子写入**：多目标 splice——header JSON 与 payload 除五个目标文件外逐字节
    不变（unpacked 原生件标记不动；无整包重打包、无 unpack-pattern 风险）；
    **不存在部分多文件状态**——要么整集在场，要么整集不在。
-8. **后校验**：官方 asar API 重读每个目标 = 期望补丁字节；邻近见证文件原始 integrity
+9. **后校验**：官方 asar API 重读每个目标 = 期望补丁字节；邻近见证文件原始 integrity
    哈希逐一相符；体积记账。
-9. **写 marker** `<appDir>/.zctx-patch.json`：v0.2 marker 携带**逐文件 `files[]` 哈希**
-   与 patchSet 版本（`zctx-v0.3-base-1`），status 据此区分已应用集合。
-10. **幂等**：已打补丁重跑 = skip（exit 0，无新备份）；marker 缺失但补丁在场 = 崩溃窗
+10. **写 marker** `<appDir>/.zctx-patch.json`：v0.2 marker 携带**逐文件 `files[]` 哈希**
+    与 patchSet 版本（`zctx-v0.3-base-1`），status 据此区分已应用集合。
+11. **幂等**：已打补丁重跑 = skip（exit 0，无新备份）；marker 缺失但补丁在场 = 崩溃窗
     口，从可推导事实回填 marker（asar 不动）。
 
 ### restore（回滚）
@@ -194,6 +199,12 @@ count==1；错数据在动手前必被拒。加载器逐字段校验（元数据
 
 依据 RES-PATCH-DEEPEN（DR-1 feed 定谳 / DR-2 管线设计 / DR-5 fuse 前置）。
 真机安装全程只读；全部写动作只落在 `%LOCALAPPDATA%\zctx-patch\` 下。
+
+**前提：真机 app 处于关闭态**（B3 评审 B-3）。模拟 patch 作用于**提取树**——
+其 app-running 门默认探针不看真机进程（提取树不是运行中的安装）——但产出候选的
+最终消费者是 patch/auto 对**真机**的动作，那两处的 app-running 门要求真机关闭；
+且补丁面只在关闭态合法落地。规范：preadapt 前确认 app 已退出；auto 联动臂天然
+满足此前提（其 app-running 臂先于 feed 面，运行中直接跳过本轮，不会走到 preadapt）。
 
 ### check-official（读侧，零下载）
 
@@ -316,6 +327,25 @@ feed pending 且锚集已在 → `feed-pending` 信息行（更新落地即自�
   7z 提取器编排级验证：check-official 字段面/灰度数学真机 UUID DR1-7 锁定/sha512
   不匹配拒收/fuse 前置拒绝/模拟 patch 拒收→不落盘/auto 联动臂）在
   `tests/patcher-preadapt.spec.ts`（真 feed 下载与真 7z 提取在 B5 演练，[U2]/[U3]）。
+
+### R1 守卫口径（锚集数据段哈希——写死，供后续波次直接引用）
+
+命令级口径（唯一权威，B3 评审 B-7 定谳）：
+
+```
+git show <ref>:patcher/zctx-patch.mjs          # 必须从 git 对象读——工作区文件受 autocrlf 影响会变形
+切片：自 "export const SUPPORTED = {" 行（含前缀）起，
+      至其后第一个段分隔注释行 "// ----------"（不含该分隔行）止
+     = 含前缀的纯数据体，不 trim、不改行尾
+SHA-256 = 对上述字节体现算
+```
+
+实测锚点：**d951ebf（B1 基线）与 HEAD（D8 后）同值
+`8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9`**（两侧长度
+14889 B）。评审给的三口径变体（含前缀/纯数据体/trim，f51c2a76…/3aa6ad7e…/
+beec2dc0…）中，本仓采用并写死的是「**含 `export const SUPPORTED = {` 前缀、不含
+尾部分隔线、不 trim**」变体。任何波次改动锚串/replacement/pristineSha256/
+presenceMarker → 此哈希必变 → 即 R1 违规信号，须停下人工裁决。
 - **真机 patch/restore/计划任务注册不由本仓执行**（W5-A6-INSTALL 伞下 post-merge；
   执行权在用户；B5 真机 OPS 在合并后主树执行，计划任务用 `--script` 指主树路径）。
 - 运行时依赖 `@electron/asar`（仓内 devDependency；独立运行请
