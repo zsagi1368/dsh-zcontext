@@ -347,12 +347,16 @@ describe('runAuto: the judgment table (plan §4 contract)', () => {
   it('drifted (official update moved one bundle): loud per-file face, exit 1, NEVER patched', async () => {
     const fixture = await createAutoFixture()
     spliceFace(fixture, 0, FIX_LLM_PI_AI.replace('return iterator', 'return iterator // foreign edit'))
+    // The REAL invariant: the drifted face is frozen at refusal time — auto
+    // must not modify the archive any further (B3 review B-5 replaced a
+    // self-equality no-op with this pinned comparison).
+    const refusedSha = sha256(readFileSync(fixture.asarPath))
     const result = await runAuto({ appDir: fixture.appDir, dshHome: fixture.dshHome, probeAppRunning: appClosed, yes: true, logFile: join(fixture.work, 'auto.log'), ...autoHooks(fixture) })
     expect(result.exitCode).toBe(1)
     expect(result.state).toBe('drifted')
     expect(result.detail).toContain('NEVER blind-patching')
     expect(result.detail).toContain('dsh-llm-pi-ai/lib/index.js: drifted')
-    expect(sha256(readFileSync(fixture.asarPath))).toBe(sha256(readFileSync(fixture.asarPath))) // sanity no-op
+    expect(sha256(readFileSync(fixture.asarPath))).toBe(refusedSha)
   })
 
   it('mixed (foreign partial writer reverts one patched bundle): exit 1', async () => {

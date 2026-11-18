@@ -29,6 +29,7 @@
  * preadapting→patched / feed-pending / feed-unreachable continue.
  */
 
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -50,6 +51,7 @@ import {
   resolveAnchorEntry,
   runAuto,
   statusAsar,
+  tryAcquireAutoLock,
   validateAnchorSetData,
 } from '../patcher/zctx-patch.mjs'
 import type { AutoHookArgs, ZctxPatchSetEntry } from '../patcher/zctx-patch.d.mts'
@@ -182,11 +184,14 @@ interface FeedRoute {
   status: number
   body: Buffer | string
   contentType?: string
+  /** Never respond (socket held open) — exercises the client-side timeouts. */
+  stall?: boolean
 }
 
 async function startFeedServer(buildRoutes: (baseUrl: string) => FeedRoute[]): Promise<{ url: string; requests: string[]; close: () => Promise<void> }> {
   const requests: string[] = []
   let routes: FeedRoute[] = []
+  const stalled: import('node:net').Socket[] = []
   const server: Server = createServer((request, response) => {
     const path = request.url ?? '/'
     requests.push(path)
@@ -194,6 +199,11 @@ async function startFeedServer(buildRoutes: (baseUrl: string) => FeedRoute[]): P
     if (route === undefined) {
       response.statusCode = 404
       response.end('not found')
+      return
+    }
+    if (route.stall === true) {
+      // Hold the socket open without responding until the test tears down.
+      if (request.socket !== undefined) stalled.push(request.socket)
       return
     }
     response.statusCode = route.status
@@ -208,7 +218,10 @@ async function startFeedServer(buildRoutes: (baseUrl: string) => FeedRoute[]): P
   return {
     url,
     requests,
-    close: () => new Promise<void>((resolvePromise) => server.close(() => resolvePromise())),
+    close: () => new Promise<void>((resolvePromise) => {
+      for (const socket of stalled) socket.destroy()
+      server.close(() => resolvePromise())
+    }),
   }
 }
 
@@ -460,6 +473,12 @@ describe('check-official: the feed read side', () => {
     expect(compareVersions('0.2.2', '0.2.2-rc.9').order).toBe(1)
     expect(compareVersions('0.2.3', '0.2.2-rc.9').order).toBe(1)
     expect(compareVersions('0.2.2-rc.3', '0.2.2-rc.3').order).toBe(0)
+    // B3 review B-1: semver rule 11.4 — a NUMERIC identifier always has
+    // LOWER precedence than an alphanumeric one; the NaN-coercion bug made
+    // this pair read backwards.
+    expect(compareVersions('1.0.0-alpha.beta', '1.0.0-alpha.1').order).toBe(1)
+    expect(compareVersions('1.0.0-alpha.1', '1.0.0-alpha.beta').order).toBe(-1)
+    expect(compareVersions('1.0.0-1.beta', '1.0.0-1.1').order).toBe(1)
     const incomparable = compareVersions('weird', '0.2.2-rc.3')
     expect(incomparable.comparable).toBe(false)
     expect(installerVersionFromFileName('deepseek-harness-0.2.2-rc.3-win-x64.exe')).toBe('0.2.2-rc.3')
@@ -471,6 +490,12 @@ describe('check-official: the feed read side', () => {
     expect(parsed.doc?.stagingPercentage).toBe(30)
     expect(parseUpdateYaml('<html>SPA</html>').ok).toBe(false)
     expect(parseUpdateYaml('a: 1\n  weird: indent\n').ok).toBe(false)
+    // The REAL app-update.yml shape: publisherName's nested list is skipped
+    // (the block value is empty → whole nested block skipped honestly).
+    const withPublisher = parseUpdateYaml('provider: generic\nurl: https://x/\nupdaterCacheDirName: c\nchannel: nightly\npublisherName:\n  - Hangzhou DeepSeek\n')
+    expect(withPublisher.ok).toBe(true)
+    expect(withPublisher.doc?.provider).toBe('generic')
+    expect(withPublisher.doc?.channel).toBe('nightly')
   })
 })
 
@@ -818,5 +843,119 @@ describe('auto linkage (D8c): pending feed × missing anchors', () => {
     })
     expect(result.exitCode).toBe(0)
     expect(result.lines.every((line) => !line.includes('feed-'))).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Bounded network + single-instance mutex + CLI faces (B3 review B-4/B-6).
+// ---------------------------------------------------------------------------
+
+const PATCHER_MJS = join(process.cwd(), 'patcher', 'zctx-patch.mjs')
+
+describe('bounded network faces (B3 review B-4): a hung feed can never wedge a tick', () => {
+  it('check-official: a stalled feed yml aborts at the timeout → loud feed-unreachable, exit 1', async () => {
+    const canned = await buildCannedTree(tempDir('zctx-preadapt-canned-'), '0.2.2-rc.5')
+    const feed = await startFeedServer((baseUrl) => [
+      { match: (path) => path.endsWith('/nightly.yml'), status: 200, body: '', stall: true },
+      { match: (path) => path.endsWith('/installer.exe'), status: 200, body: canned.installerBytes },
+    ])
+    try {
+      const { appDir } = await buildRealInstall(tempDir('zctx-preadapt-stall-'), { feedBaseUrl: feed.url, feed: { version: '0.2.2-rc.5', installerPath: 'installer.exe', installerBytes: canned.installerBytes } })
+      const result = await checkOfficial({ appDir, updaterIdPath: join(tempDir('zctx-stall-id-'), '.updaterId'), localAppData: tempDir('zctx-stall-lad-'), logFile: join(tempDir('zctx-stall-log-'), 'auto.log'), feedTimeoutMs: 300 })
+      expect(result.ok).toBe(false)
+      expect(result.exitCode).toBe(1)
+      expect(result.state).toBe('feed-unreachable')
+      expect(result.detail).toContain('aborted')
+    } finally {
+      await feed.close()
+    }
+  })
+
+  it('preadapt: a stalled installer download aborts at the timeout → loud download-failed, nothing lands', async () => {
+    const canned = await buildCannedTree(tempDir('zctx-preadapt-canned-'), '0.2.2-rc.5')
+    const feed = await startFeedServer((baseUrl) => [
+      { match: (path) => path.endsWith('/nightly.yml'), status: 200, body: feedYaml({ version: '0.2.2-rc.5', installerPath: 'installer.exe', installerBytes: canned.installerBytes }, baseUrl) },
+      { match: (path) => path.endsWith('/installer.exe'), status: 200, body: '', stall: true },
+    ])
+    const work = tempDir('zctx-preadapt-stall-dl-')
+    try {
+      const { appDir } = await buildRealInstall(work, { feedBaseUrl: feed.url, feed: { version: '0.2.2-rc.5', installerPath: 'installer.exe', installerBytes: canned.installerBytes } })
+      const result = await preadaptAnchorSet({
+        appDir,
+        yes: true,
+        accept: true,
+        anchorsDir: join(work, 'anchors'),
+        workRoot: join(work, 'preadapt-work'),
+        logFile: join(work, 'auto.log'),
+        updaterIdPath: join(work, 'updater-id', '.updaterId'),
+        localAppData: join(work, 'localappdata'),
+        run7zImpl: async ({ workDir }: { installerPath: string; workDir: string }) => ({ appTree: join(workDir, 'app') }),
+        downloadTimeoutMs: 300,
+      })
+      expect(result.ok).toBe(false)
+      expect(result.state).toBe('download-failed')
+      expect(result.detail).toContain('aborted')
+      expect(existsSync(join(work, 'anchors', '0.2.2-rc.5.json'))).toBe(false)
+    } finally {
+      await feed.close()
+    }
+  })
+})
+
+describe('auto tick mutex + CLI faces (B3 review B-4/B-6)', () => {
+  it('a FRESH lock holder skips the round politely (exit 0, audit line in the log sink)', () => {
+    const work = tempDir('zctx-mutex-')
+    const lockPath = join(work, 'auto.lock')
+    const auditLog = join(work, 'auto.log')
+    writeFileSync(lockPath, `${JSON.stringify({ owner: 12345, acquiredAt: Date.now() })}\n`)
+    const probed = spawnSync(process.execPath, [PATCHER_MJS, 'auto', '--app-dir', join(work, 'no-such-install')], {
+      encoding: 'utf8',
+      env: { ...process.env, ZCTX_AUTO_LOCK_PATH: lockPath, ZCTX_AUTO_LOG_PATH: auditLog },
+    })
+    expect(probed.status).toBe(0)
+    expect(probed.stdout).toContain('state=already-running')
+    expect(readFileSync(auditLog, 'utf8')).toContain('state=already-running')
+    // The held lock survives the skip (the live tick keeps it).
+    expect(existsSync(lockPath)).toBe(true)
+  })
+
+  it('a STALE lock holder (lease expired) is taken over once and the tick proceeds', () => {
+    const work = tempDir('zctx-mutex-')
+    const lockPath = join(work, 'auto.lock')
+    const auditLog = join(work, 'auto.log')
+    writeFileSync(lockPath, `${JSON.stringify({ owner: 12345, acquiredAt: Date.now() - 31 * 60 * 1000 })}\n`)
+    const probed = spawnSync(process.execPath, [PATCHER_MJS, 'auto', '--app-dir', join(work, 'no-such-install')], {
+      encoding: 'utf8',
+      env: { ...process.env, ZCTX_AUTO_LOCK_PATH: lockPath, ZCTX_AUTO_LOG_PATH: auditLog },
+    })
+    expect(probed.status).toBe(1)
+    expect(probed.stdout).toContain('state=mutex-takeover')
+    // The tick proceeded past the mutex into the local judgment.
+    expect(probed.stdout).toContain('state=missing-asar')
+    // The stale lock was replaced by THIS tick's own lock, then released.
+    expect(existsSync(lockPath)).toBe(false)
+  })
+
+  it('unit faces: a fresh in-process acquire refuses; a stale one takes over', () => {
+    const work = tempDir('zctx-mutex-unit-')
+    const lockPath = join(work, 'auto.lock')
+    const fresh = tryAcquireAutoLock(lockPath, 30 * 60 * 1000, 1_000_000)
+    expect(fresh.ok).toBe(true)
+    const blocked = tryAcquireAutoLock(lockPath, 30 * 60 * 1000, 1_100_000)
+    expect(blocked.ok).toBe(false)
+    expect(blocked.fresh).toBe(true)
+    const taken = tryAcquireAutoLock(lockPath, 30 * 60 * 1000, 1_000_000 + 31 * 60 * 1000)
+    expect(taken.ok).toBe(true)
+    expect(taken.tookOverStale).toBe(true)
+    taken.release?.()
+    expect(existsSync(lockPath)).toBe(false)
+  })
+
+  it('unknown CLI option: clean usage + the offending token, exit 2, NO raw stack (B3 review B-6)', () => {
+    const probed = spawnSync(process.execPath, [PATCHER_MJS, 'status', '--bogus-flag'], { encoding: 'utf8' })
+    expect(probed.status).toBe(2)
+    expect(probed.stderr).toContain('--bogus-flag')
+    expect(probed.stderr).toContain('usage:')
+    expect(probed.stderr).not.toMatch(/^\s+at\s+/m)
   })
 })

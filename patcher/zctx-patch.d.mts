@@ -562,9 +562,31 @@ export function checkOfficial(args?: {
   logFile?: string
   quiet?: boolean
   fetchImpl?: typeof fetch
+  /** Feed GET bound (default 20 s; B3 review B-4). */
+  feedTimeoutMs?: number
   updaterIdPath?: string
   localAppData?: string
 }): Promise<CheckOfficialResult>
+
+// -- auto tick mutex (B3 review B-4) -----------------------------------------
+
+/** The auto tick mutex file: %LOCALAPPDATA%\zctx-patch\auto.lock. */
+export function defaultAutoLockPath(): string
+
+/**
+ * Take the auto tick lock (CreateNew semantics + a 30-min lease): a fresh
+ * holder skips the round politely; a stale (crashed) holder is taken over
+ * once; a non-EEXIST create error is fatal and loud.
+ */
+export function tryAcquireAutoLock(lockPath?: string, leaseMs?: number, now?: number): {
+  ok: boolean
+  release?: () => void
+  tookOverStale?: boolean
+  staleAgeMs?: number
+  fresh?: boolean
+  holderAgeMs?: number
+  reason?: string
+}
 
 // -- preadapt (D8b) ----------------------------------------------------------
 
@@ -618,6 +640,11 @@ export function preadaptAnchorSet(args?: {
   sevenZipPath?: string
   locate7zImpl?: typeof locateSevenZip
   run7zImpl?: (args: { installerPath: string; workDir: string; sevenZip: { path: string } }) => Promise<{ appTree: string }>
-  downloadImpl?: (url: string, destPath: string, expectedSize?: number | null) => Promise<void>
+  downloadImpl?: (url: string, destPath: string, expectedSize?: number | null, timeoutMs?: number) => Promise<void>
+  /** Installer GET bound (default 600 s; B3 review B-4). */
+  downloadTimeoutMs?: number
   checkOfficialImpl?: () => Promise<CheckOfficialResult>
+  /** Injected faces for the internal check-official read (hermetic tests). */
+  updaterIdPath?: string
+  localAppData?: string
 }): Promise<PreadaptResult>

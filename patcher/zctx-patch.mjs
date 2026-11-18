@@ -2776,7 +2776,15 @@ export function compareVersions(a, b) {
     const tb = pb.pre[i]
     if (ta === undefined) return { order: -1, comparable: true } // shorter prerelease is older
     if (tb === undefined) return { order: 1, comparable: true }
-    if (ta !== tb) return { order: ta > tb ? 1 : -1, comparable: true }
+    if (ta === tb) continue
+    // Semver rule 11.4: NUMERIC identifiers always have LOWER precedence
+    // than alphanumeric ones. Compare like with like — a mixed pair routed
+    // through `>` would NaN-coerce and flip direction (B3 review B-1:
+    // 'alpha.beta' vs 'alpha.1' must be +1, not -1).
+    const taNumeric = typeof ta === 'number'
+    const tbNumeric = typeof tb === 'number'
+    if (taNumeric !== tbNumeric) return { order: taNumeric ? -1 : 1, comparable: true }
+    return { order: ta > tb ? 1 : -1, comparable: true }
   }
   return { order: 0, comparable: true }
 }
@@ -2807,6 +2815,7 @@ export async function checkOfficial(options = {}) {
     logFile = defaultAutoLogPath(),
     quiet = false,
     fetchImpl = globalThis.fetch,
+    feedTimeoutMs = 20_000,
     updaterIdPath = undefined,
     localAppData = process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'),
   } = options
@@ -2861,7 +2870,9 @@ export async function checkOfficial(options = {}) {
     const feedUrl = `${feedBase}${channel}.yml`
     let response
     try {
-      response = await fetchImpl(feedUrl, { headers: { 'cache-control': 'no-cache' } })
+      // Bounded (B3 review B-4): a hung feed GET must never wedge an hourly
+      // scheduled tick — timeout = the loud feed-unreachable face.
+      response = await fetchImpl(feedUrl, { headers: { 'cache-control': 'no-cache' }, signal: AbortSignal.timeout(feedTimeoutMs) })
     } catch (error) {
       return finish('feed-unreachable', `GET ${feedUrl} failed: ${error instanceof Error ? error.message : String(error)}`, 1)
     }
@@ -3078,9 +3089,15 @@ async function extractWithSevenZip({ installerPath, workDir, sevenZip, log }) {
   return { appTree, appPackage }
 }
 
-/** Stream one URL to disk (no Range resume — the download is a one-off per version; failures re-download). */
-async function downloadToFile(url, destPath, expectedSize) {
-  const response = await fetch(url, { headers: { 'cache-control': 'no-cache' } })
+/**
+ * Stream one URL to disk (no Range resume — the download is a one-off per
+ * version; failures re-download). Bounded (B3 review B-4): 600 s sustains
+ * ~4 MB/s for the ~300 MB installer — a slower link fails LOUDLY and is
+ * simply re-run (idempotent); the review's 120 s figure would require
+ * ~20 Mb/s sustained and would abort legitimate slow downloads mid-flight.
+ */
+async function downloadToFile(url, destPath, expectedSize, timeoutMs = 600_000) {
+  const response = await fetch(url, { headers: { 'cache-control': 'no-cache' }, signal: AbortSignal.timeout(timeoutMs) })
   if (response.status !== 200) throw new Error(`GET ${url} → HTTP ${response.status}`)
   if (!response.body) throw new Error(`GET ${url} returned an empty body`)
   await pipeline(Readable.fromWeb(response.body), createWriteStream(destPath))
@@ -3131,7 +3148,10 @@ export async function preadaptAnchorSet(options = {}) {
     locate7zImpl = locateSevenZip,
     run7zImpl = undefined,
     downloadImpl = downloadToFile,
+    downloadTimeoutMs = 600_000,
     checkOfficialImpl = undefined,
+    updaterIdPath = undefined,
+    localAppData = process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'),
   } = options
   const sink = makeAutoSink(logFile)
   const log = (state, detail) => {
@@ -3148,7 +3168,7 @@ export async function preadaptAnchorSet(options = {}) {
     // 1. The feed face: what's pending, and is it NEWER than the install?
     const check = checkOfficialImpl !== undefined
       ? await checkOfficialImpl()
-      : await checkOfficial({ appDir, logFile, quiet: true })
+      : await checkOfficial({ appDir, logFile, quiet: true, updaterIdPath, localAppData })
     if (!check.ok) {
       return finish(check.state ?? 'check-refused', `check-official refused: ${check.detail}`, 1, { check })
     }
@@ -3191,7 +3211,7 @@ export async function preadaptAnchorSet(options = {}) {
     if (!existsSync(installerPath)) {
       log('download', `GET ${check.installerUrl} (~${sizeMb}, one-off per version; the ONLY installer request)`)
       try {
-        await downloadImpl(check.installerUrl, installerPath, feedSize)
+        await downloadImpl(check.installerUrl, installerPath, feedSize, downloadTimeoutMs)
       } catch (error) {
         return finish('download-failed', `${error instanceof Error ? error.message : String(error)} — installer kept for diagnosis; candidate NOT produced`, 1, { check })
       }
@@ -3690,6 +3710,66 @@ export function uninstallScheduledTask(options = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// The auto tick mutex (B3 review B-4): an hourly schtasks can fire while a
+// previous tick is still running — two concurrent asar writes are a
+// corruption risk. The mutex is a plain O_EXCL file with a LEASE: a tick is
+// bounded well under 30 min by the fetch timeouts, so a holder older than
+// the lease is a crashed tick and is taken over once; a FRESH holder skips
+// the round politely.
+// ---------------------------------------------------------------------------
+
+/** The auto tick mutex file: %LOCALAPPDATA%\zctx-patch\auto.lock. */
+export function defaultAutoLockPath() {
+  return join(dirname(defaultAutoLogPath()), 'auto.lock')
+}
+
+/** Lease: longer than any timeout-bounded tick, short enough to self-heal a crash. */
+const AUTO_MUTEX_LEASE_MS = 30 * 60 * 1000
+
+/**
+ * Take the auto tick lock ({@link defaultAutoLockPath}, CreateNew semantics).
+ * Returns { ok:true, release, tookOverStale?, staleAgeMs? } or
+ * { ok:false, fresh?, holderAgeMs?, reason? } — a fresh holder = skip this
+ * round politely; a stale holder = take over ONCE (a race loser treats the
+ * winner as live); a non-EEXIST create error is fatal and loud.
+ */
+export function tryAcquireAutoLock(lockPath = defaultAutoLockPath(), leaseMs = AUTO_MUTEX_LEASE_MS, now = Date.now()) {
+  const write = () => {
+    const fd = openSync(lockPath, 'wx')
+    try {
+      writeFileSync(fd, `${JSON.stringify({ owner: process.pid, acquiredAt: now })}\n`)
+    } finally {
+      closeSync(fd)
+    }
+  }
+  try {
+    write()
+    return { ok: true, release: () => rmSync(lockPath, { force: true }) }
+  } catch (error) {
+    if (error?.code !== 'EEXIST') {
+      return { ok: false, reason: `auto lock create failed at ${lockPath}: ${error instanceof Error ? error.message : String(error)}` }
+    }
+    let holderAgeMs
+    try {
+      const holder = JSON.parse(readFileSync(lockPath, 'utf8'))
+      holderAgeMs = typeof holder?.acquiredAt === 'number' ? now - holder.acquiredAt : Number.POSITIVE_INFINITY
+    } catch {
+      holderAgeMs = Number.POSITIVE_INFINITY
+    }
+    if (holderAgeMs <= leaseMs) {
+      return { ok: false, fresh: true, holderAgeMs }
+    }
+    try {
+      rmSync(lockPath, { force: true })
+      write()
+      return { ok: true, release: () => rmSync(lockPath, { force: true }), tookOverStale: true, staleAgeMs: holderAgeMs }
+    } catch {
+      return { ok: false, fresh: true, holderAgeMs: 0 }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // CLI.
 // ---------------------------------------------------------------------------
 
@@ -3725,7 +3805,16 @@ function printSteps(prefix, steps) {
 const COMMANDS = ['patch', 'restore', 'status', 'auto', 'install-task', 'uninstall-task', 'reanchor', 'check-official', 'preadapt']
 
 async function main(argv) {
-  const args = parseArgs(argv)
+  // Unknown options are a clean refusal (usage + the offending token, exit 2)
+  // — never a raw stack (B3 review B-6).
+  let args
+  try {
+    args = parseArgs(argv)
+  } catch (error) {
+    console.error(`[refuse] ${error instanceof Error ? error.message : String(error)}`)
+    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor|check-official|preadapt> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept] [--seven-zip <path>] [--keep-workdir]')
+    return 2
+  }
   const command = args._[0]
   if (!COMMANDS.includes(command)) {
     console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor|check-official|preadapt> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept] [--seven-zip <path>] [--keep-workdir]')
@@ -3817,9 +3906,38 @@ async function main(argv) {
       return 1
     }
     if (command === 'auto') {
-      const result = await runAuto({ appDir: resolved.appDir, dshHome, yes: args.yes === true, logFile: args.log_file, feedFace: true })
-      if (result.sinkError !== undefined) console.error(`[warn] ${result.sinkError}`)
-      return result.exitCode
+      // Single-instance mutex (B3 review B-4). The lock path and the skip
+      // audit log are env-overridable so tests stay hermetic; production
+      // uses %LOCALAPPDATA%\zctx-patch\{auto.lock,auto.log}.
+      const lockPath = process.env.ZCTX_AUTO_LOCK_PATH !== undefined && process.env.ZCTX_AUTO_LOCK_PATH !== '' ? process.env.ZCTX_AUTO_LOCK_PATH : defaultAutoLockPath()
+      const auditLog = process.env.ZCTX_AUTO_LOG_PATH !== undefined && process.env.ZCTX_AUTO_LOG_PATH !== '' ? process.env.ZCTX_AUTO_LOG_PATH : defaultAutoLogPath()
+      const lock = tryAcquireAutoLock(lockPath)
+      if (!lock.ok) {
+        if (lock.reason !== undefined) {
+          console.error(`[error] auto mutex: ${lock.reason}`)
+          return 1
+        }
+        const line = pipelineLogLine('auto', 'already-running', `another tick holds ${lockPath} (age ${Math.round((lock.holderAgeMs ?? 0) / 1000)}s < lease) — skipping this round politely`)
+        console.log(line)
+        try {
+          mkdirSync(dirname(auditLog), { recursive: true })
+          appendFileSync(auditLog, `${line}\n`, 'utf8')
+        } catch {
+          // The console face is already loud; a failed skip-audit append
+          // never blocks the polite skip.
+        }
+        return 0
+      }
+      if (lock.tookOverStale === true) {
+        console.log(pipelineLogLine('auto', 'mutex-takeover', `stale lock holder exceeded the lease (${Math.round((lock.staleAgeMs ?? 0) / 1000)}s) — taken over once`))
+      }
+      try {
+        const result = await runAuto({ appDir: resolved.appDir, dshHome, yes: args.yes === true, logFile: args.log_file, feedFace: true })
+        if (result.sinkError !== undefined) console.error(`[warn] ${result.sinkError}`)
+        return result.exitCode
+      } finally {
+        lock.release()
+      }
     }
     console.log(JSON.stringify(await statusAsar({ appDir: resolved.appDir, dshHome }), null, 2))
     return 0
