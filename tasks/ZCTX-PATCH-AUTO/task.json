@@ -25,7 +25,10 @@
     "V8 auto.log 落盘且行格式符合契约",
     "V9 锚集数据外置：patcher/anchors/<version>.json 可被加载并选中，未知版本仍拒绝",
     "V10 reanchor 对模拟漂移 fixture 自动产出候选锚集，端到端 reanchor→patch→verify 零人工编辑",
-    "V11 reanchor 对 patched/坏输入拒收（fail-closed）"
+    "V11 reanchor 对 patched/坏输入拒收（fail-closed）",
+    "V12 check-official 读真机 app-update.yml→nightly.yml feed→报告 pending 版本/灰度百分比/本机灰度判定（RES-PATCH-DEEPEN DR-1/DR-2）",
+    "V13 preadapt 管线：下载→sha512 校验→7z 双层提取→fuse 前置检查（对提取件 exe）→reanchor→对提取件模拟 patch 5/5→--accept 落盘（编排级单测+真机演练）",
+    "V14 auto 联动：pending 检测进 auto 日志；--yes 下 pending+无锚集时触发 preadapt"
   ],
   "artifacts": [
     "patcher/zctx-patch.mjs",

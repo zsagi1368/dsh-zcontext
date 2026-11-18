@@ -28,8 +28,9 @@
 |---|---|---|
 | B1 | 计划+options+任务卡（本文件）+coder 派发 | 无 |
 | B2 | coder：fuse 探测器 + auto 状态机 + install/uninstall-task + 测试 + README（工作树内，小步提交）——已完成（6 提交，628 测试绿） | B1 |
-| B2b | coder（用户 11-18 扩令"彻底开发好+快速适配架构"）：**D5 锚集数据外置**（patcher/anchors/<version>.json + 加载器 + status 展示可用锚集，未知版本仍拒绝）；**D6 `reanchor` 子命令**（对新官方构建自动提取 5 目标文件→锚存活分类（ALIVE/DRIFTED/patched 拒收）→产出候选锚集 JSON→`--accept` 落盘）；**D7 测试+README**（模拟漂移 fixture：reanchor→patch→verify 端到端零人工编辑；快速适配 SOP 节） | B2 |
-| B3 | reviewer 对抗评审（≥98 门；核对 Z26/Z27 回归锁、Z29 全量复核、R1 红线不变式、锚集数据外置不弱化 fail-closed：哈希门+计数门仍全数生效） | B2b |
+| B2b | coder（用户 11-18 扩令"彻底开发好+快速适配架构"）：**D5 锚集数据外置**（patcher/anchors/<version>.json + 加载器 + status 展示可用锚集，未知版本仍拒绝）；**D6 `reanchor` 子命令**（对新官方构建自动提取 5 目标文件→锚存活分类（ALIVE/DRIFTED/patched 拒收）→产出候选锚集 JSON→`--accept` 落盘）；**D7 测试+README**（模拟漂移 fixture：reanchor→patch→verify 端到端零人工编辑；快速适配 SOP 节）——已完成（3 提交，639 测试绿，money test 过） | B2 |
+| B2c | coder（深度研究波转实施，依据 RES-PATCH-DEEPEN.md DR-2）：**D8a `check-official`**（读 app-update.yml→fetch `<url>/<channel>.yml`→解析 version/sha512/staging/releaseDate→与已装版本比对+本机灰度判定（.updaterId 百分比复算，标注中高置信））；**D8b `preadapt`**（下载安装包→sha512 校验→7z 双层提取（PATH/常见位/TRAE 束多址探测，缺席响亮拒绝）→对提取件 exe fuse 前置检查→reanchor 对提取树→**对提取件模拟全量 patch→status 5/5 验证**→`--accept` 落盘）；**D8c auto 联动**（pending 进 auto 日志；--yes 下 pending+无锚集触发 preadapt）；**D8d 测试**（编排级 mock：feed 响应/提取器注入/fuse 前置拒绝/sha512 不匹配拒收/模拟验证不过不落盘）+README（预适配 SOP+DR-6 桌面验收 SOP） | B2b |
+| B3 | reviewer 对抗评审（≥98 门；核对 Z26/Z27 回归锁、Z29 全量复核、R1 红线不变式、锚集数据外置不弱化 fail-closed：哈希门+计数门仍全数生效、preadapt 下载校验链） | B2c |
 | B4 | tester+verifier：全量测试（tsc 先行）+ asar 副本全链回归 + 评分 | B3 |
 | B5 | 合并回主树（--no-ff+台账）→ 真机 OPS：备份→patch→status 5/5→插件桥确认→RESTORE.md 补录→install-task→schtasks /Query 佐证 | B4 ≥98 |
 
