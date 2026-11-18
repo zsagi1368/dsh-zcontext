@@ -261,6 +261,17 @@ feed pending **且** 该版本无锚集 → 无 `--yes` 记 `would-preadapt`（�
 本地判定；feed 不可达 = 响亮 WARN 行，本地判定照常继续（离线自愈不依赖网络）。
 feed pending 且锚集已在 → `feed-pending` 信息行（更新落地即自动重打）。
 
+**两个新增运行面（B3 评审 B-4）**：
+
+- **网络有界**：feed GET 超时 20s、安装包 GET 超时 600s（`AbortSignal.timeout`）——
+  超时即响亮拒绝面（feed-unreachable / download-failed），挂死的 feed 永不卡死
+  每小时 tick。
+- **tick 单实例 mutex**：`%LOCALAPPDATA%\zctx-patch\auto.lock`（O_EXCL CreateNew
+  + 30 分钟租约）——新持锁者→`state=already-running` 礼貌跳过本轮（exit 0，审计
+  行进文件 sink）；超租约残留（崩溃 tick）→一次性接管（`state=mutex-takeover`）后
+  正常执行；非 EEXIST 创建错误→fatal 响亮。CLI auto 分支 `finally release`；
+  锁/日志路径可 env 覆盖（`ZCTX_AUTO_LOCK_PATH` / `ZCTX_AUTO_LOG_PATH`）供密闭测试。
+
 ### DR-6 桌面验收 SOP（patch 落地后的活性确认）
 
 打补丁只保证磁盘面；链条活性按 RES-PATCH-DEEPEN §6 逐级确认（硬指标）：
@@ -341,8 +352,9 @@ SHA-256 = 对上述字节体现算
 ```
 
 实测锚点：**d951ebf（B1 基线）与 HEAD（D8 后）同值
-`8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9`**（两侧长度
-14889 B）。评审给的三口径变体（含前缀/纯数据体/trim，f51c2a76…/3aa6ad7e…/
+`8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9`**（两侧切片
+均为 14926 字节 UTF-8；14889 为字符数，勿混——B3 评审 r2 C-2 更正）。评审给的三
+口径变体（含前缀/纯数据体/trim，f51c2a76…/3aa6ad7e…/
 beec2dc0…）中，本仓采用并写死的是「**含 `export const SUPPORTED = {` 前缀、不含
 尾部分隔线、不 trim**」变体。任何波次改动锚串/replacement/pristineSha256/
 presenceMarker → 此哈希必变 → 即 R1 违规信号，须停下人工裁决。

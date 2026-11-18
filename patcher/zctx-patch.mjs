@@ -3092,9 +3092,10 @@ async function extractWithSevenZip({ installerPath, workDir, sevenZip, log }) {
 /**
  * Stream one URL to disk (no Range resume — the download is a one-off per
  * version; failures re-download). Bounded (B3 review B-4): 600 s sustains
- * ~4 MB/s for the ~300 MB installer — a slower link fails LOUDLY and is
- * simply re-run (idempotent); the review's 120 s figure would require
- * ~20 Mb/s sustained and would abort legitimate slow downloads mid-flight.
+ * ~0.5 MB/s (= 4 Mbit/s) for the ~300 MB installer — a slower link fails
+ * LOUDLY and is simply re-run (idempotent); the review's 120 s figure would
+ * require ~2.5 MB/s sustained and would abort legitimate slow downloads
+ * mid-flight.
  */
 async function downloadToFile(url, destPath, expectedSize, timeoutMs = 600_000) {
   const response = await fetch(url, { headers: { 'cache-control': 'no-cache' }, signal: AbortSignal.timeout(timeoutMs) })
@@ -3526,9 +3527,12 @@ export async function runAuto(options) {
       }
     }
 
-    // 3. The version/anchor face (any gate refusal is loud, exit 1).
+    // 3. The version/anchor face (any gate refusal is loud, exit 1). The
+    //    status face's own note (e.g. WHY a data anchor set was rejected)
+    //    rides the refusal detail too (B3 review round-2 C-5).
     if (status.anchorHit === 'unknown' || status.patchSet === undefined) {
-      return finish('refused', `shell version ${String(status.shellVersion)} is not in the supported anchor set — the version gate refuses; update the patcher anchor set first, needs a human`, 1)
+      const noteSuffix = status.note !== undefined ? ` (status: ${status.note})` : ''
+      return finish('refused', `shell version ${String(status.shellVersion)} is not in the supported anchor set — the version gate refuses; update the patcher anchor set first${noteSuffix}, needs a human`, 1)
     }
     const patchSet = status.patchSet
     if (patchSet.state === 'drifted') {

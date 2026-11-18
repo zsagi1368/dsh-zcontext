@@ -500,6 +500,19 @@ export function reanchorAnchorSet(args: {
   versions?: Record<string, ZctxPatchEntry>
 }): ReanchorResult
 
+/**
+ * The SINGLE write path into patcher/anchors/: validate with the loader's
+ * validator, refuse an existing file for the version (never clobber), atomic
+ * tmp+rename write. Both reanchor (--accept) and preadapt (after the full
+ * simulated pipeline) land through here.
+ */
+export function landAnchorSet(
+  version: string,
+  candidate: unknown,
+  anchorsDir?: string,
+  knownPaths?: string[],
+): { ok: boolean; reason?: string; path?: string; sha256?: string }
+
 // -- check-official (D8a) ----------------------------------------------------
 
 /** One pipeline contract line: `[ISO8601] [<tag>] state=<X> detail=<...>`. */
