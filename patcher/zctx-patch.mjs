@@ -1449,6 +1449,138 @@ export function appRunningGate({ dshHome, probeAppRunning = probeAppRunningDefau
 }
 
 // ---------------------------------------------------------------------------
+// Electron fuse wire (VERIFY-P #11 — the authoritative read, three-source
+// cross-attested: the rc.3 exe bytes themselves, Electron v44.7.0's
+// fuses.json5 schema, and @electron/fuses 2.1.3's constants).
+// ---------------------------------------------------------------------------
+
+/**
+ * The Electron fuse-wire sentinel embedded in every fused exe. Its OFFSET
+ * DRIFTS BETWEEN OFFICIAL BUILDS (rc.3: sentinel at 199,416,024 of
+ * 246,341,104 B) — it MUST be scanned for, never assumed at a fixed offset
+ * (a fixed offset would silently misread a newer exe).
+ */
+export const FUSE_SENTINEL = 'dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX'
+
+/**
+ * The version-1 fuse schema: 9 per-fuse state bytes, each ASCII '0' (off) /
+ * '1' (on) / 'r' (removed). The 7-byte four-state encoding once claimed for
+ * rc.3 (DISABLED='1'/ENABLED='2'/INHERIT='3') is REFUTED by the Electron
+ * source — never reintroduce it (VERIFY-P #11).
+ */
+export const FUSE_V1_STATE_COUNT = 9
+
+/**
+ * FuseV1Options index of EnableEmbeddedAsarIntegrityValidation (0 RunAsNode,
+ * 1 EnableCookieEncryption, 2 EnableNodeOptionsEnvironmentVariable,
+ * 3 EnableNodeCliInspectArguments, 4 EnableEmbeddedAsarIntegrityValidation,
+ * 5 OnlyLoadAppFromAsar, 6 LoadBrowserProcessSpecificV8Snapshot,
+ * 7 GrantFileProtocolExtraPrivileges, 8 EnableWasmTrapHandlers).
+ */
+export const FUSE_INTEGRITY_INDEX = 4
+
+/** Legal per-fuse state bytes: ASCII '0' (48) / '1' (49) / 'r' (114). */
+const FUSE_STATE_BYTES = new Set([48, 49, 114])
+
+/**
+ * The desktop exe that carries the fuse wire (note the SPACE in the name).
+ */
+export function desktopExePath(appDir) {
+  return join(appDir, APP_EXE)
+}
+
+/**
+ * Read the Electron fuse wire from an exe (VERIFY-P #11): scan for the
+ * sentinel, then parse [version 1B][wireLen 1B][wireLen ASCII state bytes].
+ * The rc.3 reference read: `01 09 31 30 31 31 30 30 30 31 31` → version 1,
+ * 9 states `101100011`, integrity (index 4) = '0' = off.
+ *
+ * Returns `{ found:true, version, stateCount, states, integrity, rawHex,
+ * sentinelOffset, exePath, exeSize }` — or `{ found:false, reason }` for
+ * EVERY anomaly (exe missing/unreadable, sentinel absent, wrong version,
+ * wire-length overflow, length ≠ 9, illegal state byte). The caller refuses
+ * fail-closed on !found — an unreadable integrity face is never guessed
+ * through.
+ */
+export function readFuseWire(exePath) {
+  if (!existsSync(exePath)) {
+    return { found: false, exePath, reason: `exe not found at ${exePath}` }
+  }
+  let buf
+  try {
+    buf = readFileSync(exePath)
+  } catch (error) {
+    return { found: false, exePath, reason: `exe unreadable at ${exePath}: ${error instanceof Error ? error.message : String(error)}` }
+  }
+  const sentinel = Buffer.from(FUSE_SENTINEL, 'utf8')
+  let searchFrom = 0
+  let hits = 0
+  let lastReason = `sentinel ${FUSE_SENTINEL} not found in the exe`
+  for (;;) {
+    const at = buf.indexOf(sentinel, searchFrom)
+    if (at === -1) break
+    hits += 1
+    searchFrom = at + sentinel.length
+    const wireAt = at + sentinel.length
+    if (wireAt + 2 > buf.length) {
+      lastReason = `sentinel hit ${hits} at ${at}: no room for the [version][length] header`
+      continue
+    }
+    const version = buf[wireAt]
+    const wireLen = buf[wireAt + 1]
+    if (version !== 1) {
+      lastReason = `sentinel hit ${hits} at ${at}: fuse wire version 0x${version.toString(16).padStart(2, '0')} — this reader implements version 1 only`
+      continue
+    }
+    if (wireAt + 2 + wireLen > buf.length) {
+      lastReason = `sentinel hit ${hits} at ${at}: wire length ${wireLen} overruns the exe — corrupt or foreign wire`
+      continue
+    }
+    if (wireLen !== FUSE_V1_STATE_COUNT) {
+      lastReason = `sentinel hit ${hits} at ${at}: wire length ${wireLen} != ${FUSE_V1_STATE_COUNT} (FuseV1Options v1 schema; the 7-byte reading is REFUTED)`
+      continue
+    }
+    const states = buf.subarray(wireAt + 2, wireAt + 2 + wireLen)
+    const illegalAt = [...states].findIndex((byte) => !FUSE_STATE_BYTES.has(byte))
+    if (illegalAt !== -1) {
+      lastReason = `sentinel hit ${hits} at ${at}: illegal state byte 0x${states[illegalAt].toString(16).padStart(2, '0')} at fuse index ${illegalAt} (legal: '0' off / '1' on / 'r' removed)`
+      continue
+    }
+    return {
+      found: true,
+      exePath,
+      exeSize: buf.length,
+      version,
+      stateCount: wireLen,
+      states: Array.from(states, (byte) => String.fromCharCode(byte)).join(''),
+      integrity: String.fromCharCode(states[FUSE_INTEGRITY_INDEX]),
+      rawHex: buf.subarray(wireAt, wireAt + 2 + wireLen).toString('hex'),
+      sentinelOffset: at,
+    }
+  }
+  return {
+    found: false,
+    exePath,
+    exeSize: buf.length,
+    reason: lastReason,
+    ...(hits > 0 ? { sentinelHits: hits } : {}),
+  }
+}
+
+/**
+ * Never-throw fuse read for the read-only surfaces (status/auto): any
+ * surprise degrades to `{found:false, reason}` — loud, never silent; the
+ * consumer refuses on !found.
+ */
+export function safeReadFuseWire(exePath) {
+  try {
+    return readFuseWire(exePath)
+  } catch (error) {
+    return { found: false, exePath, reason: `fuse probe threw: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Backup (§5 discipline on the user machine).
 // ---------------------------------------------------------------------------
 
@@ -1594,6 +1726,35 @@ export async function patchAsar(options) {
   const gate = appRunningGate({ dshHome, probeAppRunning })
   step('app-running gate', gate.ok ? 'ok' : 'refused', gate.reason ?? gate.detail)
   if (!gate.ok) return { ok: false, refused: true, ...report }
+
+  // Gate: Electron fuse integrity (VERIFY-P #11). A patched asar cannot load
+  // under EnableEmbeddedAsarIntegrityValidation=ON, and an UNREADABLE fuse
+  // face (sentinel gone, format anomaly) means the runtime face could not be
+  // verified — both refuse fail-closed. 'r' (fuse removed) is warn-through:
+  // removed = not enforced. A layout WITHOUT the desktop exe (fixtures /
+  // non-standard installs) skips the gate honestly — there is no runtime to
+  // enforce asar integrity there, and the version + anchor gates still pin
+  // the archive.
+  const exePath = desktopExePath(appDir)
+  const fuse = existsSync(exePath) ? safeReadFuseWire(exePath) : undefined
+  if (fuse === undefined) {
+    step('fuse integrity gate', 'skip', `desktop exe not found at ${exePath} — no runtime to enforce asar integrity (fixture/non-standard layout); continuing`)
+  } else if (!fuse.found) {
+    step('fuse integrity gate', 'refused', `fuse wire unreadable (${fuse.reason}) — fail-closed: the runtime integrity face could not be verified`)
+    return { ok: false, refused: true, ...report, fuse }
+  } else if (fuse.integrity === '1') {
+    step('fuse integrity gate', 'refused', `EnableEmbeddedAsarIntegrityValidation=ON (wire ${fuse.rawHex}) — the runtime would reject any modified asar byte; refusing`)
+    return { ok: false, refused: true, ...report, fuse }
+  } else {
+    step(
+      'fuse integrity gate',
+      fuse.integrity === 'r' ? 'warn' : 'ok',
+      fuse.integrity === 'r'
+        ? `integrity fuse removed ('r', wire ${fuse.rawHex}) — removed = not enforced; continuing`
+        : `EnableEmbeddedAsarIntegrityValidation=OFF (wire ${fuse.rawHex})`,
+    )
+    report.fuse = fuse
+  }
 
   const asar = await loadAsar()
   // Their module caches Filesystems per archive path — after any in-place
@@ -2069,6 +2230,10 @@ export async function statusAsar(options) {
   const lockPath = desktopLockPath(dshHome)
   report.lock = { path: lockPath, exists: existsSync(lockPath) }
   report.appRunning = probeAppRunning()
+  // The Electron fuse face (VERIFY-P #11): strictly read-only, never throws;
+  // a missing/unreadable exe reports found:false + reason (fail-closed
+  // consumers refuse on it; the face itself is reported honestly either way).
+  report.fuse = safeReadFuseWire(desktopExePath(appDir))
   return report
 }
 

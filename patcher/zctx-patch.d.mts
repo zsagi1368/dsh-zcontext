@@ -139,6 +139,41 @@ export function appRunningGate(args: {
 
 export function backupRootFor(appDir: string): string
 
+// -- Electron fuse wire (VERIFY-P #11) ---------------------------------------
+
+export const FUSE_SENTINEL: string
+export const FUSE_V1_STATE_COUNT: number
+export const FUSE_INTEGRITY_INDEX: number
+
+/**
+ * The fuse-wire face of one exe. `states` is the raw 9-char state string
+ * (e.g. rc.3's `101100011`); `integrity` is its index-4 byte
+ * (EnableEmbeddedAsarIntegrityValidation). Every anomaly (exe missing or
+ * unreadable, sentinel absent, wrong version, wire-length overflow, length
+ * ≠ 9, illegal state byte) reports `found:false` + `reason` — never a guess.
+ */
+export interface FuseWireFace {
+  readonly found: boolean
+  readonly exePath: string
+  readonly exeSize?: number
+  readonly version?: number
+  readonly stateCount?: number
+  readonly states?: string
+  readonly integrity?: '0' | '1' | 'r'
+  readonly rawHex?: string
+  readonly sentinelOffset?: number
+  readonly sentinelHits?: number
+  readonly reason?: string
+}
+
+/** The desktop exe carrying the fuse wire (`<appDir>\DeepSeek Harness.exe`). */
+export function desktopExePath(appDir: string): string
+
+export function readFuseWire(exePath: string): FuseWireFace
+
+/** Never-throw variant for the read-only surfaces (status/auto). */
+export function safeReadFuseWire(exePath: string): FuseWireFace
+
 export interface PatchStep {
   readonly name: string
   readonly status: string
@@ -160,6 +195,8 @@ export interface PatchAsarResult {
   readonly before?: { readonly size: number; readonly sha256: string }
   readonly after?: { readonly size: number; readonly sha256: string }
   readonly files?: readonly { readonly targetPath: string; readonly delta: number }[]
+  /** The fuse face when the gate engaged (absent on the exe-less skip arm). */
+  readonly fuse?: FuseWireFace
   readonly recovery?: string
 }
 
@@ -235,5 +272,7 @@ export async function statusAsar(args: {
   backups?: readonly { readonly dir: string }[]
   lock?: { readonly path: string; readonly exists: boolean }
   appRunning?: 'yes' | 'no' | 'unknown'
+  /** The Electron fuse face of `<appDir>\DeepSeek Harness.exe` (VERIFY-P #11). */
+  fuse?: FuseWireFace
   note?: string
 }>
