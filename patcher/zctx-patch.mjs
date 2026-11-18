@@ -50,10 +50,13 @@
  *  10. marker `<appDir>/.zctx-patch.json` (plugin status reads it: dual source)
  *
  * SUBCOMMANDS: patch / restore / status / auto / install-task /
- * uninstall-task (restore = copy the backup asar back + remove the marker;
- * status = strictly read-only; auto = the hourly self-heal state machine —
- * fuse gate, repair only under --yes, full status re-check, file log;
- * install-task/uninstall-task = the Windows scheduled task around `auto`).
+ * uninstall-task / reanchor (restore = copy the backup asar back + remove
+ * the marker; status = strictly read-only; auto = the hourly self-heal
+ * state machine — fuse gate, repair only under --yes, full status re-check,
+ * file log; install-task/uninstall-task = the Windows scheduled task around
+ * `auto`; reanchor = build a candidate anchor set for a NEW official build
+ * — read-only classification, anchors inherited only when provably alive,
+ * data sets land in patcher/anchors/ under --accept).
  *
  * v0.2 (P6-B, plan ZCTX-v03-patch-plan + RES-port-feasibility P6-A spec): the
  * anchor set grows from ONE file/one stub to a MULTI-FILE base-context patch
@@ -963,6 +966,150 @@ export const SUPPORTED = {
 }
 
 // ---------------------------------------------------------------------------
+// External anchor sets (patcher/anchors/<version>.json) — the fast-adaptation
+// data channel (ZCTX-PATCH-AUTO D5).
+//
+// The in-code SUPPORTED map above stays the VERIFIED DEFAULT and is never
+// migrated out. For any NEW official build, `reanchor` (below) can write a
+// data anchor set; the loader prefers the data file for a version match and
+// falls back to the in-code map otherwise. Fail-closed is NOT weakened: an
+// unknown version is still refused, a corrupt/invalid data file is refused
+// (never silently falling back), and — the real safety boundary — a data
+// set's pristineSha256 values are re-verified per file by the EXISTING
+// anchor-hash gate before anything is touched, and every op anchor is
+// re-asserted count==1 by patchFile on the real bytes. Wrong data refuses
+// before the patcher's hand ever moves.
+// ---------------------------------------------------------------------------
+
+/** Top-level metadata fields every data anchor set carries. */
+const ANCHOR_SET_DATA_META_FIELDS = ['anchorSetVersion', 'generatedAt', 'sourceReport']
+
+/** The directory holding the data anchor sets (next to this script). */
+export function defaultAnchorsDir() {
+  return join(dirname(fileURLToPath(import.meta.url)), 'anchors')
+}
+
+/**
+ * The five probe target paths of the patch set of record (built on rc.3) —
+ * the fixed extraction surface reanchor probes and the validator pins data
+ * files to (a data set that names other targets is not this patch set).
+ */
+export function knownTargetPaths(versions = SUPPORTED) {
+  const probe = versions['0.2.2-rc.3'] ?? Object.values(versions)[0]
+  return normalizeEntry(probe).map((file) => file.targetPath)
+}
+
+/**
+ * List the data anchor set versions available under the anchors dir
+ * (read-only; `<version>.json` basenames, sorted). Absent dir = [].
+ */
+export function listAnchorSetVersions(anchorsDir = defaultAnchorsDir()) {
+  if (!existsSync(anchorsDir)) return []
+  return readdirSync(anchorsDir)
+    .filter((name) => name.endsWith('.json'))
+    .filter((name) => {
+      try {
+        return statSync(join(anchorsDir, name)).isFile()
+      } catch {
+        return false
+      }
+    })
+    .map((name) => name.slice(0, -'.json'.length))
+    .sort()
+}
+
+/**
+ * Validate one parsed data anchor set against the schema (isomorphic with
+ * the in-code entry + the three metadata fields). EVERY violation is a
+ * loud refusal — a half-valid set is worse than none (fail-closed):
+ *   - metadata: anchorSetVersion / generatedAt / sourceReport non-empty strings;
+ *   - shellPackage non-empty string;
+ *   - files: array of EXACTLY the known five target paths, each once
+ *     (五目标路径), each with a 64-hex pristineSha256 (哈希形态), a
+ *     non-empty presenceMarker (锚串), and a non-empty op list whose
+ *     anchors are non-empty unique strings with string replacements
+ *     (锚串/计数期望 — the runtime count==1 assertion stays in patchFile,
+ *     on the real bytes, where it belongs).
+ */
+export function validateAnchorSetData(data, knownPaths = knownTargetPaths()) {
+  const bad = (reason) => ({ ok: false, reason })
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return bad('anchor set data must be a JSON object')
+  for (const field of ANCHOR_SET_DATA_META_FIELDS) {
+    const value = data[field]
+    if (typeof value !== 'string' || value === '') return bad(`metadata field "${field}" must be a non-empty string (got ${JSON.stringify(value ?? null)})`)
+  }
+  if (typeof data.shellPackage !== 'string' || data.shellPackage === '') return bad('"shellPackage" must be a non-empty string')
+  if (!Array.isArray(data.files)) return bad('"files" must be an array')
+  if (data.files.length !== knownPaths.length) return bad(`"files" must list exactly ${knownPaths.length} targets (got ${data.files.length})`)
+  const seenTargets = new Set()
+  for (let index = 0; index < data.files.length; index++) {
+    const file = data.files[index]
+    const where = `files[${index}]`
+    if (typeof file !== 'object' || file === null || Array.isArray(file)) return bad(`${where} must be an object`)
+    if (typeof file.targetPath !== 'string' || file.targetPath === '') return bad(`${where}.targetPath must be a non-empty string`)
+    if (!knownPaths.includes(file.targetPath)) return bad(`${where}.targetPath "${file.targetPath}" is not one of the known probe targets {${knownPaths.join(', ')}}`)
+    if (seenTargets.has(file.targetPath)) return bad(`${where}.targetPath "${file.targetPath}" is listed more than once`)
+    seenTargets.add(file.targetPath)
+    if (typeof file.pristineSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(file.pristineSha256)) return bad(`${where}.pristineSha256 must be 64 lowercase hex chars (got ${JSON.stringify(file.pristineSha256 ?? null)})`)
+    if (typeof file.presenceMarker !== 'string' || file.presenceMarker === '') return bad(`${where}.presenceMarker must be a non-empty string`)
+    if (!Array.isArray(file.ops) || file.ops.length === 0) return bad(`${where}.ops must be a non-empty array`)
+    const seenAnchors = new Set()
+    for (let opIndex = 0; opIndex < file.ops.length; opIndex++) {
+      const op = file.ops[opIndex]
+      const at = `${where}.ops[${opIndex}]`
+      if (typeof op !== 'object' || op === null || Array.isArray(op)) return bad(`${at} must be an object`)
+      if (typeof op.anchor !== 'string' || op.anchor === '') return bad(`${at}.anchor must be a non-empty string`)
+      if (typeof op.replacement !== 'string') return bad(`${at}.replacement must be a string`)
+      if (seenAnchors.has(op.anchor)) return bad(`${at}.anchor duplicates an earlier anchor in this file (count expectations would collide)`)
+      seenAnchors.add(op.anchor)
+    }
+    if (seenAnchors.has(file.presenceMarker)) return bad(`${where}.presenceMarker collides with an op anchor`)
+  }
+  return { ok: true, entry: { shellPackage: data.shellPackage, files: data.files } }
+}
+
+/**
+ * Load `patcher/anchors/<version>.json` if it exists. Returns:
+ *   { absent: true }                                   — no data file (clean fallthrough)
+ *   { ok: true, entry, path, meta }                    — validated data set
+ *   { ok: false, reason, path }                        — file EXISTS but is unreadable/invalid:
+ *                                                        the caller refuses LOUDLY and never
+ *                                                        falls back to the in-code map.
+ */
+export function loadAnchorSetData(version, anchorsDir = defaultAnchorsDir(), knownPaths = knownTargetPaths()) {
+  const path = join(anchorsDir, `${version}.json`)
+  if (!existsSync(path)) return { absent: true }
+  let parsed
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8'))
+  } catch (error) {
+    return { ok: false, path, reason: `data anchor set parse failed: ${error instanceof Error ? error.message : String(error)}` }
+  }
+  const check = validateAnchorSetData(parsed, knownPaths)
+  if (!check.ok) return { ok: false, path, reason: `data anchor set rejected: ${check.reason}` }
+  return { ok: true, entry: check.entry, path, meta: { anchorSetVersion: parsed.anchorSetVersion, generatedAt: parsed.generatedAt, sourceReport: parsed.sourceReport } }
+}
+
+/**
+ * Resolve the anchor-set entry for one shell version — data file first, then
+ * the in-code map. Returns { entry, source: 'data'|'in-code'|'none'|'error',
+ * ... }: source 'error' means a data file exists but failed validation —
+ * `reason` is loud and the caller must refuse (fail-closed, no fallback).
+ */
+export function resolveAnchorEntry(shellVersion, { versions = SUPPORTED, anchorsDir = defaultAnchorsDir(), knownPaths = undefined } = {}) {
+  const paths = knownPaths ?? knownTargetPaths(versions)
+  const data = loadAnchorSetData(shellVersion, anchorsDir, paths)
+  if (data.absent) {
+    const inCode = typeof shellVersion === 'string' ? versions[shellVersion] : undefined
+    return inCode !== undefined
+      ? { entry: inCode, source: 'in-code' }
+      : { entry: undefined, source: 'none', reason: `no anchor set for ${String(shellVersion)} (no data file, not in the in-code map)` }
+  }
+  if (!data.ok) return { entry: undefined, source: 'error', reason: data.reason, path: data.path }
+  return { entry: data.entry, source: 'data', path: data.path, meta: data.meta }
+}
+
+// ---------------------------------------------------------------------------
 // Small helpers.
 // ---------------------------------------------------------------------------
 
@@ -1715,6 +1862,7 @@ export async function patchAsar(options) {
     probeAppRunning = probeAppRunningDefault,
     entry = undefined,
     versions = SUPPORTED,
+    anchorsDir = defaultAnchorsDir(),
   } = options
   const { asarPath, markerPath } = installPaths(appDir)
   const report = { appDir, asarPath, steps: [] }
@@ -1769,22 +1917,39 @@ export async function patchAsar(options) {
   // prove the patched archive is readable by the official toolchain.
   asar.uncacheAll()
 
-  // Gate: version (asar root package.json).
+  // Gate: version (asar root package.json). The anchor set resolves from the
+  // data dir first (patcher/anchors/<version>.json — D5), then the in-code
+  // map; an unknown version still refuses, and a data file that EXISTS but
+  // fails validation refuses WITHOUT falling back to the in-code map
+  // (fail-closed: a corrupt data set is never papered over).
   let shellVersion
   let supportedEntry
+  let anchorSource
+  let anchorReason
   try {
     const shell = JSON.parse(extractPositioned(asarPath, SHELL_PACKAGE_PATH).toString('utf8'))
     shellVersion = typeof shell?.version === 'string' ? shell.version : undefined
-    supportedEntry = entry ?? (shellVersion !== undefined ? versions[shellVersion] : undefined)
+    if (entry !== undefined) {
+      supportedEntry = entry
+      anchorSource = 'argument'
+    } else {
+      const resolved = resolveAnchorEntry(shellVersion, { versions, anchorsDir })
+      supportedEntry = resolved.entry
+      anchorSource = resolved.source
+      anchorReason = resolved.reason
+    }
   } catch (error) {
     step('version gate', 'refused', `root package.json unreadable: ${error instanceof Error ? error.message : String(error)}`)
     return { ok: false, refused: true, ...report }
   }
   if (shellVersion === undefined || supportedEntry === undefined) {
-    step('version gate', 'refused', `shell version ${shellVersion ?? 'unreadable'} is not in the supported set {${Object.keys(versions).join(', ')}}`)
+    const detail = anchorSource === 'error'
+      ? `data anchor set for ${shellVersion} REJECTED — ${anchorReason} (a corrupt data set never falls back to the in-code map)`
+      : `shell version ${shellVersion ?? 'unreadable'} is not in the supported set {${Object.keys(versions).join(', ')}}${anchorSource === 'none' ? ' and has no data anchor set — run reanchor against this build first' : ''}`
+    step('version gate', 'refused', detail)
     return { ok: false, refused: true, ...report, shellVersion }
   }
-  step('version gate', 'ok', `${shellVersion}`)
+  step('version gate', 'ok', `${shellVersion} (anchor set: ${anchorSource})`)
 
   // Pre-state per file (cache-free positional reads): pristine, patched-exact,
   // or drifted. The whole set must be uniformly pristine (→ patch) or
@@ -2136,6 +2301,7 @@ export async function statusAsar(options) {
     probeAppRunning = probeAppRunningDefault,
     versions = SUPPORTED,
     entry = undefined,
+    anchorsDir = defaultAnchorsDir(),
   } = options
   const { asarPath, markerPath } = installPaths(appDir)
   const report = { appDir, asarPath, asarExists: existsSync(asarPath) }
@@ -2147,11 +2313,25 @@ export async function statusAsar(options) {
   } catch (error) {
     report.shellVersion = `unreadable (${error instanceof Error ? error.message : String(error)})`
   }
-  const supportedEntry = entry ?? (typeof report.shellVersion === 'string' ? versions[report.shellVersion] : undefined)
+  // The anchor set face (D5): which source resolved this version's entry,
+  // plus the machine-readable inventory of available anchor sets (in-code
+  // map versions + the data dir's <version>.json files).
+  const resolved = entry !== undefined
+    ? { entry, source: 'argument' }
+    : resolveAnchorEntry(report.shellVersion, { versions, anchorsDir })
+  report.anchorSetSource = resolved.source
+  report.availableAnchorSets = {
+    dir: anchorsDir,
+    inCode: Object.keys(versions),
+    dataDir: listAnchorSetVersions(anchorsDir),
+  }
+  const supportedEntry = resolved.entry
   if (supportedEntry === undefined) {
     report.anchorHit = 'unknown'
     report.patched = 'unknown'
-    report.note = `shell version ${String(report.shellVersion)} has no anchor entry — presence checks need the matching anchor set`
+    report.note = resolved.source === 'error'
+      ? `data anchor set rejected — ${resolved.reason}`
+      : `shell version ${String(report.shellVersion)} has no anchor entry — presence checks need the matching anchor set`
   } else {
     const files = normalizeEntry(supportedEntry)
     report.files = []
