@@ -1,0 +1,37 @@
+{
+  "schema": "task/v1",
+  "id": "ZCTX-PATCH-AUTO",
+  "title": "zctx 补丁版自愈三件套（fuse 探测/auto 状态机/计划任务）+ 真机留守",
+  "type": "DEV",
+  "owner": "main",
+  "depends": [],
+  "priority": "high",
+  "budget": { "max_minutes": 180, "max_agents": 4, "max_rework_rounds": 2 },
+  "base_sha": "329ee61",
+  "branch": "feat/ZCTX-PATCH-AUTO",
+  "worktree": "worktrees/ZCTX-PATCH-AUTO",
+  "acceptance": [
+    "V1 status 输出 fuse 字段，真机 rc.3 integrity='0'",
+    "V2 integrity='1' 或 fuse 格式异常时 patch 拒绝（合成 exe 单测）",
+    "V3 auto 六态机逐态符合判定表（单测）",
+    "V4 install-task/uninstall-task 真机 schtasks /Query 可见/不可见",
+    "V5 tsc→build→vitest 全绿零回归（含 patcher 三既有 spec）",
+    "V6 真机 patch 后 status=patched 5/5 + 备份 SHA256SUMS 在盘",
+    "V7 R1 红线不回归（零请求体改写）",
+    "V8 auto.log 落盘且行格式符合契约"
+  ],
+  "artifacts": [
+    "patcher/zctx-patch.mjs",
+    "patcher/README.md",
+    "tests/patcher*.spec.ts",
+    "tasks/ZCTX-PATCH-AUTO/*"
+  ],
+  "constraints": [
+    "R1 红线：补丁只加观测面与透传字段，零请求体改写",
+    "fail-closed：一切门拒绝要响亮，绝不静默硬干",
+    "坑册检查项（开工查命中，写卡面）：Z26 asar path.sep+缓存陈旧头/Z27 多目标 splice offset 平移/Z32 备份先在盘+SHA256SUMS/Z29 auto 重打必须全量 status 复核/Z19+Z15 先 build+tsc/Z17 产物断言先剥注释/Z23 禁 heredoc/Z28 auto 日志必须文件 sink/A68 绝对路径/条目32 .mjs 代码用 Edit/Write 工具",
+    "代码改动全部在 worktrees/ZCTX-PATCH-AUTO 内；主树只由主线合并",
+    "真机 OPS 块（B5）在合并后于主树执行"
+  ],
+  "status": "open"
+}

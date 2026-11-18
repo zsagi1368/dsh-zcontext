@@ -1,0 +1,22 @@
+{
+  "schema": "checkpoint/v1",
+  "task": "ZCTX-PATCH-AUTO",
+  "step": 1,
+  "block": "B1",
+  "status": "done",
+  "ts": "2026-11-18T16:27:57.241Z",
+  "artifacts": [
+    {
+      "path": "docs/specs/ZCTX-PATCH-AUTO/options.md"
+    },
+    {
+      "path": "reports/plans/ZCTX-PATCH-AUTO-plan.md"
+    },
+    {
+      "path": "tasks/ZCTX-PATCH-AUTO/task.json"
+    }
+  ],
+  "next": "B2: dispatch coder in worktree",
+  "prev_hash": "",
+  "hash": "e8f4d1c330ab45c352318d0b40b49f97e1a80cd71f1a303f29581fa5d658d7bb"
+}
