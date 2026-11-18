@@ -50,13 +50,15 @@
  *  10. marker `<appDir>/.zctx-patch.json` (plugin status reads it: dual source)
  *
  * SUBCOMMANDS: patch / restore / status / auto / install-task /
- * uninstall-task / reanchor (restore = copy the backup asar back + remove
- * the marker; status = strictly read-only; auto = the hourly self-heal
- * state machine — fuse gate, repair only under --yes, full status re-check,
- * file log; install-task/uninstall-task = the Windows scheduled task around
- * `auto`; reanchor = build a candidate anchor set for a NEW official build
- * — read-only classification, anchors inherited only when provably alive,
- * data sets land in patcher/anchors/ under --accept).
+ * uninstall-task / reanchor / check-official (restore = copy the backup
+ * asar back + remove the marker; status = strictly read-only; auto = the
+ * hourly self-heal state machine — fuse gate, repair only under --yes, full
+ * status re-check, file log; install-task/uninstall-task = the Windows
+ * scheduled task around `auto`; reanchor = build a candidate anchor set for
+ * a NEW official build — read-only classification, anchors inherited only
+ * when provably alive, data sets land in patcher/anchors/ under --accept;
+ * check-official = ONE-GET official feed read — version/pending/staging
+ * faces, zero download).
  *
  * v0.2 (P6-B, plan ZCTX-v03-patch-plan + RES-port-feasibility P6-A spec): the
  * anchor set grows from ONE file/one stub to a MULTI-FILE base-context patch
@@ -2646,6 +2648,325 @@ export function reanchorAnchorSet(options) {
 }
 
 // ---------------------------------------------------------------------------
+// check-official — the official feed read side (D8a; RES-PATCH-DEEPEN §2.2).
+//
+// ZERO writes, exactly ONE outbound GET (the channel yml). The update feed
+// face of the fast-adaptation loop: what the official channel ships, whether
+// the LOCAL install is behind it, and whether this machine is inside the
+// staging rollout. Every anomaly (network, non-200, HTML fallback, missing
+// fields, unparsable yml) is a loud refusal — never a silent "up-to-date".
+// ---------------------------------------------------------------------------
+
+/** One pipeline contract line: `[ISO8601] [<tag>] state=<X> detail=<...>`. */
+export function pipelineLogLine(tag, state, detail) {
+  return `[${new Date().toISOString()}] [${tag}] state=${state} detail=${detail}`
+}
+
+/**
+ * Minimal YAML-subset parser for the two update manifests (app-update.yml,
+ * <channel>.yml): flat `key: value` pairs plus a `files:` list of `  - key:
+ * value` items. This is NOT a general YAML parser — anything outside the
+ * electron-updater manifest shape yields missing REQUIRED fields downstream,
+ * which the callers refuse loudly (fail-closed by shape, not by guessing).
+ * Values: quoted strings unquoted; `null`/empty → null; integers → numbers.
+ * A top-level key with an empty value starts a nested block the reader does
+ * not consume (e.g. publisherName's list) — skipped wholesale, honestly.
+ */
+export function parseUpdateYaml(text) {
+  if (typeof text !== 'string' || text.startsWith('<')) {
+    return { ok: false, reason: text.startsWith('<') ? 'response looks like HTML (the SPA fallback electron-updater never reads — wrong channel file)' : 'manifest is not text' }
+  }
+  const scalar = (raw) => {
+    const value = raw.trim()
+    if (value === '' || value === 'null' || value === '~') return null
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) return value.slice(1, -1)
+    if (/^-?\d+$/.test(value)) return Number.parseInt(value, 10)
+    return value
+  }
+  const doc = { files: [] }
+  let inFiles = false
+  let skippingNested = false
+  let current = null
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.replace(/\t/g, '  ')
+    if (line.trim() === '' || line.trim().startsWith('#')) continue
+    const indented = /^\s/.test(line)
+    const listItem = /^\s+-\s+(\w[\w-]*):\s*(.*)$/.exec(line)
+    const nestedItem = /^\s{2,}(\w[\w-]*):\s*(.*)$/.exec(line)
+    const topItem = /^(\w[\w-]*):\s*(.*)$/.exec(line)
+    if (topItem !== null && !indented) {
+      // A new top-level key ends any nested block we were skipping.
+      skippingNested = false
+      inFiles = topItem[1] === 'files'
+      if (inFiles) continue
+      current = null
+      doc[topItem[1]] = scalar(topItem[2])
+      // An empty value starts a nested block (e.g. publisherName's list) the
+      // reader does not consume — skip it wholesale, honestly.
+      if (doc[topItem[1]] === null) skippingNested = true
+      continue
+    }
+    if (skippingNested && indented) continue
+    if (inFiles && listItem) {
+      current = { [listItem[1]]: scalar(listItem[2]) }
+      doc.files.push(current)
+      continue
+    }
+    if (inFiles && nestedItem && current) {
+      current[nestedItem[1]] = scalar(nestedItem[2])
+      continue
+    }
+    return { ok: false, reason: `manifest line outside the known update-yaml shape: ${JSON.stringify(rawLine.slice(0, 120))}` }
+  }
+  return { ok: true, doc }
+}
+
+/**
+ * electron-updater isStagingMatch, replica per RES-PATCH-DEEPEN [DR1-5]
+ * (AppUpdater.ts: percentage = UUID.parse(stagingUserId).readUInt32BE(12) /
+ * 0xffffffff; staged when percentage < stagingPercentage/100). Confidence:
+ * medium-high — verbatim algorithm, but the shipped updater's exact version
+ * was never read ([U1] reserved); the direction (30% vs 43%) is robust to
+ * small algorithm drift.
+ */
+export function machineStagingPercentage(updaterId) {
+  const hex = typeof updaterId === 'string' ? updaterId.trim().replaceAll('-', '') : ''
+  if (!/^[0-9a-fA-F]{32}$/.test(hex)) return { ok: false, reason: `.updaterId is not a 32-hex UUID: ${JSON.stringify(updaterId ?? null)}` }
+  const value = Buffer.from(hex, 'hex').readUInt32BE(12)
+  return { ok: true, percentage: value / 0xffffffff }
+}
+
+/**
+ * Infer the installer version from the official file-name shape
+ * `deepseek-harness-<version>-win-x64.exe` (DR1-11: update-info.json carries
+ * fileName but not always version).
+ */
+export function installerVersionFromFileName(fileName) {
+  const match = /^deepseek-harness-(.+)-win-x64\.exe$/.exec(typeof fileName === 'string' ? fileName : '')
+  return match === null ? undefined : match[1]
+}
+
+/**
+ * Prerelease-aware version compare for the `0.2.2[-rc.N]` shape (fail-closed:
+ * unparsable versions compare as raw strings and report `incomparable`).
+ * Returns { order: -1|0|1, comparable: boolean } — a > b → 1.
+ */
+export function compareVersions(a, b) {
+  const parse = (v) => {
+    const match = /^(\d+)\.(\d+)\.(\d+)(?:-([\w.]+))?$/.exec(typeof v === 'string' ? v.trim() : '')
+    return match === null
+      ? undefined
+      : { core: [Number(match[1]), Number(match[2]), Number(match[3])], pre: match[4] === undefined ? null : match[4].split('.').map((token) => (/^\d+$/.test(token) ? Number(token) : token)) }
+  }
+  const pa = parse(a)
+  const pb = parse(b)
+  if (pa === undefined || pb === undefined) return { order: a === b ? 0 : a > b ? 1 : -1, comparable: false }
+  for (let i = 0; i < 3; i++) {
+    if (pa.core[i] !== pb.core[i]) return { order: pa.core[i] > pb.core[i] ? 1 : -1, comparable: true }
+  }
+  if (pa.pre === null && pb.pre === null) return { order: 0, comparable: true }
+  if (pa.pre === null) return { order: 1, comparable: true } // release beats prerelease
+  if (pb.pre === null) return { order: -1, comparable: true }
+  for (let i = 0; i < Math.max(pa.pre.length, pb.pre.length); i++) {
+    const ta = pa.pre[i]
+    const tb = pb.pre[i]
+    if (ta === undefined) return { order: -1, comparable: true } // shorter prerelease is older
+    if (tb === undefined) return { order: 1, comparable: true }
+    if (ta !== tb) return { order: ta > tb ? 1 : -1, comparable: true }
+  }
+  return { order: 0, comparable: true }
+}
+
+const UPDATER_YAML_REQUIRED_FEED_FIELDS = ['version']
+const INSTALLER_ENTRY_REQUIRED_FIELDS = ['url', 'size', 'sha512']
+
+/**
+ * CHECK-OFFICIAL — read the official update feed and compare against the
+ * local install (RES-PATCH-DEEPEN §2.2 [DR2-7]).
+ *
+ * Outbound traffic: exactly ONE GET of `<url>/<channel>.yml` (nightly →
+ * nightly.yml; latest.yml is known to return the SPA HTML and is never the
+ * right probe — [DR1-3]). check-official NEVER downloads the installer.
+ *
+ * Output JSON: { updateState: 'up-to-date'|'pending', feedVersion,
+ * installedVersion, feedSha512, feedSize, feedUrl, releaseDate,
+ * stagingPercentage, machinePercentage, stagedIn, pendingInstallerVersion?,
+ * pendingInstallerSha512?, updaterIdPath, steps }.
+ *
+ * @param options.appDir     the install to compare (default: resolveAppDir)
+ * @param options.logFile    pipeline log sink (default auto.log; Z28)
+ * @param options.quiet      skip console/file logging (unit tests read the JSON)
+ */
+export async function checkOfficial(options = {}) {
+  const {
+    appDir = undefined,
+    logFile = defaultAutoLogPath(),
+    quiet = false,
+    fetchImpl = globalThis.fetch,
+    updaterIdPath = undefined,
+    localAppData = process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'),
+  } = options
+  const sink = makeAutoSink(logFile)
+  const log = (state, detail) => {
+    if (!quiet) sink.write(pipelineLogLine('check-official', state, detail))
+  }
+  const finish = (state, detail, exitCode, payload = {}) => {
+    log(state, detail)
+    return { ok: exitCode === 0, state, exitCode, detail, logFile, ...(quiet ? {} : { lines: sink.lines }), ...(sink.error() !== undefined ? { sinkError: sink.error() } : {}), ...payload }
+  }
+  try {
+    // 1. The local install: app dir + app-update.yml (updater config) + the
+    //    installed version out of the asar root package.json.
+    const resolved = appDir !== undefined ? { appDir: resolve(appDir) } : resolveAppDir(undefined)
+    const dir = resolved.appDir
+    if (dir === undefined) {
+      return finish('missing-app', 'could not resolve the app dir (no --app-dir, registry unreadable, default absent)', 1)
+    }
+    const updaterYamlPath = join(dir, 'resources', 'app-update.yml')
+    if (!existsSync(updaterYamlPath)) {
+      return finish('no-updater-config', `app-update.yml not found at ${updaterYamlPath} — this install may not be the generic-provider desktop build`, 1)
+    }
+    let updaterConfig
+    try {
+      const parsed = parseUpdateYaml(readFileSync(updaterYamlPath, 'utf8'))
+      if (!parsed.ok) throw new Error(parsed.reason)
+      updaterConfig = parsed.doc
+    } catch (error) {
+      return finish('updater-config-bad', `app-update.yml unreadable/unparsable: ${error instanceof Error ? error.message : String(error)}`, 1)
+    }
+    if (updaterConfig.provider !== 'generic') {
+      return finish('provider-unsupported', `app-update.yml provider "${String(updaterConfig.provider)}" is not generic — this reader implements the generic provider only (loud refusal, no guessing)`, 1)
+    }
+    if (typeof updaterConfig.url !== 'string' || updaterConfig.url === '') {
+      return finish('updater-config-bad', 'app-update.yml has no feed url', 1)
+    }
+    const channel = typeof updaterConfig.channel === 'string' && updaterConfig.channel !== '' ? updaterConfig.channel : 'latest'
+    const asarPath = join(dir, 'resources', 'app.asar')
+    let installedVersion
+    try {
+      installedVersion = JSON.parse(extractPositioned(asarPath, SHELL_PACKAGE_PATH).toString('utf8'))?.version
+    } catch (error) {
+      return finish('installed-version-unreadable', `root package.json unreadable: ${error instanceof Error ? error.message : String(error)}`, 1)
+    }
+    if (typeof installedVersion !== 'string' || installedVersion === '') {
+      return finish('installed-version-unreadable', 'root package.json has no usable version string', 1)
+    }
+
+    // 2. ONE outbound GET: the channel file.
+    const feedBase = updaterConfig.url.endsWith('/') ? updaterConfig.url : `${updaterConfig.url}/`
+    const feedUrl = `${feedBase}${channel}.yml`
+    let response
+    try {
+      response = await fetchImpl(feedUrl, { headers: { 'cache-control': 'no-cache' } })
+    } catch (error) {
+      return finish('feed-unreachable', `GET ${feedUrl} failed: ${error instanceof Error ? error.message : String(error)}`, 1)
+    }
+    if (response.status !== 200) {
+      return finish('feed-not-found', `GET ${feedUrl} → HTTP ${response.status} (channel file missing or renamed — electron-updater would raise ERR_UPDATER_CHANNEL_FILE_NOT_FOUND)`, 1)
+    }
+    const feedText = await response.text()
+    const feedParsed = parseUpdateYaml(feedText)
+    if (!feedParsed.ok) {
+      return finish('feed-unparsable', `${feedUrl}: ${feedParsed.reason}`, 1)
+    }
+    const feed = feedParsed.doc
+    for (const field of UPDATER_YAML_REQUIRED_FEED_FIELDS) {
+      if (feed[field] === undefined || feed[field] === null) {
+        return finish('feed-incomplete', `${feedUrl} is missing required field "${field}"`, 1)
+      }
+    }
+    const installerEntry = Array.isArray(feed.files) ? feed.files.find((entry) => typeof entry?.url === 'string' && String(entry.url).endsWith('.exe')) : undefined
+    if (installerEntry === undefined) {
+      return finish('feed-incomplete', `${feedUrl} has no .exe installer entry in files[]`, 1)
+    }
+    for (const field of INSTALLER_ENTRY_REQUIRED_FIELDS) {
+      if (installerEntry[field] === undefined || installerEntry[field] === null) {
+        return finish('feed-incomplete', `${feedUrl} installer entry is missing required field "${field}"`, 1)
+      }
+    }
+    const installerUrl = /^https?:\/\//.test(String(installerEntry.url)) ? String(installerEntry.url) : new URL(String(installerEntry.url), feedBase).toString()
+    const feedVersion = String(feed.version)
+    const comparison = compareVersions(feedVersion, installedVersion)
+    const updateState = comparison.order > 0 ? 'pending' : 'up-to-date'
+    log('feed-read', `version=${feedVersion} size=${installerEntry.size} sha512=${String(installerEntry.sha512).slice(0, 12)}… staging=${String(feed.stagingPercentage ?? 'none')} releaseDate=${String(feed.releaseDate ?? 'n/a')}`)
+
+    // 3. The machine's staging position (DR1-5/DR1-7): userDataPath/.updaterId,
+    //    percentage = UUID bytes 12-15 BE / 0xffffffff. The userData dir name
+    //    comes from the asar package.json name (@deepseek-ai/dsh-desktop).
+    let updaterIdFile = updaterIdPath
+    if (updaterIdFile === undefined) {
+      let pkgName
+      try {
+        pkgName = JSON.parse(extractPositioned(asarPath, SHELL_PACKAGE_PATH).toString('utf8'))?.name
+      } catch {
+        pkgName = undefined
+      }
+      const segments = typeof pkgName === 'string' && pkgName.includes('/') ? pkgName.split('/') : [typeof pkgName === 'string' && pkgName !== '' ? pkgName : '@deepseek-ai/dsh-desktop']
+      updaterIdFile = join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), ...segments, '.updaterId')
+    }
+    let machinePercentage
+    let stagedIn
+    if (existsSync(updaterIdFile)) {
+      const id = readFileSync(updaterIdFile, 'utf8')
+      const machine = machineStagingPercentage(id)
+      if (machine.ok) {
+        machinePercentage = machine.percentage
+        stagedIn = feed.stagingPercentage === undefined || feed.stagingPercentage === null ? true : machinePercentage < Number(feed.stagingPercentage) / 100
+        log('staging-position', `machinePercentage=${machinePercentage.toFixed(4)} stagingPercentage=${String(feed.stagingPercentage ?? 'none')} → stagedIn=${String(stagedIn)} (isStagingMatch replica, DR1-5; confidence medium-high, [U1] reserved)`)
+      } else {
+        log('staging-position', `WARN: ${machine.reason} — stagedIn unknown`)
+      }
+    } else {
+      log('staging-position', `WARN: .updaterId not found at ${updaterIdFile} — stagedIn unknown`)
+    }
+
+    // 4. The official downloader's own pending state (DR1-11): the second
+    //    "official update is close" signal, strictly read-only.
+    let pendingInstaller
+    const updaterCacheDirName = typeof updaterConfig.updaterCacheDirName === 'string' ? updaterConfig.updaterCacheDirName : null
+    if (updaterCacheDirName !== null) {
+      const pendingInfoPath = join(localAppData, updaterCacheDirName, 'pending', 'update-info.json')
+      if (existsSync(pendingInfoPath)) {
+        try {
+          const info = JSON.parse(readFileSync(pendingInfoPath, 'utf8'))
+          pendingInstaller = {
+            path: pendingInfoPath,
+            fileName: typeof info.fileName === 'string' ? info.fileName : undefined,
+            version: typeof info.version === 'string' ? info.version : installerVersionFromFileName(info.fileName),
+            sha512: typeof info.sha512 === 'string' ? info.sha512 : undefined,
+          }
+          log('official-pending', `official downloader has ${pendingInstaller.version ?? pendingInstaller.fileName ?? 'an unknown version'} staged locally (${pendingInfoPath})`)
+        } catch (error) {
+          log('official-pending', `WARN: update-info.json unreadable: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
+    }
+
+    const payload = {
+      updateState,
+      comparable: comparison.comparable,
+      feedVersion,
+      installedVersion,
+      feedSha512: String(installerEntry.sha512),
+      feedSize: installerEntry.size,
+      feedUrl,
+      installerUrl,
+      channel,
+      releaseDate: feed.releaseDate,
+      stagingPercentage: feed.stagingPercentage,
+      machinePercentage,
+      stagedIn,
+      updaterIdPath: updaterIdFile,
+      pendingInstaller,
+      appDir: dir,
+    }
+    return finish(updateState === 'pending' ? 'pending' : 'up-to-date', `feed=${feedVersion} installed=${installedVersion} (comparable=${String(comparison.comparable)}) stagedIn=${String(stagedIn)}`, 0, payload)
+  } catch (error) {
+    return finish('error', `check-official threw: ${error instanceof Error ? error.message : String(error)} — fail-closed`, 1)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // auto — the hourly self-heal state machine (plan ZCTX-PATCH-AUTO §4).
 // ---------------------------------------------------------------------------
 
@@ -2988,13 +3309,13 @@ function printSteps(prefix, steps) {
   }
 }
 
-const COMMANDS = ['patch', 'restore', 'status', 'auto', 'install-task', 'uninstall-task', 'reanchor']
+const COMMANDS = ['patch', 'restore', 'status', 'auto', 'install-task', 'uninstall-task', 'reanchor', 'check-official']
 
 async function main(argv) {
   const args = parseArgs(argv)
   const command = args._[0]
   if (!COMMANDS.includes(command)) {
-    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept]')
+    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor|check-official> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept]')
     return 2
   }
   // Scheduled-task registration does not need the app dir: it registers THIS
@@ -3018,6 +3339,12 @@ async function main(argv) {
   console.log(`[app] ${resolved.appDir} (source: ${resolved.source})`)
   const dshHome = args.dsh_home ?? join(homedir(), '.dsh')
   try {
+    if (command === 'check-official') {
+      const result = await checkOfficial({ appDir: resolved.appDir, logFile: args.log_file })
+      const { lines, steps, ...payload } = result
+      console.log(JSON.stringify({ ...payload }, null, 2))
+      return result.exitCode
+    }
     if (command === 'reanchor') {
       const result = reanchorAnchorSet({ appDir: resolved.appDir, out: args.out, accept: args.accept === true })
       printSteps('[reanchor]', result.steps)
