@@ -1,22 +1,25 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-PATCH-AUTO",
-  "step": 8,
-  "block": "D7",
+  "step": 9,
+  "block": "D8",
   "status": "done",
-  "ts": "2026-11-18T17:17:25.489Z",
+  "ts": "2026-11-18T18:05:55.823Z",
   "artifacts": [
     {
-      "path": "tests/patcher-reanchor.spec.ts"
+      "path": "patcher/zctx-patch.mjs"
     },
     {
       "path": "patcher/zctx-patch.d.mts"
     },
     {
+      "path": "tests/patcher-preadapt.spec.ts"
+    },
+    {
       "path": "patcher/README.md"
     }
   ],
-  "next": "B3: reviewer adversarial review (>=98 gate) covering D5/D6/D7",
-  "prev_hash": "bd5b181f3678532d62b5c30986c8f590a7e582e42683ea247b63fef0971a15a6",
-  "hash": "934d87a8d0ee7c64106a40eef40e9702a6117bd62e045955640904c54463e0bf"
+  "next": "B3: reviewer adversarial review (>=98 gate) covering D5-D8",
+  "prev_hash": "934d87a8d0ee7c64106a40eef40e9702a6117bd62e045955640904c54463e0bf",
+  "hash": "ed110a47338c86fdcb0638e266f109e68bda47801b9f237e5d74f2bac238362c"
 }
