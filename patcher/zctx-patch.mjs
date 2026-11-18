@@ -2560,8 +2560,8 @@ export function uninstallScheduledTask(options = {}) {
     return { ok: false, refused: true, taskName, steps }
   }
   const existing = run(['/Query', '/TN', taskName])
+  taskStep(steps, 'query', existing.status === 0 ? 'ok' : 'skip', `schtasks /Query /TN ${taskName} → exit ${existing.status}${existing.status === 0 ? ' (task present)' : ' (already absent)'}`)
   if (existing.status !== 0) {
-    taskStep(steps, 'query', 'skip', `schtasks /Query /TN ${taskName} → exit ${existing.status} (already absent)`)
     return { ok: true, taskName, steps }
   }
   const removed = run(['/Delete', '/TN', taskName, '/F'])
