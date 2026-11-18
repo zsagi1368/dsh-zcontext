@@ -206,6 +206,8 @@ export async function patchAsar(args: {
   probeAppRunning?: () => 'yes' | 'no' | 'unknown'
   entry?: ZctxPatchEntry
   versions?: Record<string, ZctxPatchEntry>
+  /** Data anchor-set dir (default patcher/anchors/ next to the script). */
+  anchorsDir?: string
 }): Promise<PatchAsarResult>
 
 export async function restoreAsar(args: {
@@ -269,6 +271,14 @@ export interface StatusAsarResult {
   readonly appRunning?: 'yes' | 'no' | 'unknown'
   /** The Electron fuse face of `<appDir>\DeepSeek Harness.exe` (VERIFY-P #11). */
   readonly fuse?: FuseWireFace
+  /** Where this version's anchor entry resolved from (D5). */
+  readonly anchorSetSource?: 'data' | 'in-code' | 'none' | 'error' | 'argument'
+  /** Inventory of available anchor sets: the in-code map + the data dir. */
+  readonly availableAnchorSets?: {
+    readonly dir: string
+    readonly inCode: readonly string[]
+    readonly dataDir: readonly string[]
+  }
   readonly note?: string
 }
 
@@ -278,6 +288,8 @@ export async function statusAsar(args: {
   probeAppRunning?: () => 'yes' | 'no' | 'unknown'
   versions?: Record<string, ZctxPatchEntry>
   entry?: ZctxPatchEntry
+  /** Data anchor-set dir (default patcher/anchors/ next to the script). */
+  anchorsDir?: string
 }): Promise<StatusAsarResult>
 
 // -- auto — the hourly self-heal state machine -------------------------------
@@ -369,3 +381,116 @@ export function uninstallScheduledTask(args?: {
   platform?: NodeJS.Platform
   run?: (args: readonly string[]) => { status: number | null; stdout?: string; stderr?: string }
 }): TaskResult
+
+// -- External anchor sets (patcher/anchors/<version>.json, D5) ---------------
+
+export function defaultAnchorsDir(): string
+
+/** The five probe target paths of the patch set of record. */
+export function knownTargetPaths(versions?: Record<string, ZctxPatchEntry>): string[]
+
+/** `<version>.json` basenames (version keys) available in the data dir, sorted. */
+export function listAnchorSetVersions(anchorsDir?: string): string[]
+
+export interface AnchorSetValidation {
+  readonly ok: boolean
+  readonly reason?: string
+  readonly entry?: { readonly shellPackage: string; readonly files: readonly ZctxPatchFileEntry[] }
+}
+
+/**
+ * Per-field schema check (metadata fields, shellPackage, exactly the five
+ * known targets each once, 64-hex hashes, non-empty presence markers, op
+ * lists with unique non-empty anchors). Every violation is a loud refusal.
+ */
+export function validateAnchorSetData(data: unknown, knownPaths?: string[]): AnchorSetValidation
+
+export interface AnchorSetLoad {
+  /** True when no data file exists for the version (clean fallthrough). */
+  readonly absent?: boolean
+  readonly ok: boolean
+  readonly entry?: ZctxPatchSetEntry
+  readonly path?: string
+  readonly meta?: {
+    readonly anchorSetVersion: string
+    readonly generatedAt: string
+    readonly sourceReport: string
+  }
+  readonly reason?: string
+}
+
+/**
+ * Load `<anchorsDir>/<version>.json`: absent → fallthrough; exists but
+ * corrupt/invalid → ok:false + reason (the caller refuses, NO fallback to
+ * the in-code map); valid → ok:true with the validated entry.
+ */
+export function loadAnchorSetData(version: string, anchorsDir?: string, knownPaths?: string[]): AnchorSetLoad
+
+export interface AnchorSetResolution {
+  readonly entry?: ZctxPatchEntry
+  readonly source: 'data' | 'in-code' | 'none' | 'error'
+  readonly reason?: string
+  readonly path?: string
+  readonly meta?: AnchorSetLoad['meta']
+}
+
+/** Data file first, in-code map second; 'error' = refuse (fail-closed). */
+export function resolveAnchorEntry(
+  shellVersion: string | undefined,
+  args?: { versions?: Record<string, ZctxPatchEntry>; anchorsDir?: string; knownPaths?: string[] },
+): AnchorSetResolution
+
+// -- reanchor (D6) -----------------------------------------------------------
+
+export interface ReanchorStep {
+  readonly name: string
+  readonly status: string
+  readonly detail?: string
+}
+
+export interface ReanchorOpFace {
+  readonly anchor: string
+  readonly expected: number
+  readonly actual: number
+  readonly locatedBy?: 'anchor' | 'first-line' | 'prefix-60' | 'none'
+  readonly line?: number
+  readonly context?: string
+  readonly note?: string
+}
+
+export interface ReanchorClassificationRow {
+  readonly target: string
+  readonly oldPristineSha256: string
+  readonly newSha256: string
+  readonly class: 'ALIVE' | 'DRIFTED'
+  readonly ops: readonly ReanchorOpFace[]
+}
+
+export interface ReanchorResult {
+  readonly ok: boolean
+  readonly refused?: boolean
+  readonly accepted?: boolean
+  readonly appDir: string
+  readonly newVersion?: string
+  readonly candidateJson?: string
+  readonly writtenTo?: string
+  readonly writtenSha256?: string
+  readonly classification?: readonly ReanchorClassificationRow[]
+  readonly driftedMaterials?: readonly ReanchorClassificationRow[]
+  readonly recovery?: string
+  readonly steps: readonly ReanchorStep[]
+}
+
+/**
+ * Build a candidate anchor set for a NEW official build: read-only
+ * extraction + per-op classification (ALIVE/DRIFTED/patched-refuse);
+ * candidate only when 5/5 ALIVE; --accept is the only path into
+ * patcher/anchors/.
+ */
+export function reanchorAnchorSet(args: {
+  appDir: string
+  anchorsDir?: string
+  out?: string
+  accept?: boolean
+  versions?: Record<string, ZctxPatchEntry>
+}): ReanchorResult

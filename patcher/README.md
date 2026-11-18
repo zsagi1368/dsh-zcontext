@@ -62,6 +62,7 @@ node patcher/zctx-patch.mjs status        [--app-dir <dir>] [--dsh-home <dir>]
 node patcher/zctx-patch.mjs auto          [--app-dir <dir>] [--dsh-home <dir>] [--yes] [--log-file <path>]
 node patcher/zctx-patch.mjs install-task  [--script <path>] [--log-file <path>]
 node patcher/zctx-patch.mjs uninstall-task
+node patcher/zctx-patch.mjs reanchor      --app-dir <新构建目录> [--out <path>] [--accept]
 ```
 
 - app 目录定位：`--app-dir` 优先 → 注册表（HKCU Uninstall 键 InstallLocation）→
@@ -154,6 +155,39 @@ schtasks /Create /TN ZCTX-Patch-Auto /SC HOURLY /TR "<action>" /F
   worktree 路径不是长期位置；注册命令在 B5 以 `--script` 显式传主树路径，
   仓库自身从不对真机 schtasks 执行任何操作。
 
+## 快速适配官方升级 SOP（v0.3-reanchor）
+
+官方 rc.4+ 发布后，适配不再是"改代码"——机械部分全部自动化，人工只剩"看一眼报告"：
+
+1. **发现**：auto 巡检 tick 对新构建报 `drifted`（逐文件响亮日志，exit 1）——或手动
+   `status` 看逐文件面（`status` 同时报告 `anchorSetSource` 与 `availableAnchorSets`
+   ——在码版本 + `patcher/anchors/` 数据目录清单）。
+2. **分类**：对新构建目录跑 `reanchor --app-dir <新构建目录>`。工具**只读**抽取五个
+   目标文件，逐 op 断言既有锚串在新字节中 count==1：
+   - 全部 ALIVE（锚串原样存活）→ 产出**候选锚集**（锚串逐字继承，仅把
+     `pristineSha256` 更新为新文件哈希），候选 JSON 默认打印；`--out <path>` 另存
+     一份检视副本；**不带 `--accept` 不写 `patcher/anchors/`**。
+   - 任一锚 DRIFTED（count≠1）→ **候选不产出**（禁猜锚），报告逐目标材料：
+     新旧文件 SHA-256、每锚期望 vs 实测计数、锚迹上下文行（锚本身 → 首行 →
+     60 字符前缀，±5 行；`locatedBy:'none'` = 锚彻底消失，如实报告）→ 人工据此
+     手改探针锚后重跑。
+   - 输入是已打补丁的字节（presenceMarker 在场）→ 响亮拒收（reanchor 只认
+     pristine 面——先 restore 或用未打补丁的构建）。
+   - 目标文件缺席/改名（结构性变化）→ 拒收（超出锚集适配范围，需人工）。
+3. **过目**：人工检视候选 JSON（锚行 diff、唯一性计数已在报告中）。
+4. **落盘**：`reanchor --app-dir <新构建目录> --accept` → 校验通过后原子写入
+   `patcher/anchors/<version>.json`，stdout 打印该文件 SHA-256。已存在同版本数据
+   文件 = 拒收（reanchor 永不覆盖——删除旧文件是人的决定）。
+5. **重打**：`patch`/`auto` 的加载器按版本精确匹配自动选中数据锚集（在码 rc.3
+   锚集保留为已验证默认，不迁出），下一轮 auto tick 自动重打——无需改代码。
+
+**数据锚集安全边界（fail-closed 不弱化）**：数据文件只是数据——打补丁前，既有
+哈希门对新文件逐目标复算 `pristineSha256`，`patchFile` 对每条锚在真实字节上断言
+count==1；错数据在动手前必被拒。加载器逐字段校验（元数据三字段/五目标路径各一次/
+64-hex 哈希形态/锚串与 op 结构/锚唯一性），**存在但损坏的数据文件响亮拒收且绝不
+回退在码 map**；未知版本照旧拒绝。锚始终用精确串（count=1 实证），不用正则锚。
+端到端零人工编辑链路由 `tests/patcher-reanchor.spec.ts` 的 money test 锁定。
+
 ## 风险与限制（如实）
 
 - **补丁存活期 = 官方更新覆盖**：electron-updater 全量替换安装目录（nightly 实测
@@ -196,7 +230,9 @@ schtasks /Create /TN ZCTX-Patch-Auto /SC HOURLY /TR "<action>" /F
   `tests/patch-bridge.spec.ts`；fuse wire 读取/patch 门/status 面在
   `tests/patcher-fuse.spec.ts`（合成 exe，sentinel 随机偏移）；auto 判定表逐态与
   计划任务形态在 `tests/patcher-auto.spec.ts`（仅进程探针 mock，patch/status 真跑；
-  schtasks 仅 fixture 级形态断言）。
+  schtasks 仅 fixture 级形态断言）；快速适配架构（reanchor 分类/候选/accept + 数据
+  锚集加载器/校验器 + reanchor→patch→status 零人工编辑 money test）在
+  `tests/patcher-reanchor.spec.ts`。
 - **真机 patch/restore/计划任务注册不由本仓执行**（W5-A6-INSTALL 伞下 post-merge；
   执行权在用户；B5 真机 OPS 在合并后主树执行，计划任务用 `--script` 指主树路径）。
 - 运行时依赖 `@electron/asar`（仓内 devDependency；独立运行请

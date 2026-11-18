@@ -4,3 +4,6 @@
 [2026-11-18] STEP-0004 | block=D3 | status=done | commit=b563c67 | artifacts=patcher/zctx-patch.mjs; patcher/zctx-patch.d.mts | evidence=tsc OK; vitest 59/59; mjs+dmts byte-converged to designed final | next=D4 specs+README
 [2026-11-18] STEP-0005 | block=D4 | status=done | artifacts=tests/patcher-fuse.spec.ts; tests/patcher-auto.spec.ts; patcher/README.md; README.md; README.zh.md | evidence=full pnpm test (tsdown+vitest) 29 files 628/628 PASS; tsc --noEmit OK; R1 guard diff NONE; CLI usage smoke exit 2 | next=B3 reviewer
 [2026-11-18] STEP-0006 | block=B1-扩令 | status=done | artifacts=tasks/ZCTX-PATCH-AUTO/task.json(V9-V11); reports/plans/ZCTX-PATCH-AUTO-plan.md(B2b DAG+快速适配架构说明) | 过程自纠: python-heredoc 含转义序列违反 Z23 字面红线(引号限定符下未损坏,已验证 json 完好)——后续此类编辑一律 Write/Edit 工具 | next=派 coder D5-D7
+[2026-11-18] STEP-0006 | block=D5 | status=done | commit=f2dfb70 | artifacts=patcher/zctx-patch.mjs | evidence=vitest 95/95; tsc OK | next=D6 reanchor
+[2026-11-18] STEP-0007 | block=D6 | status=done | commit=6f5a135 | artifacts=patcher/zctx-patch.mjs | evidence=vitest 95/95; tsc OK | next=D7 spec+README
+[2026-11-18] STEP-0008 | block=D7 | status=done | artifacts=tests/patcher-reanchor.spec.ts; patcher/zctx-patch.d.mts; patcher/README.md | evidence=full pnpm test 30 files 639/639 PASS (money test end-to-end zero manual edits); tsc OK | next=B3 reviewer
