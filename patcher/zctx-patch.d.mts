@@ -322,3 +322,50 @@ export function runAuto(args: {
   patchFn?: (args: AutoHookArgs) => Promise<PatchAsarResult>
   logFile?: string
 }): Promise<AutoRunResult>
+
+// -- install-task / uninstall-task — the Windows scheduled task --------------
+
+export const TASK_NAME: string
+
+/** The absolute path of THIS script (fileURLToPath of import.meta.url). */
+export function thisScriptPath(): string
+
+/**
+ * `cmd /c ""<node>" "<script>" auto --yes >> "<log>" 2>&1"` — every path
+ * quoted, plus the outer pair cmd.exe's /C rule 2 consumes (spaced paths).
+ */
+export function buildTaskAction(args: {
+  nodePath?: string
+  scriptPath: string
+  logPath: string
+}): string
+
+export interface TaskStep {
+  readonly name: string
+  readonly status: string
+  readonly detail?: string
+}
+
+export interface TaskResult {
+  readonly ok: boolean
+  readonly refused?: boolean
+  readonly taskName: string
+  readonly action?: string
+  readonly steps: readonly TaskStep[]
+  readonly recovery?: string
+}
+
+export function installScheduledTask(args?: {
+  nodePath?: string
+  scriptPath?: string
+  logFile?: string
+  taskName?: string
+  platform?: NodeJS.Platform
+  run?: (args: readonly string[]) => { status: number | null; stdout?: string; stderr?: string }
+}): TaskResult
+
+export function uninstallScheduledTask(args?: {
+  taskName?: string
+  platform?: NodeJS.Platform
+  run?: (args: readonly string[]) => { status: number | null; stdout?: string; stderr?: string }
+}): TaskResult

@@ -49,10 +49,11 @@
  *      witness files match their pristine integrity hashes)
  *  10. marker `<appDir>/.zctx-patch.json` (plugin status reads it: dual source)
  *
- * SUBCOMMANDS: patch / restore / status / auto (restore = copy the backup
- * asar back + remove the marker; status = strictly read-only; auto = the
- * hourly self-heal state machine — fuse gate, repair only under --yes, full
- * status re-check, file log).
+ * SUBCOMMANDS: patch / restore / status / auto / install-task /
+ * uninstall-task (restore = copy the backup asar back + remove the marker;
+ * status = strictly read-only; auto = the hourly self-heal state machine —
+ * fuse gate, repair only under --yes, full status re-check, file log;
+ * install-task/uninstall-task = the Windows scheduled task around `auto`).
  *
  * v0.2 (P6-B, plan ZCTX-v03-patch-plan + RES-port-feasibility P6-A spec): the
  * anchor set grows from ONE file/one stub to a MULTI-FILE base-context patch
@@ -98,6 +99,7 @@ import {
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /** Patcher version (plan P6 wave table: patcher v0.2.0). */
 export const PATCHER_VERSION = '0.2.0'
@@ -2444,10 +2446,142 @@ export async function runAuto(options) {
 }
 
 // ---------------------------------------------------------------------------
+// install-task / uninstall-task — the Windows hourly scheduled task.
+// ---------------------------------------------------------------------------
+
+/** The scheduled-task name (plan §4 contract; the real machine registers it in B5). */
+export const TASK_NAME = 'ZCTX-Patch-Auto'
+
+/**
+ * The absolute path of THIS script — the scheduled task must run the
+ * MAIN-TREE copy (a worktree path is not a long-lived location). Z20:
+ * fileURLToPath, never raw URL pathname surgery.
+ */
+export function thisScriptPath() {
+  return fileURLToPath(import.meta.url)
+}
+
+/**
+ * The scheduled-task action string:
+ *
+ *   cmd /c ""<node>" "<script>" auto --yes >> "<log>" 2>&1"
+ *
+ * EVERY path is double-quoted (the install dir "DeepSeek Harness", the user
+ * profile, and repo paths routinely contain spaces), and the WHOLE command
+ * carries one extra OUTER quote pair. Why: cmd.exe's /C rule 2 (cmd /?) —
+ * when the command after /C starts with a quote and does not meet the
+ * two-quote preservation conditions (ours has many quotes plus `& < >`), cmd
+ * strips the FIRST and LAST quote of the line. With the outer pair present,
+ * that stripping consumes the wrapper pair and the inner command survives
+ * fully quoted: `"node" "script" auto --yes >> "log" 2>&1`. Without it, the
+ * first and last PATH quotes would be eaten and a spaced path breaks the
+ * action. The `>>`/`2>&1` redirect rides cmd, landing stdout+stderr in the
+ * same file sink the patcher writes (Z28: belt-and-suspenders — a crash
+ * before the sink starts still leaves the console face in the file).
+ */
+export function buildTaskAction({ nodePath = process.execPath, scriptPath, logPath }) {
+  return `cmd /c ""${nodePath}" "${scriptPath}" auto --yes >> "${logPath}" 2>&1"`
+}
+
+/** The default schtasks runner (no shell — node quotes each arg per CRT rules). */
+function runSchtasksDefault(args) {
+  return spawnSync('schtasks', args, { encoding: 'utf8' })
+}
+
+function taskStep(steps, name, status, detail) {
+  steps.push({ name, status, ...(detail !== undefined ? { detail } : {}) })
+  return status
+}
+
+/**
+ * INSTALL the hourly self-heal task (idempotent): an existing task is
+ * /Delete /F'd first, then created, then re-queried as the visibility proof.
+ * Every schtasks invocation and its outcome is recorded in `steps` (and
+ * printed by the CLI) — registration leaves a full audit trail.
+ *
+ * @param options.nodePath  the node executable (default process.execPath)
+ * @param options.scriptPath the patcher script (default {@link thisScriptPath};
+ *                            the real machine passes the MAIN-TREE path)
+ * @param options.logFile   the auto log sink (default {@link defaultAutoLogPath})
+ * @param options.taskName  default {@link TASK_NAME}
+ * @param options.platform  injectable for tests (default process.platform)
+ * @param options.run       injectable schtasks runner (tests)
+ */
+export function installScheduledTask(options = {}) {
+  const {
+    nodePath = process.execPath,
+    scriptPath = thisScriptPath(),
+    logFile = defaultAutoLogPath(),
+    taskName = TASK_NAME,
+    platform = process.platform,
+    run = runSchtasksDefault,
+  } = options
+  const steps = []
+  if (platform !== 'win32') {
+    taskStep(steps, 'platform gate', 'refused', `schtasks is Windows-only; this host is ${platform} — the task was NOT created`)
+    return { ok: false, refused: true, taskName, steps }
+  }
+  const tr = buildTaskAction({ nodePath, scriptPath, logPath: logFile })
+  taskStep(steps, 'action build', 'ok', tr)
+  // Idempotence: an existing task is deleted FIRST (explicit delete-then-
+  // create), so a stale action (e.g. from a moved repo) never survives.
+  const existing = run(['/Query', '/TN', taskName])
+  if (existing.status === 0) {
+    const removed = run(['/Delete', '/TN', taskName, '/F'])
+    taskStep(steps, 'delete existing', removed.status === 0 ? 'ok' : 'FAILED', `schtasks /Delete /TN ${taskName} /F → exit ${removed.status}${removed.status !== 0 ? ` (${String(removed.stderr ?? '').trim()})` : ''}`)
+    if (removed.status !== 0) {
+      return { ok: false, taskName, steps, recovery: `delete the stale task manually (schtasks /Delete /TN ${taskName} /F) and re-run install-task` }
+    }
+  } else {
+    taskStep(steps, 'delete existing', 'skip', `schtasks /Query /TN ${taskName} → exit ${existing.status} (not present)`)
+  }
+  const created = run(['/Create', '/TN', taskName, '/SC', 'HOURLY', '/TR', tr, '/F'])
+  taskStep(steps, 'create', created.status === 0 ? 'ok' : 'FAILED', `schtasks /Create /TN ${taskName} /SC HOURLY /TR <action> /F → exit ${created.status}${created.status !== 0 ? ` (${[created.stderr, created.stdout].map((text) => String(text ?? '').trim()).filter(Boolean).join(' ')})` : ''}`)
+  if (created.status !== 0) {
+    return { ok: false, taskName, steps, recovery: 'inspect the printed schtasks output — a common cause is a path with a quote; re-run with --script/--log-file' }
+  }
+  const verify = run(['/Query', '/TN', taskName])
+  taskStep(steps, 'verify visible', verify.status === 0 ? 'ok' : 'FAILED', `schtasks /Query /TN ${taskName} → exit ${verify.status}`)
+  if (verify.status !== 0) {
+    return { ok: false, taskName, steps, recovery: `the task was created but does not query back — check schtasks manually (/Query /TN ${taskName})` }
+  }
+  return { ok: true, taskName, action: tr, steps }
+}
+
+/**
+ * UNINSTALL the task: delete + PROOF of invisibility (the follow-up /Query
+ * must fail). Idempotent — an absent task is a no-op success.
+ */
+export function uninstallScheduledTask(options = {}) {
+  const { taskName = TASK_NAME, platform = process.platform, run = runSchtasksDefault } = options
+  const steps = []
+  if (platform !== 'win32') {
+    taskStep(steps, 'platform gate', 'refused', `schtasks is Windows-only; this host is ${platform} — nothing to uninstall here`)
+    return { ok: false, refused: true, taskName, steps }
+  }
+  const existing = run(['/Query', '/TN', taskName])
+  if (existing.status !== 0) {
+    taskStep(steps, 'query', 'skip', `schtasks /Query /TN ${taskName} → exit ${existing.status} (already absent)`)
+    return { ok: true, taskName, steps }
+  }
+  const removed = run(['/Delete', '/TN', taskName, '/F'])
+  taskStep(steps, 'delete', removed.status === 0 ? 'ok' : 'FAILED', `schtasks /Delete /TN ${taskName} /F → exit ${removed.status}`)
+  if (removed.status !== 0) {
+    return { ok: false, taskName, steps, recovery: `delete manually: schtasks /Delete /TN ${taskName} /F` }
+  }
+  const verify = run(['/Query', '/TN', taskName])
+  taskStep(steps, 'verify invisible', verify.status !== 0 ? 'ok' : 'FAILED', `schtasks /Query /TN ${taskName} → exit ${verify.status} (non-zero = gone)`)
+  if (verify.status === 0) {
+    return { ok: false, taskName, steps, recovery: `the task still queries after delete — inspect schtasks manually (/Query /TN ${taskName})` }
+  }
+  return { ok: true, taskName, steps }
+}
+
+// ---------------------------------------------------------------------------
 // CLI.
 // ---------------------------------------------------------------------------
 
-const VALUE_OPTIONS = new Set(['--app-dir', '--dsh-home', '--backup', '--log-file'])
+const VALUE_OPTIONS = new Set(['--app-dir', '--dsh-home', '--backup', '--script', '--log-file'])
 const FLAG_OPTIONS = new Set(['--yes'])
 
 function parseArgs(argv) {
@@ -2476,14 +2610,27 @@ function printSteps(prefix, steps) {
   }
 }
 
-const COMMANDS = ['patch', 'restore', 'status', 'auto']
+const COMMANDS = ['patch', 'restore', 'status', 'auto', 'install-task', 'uninstall-task']
 
 async function main(argv) {
   const args = parseArgs(argv)
   const command = args._[0]
   if (!COMMANDS.includes(command)) {
-    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--log-file <path>]')
+    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>]')
     return 2
+  }
+  // Scheduled-task registration does not need the app dir: it registers THIS
+  // script (or --script) against the resolved node + log paths.
+  if (command === 'install-task' || command === 'uninstall-task') {
+    const result = command === 'install-task'
+      ? installScheduledTask({ scriptPath: args.script, logFile: args.log_file })
+      : uninstallScheduledTask({})
+    printSteps('[task]', result.steps)
+    if (!result.ok) {
+      console.error(`[refuse] ${command} did not complete${result.recovery !== undefined ? ` — recovery: ${result.recovery}` : ''}`)
+      return 1
+    }
+    return 0
   }
   const resolved = resolveAppDir(args.app_dir)
   if (resolved.appDir === undefined) {
