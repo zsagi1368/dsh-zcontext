@@ -50,15 +50,18 @@
  *  10. marker `<appDir>/.zctx-patch.json` (plugin status reads it: dual source)
  *
  * SUBCOMMANDS: patch / restore / status / auto / install-task /
- * uninstall-task / reanchor / check-official (restore = copy the backup
- * asar back + remove the marker; status = strictly read-only; auto = the
- * hourly self-heal state machine — fuse gate, repair only under --yes, full
- * status re-check, file log; install-task/uninstall-task = the Windows
- * scheduled task around `auto`; reanchor = build a candidate anchor set for
- * a NEW official build — read-only classification, anchors inherited only
- * when provably alive, data sets land in patcher/anchors/ under --accept;
- * check-official = ONE-GET official feed read — version/pending/staging
- * faces, zero download).
+ * uninstall-task / reanchor / check-official / preadapt (restore = copy the
+ * backup asar back + remove the marker; status = strictly read-only; auto =
+ * the hourly self-heal state machine — fuse gate, repair only under --yes,
+ * full status re-check, file log, feed-aware pre-adaptation; install-task/
+ * uninstall-task = the Windows scheduled task around `auto`; reanchor =
+ * build a candidate anchor set for a NEW official build — read-only
+ * classification, anchors inherited only when provably alive, data sets
+ * land in patcher/anchors/ under --accept; check-official = ONE-GET feed
+ * read (version/staging/pending signals, zero download); preadapt = the
+ * pre-adaptation pipeline (sha512-verified download → 7z double extraction
+ * → fuse pre-check → reanchor → simulated full patch → status 5/5 →
+ * --accept lands the candidate; the real install stays untouched).
  *
  * v0.2 (P6-B, plan ZCTX-v03-patch-plan + RES-port-feasibility P6-A spec): the
  * anchor set grows from ONE file/one stub to a MULTI-FILE base-context patch
@@ -89,6 +92,7 @@ import { spawnSync } from 'node:child_process'
 import {
   appendFileSync,
   copyFileSync,
+  createWriteStream,
   existsSync,
   mkdirSync,
   openSync,
@@ -105,6 +109,8 @@ import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 /** Patcher version (plan P6 wave table: patcher v0.2.0). */
 export const PATCHER_VERSION = '0.2.0'
@@ -2628,8 +2634,8 @@ export function reanchorAnchorSet(options) {
   report.candidate = candidate
 
   // 7. Outputs: --out is an inspection copy anywhere; --accept is the ONLY
-  //    path into patcher/anchors/ (atomic tmp+rename; existence was refused
-  //    above, so this never overwrites).
+  //    path into patcher/anchors/, through the shared landAnchorSet write
+  //    path (validate → never-clobber → atomic tmp+rename → on-disk sha).
   if (out !== undefined) {
     writeFileSync(out, candidateJson)
     step('candidate written', 'ok', out)
@@ -2638,13 +2644,13 @@ export function reanchorAnchorSet(options) {
     step('accept gate', 'skip', '--accept not given — patcher/anchors/ NOT written; inspect the candidate, then re-run with --accept')
     return { ok: true, accepted: false, newVersion, candidateJson, steps: report.steps, classification: report.classification }
   }
-  mkdirSync(anchorsDir, { recursive: true })
-  const tmpPath = `${dataPath}.tmp-${process.pid}`
-  writeFileSync(tmpPath, candidateJson)
-  renameSync(tmpPath, dataPath)
-  const writtenSha = sha256Hex(readFileSync(dataPath))
-  step('anchor set written', 'ok', `${dataPath} (sha256 ${writtenSha})`)
-  return { ok: true, accepted: true, newVersion, candidateJson, writtenTo: dataPath, writtenSha256: writtenSha, steps: report.steps, classification: report.classification }
+  const landed = landAnchorSet(newVersion, candidate, anchorsDir, probeFiles.map((file) => file.targetPath))
+  if (!landed.ok) {
+    step('anchor set written', 'FAILED', landed.reason)
+    return { ok: false, refused: true, newVersion, steps: report.steps }
+  }
+  step('anchor set written', 'ok', `${landed.path} (sha256 ${landed.sha256})`)
+  return { ok: true, accepted: true, newVersion, candidateJson, writtenTo: landed.path, writtenSha256: landed.sha256, steps: report.steps, classification: report.classification }
 }
 
 // ---------------------------------------------------------------------------
@@ -2669,8 +2675,6 @@ export function pipelineLogLine(tag, state, detail) {
  * electron-updater manifest shape yields missing REQUIRED fields downstream,
  * which the callers refuse loudly (fail-closed by shape, not by guessing).
  * Values: quoted strings unquoted; `null`/empty → null; integers → numbers.
- * A top-level key with an empty value starts a nested block the reader does
- * not consume (e.g. publisherName's list) — skipped wholesale, honestly.
  */
 export function parseUpdateYaml(text) {
   if (typeof text !== 'string' || text.startsWith('<')) {
@@ -2967,6 +2971,366 @@ export async function checkOfficial(options = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// preadapt — the pre-adaptation pipeline (D8b; RES-PATCH-DEEPEN §2.3 DR2-8).
+//
+// Downloads the PENDING official installer and adapts AGAINST IT before the
+// update ever lands: sha512-verified download → 7z double extraction
+// (NSIS installer → $PLUGINSDIR/app-64.7z → full app tree) → fuse pre-check
+// on the extracted exe (DR5-4: a candidate the runtime would reject dies
+// HERE, not on a user desktop) → reanchor on the extracted tree → a FULL
+// gated patch + status 5/5 simulation on the extracted tree → only an
+// all-green candidate may land in patcher/anchors/ (--accept). The real
+// install is never touched; the only writes are the workdir (default
+// cleaned) and, under --accept, the anchors data file.
+//
+// Outbound traffic: ONE GET of the channel yml + ONE GET of the installer
+// — nothing else. The download is a ~300 MB one-off per version; a data
+// anchor set for the feed version makes the whole pipeline a no-op
+// (natural idempotence).
+// ---------------------------------------------------------------------------
+
+/** Default pre-adaptation work root: %LOCALAPPDATA%\zctx-patch\preadapt\. */
+export function defaultPreadaptWorkRoot() {
+  const base = process.env.LOCALAPPDATA !== undefined && process.env.LOCALAPPDATA !== ''
+    ? process.env.LOCALAPPDATA
+    : join(homedir(), 'AppData', 'Local')
+  return join(base, 'zctx-patch', 'preadapt')
+}
+
+/**
+ * Locate 7-Zip for the NSIS double extraction. Probe order: explicit path →
+ * the two standard install dirs (stable) → `where 7z` (LAST: a PATH hit may
+ * be a host app's bundled tool — e.g. a TRAE-managed 7z — whose location is
+ * VOLATILE and is flagged as such, RES-PATCH-DEEPEN [DR2-2]).
+ */
+export function locateSevenZip(options = {}) {
+  const {
+    explicitPath = undefined,
+    platform = process.platform,
+    standardPaths = ['C:\\Program Files\\7-Zip\\7z.exe', 'C:\\Program Files (x86)\\7-Zip\\7z.exe'],
+    whereImpl = (name) => {
+      const probed = spawnSync('where', [name], { encoding: 'utf8' })
+      if (probed.status !== 0) return undefined
+      const first = `${probed.stdout ?? ''}`.split(/\r?\n/).map((line) => line.trim()).find((line) => line !== '')
+      return first === undefined || first === '' ? undefined : first
+    },
+  } = options
+  if (platform !== 'win32') {
+    return { ok: false, reason: '7-Zip extraction is implemented for Windows hosts only' }
+  }
+  if (explicitPath !== undefined && explicitPath !== '') {
+    if (!existsSync(explicitPath)) return { ok: false, reason: `explicit 7z path not found: ${explicitPath}` }
+    return { ok: true, path: resolve(explicitPath), source: 'explicit', volatile: false }
+  }
+  for (const candidate of standardPaths) {
+    if (existsSync(candidate)) return { ok: true, path: candidate, source: 'standard-install', volatile: false }
+  }
+  const found = whereImpl('7z')
+  if (found !== undefined) {
+    return { ok: true, path: found, source: 'path-lookup', volatile: true }
+  }
+  return {
+    ok: false,
+    reason: '7-Zip not found (standard install dirs and PATH lookup all missed)',
+    guidance: 'install 7-Zip into C:\\Program Files\\7-Zip (https://www.7-zip.org/), or pass --seven-zip <path to 7z.exe>',
+  }
+}
+
+/** Bounded search for the NSIS app package (app-<arch>.7z / .zip) in the extracted installer tree. */
+function findAppPackage(dir, depth = 3) {
+  if (depth < 0 || !existsSync(dir)) return undefined
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name)
+    if (entry.isFile() && /^app-(?:32|64|arm64)\.(?:7z|zip)$/i.test(entry.name)) return full
+  }
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      const found = findAppPackage(join(dir, entry.name), depth - 1)
+      if (found !== undefined) return found
+    }
+  }
+  return undefined
+}
+
+function runSevenZipExtract(sevenZipPath, archive, destDir, maxBuffer = 32 * 1024 * 1024) {
+  const probed = spawnSync(sevenZipPath, ['x', archive, `-o${destDir}`, '-y'], { encoding: 'utf8', maxBuffer })
+  if (probed.status !== 0) {
+    const output = [probed.stderr, probed.stdout].map((text) => String(text ?? '').trim()).filter(Boolean).join(' ').slice(-400)
+    throw new Error(`7z x failed (exit ${probed.status}): ${archive} → ${output}`)
+  }
+}
+
+/** The real double extraction: installer → $PLUGINSDIR app package → full app tree. */
+async function extractWithSevenZip({ installerPath, workDir, sevenZip, log }) {
+  const stage1 = join(workDir, 'nsis')
+  mkdirSync(stage1, { recursive: true })
+  log('extract-stage1', `7z x ${installerPath.split(process.platform === 'win32' ? '\\' : '/').pop()} → ${stage1}`)
+  runSevenZipExtract(sevenZip.path, installerPath, stage1)
+  const appPackage = findAppPackage(stage1)
+  if (appPackage === undefined) {
+    const top = readdirSync(stage1).slice(0, 20).join(', ')
+    throw new Error(`no app-<arch>.7z/.zip package in the extracted installer (top-level: ${top || 'empty'}) — unexpected NSIS layout, do NOT brute-force; inspect the archive (7z l) first`)
+  }
+  const appTree = join(workDir, 'app')
+  mkdirSync(appTree, { recursive: true })
+  log('extract-stage2', `7z x ${appPackage.split(process.platform === 'win32' ? '\\' : '/').pop()} → ${appTree}`)
+  runSevenZipExtract(sevenZip.path, appPackage, appTree)
+  return { appTree, appPackage }
+}
+
+/** Stream one URL to disk (no Range resume — the download is a one-off per version; failures re-download). */
+async function downloadToFile(url, destPath, expectedSize) {
+  const response = await fetch(url, { headers: { 'cache-control': 'no-cache' } })
+  if (response.status !== 200) throw new Error(`GET ${url} → HTTP ${response.status}`)
+  if (!response.body) throw new Error(`GET ${url} returned an empty body`)
+  await pipeline(Readable.fromWeb(response.body), createWriteStream(destPath))
+  const size = statSync(destPath).size
+  if (expectedSize !== undefined && Number(expectedSize) >= 0 && size !== Number(expectedSize)) {
+    throw new Error(`downloaded size ${size} != feed size ${Number(expectedSize)}`)
+  }
+}
+
+/** The feed's sha512 is BASE64 (electron-updater wire format) — compare in kind. */
+function sha512FileBase64(path) {
+  return createHash('sha512').update(readFileSync(path)).digest('base64')
+}
+
+/**
+ * PREADAPT — prepare an anchor set for the PENDING official build before it
+ * lands (RES-PATCH-DEEPEN §2.3). The real install is read-only; the pipeline
+ * churns only %LOCALAPPDATA%\zctx-patch\preadapt\<version>\.
+ *
+ * Gates, in order (every refusal is loud; a failed candidate never lands):
+ *   pending? → already-preadapted? → --yes (download/write gate) → download +
+ *   sha512 → 7z located → double extraction → tree assertions (asar + exe +
+ *   version == feed) → FUSE pre-check (integrity must be '0', DR5-4) →
+ *   reanchor on the tree (full D6 gates) → SIMULATED FULL patch on the tree →
+ *   status 5/5 + marker → --accept lands (never clobbering) → workdir cleanup
+ *   (--keep-workdir keeps it for human inspection).
+ *
+ * @param options.run7zImpl  injectable extractor for tests:
+ *                           async ({installerPath, workDir, sevenZip}) => {appTree}
+ *                           (chosen over a fake 7z.exe fixture: the real code
+ *                           path spawns a binary; the injection point mirrors
+ *                           the exact call contract, so orchestration is tested
+ *                           1:1 while the real 7z face is exercised in B5)
+ * @param options.checkOfficialImpl injectable feed check (tests)
+ */
+export async function preadaptAnchorSet(options = {}) {
+  const {
+    appDir = undefined,
+    yes = false,
+    accept = false,
+    keepWorkdir = false,
+    anchorsDir = defaultAnchorsDir(),
+    workRoot = defaultPreadaptWorkRoot(),
+    logFile = defaultAutoLogPath(),
+    quiet = false,
+    probeAppRunning = () => 'no', // the EXTRACTED tree is never the running install
+    sevenZipPath = undefined,
+    locate7zImpl = locateSevenZip,
+    run7zImpl = undefined,
+    downloadImpl = downloadToFile,
+    checkOfficialImpl = undefined,
+  } = options
+  const sink = makeAutoSink(logFile)
+  const log = (state, detail) => {
+    if (!quiet) sink.write(pipelineLogLine('preadapt', state, detail))
+  }
+  const finish = (state, detail, exitCode, payload = {}) => {
+    log(state, detail)
+    return { ok: exitCode === 0, state, exitCode, detail, logFile, ...(quiet ? {} : { lines: sink.lines }), ...(sink.error() !== undefined ? { sinkError: sink.error() } : {}), ...payload }
+  }
+  let workDir
+  try {
+    log('start', `preadapt pipeline (yes=${String(yes)} accept=${String(accept)} keepWorkdir=${String(keepWorkdir)})`)
+
+    // 1. The feed face: what's pending, and is it NEWER than the install?
+    const check = checkOfficialImpl !== undefined
+      ? await checkOfficialImpl()
+      : await checkOfficial({ appDir, logFile, quiet: true })
+    if (!check.ok) {
+      return finish(check.state ?? 'check-refused', `check-official refused: ${check.detail}`, 1, { check })
+    }
+    if (check.updateState !== 'pending') {
+      return finish('up-to-date', `installed ${check.installedVersion} == feed ${check.feedVersion} — nothing to preadapt`, 0, { check })
+    }
+    const feedVersion = check.feedVersion
+    const feedSize = Number(check.feedSize)
+    const sizeMb = Number.isFinite(feedSize) ? `${(feedSize / (1024 * 1024)).toFixed(1)} MB` : 'unknown size'
+
+    // 2. Natural idempotence: an anchor set for the feed version means the
+    //    ~300 MB download already happened once — never repeat it.
+    const existing = loadAnchorSetData(feedVersion, anchorsDir)
+    if (existing.ok) {
+      return finish('already-preadapted', `anchor set for ${feedVersion} already at ${existing.path} — the ~${sizeMb} download is NOT repeated (delete the file explicitly to force a re-adaptation)`, 0, { check })
+    }
+    if (existing.absent !== true) {
+      return finish('anchor-data-invalid', `existing data anchor set for ${feedVersion} is INVALID: ${existing.reason} — delete it explicitly, then re-run preadapt`, 1, { check })
+    }
+
+    // 3. The --yes gate: download + workdir churn + writes all sit behind it.
+    if (!yes) {
+      return finish('would-preadapt', `feed ${feedVersion} pending (installed ${check.installedVersion}) with no anchor set — the full pipeline would download ~${sizeMb} and churn ~1.5 GB of workdir; pass --yes to execute`, 0, { check })
+    }
+
+    // 4. Download + verify (sha512 from the feed — the same trust root as
+    //    electron-updater). A mismatched installer is DELETED, loudly.
+    workDir = join(workRoot, feedVersion)
+    mkdirSync(workDir, { recursive: true })
+    const installerName = String(check.installerUrl).split('/').pop()?.split('?')[0] || 'installer.exe'
+    const installerPath = join(workDir, installerName)
+    if (existsSync(installerPath)) {
+      if (sha512FileBase64(installerPath) === check.feedSha512) {
+        log('download', `skip: ${installerPath} already on disk and sha512-matches the feed (idempotent re-run)`)
+      } else {
+        rmSync(installerPath, { force: true })
+        log('download', `stale installer on disk (sha512 mismatch) — removed, re-downloading`)
+      }
+    }
+    if (!existsSync(installerPath)) {
+      log('download', `GET ${check.installerUrl} (~${sizeMb}, one-off per version; the ONLY installer request)`)
+      try {
+        await downloadImpl(check.installerUrl, installerPath, feedSize)
+      } catch (error) {
+        return finish('download-failed', `${error instanceof Error ? error.message : String(error)} — installer kept for diagnosis; candidate NOT produced`, 1, { check })
+      }
+      const sha = sha512FileBase64(installerPath)
+      if (sha !== check.feedSha512) {
+        rmSync(installerPath, { force: true })
+        return finish('download-verify-failed', `sha512 mismatch (downloaded ${sha.slice(0, 16)}… != feed ${String(check.feedSha512).slice(0, 16)}…) — installer DELETED, candidate NOT produced`, 1, { check })
+      }
+      log('download', `ok — size + sha512 verified (${sizeMb})`)
+    }
+
+    // 5. Locate 7-Zip (explicit → standard → volatile PATH hit, flagged).
+    const sevenZip = locate7zImpl({ explicitPath: sevenZipPath })
+    if (!sevenZip.ok) {
+      return finish('no-7zip', `${sevenZip.reason} — ${sevenZip.guidance ?? ''}`, 1, { check })
+    }
+    log('extract', `7z at ${sevenZip.path} (source: ${sevenZip.source}${sevenZip.volatile ? ', VOLATILE location — may disappear with its host app' : ''})`)
+
+    // 6. Double extraction + tree assertions.
+    let appTree
+    try {
+      const extraction = run7zImpl !== undefined
+        ? await run7zImpl({ installerPath, workDir, sevenZip })
+        : await extractWithSevenZip({ installerPath, workDir, sevenZip, log })
+      appTree = extraction.appTree
+    } catch (error) {
+      return finish('extract-failed', `${error instanceof Error ? error.message : String(error)} — candidate NOT produced`, 1, { check })
+    }
+    if (!existsSync(join(appTree, 'resources', 'app.asar')) || !existsSync(join(appTree, APP_EXE))) {
+      return finish('extract-incomplete', `extracted tree is missing resources/app.asar or ${APP_EXE} — unexpected layout; candidate NOT produced`, 1, { check })
+    }
+    let extractedVersion
+    try {
+      extractedVersion = JSON.parse(extractPositioned(join(appTree, 'resources', 'app.asar'), SHELL_PACKAGE_PATH).toString('utf8'))?.version
+    } catch {
+      extractedVersion = undefined
+    }
+    if (extractedVersion !== feedVersion) {
+      return finish('extract-version-mismatch', `extracted tree reports version ${String(extractedVersion)} != feed ${feedVersion} — candidate NOT produced`, 1, { check })
+    }
+    log('extract', `ok — app tree at ${appTree} (version ${extractedVersion})`)
+
+    // 7. FUSE PRE-CHECK (DR5-4): the candidate dies HERE if the runtime
+    //    would reject patched bytes — the failure radius stays in this
+    //    pipeline instead of a user desktop. Strictly '0': a removed fuse
+    //    ('r') also refuses the AUTOMATED candidate (humans keep the
+    //    warn-through path via patch/auto).
+    const fuse = safeReadFuseWire(join(appTree, APP_EXE))
+    if (!fuse.found) {
+      return finish('fuse-unreadable', `extracted exe fuse wire unreadable (${fuse.reason}) — fail-closed, candidate NOT produced`, 1, { check })
+    }
+    if (fuse.integrity !== '0') {
+      return finish('fuse-on', `extracted exe integrity fuse = '${fuse.integrity}' (wire ${fuse.rawHex}) — patched asar bytes would not load; candidate REFUSED (failure radius stays in this pipeline, DR5-4)`, 1, { check })
+    }
+    log('fuse-precheck', `integrity '0' (off) — patched bytes would load (wire ${fuse.rawHex})`)
+
+    // 8. reanchor against the extracted tree (candidate first — never a
+    //    blind accept; the full D6 gate chain runs inside).
+    const re = reanchorAnchorSet({ appDir: appTree, anchorsDir, accept: false, versions: SUPPORTED })
+    for (const step of re.steps) {
+      log('reanchor-step', `${step.name}: ${step.status}${step.detail !== undefined ? ` — ${step.detail}` : ''}`)
+    }
+    if (!re.ok || re.candidateJson === undefined) {
+      return finish('reanchor-refused', `reanchor produced no candidate${re.driftedMaterials !== undefined ? ' — DRIFTED anchors, hand-analysis materials in the reanchor-step lines above' : ''} — candidate NOT produced`, 1, { check })
+    }
+    const candidateEntry = JSON.parse(re.candidateJson)
+
+    // 9. SIMULATED FULL PATCH on the extracted tree (the candidate rides in
+    //    through the entry injection — every patch gate still runs).
+    const patched = await patchAsar({ appDir: appTree, probeAppRunning, entry: candidateEntry, anchorsDir })
+    for (const step of patched.steps) {
+      log('sim-patch-step', `${step.name}: ${step.status}${step.detail !== undefined ? ` — ${step.detail}` : ''}`)
+    }
+    if (!patched.ok) {
+      return finish('sim-patch-failed', `the candidate did NOT survive a full patch run on the extracted tree — candidate void, NOT landed; recovery: ${patched.recovery ?? 'see the sim-patch-step lines above'}`, 1, { check })
+    }
+
+    // 10. Z29-grade verification: FULL status on the tree must read patched
+    //     N/N + marker.
+    const status = await statusAsar({ appDir: appTree, probeAppRunning, entry: candidateEntry, anchorsDir })
+    const after = status.patchSet
+    const verified = after?.state === 'patched' && after.patchedFiles === after.totalFiles && status.marker?.state === 'present'
+    if (!verified) {
+      return finish('sim-verify-failed', `post-patch status is NOT patched N/N + marker (patchSet=${String(after?.state)} ${String(after?.patchedFiles)}/${String(after?.totalFiles)} marker=${String(status.marker?.state)}) — candidate void, NOT landed`, 1, { check })
+    }
+    log('sim-verify', `candidate SURVIVED a full patch + FULL status re-check: ${after.patchedFiles}/${after.totalFiles} patched-exact + marker present`)
+
+    // 11. --accept lands the candidate through the shared landAnchorSet
+    //     write path (same validator the loader enforces, never clobbers,
+    //     atomic). The extracted tree is PATCHED by the simulation at this
+    //     point — landing must NOT re-classify it; the candidate itself is
+    //     the all-green artifact the simulation just proved.
+    if (!accept) {
+      return finish('candidate-ready', `candidate anchor set for ${feedVersion} validated end-to-end (download → extract → fuse → reanchor → simulated patch → status 5/5) — re-run with --accept to land it in ${anchorsDir}`, 0, { check, candidate: candidateEntry })
+    }
+    const land = landAnchorSet(feedVersion, candidateEntry, anchorsDir)
+    if (!land.ok) {
+      return finish('accept-failed', `landing the candidate failed: ${land.reason}`, 1, { check })
+    }
+    log('accept', `anchor set landed at ${land.path} (sha256 ${land.sha256})`)
+
+    // 12. Workdir: cleaned by default (the ~300 MB installer + extracted tree
+    //     are reproducible); --keep-workdir keeps it for human inspection. A
+    //     FAILED pipeline keeps its workdir deliberately (diagnostic residue).
+    if (!keepWorkdir) {
+      rmSync(workDir, { recursive: true, force: true })
+      log('cleanup', `workdir removed (${workDir}) — pass --keep-workdir to keep it for human inspection`)
+    } else {
+      log('cleanup', `workdir KEPT for human inspection: ${workDir}`)
+    }
+    return finish('preadapted', `anchor set for ${feedVersion} landed at ${land.path} (sha256 ${land.sha256}) — when the official update lands, the loader picks it up and auto re-patches`, 0, { check, candidate: candidateEntry, writtenTo: land.path, writtenSha256: land.sha256 })
+  } catch (error) {
+    return finish('error', `preadapt threw: ${error instanceof Error ? error.message : String(error)} — fail-closed`, 1)
+  }
+}
+
+/**
+ * LAND one validated candidate anchor set (the single write path into
+ * patcher/anchors/): validate with the SAME validator the loader enforces,
+ * refuse an existing file for the version (never clobber — deletion is a
+ * human decision), atomic tmp+rename write, return the on-disk SHA-256.
+ * Both reanchor (--accept) and preadapt (after the full simulated pipeline)
+ * land through here — no other code writes this directory.
+ */
+export function landAnchorSet(version, candidate, anchorsDir = defaultAnchorsDir(), knownPaths = knownTargetPaths()) {
+  const check = validateAnchorSetData(candidate, knownPaths)
+  if (!check.ok) return { ok: false, reason: check.reason }
+  const dataPath = join(anchorsDir, `${version}.json`)
+  if (existsSync(dataPath)) {
+    return { ok: false, reason: `${dataPath} already exists — landing never overwrites (delete it explicitly first)` }
+  }
+  mkdirSync(anchorsDir, { recursive: true })
+  const tmpPath = `${dataPath}.tmp-${process.pid}`
+  writeFileSync(tmpPath, `${JSON.stringify(candidate, null, 2)}\n`)
+  renameSync(tmpPath, dataPath)
+  return { ok: true, path: dataPath, sha256: sha256Hex(readFileSync(dataPath)) }
+}
+
+// ---------------------------------------------------------------------------
 // auto — the hourly self-heal state machine (plan ZCTX-PATCH-AUTO §4).
 // ---------------------------------------------------------------------------
 
@@ -3053,6 +3417,14 @@ export async function runAuto(options) {
     statusFn = statusAsar,
     patchFn = patchAsar,
     logFile = defaultAutoLogPath(),
+    // D8c feed face (opt-in at the module level so unit tests stay offline;
+    // the CLI turns it on): when a newer official build is pending and we
+    // hold NO anchor set for it, prepare one now via the full preadapt
+    // pipeline (--yes) or log the would-do (without).
+    feedFace = false,
+    checkOfficialFn = undefined,
+    preadaptFn = preadaptAnchorSet,
+    anchorsDir = defaultAnchorsDir(),
   } = options
   const sink = makeAutoSink(logFile)
   const log = (state, detail) => sink.write(autoLogLine(state, detail))
@@ -3091,6 +3463,47 @@ export async function runAuto(options) {
     }
     if (fuse.integrity === 'r') {
       log('fuse-removed', `integrity fuse removed ('r', wire ${fuse.rawHex}) — removed = not enforced; continuing`)
+    }
+
+    // 2.5 The official feed face (D8c). installed==feed with anchors ready →
+    //     the normal patch arms below handle everything. feed pending AHEAD
+    //     of the install with NO anchor set for the feed version → prepare
+    //     one NOW (preadapt, full gates inside; ~300 MB download is reported
+    //     explicitly). Feed unreachability is loud but never blocks the local
+    //     judgment — the offline self-heal stays self-sufficient.
+    if (feedFace) {
+      let check
+      try {
+        check = checkOfficialFn !== undefined
+          ? await checkOfficialFn({ appDir, logFile, quiet: true })
+          : await checkOfficial({ appDir, logFile })
+      } catch (error) {
+        log('feed-unreachable', `WARN: feed check threw: ${error instanceof Error ? error.message : String(error)} — continuing with the local judgment`)
+        check = { ok: false, state: 'feed-unreachable', detail: 'threw' }
+      }
+      if (!check.ok) {
+        log('feed-unreachable', `WARN: ${String(check.state)}: ${String(check.detail)} — continuing with the local judgment (offline self-sufficiency)`)
+      } else if (check.updateState === 'pending') {
+        const anchorState = resolveAnchorEntry(check.feedVersion, { anchorsDir })
+        const sizeMb = check.feedSize !== undefined && Number.isFinite(Number(check.feedSize)) ? `${(Number(check.feedSize) / (1024 * 1024)).toFixed(1)} MB` : 'unknown size'
+        if (anchorState.source === 'none' || anchorState.source === 'error') {
+          if (!yes) {
+            log('would-preadapt', `feed ${check.feedVersion} pending (installed ${check.installedVersion}) with NO anchor set — the preadapt pipeline would download ~${sizeMb} and prepare it; pass --yes`)
+          } else {
+            log('preadapting', `feed ${check.feedVersion} pending (installed ${check.installedVersion}) with NO anchor set — running the full preadapt pipeline (~${sizeMb} download; every gate inside)`)
+            const pre = preadaptFn !== undefined
+              ? await preadaptFn({ appDir, yes: true, accept: true, logFile, anchorsDir })
+              : await preadaptAnchorSet({ appDir, yes: true, accept: true, logFile, anchorsDir })
+            if (pre.ok && pre.state === 'preadapted') {
+              log('preadapted', `anchor set for ${check.feedVersion} landed (${String(pre.writtenTo)}) — continuing with the local judgment`)
+            } else {
+              log('preadapt-failed', `${String(pre.state)}: ${String(pre.detail)} — the local judgment continues (needs a human)`)
+            }
+          }
+        } else {
+          log('feed-pending', `feed ${check.feedVersion} pending (installed ${check.installedVersion}) — anchors already prepared (${anchorState.source}); the update will auto-repatch when it lands`)
+        }
+      }
     }
 
     // 3. The version/anchor face (any gate refusal is loud, exit 1).
@@ -3280,8 +3693,8 @@ export function uninstallScheduledTask(options = {}) {
 // CLI.
 // ---------------------------------------------------------------------------
 
-const VALUE_OPTIONS = new Set(['--app-dir', '--dsh-home', '--backup', '--script', '--log-file', '--out'])
-const FLAG_OPTIONS = new Set(['--yes', '--accept'])
+const VALUE_OPTIONS = new Set(['--app-dir', '--dsh-home', '--backup', '--script', '--log-file', '--out', '--seven-zip'])
+const FLAG_OPTIONS = new Set(['--yes', '--accept', '--keep-workdir'])
 
 function parseArgs(argv) {
   const args = { _: [] }
@@ -3309,13 +3722,13 @@ function printSteps(prefix, steps) {
   }
 }
 
-const COMMANDS = ['patch', 'restore', 'status', 'auto', 'install-task', 'uninstall-task', 'reanchor', 'check-official']
+const COMMANDS = ['patch', 'restore', 'status', 'auto', 'install-task', 'uninstall-task', 'reanchor', 'check-official', 'preadapt']
 
 async function main(argv) {
   const args = parseArgs(argv)
   const command = args._[0]
   if (!COMMANDS.includes(command)) {
-    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor|check-official> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept]')
+    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor|check-official|preadapt> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept] [--seven-zip <path>] [--keep-workdir]')
     return 2
   }
   // Scheduled-task registration does not need the app dir: it registers THIS
@@ -3343,6 +3756,20 @@ async function main(argv) {
       const result = await checkOfficial({ appDir: resolved.appDir, logFile: args.log_file })
       const { lines, steps, ...payload } = result
       console.log(JSON.stringify({ ...payload }, null, 2))
+      return result.exitCode
+    }
+    if (command === 'preadapt') {
+      const result = await preadaptAnchorSet({
+        appDir: resolved.appDir,
+        yes: args.yes === true,
+        accept: args.accept === true,
+        keepWorkdir: args.keep_workdir === true,
+        sevenZipPath: args.seven_zip,
+        logFile: args.log_file,
+      })
+      for (const line of result.lines ?? []) console.log(line)
+      const { lines, steps, ...payload } = result
+      console.log(JSON.stringify({ ...payload, candidate: undefined }, null, 2))
       return result.exitCode
     }
     if (command === 'reanchor') {
@@ -3390,7 +3817,7 @@ async function main(argv) {
       return 1
     }
     if (command === 'auto') {
-      const result = await runAuto({ appDir: resolved.appDir, dshHome, yes: args.yes === true, logFile: args.log_file })
+      const result = await runAuto({ appDir: resolved.appDir, dshHome, yes: args.yes === true, logFile: args.log_file, feedFace: true })
       if (result.sinkError !== undefined) console.error(`[warn] ${result.sinkError}`)
       return result.exitCode
     }
