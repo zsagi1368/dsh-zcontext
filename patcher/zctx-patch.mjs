@@ -49,8 +49,10 @@
  *      witness files match their pristine integrity hashes)
  *  10. marker `<appDir>/.zctx-patch.json` (plugin status reads it: dual source)
  *
- * SUBCOMMANDS: patch / restore / status (restore = copy the backup asar back +
- * remove the marker; status = strictly read-only).
+ * SUBCOMMANDS: patch / restore / status / auto (restore = copy the backup
+ * asar back + remove the marker; status = strictly read-only; auto = the
+ * hourly self-heal state machine — fuse gate, repair only under --yes, full
+ * status re-check, file log).
  *
  * v0.2 (P6-B, plan ZCTX-v03-patch-plan + RES-port-feasibility P6-A spec): the
  * anchor set grows from ONE file/one stub to a MULTI-FILE base-context patch
@@ -79,6 +81,7 @@
 
 import { spawnSync } from 'node:child_process'
 import {
+  appendFileSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -2263,18 +2266,201 @@ function readMarkerFile(markerPath) {
 }
 
 // ---------------------------------------------------------------------------
+// auto — the hourly self-heal state machine (plan ZCTX-PATCH-AUTO §4).
+// ---------------------------------------------------------------------------
+
+/**
+ * The default auto log file: `%LOCALAPPDATA%\zctx-patch\auto.log` (Z28: on a
+ * headless scheduled run the FILE sink is the only reliable audit face).
+ */
+export function defaultAutoLogPath() {
+  const base = process.env.LOCALAPPDATA !== undefined && process.env.LOCALAPPDATA !== ''
+    ? process.env.LOCALAPPDATA
+    : join(homedir(), 'AppData', 'Local')
+  return join(base, 'zctx-patch', 'auto.log')
+}
+
+/** One contract line: `[ISO8601] [auto] state=<X> detail=<...>`. */
+export function autoLogLine(state, detail) {
+  return `[${new Date().toISOString()}] [auto] state=${state} detail=${detail}`
+}
+
+/**
+ * The auto log sink: every line goes to the console AND the file (append;
+ * the directory is created as needed). A file-sink failure NEVER blocks the
+ * judgment (the console face stays authoritative for interactive runs) but
+ * is surfaced loudly on the console AND rides the result (`sinkError`) — on
+ * a headless run a silent sink loss would break the only audit trail (Z28).
+ */
+export function makeAutoSink(logFile) {
+  const lines = []
+  let sinkError
+  const write = (line) => {
+    console.log(line)
+    lines.push(line)
+    try {
+      mkdirSync(dirname(logFile), { recursive: true })
+      appendFileSync(logFile, `${line}\n`, 'utf8')
+    } catch (error) {
+      if (sinkError === undefined) {
+        sinkError = `auto log file sink failed (${logFile}): ${error instanceof Error ? error.message : String(error)} — judgments continue on console; fix the path (headless runs need this file)`
+      }
+      console.error(`[auto] ${sinkError}`)
+    }
+  }
+  return { lines, write, error: () => sinkError }
+}
+
+/**
+ * ONE tick of the auto state machine (plan §4 contract; exit codes:
+ * 0 = nothing to do / already healthy / polite skip, 1 = needs a human).
+ * Read-then-judge-then-act, never act-then-see:
+ *
+ *   state         → exit  behavior
+ *   missing-asar  → 1     install gone/moved; human
+ *   app-running   → 0     probe=yes or the app's lock exists; retry next tick
+ *   fuse-on       → 1     integrity fuse ON — patching is impossible; human
+ *   fuse-missing  → 1     exe/sentinel/format unreadable — fail-closed; human
+ *   fuse-removed  → WARN  integrity='r' = not enforced; continue
+ *   refused       → 1     version/anchor gate refusal (unsupported shell or
+ *                         the patch flow refused at one of its own gates)
+ *   drifted       → 1     per-file loud face; NEVER blind-patching
+ *   mixed         → 1     half-applied face (foreign partial writer); human
+ *   would-patch   → 0     repairable face seen but no --yes (inspection tick)
+ *   already-ok    → 0     patched N/N + marker present
+ *   patching/     → (log) one repair action per tick via the UNCHANGED gated
+ *   patch-step            patchAsar flow (its backup is hash-verified on
+ *                         disk BEFORE any modification — Z32)
+ *   patched       → 0     patched under --yes AND the FULL status re-check
+ *                         passes (patched N/N + marker — Z29, never a
+ *                         single-point check)
+ *   verify-failed → 1     post-patch re-check or backup-on-disk failed; human
+ *
+ * `--yes` is the user's standing approval for exactly ONE repair action per
+ * tick; every gate of the underlying patch flow still runs and still refuses.
+ *
+ * @param options.statusFn statusAsar (or a wrapper adding an entry/versions)
+ * @param options.patchFn  patchAsar  (or a wrapper adding an entry/versions)
+ * @param options.logFile  the file sink path (default {@link defaultAutoLogPath})
+ */
+export async function runAuto(options) {
+  const {
+    appDir,
+    dshHome = undefined,
+    yes = false,
+    probeAppRunning = probeAppRunningDefault,
+    statusFn = statusAsar,
+    patchFn = patchAsar,
+    logFile = defaultAutoLogPath(),
+  } = options
+  const sink = makeAutoSink(logFile)
+  const log = (state, detail) => sink.write(autoLogLine(state, detail))
+  const finish = (state, detail, exitCode) => {
+    log(state, detail)
+    return {
+      ok: exitCode === 0,
+      state,
+      exitCode,
+      detail,
+      lines: sink.lines,
+      logFile,
+      ...(sink.error() !== undefined ? { sinkError: sink.error() } : {}),
+    }
+  }
+  const face = (status) => (status.files ?? []).map((file) => `${file.target}: ${file.state}/${file.anchorHit}`).join(' | ')
+
+  try {
+    // 1. The full read-only status: one authoritative read (version, files,
+    //    marker, lock, process, fuse).
+    const status = await statusFn({ appDir, dshHome, probeAppRunning })
+    if (!status.asarExists) {
+      return finish('missing-asar', `app.asar not found at ${status.asarPath} — install moved or removed; needs a human`, 1)
+    }
+    if (status.appRunning === 'yes' || status.lock?.exists === true) {
+      return finish('app-running', `app-running, retry next tick (probe=${status.appRunning} lock=${status.lock?.exists === true ? 'present' : 'absent'})`, 0)
+    }
+
+    // 2. The fuse face (VERIFY-P #11 index 4 = EnableEmbeddedAsarIntegrityValidation).
+    const fuse = status.fuse
+    if (fuse === undefined || !fuse.found) {
+      return finish('fuse-missing', `fuse wire unreadable (${fuse?.reason ?? 'no fuse face reported'}) — the runtime integrity face could not be verified; fail-closed, needs a human`, 1)
+    }
+    if (fuse.integrity === '1') {
+      return finish('fuse-on', `EnableEmbeddedAsarIntegrityValidation=ON (wire ${fuse.rawHex}) — the runtime rejects any modified asar byte; needs a human`, 1)
+    }
+    if (fuse.integrity === 'r') {
+      log('fuse-removed', `integrity fuse removed ('r', wire ${fuse.rawHex}) — removed = not enforced; continuing`)
+    }
+
+    // 3. The version/anchor face (any gate refusal is loud, exit 1).
+    if (status.anchorHit === 'unknown' || status.patchSet === undefined) {
+      return finish('refused', `shell version ${String(status.shellVersion)} is not in the supported anchor set — the version gate refuses; update the patcher anchor set first, needs a human`, 1)
+    }
+    const patchSet = status.patchSet
+    if (patchSet.state === 'drifted') {
+      return finish('drifted', `official update or foreign edit — per-file face: ${face(status)}; NEVER blind-patching, needs a human`, 1)
+    }
+    if (patchSet.state === 'partial') {
+      return finish('mixed', `half-applied patch set — per-file face: ${face(status)}; restore then re-patch, needs a human`, 1)
+    }
+    if (patchSet.state === 'patched' && status.marker?.state === 'present') {
+      return finish('already-ok', `patched ${patchSet.patchedFiles}/${patchSet.totalFiles} + marker present — nothing to do`, 0)
+    }
+
+    // 4. Nothing to execute without --yes (the inspection tick still logged).
+    if (!yes) {
+      return finish('would-patch', patchSet.state === 'patched'
+        ? `patched ${patchSet.patchedFiles}/${patchSet.totalFiles} but the marker is missing (crash window) — an idempotent patch run would backfill it; pass --yes to execute`
+        : `all-pristine + anchors hit (${patchSet.pristineFiles}/${patchSet.totalFiles}) — would patch; pass --yes to execute`, 0)
+    }
+
+    // 5. One repair action per tick, through the UNCHANGED gated patch flow
+    //    (its backup is on disk + hash-verified before it touches anything).
+    log('patching', `executing the gated patch flow (yes=true, patchSet=${patchSet.state}, marker=${String(status.marker?.state)})`)
+    const patch = await patchFn({ appDir, dshHome, probeAppRunning })
+    for (const { name, status: stepStatus, detail } of patch.steps) {
+      log('patch-step', `${name}: ${stepStatus}${detail !== undefined ? ` — ${detail}` : ''}`)
+    }
+    if (!patch.ok) {
+      return finish('refused', `patch refused/failed at its own gates — recovery: ${patch.recovery ?? 'see the patch-step lines above'}`, 1)
+    }
+
+    // 6. Z29: never trust a single point — FULL status re-read; the aggregate
+    //    must be patched N/N with the marker present, and the Z32 backup must
+    //    be on disk.
+    if (patch.backup?.dir !== undefined && !existsSync(patch.backup.dir)) {
+      return finish('verify-failed', `backup dir ${patch.backup.dir} is not on disk after the patch — Z32 violated; restore and investigate, needs a human`, 1)
+    }
+    const recheck = await statusFn({ appDir, dshHome, probeAppRunning })
+    const after = recheck.patchSet
+    const verified = after?.state === 'patched' && after.patchedFiles === after.totalFiles && recheck.marker?.state === 'present'
+    if (!verified) {
+      return finish('verify-failed', `post-patch FULL status re-check FAILED (patchSet=${String(after?.state)} ${String(after?.patchedFiles)}/${String(after?.totalFiles)} marker=${String(recheck.marker?.state)}) — restore with: node patcher/zctx-patch.mjs restore --app-dir "${appDir}"; needs a human`, 1)
+    }
+    return finish('patched', `patch applied and FULL status re-verified: ${after.patchedFiles}/${after.totalFiles} patched-exact + marker present; backup ${patch.backup?.dir ?? 'n/a'}`, 0)
+  } catch (error) {
+    return finish('error', `auto tick threw: ${error instanceof Error ? error.message : String(error)} — fail-closed, needs a human`, 1)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // CLI.
 // ---------------------------------------------------------------------------
+
+const VALUE_OPTIONS = new Set(['--app-dir', '--dsh-home', '--backup', '--log-file'])
+const FLAG_OPTIONS = new Set(['--yes'])
 
 function parseArgs(argv) {
   const args = { _: [] }
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i]
-    if (token === '--app-dir' || token === '--dsh-home' || token === '--backup') {
+    if (VALUE_OPTIONS.has(token)) {
       const value = argv[i + 1]
       if (value === undefined) throw new Error(`${token} requires a value`)
       args[token.slice(2).replaceAll('-', '_')] = value
       i += 1
+    } else if (FLAG_OPTIONS.has(token)) {
+      args[token.slice(2).replaceAll('-', '_')] = true
     } else if (token.startsWith('--')) {
       throw new Error(`unknown option ${token}`)
     } else {
@@ -2290,11 +2476,13 @@ function printSteps(prefix, steps) {
   }
 }
 
+const COMMANDS = ['patch', 'restore', 'status', 'auto']
+
 async function main(argv) {
   const args = parseArgs(argv)
   const command = args._[0]
-  if (command !== 'patch' && command !== 'restore' && command !== 'status') {
-    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>]')
+  if (!COMMANDS.includes(command)) {
+    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--log-file <path>]')
     return 2
   }
   const resolved = resolveAppDir(args.app_dir)
@@ -2329,6 +2517,11 @@ async function main(argv) {
       }
       console.error(`[refuse] restore not applied${result.recovery !== undefined ? ` — recovery: ${result.recovery}` : ''}`)
       return 1
+    }
+    if (command === 'auto') {
+      const result = await runAuto({ appDir: resolved.appDir, dshHome, yes: args.yes === true, logFile: args.log_file })
+      if (result.sinkError !== undefined) console.error(`[warn] ${result.sinkError}`)
+      return result.exitCode
     }
     console.log(JSON.stringify(await statusAsar({ appDir: resolved.appDir, dshHome }), null, 2))
     return 0

@@ -223,27 +223,22 @@ export async function restoreAsar(args: {
   recovery?: string
 }>
 
-export async function statusAsar(args: {
-  appDir: string
-  dshHome?: string
-  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
-  versions?: Record<string, ZctxPatchEntry>
-  entry?: ZctxPatchEntry
-}): Promise<{
-  appDir: string
-  asarPath: string
-  asarExists: boolean
-  shellVersion?: string
-  anchorHit?: 'official-unchanged' | 'official-drifted' | 'patched-exact' | 'patched-drifted' | 'unknown'
+/** The read-only status face (the JSON `status` prints; runAuto consumes it). */
+export interface StatusAsarResult {
+  readonly appDir: string
+  readonly asarPath: string
+  readonly asarExists: boolean
+  readonly shellVersion?: string
+  readonly anchorHit?: 'official-unchanged' | 'official-drifted' | 'patched-exact' | 'patched-drifted' | 'unknown'
   /**
    * Action guidance for the non-healthy anchor states (P4-r1 P4-3: the state
    * label and the action guidance are separate strings, never merged).
    */
-  guidance?: string
-  targetSha256?: string
-  patched?: boolean | 'unknown'
+  readonly guidance?: string
+  readonly targetSha256?: string
+  readonly patched?: boolean | 'unknown'
   /** Per-file face (P6-B): one row per patch-set target. */
-  files?: readonly {
+  readonly files?: readonly {
     readonly target: string
     readonly sha256: string
     readonly state: 'pristine' | 'patched-exact' | 'drifted'
@@ -251,7 +246,7 @@ export async function statusAsar(args: {
     readonly guidance?: string
   }[]
   /** The patch-set aggregate (which files patched / pending re-patch). */
-  patchSet?: {
+  readonly patchSet?: {
     readonly version: string
     readonly totalFiles: number
     readonly patchedFiles: number
@@ -259,7 +254,7 @@ export async function statusAsar(args: {
     readonly driftedFiles: number
     readonly state: 'patched' | 'unpatched' | 'partial' | 'drifted'
   }
-  marker?: {
+  readonly marker?: {
     readonly state: 'present' | 'absent' | 'unknown'
     readonly path: string
     readonly version?: string
@@ -269,10 +264,61 @@ export async function statusAsar(args: {
     readonly timestamp?: string
     readonly reason?: string
   }
-  backups?: readonly { readonly dir: string }[]
-  lock?: { readonly path: string; readonly exists: boolean }
-  appRunning?: 'yes' | 'no' | 'unknown'
+  readonly backups?: readonly { readonly dir: string }[]
+  readonly lock?: { readonly path: string; readonly exists: boolean }
+  readonly appRunning?: 'yes' | 'no' | 'unknown'
   /** The Electron fuse face of `<appDir>\DeepSeek Harness.exe` (VERIFY-P #11). */
-  fuse?: FuseWireFace
-  note?: string
-}>
+  readonly fuse?: FuseWireFace
+  readonly note?: string
+}
+
+export async function statusAsar(args: {
+  appDir: string
+  dshHome?: string
+  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
+  versions?: Record<string, ZctxPatchEntry>
+  entry?: ZctxPatchEntry
+}): Promise<StatusAsarResult>
+
+// -- auto — the hourly self-heal state machine -------------------------------
+
+/** The default auto log file: `%LOCALAPPDATA%\zctx-patch\auto.log` (Z28). */
+export function defaultAutoLogPath(): string
+
+/** One contract line: `[ISO8601] [auto] state=<X> detail=<...>`. */
+export function autoLogLine(state: string, detail: string): string
+
+export function makeAutoSink(logFile: string): {
+  readonly lines: readonly string[]
+  write(line: string): void
+  error(): string | undefined
+}
+
+export interface AutoRunResult {
+  readonly ok: boolean
+  /** The judgment-table state label (app-running / fuse-on / would-patch / …). */
+  readonly state: string
+  readonly exitCode: 0 | 1
+  readonly detail: string
+  readonly lines: readonly string[]
+  readonly logFile: string
+  readonly sinkError?: string
+}
+
+/** Args runAuto forwards to its injected status/patch hooks. */
+export interface AutoHookArgs {
+  appDir: string
+  dshHome?: string
+  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
+  entry?: ZctxPatchEntry
+}
+
+export function runAuto(args: {
+  appDir: string
+  dshHome?: string
+  yes?: boolean
+  probeAppRunning?: () => 'yes' | 'no' | 'unknown'
+  statusFn?: (args: AutoHookArgs) => Promise<StatusAsarResult>
+  patchFn?: (args: AutoHookArgs) => Promise<PatchAsarResult>
+  logFile?: string
+}): Promise<AutoRunResult>
