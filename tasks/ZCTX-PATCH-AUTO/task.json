@@ -1,12 +1,16 @@
 {
   "schema": "task/v1",
   "id": "ZCTX-PATCH-AUTO",
-  "title": "zctx 补丁版自愈三件套（fuse 探测/auto 状态机/计划任务）+ 真机留守",
+  "title": "zctx 补丁版彻底开发：自愈三件套 + 官方升级快速适配架构（reanchor+锚集数据外置）+ 真机留守",
   "type": "DEV",
   "owner": "main",
   "depends": [],
   "priority": "high",
-  "budget": { "max_minutes": 180, "max_agents": 4, "max_rework_rounds": 2 },
+  "budget": {
+    "max_minutes": 300,
+    "max_agents": 4,
+    "max_rework_rounds": 2
+  },
   "base_sha": "329ee61",
   "branch": "feat/ZCTX-PATCH-AUTO",
   "worktree": "worktrees/ZCTX-PATCH-AUTO",
@@ -18,7 +22,10 @@
     "V5 tsc→build→vitest 全绿零回归（含 patcher 三既有 spec）",
     "V6 真机 patch 后 status=patched 5/5 + 备份 SHA256SUMS 在盘",
     "V7 R1 红线不回归（零请求体改写）",
-    "V8 auto.log 落盘且行格式符合契约"
+    "V8 auto.log 落盘且行格式符合契约",
+    "V9 锚集数据外置：patcher/anchors/<version>.json 可被加载并选中，未知版本仍拒绝",
+    "V10 reanchor 对模拟漂移 fixture 自动产出候选锚集，端到端 reanchor→patch→verify 零人工编辑",
+    "V11 reanchor 对 patched/坏输入拒收（fail-closed）"
   ],
   "artifacts": [
     "patcher/zctx-patch.mjs",

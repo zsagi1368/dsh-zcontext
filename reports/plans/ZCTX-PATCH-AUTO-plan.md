@@ -27,10 +27,13 @@
 | 块 | 内容 | 依赖 |
 |---|---|---|
 | B1 | 计划+options+任务卡（本文件）+coder 派发 | 无 |
-| B2 | coder：fuse 探测器 + auto 状态机 + install/uninstall-task + 测试 + README（工作树内，小步提交） | B1 |
-| B3 | reviewer 对抗评审（≥98 门；核对 Z26/Z27 回归锁、Z29 全量复核、R1 红线不变式） | B2 |
+| B2 | coder：fuse 探测器 + auto 状态机 + install/uninstall-task + 测试 + README（工作树内，小步提交）——已完成（6 提交，628 测试绿） | B1 |
+| B2b | coder（用户 11-18 扩令"彻底开发好+快速适配架构"）：**D5 锚集数据外置**（patcher/anchors/<version>.json + 加载器 + status 展示可用锚集，未知版本仍拒绝）；**D6 `reanchor` 子命令**（对新官方构建自动提取 5 目标文件→锚存活分类（ALIVE/DRIFTED/patched 拒收）→产出候选锚集 JSON→`--accept` 落盘）；**D7 测试+README**（模拟漂移 fixture：reanchor→patch→verify 端到端零人工编辑；快速适配 SOP 节） | B2 |
+| B3 | reviewer 对抗评审（≥98 门；核对 Z26/Z27 回归锁、Z29 全量复核、R1 红线不变式、锚集数据外置不弱化 fail-closed：哈希门+计数门仍全数生效） | B2b |
 | B4 | tester+verifier：全量测试（tsc 先行）+ asar 副本全链回归 + 评分 | B3 |
 | B5 | 合并回主树（--no-ff+台账）→ 真机 OPS：备份→patch→status 5/5→插件桥确认→RESTORE.md 补录→install-task→schtasks /Query 佐证 | B4 ≥98 |
+
+**快速适配架构说明（用户扩令核心）**：官方 rc.4+ 发布后的适配工作流=①auto 巡检发现 drifted（响亮日志）→②对新构建跑 `reanchor`（自动提取+分类+产出候选锚集）→③人工过目候选（锚行 diff+唯一性计数已在报告中）→④`--accept` 落盘 anchors/<version>.json→⑤下一个 auto tick 自动重打。机械部分全部自动化，人工只剩"看一眼报告"。锚仍用精确串（count=1 实证），不用正则锚（Z29 教训：正则锚在想象形态上）；数据文件安全性由既有 pristine 哈希门兜底（错锚在打补丁前即被哈希门拒绝，fail-closed 不弱化）。
 
 ## 6. 验收矩阵（可执行）
 
