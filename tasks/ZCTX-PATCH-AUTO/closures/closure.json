@@ -13,6 +13,6 @@
     { "id": "C-009", "source": "return-cap 二期（固定开销治理，DR-4 备忘）", "type": "suggestion", "disposition": "not_applicable", "evidence": "与 R1 红线冲突分析已入 RES-PATCH-DEEPEN.md DR-4；v0.4 产品门后决策，本任务不动", "owner": "main", "status": "verified", "phase": "post-merge" },
     { "id": "C-010", "source": "fuse 翻转预案（DR-5）", "type": "suggestion", "disposition": "not_applicable", "evidence": "定性=无旁路、auto CRITICAL 监控即正确应对；官方从未翻转 fuse（P1.5 事实），patch 前置门已实装", "owner": "main", "status": "verified", "phase": "post-merge" },
     { "id": "C-011", "source": "插件 pin a4ae662 轮转评估", "type": "process", "disposition": "not_applicable", "evidence": "本波零插件 src 变更（只动 patcher/tests/README），a4ae662 与 HEAD 无功能差，不轮转", "owner": "main", "status": "verified", "phase": "block" },
-    { "id": "C-012", "source": "RSI 收口（新坑固化）", "type": "process", "disposition": "fixed", "evidence": "Z33 入 ZDSH-LESSONS.md（解析器夹具形态≠线上形态）+ A69 入 GLOBAL-LESSONS.md（Edit-Read 循环，根因待证）+ INDEX 捕获行；改前备份 del/ 双处", "owner": "main", "status": "verified", "phase": "block" }
+    { "id": "C-012", "source": "RSI 收口（新坑固化）", "type": "process", "disposition": "fixed", "evidence": "Z33 入 ZDSH-LESSONS.md（解析器夹具形态≠线上形态）+ A72 入 GLOBAL-LESSONS.md（Edit-Read 循环，根因待证；初派 A69 撞 TAMIE 号、当场手术改号并留痕）+ INDEX 捕获行；改前备份 G:/000Github/zDSH/del/20261118-z33-prechange/ 与 I:/Dev/ZCode/workbuddy/del/20261118-rsi-registry-prechange-b/", "owner": "main", "status": "verified", "phase": "block" }
   ]
 }
