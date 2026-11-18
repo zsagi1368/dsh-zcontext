@@ -1,22 +1,28 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-PATCH-AUTO",
-  "step": 1,
-  "block": "B1",
+  "step": 5,
+  "block": "D4",
   "status": "done",
-  "ts": "2026-11-18T16:27:57.241Z",
+  "ts": "2026-11-18T17:00:29.379Z",
   "artifacts": [
     {
-      "path": "docs/specs/ZCTX-PATCH-AUTO/options.md"
+      "path": "tests/patcher-fuse.spec.ts"
     },
     {
-      "path": "reports/plans/ZCTX-PATCH-AUTO-plan.md"
+      "path": "tests/patcher-auto.spec.ts"
     },
     {
-      "path": "tasks/ZCTX-PATCH-AUTO/task.json"
+      "path": "patcher/README.md"
+    },
+    {
+      "path": "README.md"
+    },
+    {
+      "path": "README.zh.md"
     }
   ],
-  "next": "B2: dispatch coder in worktree",
-  "prev_hash": "",
-  "hash": "e8f4d1c330ab45c352318d0b40b49f97e1a80cd71f1a303f29581fa5d658d7bb"
+  "next": "B3: reviewer adversarial review (>=98 gate)",
+  "prev_hash": "02b1193995d762bf52f839acbe634a616980303a2a818c7bb7f356ed5f2551f4",
+  "hash": "c1e84a1cc2515e983a97c815017f496b9ec32ff46c9fdb0ce2315db38791d799"
 }

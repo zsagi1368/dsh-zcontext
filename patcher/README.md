@@ -56,9 +56,12 @@ P4 钉）。红线 R1 全程成立：补丁只加观测面与透传字段，零�
 ## 子命令（全流程）
 
 ```
-node patcher/zctx-patch.mjs patch   [--app-dir <dir>] [--dsh-home <dir>]
-node patcher/zctx-patch.mjs restore [--app-dir <dir>] [--backup <dir>] [--dsh-home <dir>]
-node patcher/zctx-patch.mjs status  [--app-dir <dir>] [--dsh-home <dir>]
+node patcher/zctx-patch.mjs patch         [--app-dir <dir>] [--dsh-home <dir>]
+node patcher/zctx-patch.mjs restore       [--app-dir <dir>] [--backup <dir>] [--dsh-home <dir>]
+node patcher/zctx-patch.mjs status        [--app-dir <dir>] [--dsh-home <dir>]
+node patcher/zctx-patch.mjs auto          [--app-dir <dir>] [--dsh-home <dir>] [--yes] [--log-file <path>]
+node patcher/zctx-patch.mjs install-task  [--script <path>] [--log-file <path>]
+node patcher/zctx-patch.mjs uninstall-task
 ```
 
 - app 目录定位：`--app-dir` 优先 → 注册表（HKCU Uninstall 键 InstallLocation）→
@@ -96,7 +99,60 @@ node patcher/zctx-patch.mjs status  [--app-dir <dir>] [--dsh-home <dir>]
 ### status（严格只读）
 
 版本 / 逐文件三态面 / `patchSet` 聚合（`patched | unpatched | partial | drifted`）/
-marker（含逐文件哈希与集合版本）/ 备份清单 / 锁面 / 进程。
+marker（含逐文件哈希与集合版本）/ 备份清单 / 锁面 / 进程 / **fuse 面**
+（`<appDir>\DeepSeek Harness.exe` 的 fuse wire，见下节）。
+
+### auto（每小时自愈状态机，v0.3-auto）
+
+`auto` 是把"官方更新后补丁静默死亡"变成"自动愈合或响亮报警"的状态机。
+每轮 tick：先 `status` 全量只读读取（版本/逐文件/marker/锁/进程/fuse 一次读全），
+再按判定表动作；**exit 0 = 已好/无事可做/礼貌跳过，exit 1 = 需要人工**：
+
+| 状态 | exit | 行为 |
+|---|---|---|
+| `app-running` | 0 | 进程探到运行中 **或** app 自身 lock 在 → 下个 tick 重试 |
+| `fuse-on` | 1 | `EnableEmbeddedAsarIntegrityValidation='1'` → 打了也加载不了 → CRITICAL 日志，人工 |
+| `fuse-missing` | 1 | exe 缺席/sentinel 扫不到/格式异常 → fail-closed，人工 |
+| `fuse-removed` | WARN | `'r'`（removed=不强制）→ 告警后继续 |
+| `refused` | 1 | 版本门（shell 版本不在支持集）或 patch 流程自身门拒绝 → 响亮，人工 |
+| `drifted` | 1 | 官方更新/外来修改 → 逐文件差异响亮日志，**永不盲打** |
+| `mixed` | 1 | 半套 face（外来部分写入者）→ 拒绝并报告，人工 |
+| `would-patch` | 0 | 全 pristine+锚命中（或 patched 但 marker 缺失）且**无 `--yes`** → 只记录不动盘 |
+| `patching`/`patch-step` | (日志) | 有 `--yes`：经**未改动的全门 patch 流程**执行一轮修复（每 tick 至多一次） |
+| `patched` | 0 | patch 成功 **且** Z29 全量 status 复核通过（patched 5/5 + marker）**且** Z32 备份在盘 |
+| `already-ok` | 0 | patched N/N + marker 在 → 无事可做 |
+| `verify-failed` | 1 | 复核不过/备份不在盘 → 给出 restore 命令，人工 |
+
+设计不变式：`--yes` 只是"用户显式批准每 tick 一次修复"，**patcher 的每道门
+（app-running/fuse/版本/锚/混合面/备份校验）照常运行照常拒绝**；auto 永不绕门、
+永不盲打（`:1776` 哲学：自修复需显式眼睛，`--yes` 即载体）。备份沿用既有流程
+——先在盘 + 哈希校验通过才动原件（Z32），patch 后**全量 status 复核**而非单点校验（Z29）。
+
+日志契约（Z28：headless 无 logger，文件 sink 是唯一可靠面）：每行
+`[ISO8601] [auto] state=<X> detail=<...>`，同时写 console 与
+`%LOCALAPPDATA%\zctx-patch\auto.log`（append，目录自动创建）；sink 写入失败
+**不阻断判定**但 console 响亮 + 结果体带 `sinkError`。无 `--yes` 的巡检 tick 照常留痕。
+
+### install-task / uninstall-task（Windows 计划任务）
+
+```
+schtasks /Create /TN ZCTX-Patch-Auto /SC HOURLY /TR "<action>" /F
+```
+
+- action = `cmd /c ""<node>" "<script>" auto --yes >> "<log>" 2>&1"`：三个路径全部
+  双引号，**整体再包一层外引号**——cmd.exe `/C` 规则 2（cmd /?）会剥掉行首行尾引号，
+  外层引号正是为被剥而存在，内层命令因此完整存活（含空格路径——安装目录
+  "DeepSeek Harness" 本身带空格）。node 路径 = `process.execPath` 绝对路径；
+  脚本路径默认本文件 `import.meta.url` 经 `fileURLToPath` 解析（可用 `--script` 覆盖）；
+  log 默认 `%LOCALAPPDATA%\zctx-patch\auto.log`。
+- **install 幂等**：`/Query` 探到已存在 → 先 `/Delete /F` 再建 → 建后再 `/Query`
+  证明可见；每条 schtasks 命令与结果全部进 steps（CLI 全程打印）。
+- **uninstall**：删除后再 `/Query` **证明不可见**；任务缺席 = 幂等成功。
+- 非 win32 平台：install/uninstall 一律响亮拒绝（不创建任何东西）。
+- **真机注册（B5）在主树执行**：计划任务必须指向主树稳定路径
+  （`G:\000Github\zDSH\zDSH-plugins\dsh-zcontext\patcher\zctx-patch.mjs`）——
+  worktree 路径不是长期位置；注册命令在 B5 以 `--script` 显式传主树路径，
+  仓库自身从不对真机 schtasks 执行任何操作。
 
 ## 风险与限制（如实）
 
@@ -106,6 +162,12 @@ marker（含逐文件哈希与集合版本）/ 备份清单 / 锁面 / 进程。
 - **fuse 完整性关闭是运行时事实不是承诺**：`EnableEmbeddedAsarIntegrityValidation`
   在 rc.3 的 exe 中为 off（'0'，Electron v44.7.0 源码 schema "0 == off"，
   VERIFY-P #11 三源交叉）；官方可在任何更新中翻转此位——届时补丁面整体失效。
+  **读取法（权威口径）**：`readFuseWire` 在 exe 内**扫描** sentinel
+  `dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX`（rc.3 位于 offset 199,416,024——offset 随官方构建
+  漂移，**禁固定 offset**），其后解析 `[version 1B][wireLen 1B][9 个 ASCII 状态字节
+  '0'/'1'/'r']`，index4 即完整性位；任何格式异常（版本≠01/长度溢出/长度≠9/非法字符/
+  sentinel 缺席）= `found:false` + 原因，**fail-closed**。status 汇报该面；patch 在
+  `'1'` 或不可读时拒收、`'r'`（removed）警告放行；auto 判定表据此分派。
 - **只在 app 关闭时执行**：运行中打补丁会被门拒收。
 - **只改上述五个 lib 文件**：执行体是各自 `package.json.main` 指向的 lib（P2 [F14]）；
   引用面与底座行为不改（红线 R1-R8 继承）。
@@ -131,7 +193,11 @@ marker（含逐文件哈希与集合版本）/ 备份清单 / 锁面 / 进程。
 - 全部机制在合成 mini-asar fixture 上测试（`tests/patcher.spec.ts` 单文件 +
   `tests/patcher-multifile.spec.ts` 五文件集：单文件 drifted 拒收整集且不动盘、
   三态判定、patchSet 四态聚合全臂可达、restore 逐文件回到原始字节）；插件桥接在
-  `tests/patch-bridge.spec.ts`。
-- **真机 patch/restore 不由本仓执行**（W5-A6-INSTALL 伞下 post-merge；执行权在用户）。
+  `tests/patch-bridge.spec.ts`；fuse wire 读取/patch 门/status 面在
+  `tests/patcher-fuse.spec.ts`（合成 exe，sentinel 随机偏移）；auto 判定表逐态与
+  计划任务形态在 `tests/patcher-auto.spec.ts`（仅进程探针 mock，patch/status 真跑；
+  schtasks 仅 fixture 级形态断言）。
+- **真机 patch/restore/计划任务注册不由本仓执行**（W5-A6-INSTALL 伞下 post-merge；
+  执行权在用户；B5 真机 OPS 在合并后主树执行，计划任务用 `--script` 指主树路径）。
 - 运行时依赖 `@electron/asar`（仓内 devDependency；独立运行请
   `npm i @electron/asar`）。
