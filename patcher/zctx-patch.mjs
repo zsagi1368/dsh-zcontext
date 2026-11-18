@@ -2448,6 +2448,204 @@ function readMarkerFile(markerPath) {
 }
 
 // ---------------------------------------------------------------------------
+// reanchor — fast adaptation to a NEW official build (D6).
+//
+// Reads a build's five target files (READ-ONLY, through the same cache-free
+// positional extraction the gates use), classifies every op anchor of the
+// patch set of record against the new bytes, and — only when every anchor is
+// ALIVE (count==1 exactly as the patcher requires) — emits a candidate data
+// anchor set with the anchors inherited VERBATIM and pristineSha256 updated
+// to the new build's bytes. Nothing is guessed: a DRIFTED anchor (count≠1)
+// kills the candidate and produces analysis materials instead; a patched
+// input (presence marker in the bytes) refuses outright; --accept is the
+// only path into patcher/anchors/, gated by the same validator the loader
+// enforces. The runtime safety boundary stays intact regardless: the hash
+// gate re-verifies every pristineSha256 and patchFile re-asserts count==1
+// on the real bytes before anything is written.
+// ---------------------------------------------------------------------------
+
+/**
+ * Human-analysis material for one dead anchor: locate a trace of it in the
+ * new bytes (the anchor itself → its first line → a 60-char prefix) and
+ * extract the surrounding lines. A locator never rewrites anything — it is
+ * a reading aid, and 'none' is an honest answer when the anchor is fully
+ * gone.
+ */
+function anchorTraceMaterial(text, anchor) {
+  const lines = text.split('\n')
+  const probes = [
+    { by: 'anchor', needle: anchor },
+    { by: 'first-line', needle: anchor.split('\n')[0].trim() },
+    { by: 'prefix-60', needle: anchor.slice(0, 60) },
+  ]
+  for (const probe of probes) {
+    if (probe.needle === '') continue
+    const at = text.indexOf(probe.needle)
+    if (at !== -1) {
+      const lineNo = text.slice(0, at).split('\n').length
+      return {
+        locatedBy: probe.by,
+        line: lineNo,
+        context: lines.slice(Math.max(0, lineNo - 1 - 5), lineNo - 1 + 5 + 1).join('\n'),
+      }
+    }
+  }
+  return { locatedBy: 'none', note: 'no trace of the anchor (nor its first line, nor its 60-char prefix) — the anchor is fully gone from the new build' }
+}
+
+/**
+ * REANCHOR — build a candidate data anchor set for a NEW official build.
+ * Read-only against the install; the only writes are the candidate JSON
+ * (--out) and, under --accept, `patcher/anchors/<version>.json` (atomic
+ * tmp+rename, never over an existing file).
+ *
+ * @param options.appDir    the NEW build's app dir (read-only)
+ * @param options.anchorsDir where --accept writes (default patcher/anchors/)
+ * @param options.out      also write the candidate JSON here (inspection copy)
+ * @param options.accept   write patcher/anchors/<version>.json (default false)
+ * @param options.versions injectable anchor-set map (default SUPPORTED)
+ */
+export function reanchorAnchorSet(options) {
+  const {
+    appDir,
+    anchorsDir = defaultAnchorsDir(),
+    out = undefined,
+    accept = false,
+    versions = SUPPORTED,
+  } = options
+  const report = { appDir, steps: [] }
+  const step = (name, status, detail) => {
+    report.steps.push({ name, status, ...(detail !== undefined ? { detail } : {}) })
+    return status
+  }
+  const asarPath = join(appDir, 'resources', 'app.asar')
+  if (!existsSync(asarPath)) {
+    step('asar', 'refused', `app.asar not found at ${asarPath} — wrong app dir?`)
+    return { ok: false, refused: true, ...report }
+  }
+
+  // 1. The new build's version → the data file's identity.
+  let newVersion
+  try {
+    newVersion = JSON.parse(extractPositioned(asarPath, SHELL_PACKAGE_PATH).toString('utf8'))?.version
+  } catch (error) {
+    step('version read', 'refused', `root package.json unreadable: ${error instanceof Error ? error.message : String(error)}`)
+    return { ok: false, refused: true, ...report }
+  }
+  if (typeof newVersion !== 'string' || newVersion === '') {
+    step('version read', 'refused', 'root package.json has no usable version string')
+    return { ok: false, refused: true, ...report }
+  }
+  step('version read', 'ok', newVersion)
+
+  // 2. Never clobber: an existing data set for this version is a verified
+  //    asset — deleting it is a human decision, not a tool side effect.
+  const dataPath = join(anchorsDir, `${newVersion}.json`)
+  if (existsSync(dataPath)) {
+    step('existing data set', 'refused', `${dataPath} already exists — delete it explicitly first if it is really stale; reanchor never overwrites`)
+    return { ok: false, refused: true, ...report, newVersion }
+  }
+
+  // 3. The patch set of record provides the probe surface: the five target
+  //    paths, each op's anchor (expected count 1) and presence marker.
+  const probeEntry = versions['0.2.2-rc.3'] ?? Object.values(versions)[0]
+  if (probeEntry === undefined) {
+    step('probe surface', 'refused', 'the anchor-set map has no entry to reanchor from')
+    return { ok: false, refused: true, ...report, newVersion }
+  }
+  const probeFiles = normalizeEntry(probeEntry)
+  step('probe surface', 'ok', `${probeFiles.length} targets from the patch set of record (${PATCH_SET_VERSION})`)
+
+  // 4. Read-only extraction + classification, target by target.
+  const classifications = []
+  for (const file of probeFiles) {
+    let text
+    try {
+      text = extractPositioned(asarPath, file.targetPath).toString('utf8')
+    } catch (error) {
+      step('target read', 'refused', `${file.targetPath}: ${error instanceof Error ? error.message : String(error)} — structural change (target moved/renamed/unpacked); reanchor cannot proceed, needs a human`)
+      return { ok: false, refused: true, ...report, newVersion }
+    }
+    const newSha = sha256Hex(Buffer.from(text, 'utf8'))
+    const markerCount = countOccurrences(text, file.presenceMarker)
+    if (markerCount > 0) {
+      step('patched input', 'refused', `${file.targetPath}: presence marker occurs ${markerCount} time(s) — this build is ALREADY PATCHED; reanchor classifies the PRISTINE face only (restore first or use an unpatched build)`)
+      return { ok: false, refused: true, ...report, newVersion }
+    }
+    const opFaces = file.ops.map((op) => ({ anchor: op.anchor, expected: 1, actual: countOccurrences(text, op.anchor) }))
+    classifications.push({ file, text, newSha, opFaces, alive: opFaces.every((op) => op.actual === op.expected) })
+  }
+
+  // 5. Report the classification; a single DRIFTED target kills the
+  //    candidate (never guessing anchors) and yields analysis materials.
+  const drifted = classifications.filter((candidate) => !candidate.alive)
+  report.classification = classifications.map((candidate) => ({
+    target: candidate.file.targetPath,
+    oldPristineSha256: candidate.file.pristineSha256,
+    newSha256: candidate.newSha,
+    class: candidate.alive ? 'ALIVE' : 'DRIFTED',
+    ops: candidate.opFaces,
+  }))
+  if (drifted.length > 0) {
+    step('anchor classification', 'refused', `${drifted.length}/${classifications.length} target(s) DRIFTED — candidate set NOT produced (never guessing anchors)`)
+    report.driftedMaterials = drifted.map((candidate) => ({
+      target: candidate.file.targetPath,
+      newSha256: candidate.newSha,
+      oldPristineSha256: candidate.file.pristineSha256,
+      ops: candidate.opFaces.map((op) => ({
+        ...op,
+        ...(op.actual === 0 ? anchorTraceMaterial(candidate.text, op.anchor) : {}),
+      })),
+    }))
+    report.recovery = 'adapt the dead anchors BY HAND against the new build (materials above: new/old SHA-256, expected-vs-actual counts, trace context), then re-run reanchor on the adapted probe entry'
+    return { ok: false, refused: true, ...report, newVersion }
+  }
+  step('anchor classification', 'ok', `5/5 targets ALIVE — anchors inherited verbatim, pristineSha256 updated to the new build's bytes`)
+
+  // 6. The candidate data anchor set (same shape as the in-code entry + the
+  //    metadata fields), validated by the SAME validator the loader uses.
+  const candidate = {
+    anchorSetVersion: PATCH_SET_VERSION,
+    generatedAt: new Date().toISOString(),
+    sourceReport: `reanchor: anchors of ${PATCH_SET_VERSION} (built on 0.2.2-rc.3) re-validated against build ${newVersion} at ${appDir}; 5/5 anchors ALIVE (count==1), pristineSha256 updated to the new bytes; read-only extraction`,
+    shellPackage: probeEntry.shellPackage,
+    files: classifications.map((entry) => ({
+      targetPath: entry.file.targetPath,
+      pristineSha256: entry.newSha,
+      presenceMarker: entry.file.presenceMarker,
+      ops: entry.file.ops,
+    })),
+  }
+  const check = validateAnchorSetData(candidate, probeFiles.map((file) => file.targetPath))
+  if (!check.ok) {
+    step('candidate validation', 'FAILED', check.reason)
+    return { ok: false, ...report, newVersion }
+  }
+  step('candidate validation', 'ok', 'schema + metadata + targets + hashes valid (the same validator the loader enforces)')
+  const candidateJson = `${JSON.stringify(candidate, null, 2)}\n`
+  report.candidate = candidate
+
+  // 7. Outputs: --out is an inspection copy anywhere; --accept is the ONLY
+  //    path into patcher/anchors/ (atomic tmp+rename; existence was refused
+  //    above, so this never overwrites).
+  if (out !== undefined) {
+    writeFileSync(out, candidateJson)
+    step('candidate written', 'ok', out)
+  }
+  if (!accept) {
+    step('accept gate', 'skip', '--accept not given — patcher/anchors/ NOT written; inspect the candidate, then re-run with --accept')
+    return { ok: true, accepted: false, newVersion, candidateJson, steps: report.steps, classification: report.classification }
+  }
+  mkdirSync(anchorsDir, { recursive: true })
+  const tmpPath = `${dataPath}.tmp-${process.pid}`
+  writeFileSync(tmpPath, candidateJson)
+  renameSync(tmpPath, dataPath)
+  const writtenSha = sha256Hex(readFileSync(dataPath))
+  step('anchor set written', 'ok', `${dataPath} (sha256 ${writtenSha})`)
+  return { ok: true, accepted: true, newVersion, candidateJson, writtenTo: dataPath, writtenSha256: writtenSha, steps: report.steps, classification: report.classification }
+}
+
+// ---------------------------------------------------------------------------
 // auto — the hourly self-heal state machine (plan ZCTX-PATCH-AUTO §4).
 // ---------------------------------------------------------------------------
 
@@ -2761,8 +2959,8 @@ export function uninstallScheduledTask(options = {}) {
 // CLI.
 // ---------------------------------------------------------------------------
 
-const VALUE_OPTIONS = new Set(['--app-dir', '--dsh-home', '--backup', '--script', '--log-file'])
-const FLAG_OPTIONS = new Set(['--yes'])
+const VALUE_OPTIONS = new Set(['--app-dir', '--dsh-home', '--backup', '--script', '--log-file', '--out'])
+const FLAG_OPTIONS = new Set(['--yes', '--accept'])
 
 function parseArgs(argv) {
   const args = { _: [] }
@@ -2790,13 +2988,13 @@ function printSteps(prefix, steps) {
   }
 }
 
-const COMMANDS = ['patch', 'restore', 'status', 'auto', 'install-task', 'uninstall-task']
+const COMMANDS = ['patch', 'restore', 'status', 'auto', 'install-task', 'uninstall-task', 'reanchor']
 
 async function main(argv) {
   const args = parseArgs(argv)
   const command = args._[0]
   if (!COMMANDS.includes(command)) {
-    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>]')
+    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept]')
     return 2
   }
   // Scheduled-task registration does not need the app dir: it registers THIS
@@ -2820,6 +3018,25 @@ async function main(argv) {
   console.log(`[app] ${resolved.appDir} (source: ${resolved.source})`)
   const dshHome = args.dsh_home ?? join(homedir(), '.dsh')
   try {
+    if (command === 'reanchor') {
+      const result = reanchorAnchorSet({ appDir: resolved.appDir, out: args.out, accept: args.accept === true })
+      printSteps('[reanchor]', result.steps)
+      if (result.ok) {
+        // The candidate is printed by default (inspection before accept).
+        console.log(result.candidateJson)
+        if (result.accepted) {
+          console.log(`[done] anchor set data written: ${result.writtenTo} (sha256 ${result.writtenSha256})`)
+        } else {
+          console.log('[note] candidate produced — inspect it, then re-run with --accept to write patcher/anchors/<version>.json')
+        }
+        return 0
+      }
+      if (result.driftedMaterials !== undefined) {
+        console.error(JSON.stringify({ driftedMaterials: result.driftedMaterials, classification: result.classification }, null, 2))
+      }
+      console.error(`[refuse] reanchor produced no candidate${result.recovery !== undefined ? ` — recovery: ${result.recovery}` : ''}`)
+      return 1
+    }
     if (command === 'patch') {
       const result = await patchAsar({ appDir: resolved.appDir, dshHome })
       printSteps('[gate]', result.steps)
