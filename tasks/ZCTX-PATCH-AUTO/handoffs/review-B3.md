@@ -129,3 +129,107 @@ TASK_REF: ZCTX-PATCH-AUTO B3 gate
 PAYLOAD: SCORE 96.5/100（正确性24.5 完整性19 一致性19 可验证性14.5 安全回滚10 可维护性9.5）；[阻断] 0；[建议] 8（B-1..B-8，OPEN）；CHECKPOINT 本文件即 B3 产物
 ATTACHMENTS: tasks/ZCTX-PATCH-AUTO/handoffs/review-B3.md; tasks/ZCTX-PATCH-AUTO/scorecards/B3.json
 ```
+
+---
+
+# r2 复评（B3 返工第 1 轮后 · 2026-11-18）
+
+- 对象：f6e993a（B-1/B-4/B-5/B-6 code+tests）+ 295c5ae（B-2/B-3/B-7 README + STEP-0010）+ e0959ae（B-8 主线记账）
+- 方法：六项修复逐一独立复核 + 亲跑 tsc/pnpm test + CLI 实测 + B-7 口径独立复现
+
+## 六项修复复核（全部独立验证）
+
+- **B-1 compareVersions — FIXED（实测通过）**：semver 11.4 分流实现正确（数字标识符恒低于字母数字；同类走关系比较）。本评审独立六例全对：`alpha.beta` vs `alpha.1` → +1；反向 → -1；`1.beta` vs `1.1` → +1；`beta` vs `rc.1` → -1（纯字母字典序正确）；`rc.1` vs `rc.10` → -1；feed 回归 `rc.5` > `rc.3` → +1。新增 3 条测试臂锁定（tests/patcher-preadapt.spec.ts:477-481）。
+- **B-2 README patch SOP — FIXED**：fuse 完整性门插入为第 2 步（三态如实：'1'/不可读拒收、'r' 警告放行、无 exe 诚实 skip），步号 1-11 重排一致；版本门同步补数据锚集来源。
+- **B-3 README preadapt 前提 — FIXED**：新增"前提：真机 app 处于关闭态"段，且论证准确（模拟 patch 探针不看真机进程，但候选的最终消费者 patch/auto 要求真机关闭；auto 联动臂天然满足——app-running 臂先于 feed 面）。
+- **B-4 超时+互斥 — FIXED，600s 偏差裁定成立**：check-official `AbortSignal.timeout(feedTimeoutMs=20s)`、downloadToFile `AbortSignal.timeout(600s)`、CLI auto 单实例互斥（O_EXCL `wx` + 30min lease + fresh 持有者礼貌跳过 exit 0 审计留痕 + stale 接管一次 + 非 EEXIST 错误响亮 exit 1 + finally release）。**偏差裁定：成立**——本评审 r1 建议原文即 5-10min，600s=10min 在建议区间内；300MB@120s 需持续 ~2.5MB/s（20 Mbit/s）确会误杀慢链路，600s 下限 ~0.5MB/s（4 Mbit/s）更稳妥，慢链路超时即响亮 download-failed 且幂等重跑。真实 stall-server 测试两臂（socket 挂起 → feed-unreachable / download-failed，均 'aborted' 字样）+ 子进程 mutex 两臂（fresh skip exit 0 且锁存活；stale 接管后走完本地判定且锁释放）+ 单元三态锁定。**注**：注释算术有一处口误（见 C-3）。
+- **B-5 自等式断言 — FIXED**：替换为真不变量（splice 后哈希快照 pinned 对比：auto 拒绝后不得再改档）。
+- **B-6 未知选项 — FIXED（实测通过）**：main 顶层 catch parseArgs → `[refuse] unknown option --bogus-opt` + usage + **RC=2**、无栈；子进程测试断言 stderr 含 offending token + usage 且不匹配栈帧。
+- **B-7 段哈希口径 — CLOSED（独立复现）**：README R1 守卫口径段写死命令级口径（git show 对象读取 → 自 `export const SUPPORTED = {` 行起至首个 `// ----------` 分隔行止，不 trim 不改行尾）。本评审独立实现同口径切片：**d951ebf 与 HEAD 同值 `8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9`，精确复现**。一处标注瑕疵见 C-2。
+- **B-8（主线）**：STEP-0009a 三项记账（笔误更正/评分表合并裁定/score-gate.ps1 缺位人工校验）——认可；progress.md 追加式更正保留原文，台账纪律正确。
+
+亲跑：`npx tsc --noEmit` exit 0；`pnpm test` → **31 文件 665/665 PASS（2.79s，+6 测试=2 stall + 3 mutex/CLI + 1 CLI face）**。R1 锚哈希返工后复钉：d951ebf 与 HEAD 仍同值 8e2d0b7e…（返工零触碰数据段）。
+
+## r2 评审发现
+
+### [阻断]（无）
+
+### 残留 [建议]（全部行级；第 2 轮返工清单）
+
+- **C-1 landAnchorSet 仍缺于 zctx-patch.d.mts**（53 个导出中唯一缺失，node 导出面 diff 实测）。说明：此发现 r1 已记（完整性扣分项）但 r1 报告漏编号——**编号疏漏在评审人**，coder 按 B-1..B-7 清单工作无法看到它。补一行为声明即可。disposition: OPEN → 第 2 轮修。
+- **C-2 README R1 口径段长度标注误标单位**："两侧长度 14889 B"——14889 是**字符数**（code units），UTF-8 字节数实测 14926。哈希本体无损（已独立复现），仅单位更正。disposition: OPEN → 第 2 轮修。
+- **C-3 downloadToFile 注释算术口误**："600 s sustains ~4 MB/s"——300MB/600s ≈ 0.5 MB/s（= 4 **Mbit**/s），Mbit 与 MB 混写；120s 那句（~20 Mb/s）是对的。超时值本身安全，仅注释数字更正。disposition: OPEN → 第 2 轮修。
+- **C-4 README auto 节未记 mutex/超时新面**：already-running（fresh 持有者礼貌跳过）与 mutex-takeover（stale 接管）是 CLI auto 的用户可观测行为 + fetch 双超时，代码注释与 d.mts 已记，README auto 节/判定表未提。补两句。disposition: OPEN → 第 2 轮修。
+- **C-5 auto 'refused' detail 仍不透传 status.note**（zctx-patch.mjs:3531）：数据锚集损坏时 auto 日志只有"不在支持集"，校验器原因只在 status 面可见——同为 r1 记分项漏编号（评审人疏漏）。一行插值即修。disposition: OPEN → 第 2 轮修（可与 C-1 同 commit）。
+
+## r2 评分（六维；评审人 ≠ 作者；全部证据本机复现）
+
+| 维度 | 分 | 依据 |
+|---|---:|---|
+| 正确性 | 25/25 | B-1 六例实测全对；665/665 绿；tsc 0；mutex 三态+超时 stall 两臂实测；B-5 真不变量；B-6 RC=2 实测；无新缺陷 |
+| 完整性 | 19/20 | C-1 landAnchorSet d.mts 缺口仍在（唯一实缺口）；C-4 见一致性 |
+| 一致性 | 19/20 | B-2/B-3 修复到位；C-2 数字单位误标 + C-4 README 漏记新面 |
+| 可验证性 | 15/15 | B-7 定谳：口径命令化且独立复现精确同值；R1 返工后复钉同值 |
+| 安全回滚 | 10/10 | mutex/超时强化无人值守安全面；lease 30min 合理（tick 由超时+提取时长约束，远小于 lease）；O_EXCL+stale 接管竞态安全（败者礼貌跳过） |
+| 可维护性 | 9.5/10 | C-3 注释算术 + C-5 观测面透传缺口；其余结构不变上乘 |
+| **总分** | **97.5/100** | < 98 → 打回（第 2 轮=最后一轮；C-1..C-5 全为行级修复，修齐后预期 ≥98；若第 2 轮后仍 <98 按 §12.4 升级主线裁决） |
+
+硬阻断核对（§12.3）：全过（无伪造、无底线违规、正确性 25≥23、安全回滚 10≥9、测试全绿、遗留全部登记、无 del 越权）。
+
+## 交接（r2）
+
+```
+FROM: reviewer-B3  TO: main
+MODE: fix
+TASK_REF: ZCTX-PATCH-AUTO B3 gate round 2
+PAYLOAD: SCORE 97.5/100（正确性25 完整性19 一致性19 可验证性15 安全回滚10 可维护性9.5）；[阻断] 0；残留 C-1..C-5（OPEN，全行级）；六项修复全部独立验证 FIXED；B-4 600s 偏差裁定成立
+ATTACHMENTS: tasks/ZCTX-PATCH-AUTO/handoffs/review-B3.md（r2 段）; tasks/ZCTX-PATCH-AUTO/scorecards/B3.json（r2 终评）
+
+---
+
+# r3 终审（B3 返工第 2 轮后 · 2026-11-18）
+
+- 对象：9ac2b99（C-1..C-5 行级修复）+ 464ec5d（STEP-0011 checkpoint）
+- 方法：五项修复逐一独立复核 + 亲跑 tsc/pnpm test + R1 三数字独立复测
+
+## C-1..C-5 独立复核（全部 FIXED）
+
+- **C-1 — FIXED**：`landAnchorSet` 声明补入 zctx-patch.d.mts（JSDoc 完整，签名/返回面与 mjs 实现逐一吻合）。导出面复测：**53/53，missing=[]，缺口归零**。
+- **C-2 — FIXED**：README 更正为"两侧切片均为 14926 字节 UTF-8；14889 为字符数，勿混"。本评审独立复测：**chars=14889 / utf8 bytes=14926**，与更正后文字逐一吻合。
+- **C-3 — FIXED**：注释改为"600 s sustains ~0.5 MB/s (= 4 Mbit/s)"且 120s 句同步更正为"~2.5 MB/s sustained"——两个数字均正确（300MB/600s=0.5MB/s；300MB/120s=2.5MB/s）。
+- **C-4 — FIXED**：README auto 节新增"两个新增运行面"块——网络有界（20s/600s + 超时响亮面名）、mutex（auto.lock、O_EXCL+30min 租约、already-running 礼貌跳过 exit 0 + 审计行、mutex-takeover 一次性接管、非 EEXIST fatal、finally release、env 覆盖）——与代码逐条对得上，无失真。
+- **C-5 — FIXED**：runAuto 'refused' detail 现拼接 `(status: ${status.note})`（note 在场时）——数据锚集损坏的校验器原因进入 auto 日志；既有 'refused' 臂（9.9.9）仍绿。
+
+亲跑：`npx tsc --noEmit` exit 0；`pnpm test` → **31 文件 665/665 PASS（2.85s）**。R1 切片返工后终钉：**chars 14889 / bytes 14926 / sha256 8e2d0b7e…（d951ebf 与 HEAD 同值）**。
+
+## 终审发现
+
+### [阻断]（无）　### 残留 [建议]（无——C-1..C-5 全部 closed/fixed）
+
+观察一项（零扣分、零动作，disposition=not_applicable）：statusAsar 对 source='error' 的 note 存在措辞叠词（"data anchor set rejected — data anchor set rejected: …"，前者为 statusAsar 拼装、后者为 loadAnchorSetData reason 自带前缀）——纯文案冗余，无行为面，r1/r2 同路径已在读未达动作阈值，不立新项。
+
+### 已知开放项（不变，随 B4/B5 走，不属 B3）
+- [U1] 灰度算法置信（代码/README 已如实标注）；[U2] 真实 ~300MB 下载（B5）；[U3] 真 7z 提取（B5）；真机 V1/V4/V6/V8/V12/V13 实证（B5）。
+
+## r3 终评（六维；评审人 ≠ 作者；全部证据本机复现）
+
+| 维度 | 分 | 依据 |
+|---|---:|---|
+| 正确性 | 25/25 | 665/665 绿、tsc 0、C-5 透传实测、B-1 六例、mutex/超时五臂、exit code 实测（r2 基础上零回归） |
+| 完整性 | 20/20 | C-1 关闭：53/53 导出面对齐，唯一缺口归零 |
+| 一致性 | 20/20 | C-2/C-4 关闭：README 三数字与新两面均与实测/代码一致；DR 编号、plan 契约全程无歪曲 |
+| 可验证性 | 15/15 | R1 三数字独立复测吻合；全程证据（r1/r2/r3）可复现，无未复现声称 |
+| 安全回滚 | 10/10 | fail-closed 全景 + mutex/超时 + 范围锁 + 备份先验证，全程零回归 |
+| 可维护性 | 10/10 | C-3/C-5 关闭；结构/命名/注释/注入点上乘，无遗留 nit |
+| **总分** | **100/100** | ≥ 98 放行门 → **PASS，放行 B4（tester+verifier）→ B5（真机 OPS）** |
+
+硬阻断核对（§12.3）：全过（无伪造、无底线违规、正确性 25、安全回滚 10、测试全绿、遗留全部 disposition（C-1..C-5=fixed；观察项=not_applicable）、无 del 越权）。
+
+## 交接（r3 终审）
+
+```
+FROM: reviewer-B3  TO: main
+MODE: normal
+TASK_REF: ZCTX-PATCH-AUTO B3 gate final
+PAYLOAD: SCORE 100/100（正确性25 完整性20 一致性20 可验证性15 安全回滚10 可维护性10）；[阻断] 0；[建议] 0 OPEN（C-1..C-5=fixed，观察1=not_applicable）；verdict=PASS 放行 B4→B5
+ATTACHMENTS: tasks/ZCTX-PATCH-AUTO/handoffs/review-B3.md（r1+r2+r3 全段）; tasks/ZCTX-PATCH-AUTO/scorecards/B3.json（r3 终评）

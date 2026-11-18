@@ -2,52 +2,50 @@
   "schema": "scorecard/v1",
   "task": "ZCTX-PATCH-AUTO",
   "block": "B3",
-  "scope": "全分支对抗评审 d951ebf..4cacac0（14 提交：B2 D1-D4 / B2b D5-D7 / B2c D8）",
+  "round": "r3-final-verdict（r1=96.5 打回 → r2=97.5 打回 → r3=100 PASS；三轮证据链完整）",
+  "scope": "全分支 d951ebf..HEAD（14 基线提交 + f6e993a/295c5ae r1 返工 + e0959ae 主线记账 + 9ac2b99/464ec5d r2 返工）；报告=review-B3.md（r1 前段 + r2 复评段 + r3 终审段）",
   "evaluator": "reviewer-B3",
   "author": "coder",
-  "independence": "评审人 ≠ 作者；独立实测复核（非采信 coder 自报）",
-  "evaluatedAt": "2026-11-18T18:40:00+08:00",
+  "independence": "评审人 ≠ 作者；三轮全部关键证据 reviewer 本机实测/复跑/复现",
+  "evaluatedAt": "2026-11-18T19:05:00+08:00",
   "dimensions": [
     {
       "name": "正确性",
       "max": 25,
-      "score": 24.5,
+      "score": 25,
       "evidence": [
-        "tsc --noEmit exit 0（reviewer 本机复跑）",
-        "pnpm test = tsdown && vitest run → 31 文件 659/659 PASS 2.00s（reviewer 本机复跑）",
-        "R1：SUPPORTED 段三口径 SHA-256 恒等（f51c2a76…/3aa6ad7e…/beec2dc0…，d951ebf vs HEAD identical:true）",
-        "CLI exit code 实测：usage=2、未知命令=2、未知选项=1、check-official/reanchor/auto 拒绝=1",
-        "扣 0.5：compareVersions 混合 token 边界实测错误——compareVersions('1.0.0-alpha.beta','1.0.0-alpha.1') → {order:-1,comparable:true}，semver 应为 +1（数字标识符恒低于字母数字标识符）；现实 feed 形态 rc.N 不受影响（rc.1 vs rc.10 实测正确）"
+        "亲跑：npx tsc --noEmit exit 0；pnpm test → 31 文件 665/665 PASS 2.85s（r3 复跑）",
+        "B-1 semver 11.4 分流六例实测全对（含双向混合对/字典序/rc.N 回归，3 测试臂锁定）",
+        "B-4 mutex 五臂实测（fresh skip exit 0 锁存活/stale 接管走完判定锁释放/单元三态）+ 双超时 stall 两臂（feed-unreachable/download-failed 'aborted'，零落盘）",
+        "C-5：refused detail 透传 (status: note) 实测在位，既有 9.9.9 臂仍绿；B-6 RC=2 干净 refuse 无栈；exit code 契约全程实测"
       ]
     },
     {
       "name": "完整性",
       "max": 20,
-      "score": 19,
+      "score": 20,
       "evidence": [
-        "V1-V14 代码/测试面全落实：fuse 12 臂（patcher-fuse.spec.ts 全读）、auto 判定表逐态（patcher-auto.spec.ts 12+9 臂）、reanchor money test 端到端零人工编辑（patcher-reanchor.spec.ts:216-265）、preadapt 20 臂（patcher-preadapt.spec.ts 全读）",
-        "扣 1：landAnchorSet 为 zctx-patch.mjs 51 个导出中唯一缺失于 zctx-patch.d.mts 的导出（node 导出面 diff 实测：missing=[landAnchorSet]）",
-        "V1/V4/V6/V8/V12/V13 真机面按任务卡设计属 B5，非缺口"
+        "C-1 关闭：landAnchorSet 声明补入 d.mts，签名/返回面与 mjs 吻合；导出面复测 53/53，missing=[]（node 导出面 diff 实测）",
+        "V1-V14 代码/测试面完整；真机面 V1/V4/V6/V8/V12/V13 按任务卡设计属 B5（非缺口）"
       ]
     },
     {
       "name": "一致性",
       "max": 20,
-      "score": 19,
+      "score": 20,
       "evidence": [
-        "plan §4 契约逐条核对：readFuseWire 返回面/auto exit 语义/任务名与 action 形态/日志行格式全一致",
-        "RES-PATCH-DEEPEN DR1-3/1-5/1-6/1-7/1-11/2-2/2-7/2-9/5-4/DR-6/U1 编号无歪曲（对照原文 grep）",
-        "patcher/README.md SOP/判定表/风险节与代码对得上；主 README 两处补句不失真",
-        "扣 1：README patch SOP 1-10 步清单未含 fuse integrity gate 步（B-2）；preadapt 节缺 app 需关闭前提（模拟 patch 用真机 ~/.dsh 锁，B-3）"
+        "C-2 关闭：README '14926 字节 UTF-8；14889 为字符数' 与 reviewer 独立复测逐一吻合（chars=14889/bytes=14926）",
+        "C-4 关闭：README '两个新增运行面' 块（20s/600s 超时 + mutex 全语义含 env 覆盖）与代码逐条对得上",
+        "DR1-3/1-5/1-7/1-11/2-2/2-7/2-9/5-4/DR-6/U1 全程无歪曲；plan §4 契约（exit 语义/日志行格式/任务 action 形态）逐条一致"
       ]
     },
     {
       "name": "可验证性",
       "max": 15,
-      "score": 14.5,
+      "score": 15,
       "evidence": [
-        "全部关键证据 reviewer 本机复现：R1 哈希独立重算、659 测试复跑、exit code 直测、写入点/网络调用 grep 枚举、compareVersions 边界实测",
-        "扣 0.5：coder 声称的 SUPPORTED 段哈希 8e2d0b7e… 在 reviewer 三口径下均不可复现（口径未记录）；字节恒等事实本身独立证实（B-7）"
+        "R1 三数字独立复测吻合：chars 14889 / utf8 bytes 14926 / sha256 8e2d0b7effb1b9af…（d951ebf 与 HEAD 同值，git show 对象读取、切片至首个 // ---------- 分隔行）",
+        "三轮证据链（r1 96.5 → r2 97.5 → r3 100）全部命令/行号可复现；B-7 口径命令化后无任何未复现声称"
       ]
     },
     {
@@ -55,23 +53,21 @@
       "max": 10,
       "score": 10,
       "evidence": [
-        "fail-closed 全景实测：未知版本拒绝/损坏数据集拒收不回退在码 map/landAnchorSet 唯一 anchors 写路径（grep 全枚举 3326-3329）/reanchor+land 双 never-clobber/preadapt 模拟 patch 不过绝不落盘/check-official 网络异常 exit 1",
-        "Z32：createBackup 哈希先验证后动手（基线未改，1784-1788）；Z29：auto 与 preadapt 的 patch 后全量 status 复核均无条件执行",
-        "范围锁：diff 无新增真机路径硬编码；写动作面 = %LOCALAPPDATA%\\zctx-patch\\ + patcher/anchors\\（设计内）",
-        "两 GET 纪律：fetch 全文件枚举仅 2 处真实外联；blockmap 零引用；sha512 feed 权威 + 不匹配删残留 exit 1"
+        "fail-closed 全景全程零回归（损坏锚集拒收不回退/landAnchorSet 唯一写路径/never-clobber/模拟 patch 不过绝不落盘/网络异常响亮 exit 1）",
+        "mutex（O_EXCL+30min lease+stale 接管一次+finally release）与双超时封闭无人值守风险面；备份先验证后动手（基线未改）；范围锁干净（写动作面 = %LOCALAPPDATA%\\zctx-patch\\ + patcher/anchors\\）"
       ]
     },
     {
       "name": "可维护性",
       "max": 10,
-      "score": 9.5,
+      "score": 10,
       "evidence": [
-        "新模块分节注释/JSDoc 诚实标注置信度与开放项（[U1]）；单一落盘路径 landAnchorSet；注入点设计合理（run7zImpl/checkOfficialImpl 契约注释详尽）",
-        "扣 0.5：auto spec:355 自等式断言零信息量（B-5）；未知选项报错为 uncaught 栈（B-6）；auto 'refused' detail 未透传 status.note 中数据锚集拒绝原因"
+        "C-3 关闭（注释 ~0.5 MB/s / ~2.5 MB/s 两数字均正确）；C-5 关闭（refused 透传 status.note）",
+        "结构/命名/JSDoc 诚实标注/注入点设计（env 覆盖密闭测试）上乘；无遗留 nit"
       ]
     }
   ],
-  "total": 96.5,
+  "total": 100,
   "gate": 98,
   "hardBlockCheck": {
     "forgeryEvidence": false,
@@ -82,35 +78,37 @@
     "openLegacyUnrecorded": false,
     "delUnauthorizedChange": false
   },
-  "verdict": "打回（<98；无阻断项；B-1/B-2/B-3/B-5/B-7 修齐后预期 ≥98，返工第 1 轮）",
+  "verdict": "PASS（放行 B4 tester+verifier → B5 真机 OPS）",
   "findings": {
     "blockers": [],
     "suggestions": [
-      { "id": "B-1", "title": "compareVersions 混合 token 边界方向错误且 comparable:true 未如实标注", "disposition": "OPEN", "phase": "block" },
-      { "id": "B-2", "title": "README patch SOP 步清单缺 fuse 门步", "disposition": "OPEN", "phase": "block" },
-      { "id": "B-3", "title": "README preadapt 节缺 app 需关闭前提", "disposition": "OPEN", "phase": "block" },
-      { "id": "B-4", "title": "fetch 无超时 / auto tick 无单实例互斥（无人值守健壮性）", "disposition": "OPEN", "phase": "block" },
-      { "id": "B-5", "title": "auto spec 自等式断言（:355）", "disposition": "OPEN", "phase": "block" },
-      { "id": "B-6", "title": "未知选项 uncaught 栈而非干净 usage", "disposition": "OPEN", "phase": "post-merge" },
-      { "id": "B-7", "title": "coder 声称段哈希 8e2d0b7e… 口径不可复现（记录口径即可）", "disposition": "OPEN", "phase": "block" },
-      { "id": "B-8", "title": "B2/B2b/B2c 波次 scorecards 缺失（治理面，主线处理）；progress.md STEP-0009 灰度数字笔误", "disposition": "OPEN", "phase": "block" }
+      { "id": "C-1", "disposition": "fixed", "evidence": "d.mts 53/53 导出面对齐（missing=[] 实测）" },
+      { "id": "C-2", "disposition": "fixed", "evidence": "README 单位更正与实测 chars=14889/bytes=14926 吻合" },
+      { "id": "C-3", "disposition": "fixed", "evidence": "注释两数字均正确（0.5 MB/s / 2.5 MB/s）" },
+      { "id": "C-4", "disposition": "fixed", "evidence": "README 新两面与代码逐条一致" },
+      { "id": "C-5", "disposition": "fixed", "evidence": "refused detail 透传 note 实测在位，既有臂仍绿" },
+      { "id": "OBS-1", "title": "statusAsar source=error note 措辞叠词（'data anchor set rejected — data anchor set rejected: …'）", "disposition": "not_applicable", "note": "纯文案冗余零行为面，r1/r2 同路径已在读未达动作阈值，不立新项不扣分" }
+    ],
+    "r1Fixed": [
+      { "id": "B-1", "disposition": "fixed" }, { "id": "B-2", "disposition": "fixed" },
+      { "id": "B-3", "disposition": "fixed" }, { "id": "B-4", "disposition": "fixed" },
+      { "id": "B-5", "disposition": "fixed" }, { "id": "B-6", "disposition": "fixed" },
+      { "id": "B-7", "disposition": "fixed" }, { "id": "B-8", "disposition": "fixed" }
     ],
     "knownOpenNotBlocking": [
-      "[U1] 灰度算法置信（已如实标注）",
-      "[U2] 真实 ~300MB 下载（B5）",
-      "[U3] 真 7z 提取（B5）",
-      "真机 V1/V4/V6/V8/V12/V13 实证（B5）"
+      "[U1] 灰度算法置信（代码/README 已如实标注，随 B5 提取件顺带读出可关闭）",
+      "[U2] 真实 ~300MB 下载（B5 演练）",
+      "[U3] 真 7z 提取（B5 演练）",
+      "真机 V1/V4/V6/V8/V12/V13 实证（B5）；V6 的 SHA256SUMS 口径=RESTORE.md 内哈希清单（基线形态）或补文件，B5 验收时定"
     ]
   },
   "artifactsReviewed": [
-    "patcher/zctx-patch.mjs（+1678 行 diff 全读）",
-    "patcher/zctx-patch.d.mts",
-    "patcher/README.md（+197 行全读）",
-    "README.md / README.zh.md（各 +1 句）",
-    "tests/patcher-fuse.spec.ts / patcher-auto.spec.ts / patcher-reanchor.spec.ts / patcher-preadapt.spec.ts（全读）",
-    "tests/patcher.spec.ts / patcher-multifile.spec.ts（+3 行 diff）",
-    "tasks/ZCTX-PATCH-AUTO/task.json / checkpoint.json / progress.md"
+    "patcher/zctx-patch.mjs（三轮 diff 全读；r3 diff 14 行）",
+    "patcher/zctx-patch.d.mts（r3 diff 13 行：landAnchorSet 声明）",
+    "patcher/README.md（r3 diff 16 行：新两面块 + 单位更正）",
+    "tests/*（三轮全量复跑 659→665→665）",
+    "tasks/ZCTX-PATCH-AUTO/progress.md（STEP-0011）/ checkpoint.json"
   ],
-  "report": "tasks/ZCTX-PATCH-AUTO/handoffs/review-B3.md",
-  "note": "scripts/score-gate.ps1 未在本仓/worktree 找到（find maxdepth 3 无命中），机器校验不可用——本表按 AGENTS.md §12.1/§12.2 手工 schema 落盘"
+  "report": "tasks/ZCTX-PATCH-AUTO/handoffs/review-B3.md（r1 前段 + r2 复评段 + r3 终审段）",
+  "note": "score-gate.ps1 缺位已记账（e0959ae，人工 JSON 校验替代）；工作树中 review-B3.md/B3.json 为 reviewer 未提交终态，随 B3 结论一并由主线入库"
 }
