@@ -959,3 +959,101 @@ describe('auto tick mutex + CLI faces (B3 review B-4/B-6)', () => {
     expect(probed.stderr).not.toMatch(/^\s+at\s+/m)
   })
 })
+
+// ---------------------------------------------------------------------------
+// D8e: BLOCK SCALARS + the REAL nightly-rc5 feed fixture (the B5 preflight
+// found the production P1: the strict-flat reader refused the real feed's
+// `>-` folded continuations and dead-ended check-official on the real
+// machine). The fixture is the REAL feed body captured 2026-11-18, hash-
+// pinned below; the poisoned variants prove fail-closed was NOT weakened.
+// ---------------------------------------------------------------------------
+
+const REAL_FEED_FIXTURE = join(process.cwd(), 'tasks', 'ZCTX-PATCH-AUTO', 'artifacts', 'nightly-rc5-real.yml')
+const REAL_FEED_SHA256 = 'bd30dc2d4000231d5f6cefd3a6cae4d12ced865e95bcdd9af7e052b76ce625d0'
+const REAL_SHA512 = 'wWySRp7Hk5gcH324jBxAc7KV0mniHzQDofyQexOJMIAWXBkgHTsRCr3IrdwX1XO8OIhDZsLYmve4mLxskikYIg=='
+const REAL_URL = 'https://download.deepseek.com/dsh-desk/bin/win-x64/deepseek-harness-0.2.2-rc.5-win-x64.exe'
+const FEED_KNOWN_KEYS = ['version', 'path', 'sha512', 'releaseDate', 'githubArtifactName', 'files', 'stagingPercentage']
+
+describe('D8e: block scalars on the REAL nightly-rc5 feed fixture', () => {
+  it('the fixture is the pinned real feed (hash guard first)', () => {
+    const raw = readFileSync(REAL_FEED_FIXTURE, 'utf8')
+    expect(sha256(Buffer.from(raw, 'utf8'))).toBe(REAL_FEED_SHA256)
+    // The exact production P1 shape is in the fixture: `>-` folded blocks on
+    // url and sha512 (list-item AND top-level keys).
+    expect(raw).toContain('- url: >-')
+    expect(raw).toContain('sha512: >-')
+  })
+
+  it('parses the REAL feed: pending rc.5 with the exact url/size/sha512/staging/releaseDate', () => {
+    const parsed = parseUpdateYaml(readFileSync(REAL_FEED_FIXTURE, 'utf8'), { knownTopKeys: FEED_KNOWN_KEYS })
+    expect(parsed.ok).toBe(true)
+    expect(parsed.doc?.version).toBe('0.2.2-rc.5')
+    expect(parsed.doc?.files?.[0].url).toBe(REAL_URL)
+    expect(parsed.doc?.files?.[0].size).toBe(299593552)
+    expect(parsed.doc?.files?.[0].sha512).toBe(REAL_SHA512)
+    expect(parsed.doc?.path).toBe(REAL_URL)
+    expect(parsed.doc?.sha512).toBe(REAL_SHA512)
+    expect(parsed.doc?.stagingPercentage).toBe(30)
+    expect(parsed.doc?.releaseDate).toBe('2026-11-18T11:35:49.720Z')
+  })
+
+  it('check-official goes END-TO-END on the real feed body (fetch injected, pending rc.5)', async () => {
+    const work = tempDir('zctx-d8e-')
+    const { appDir } = await buildRealInstall(work, { feedBaseUrl: 'https://download.deepseek.com/dsh-desk', feed: { version: '0.2.2-rc.5', installerPath: 'installer.exe', installerBytes: Buffer.alloc(8) } })
+    const result = await checkOfficial({
+      appDir,
+      updaterIdPath: join(work, 'updater-id', '.updaterId'),
+      localAppData: join(work, 'localappdata'),
+      logFile: join(work, 'auto.log'),
+      fetchImpl: (async () => ({ status: 200, text: async () => readFileSync(REAL_FEED_FIXTURE, 'utf8') })) as unknown as typeof fetch,
+    })
+    expect(result.ok).toBe(true)
+    expect(result.updateState).toBe('pending')
+    expect(result.feedVersion).toBe('0.2.2-rc.5')
+    expect(result.installedVersion).toBe('0.2.2-rc.3')
+    expect(result.feedSha512).toBe(REAL_SHA512)
+    expect(result.feedSize).toBe(299593552)
+    expect(result.installerUrl).toBe(REAL_URL)
+    expect(result.stagingPercentage).toBe(30)
+  })
+
+  it('poisoned variant A — an unknown top-level key still refuses (fail-closed unchanged)', () => {
+    const raw = readFileSync(REAL_FEED_FIXTURE, 'utf8')
+    const parsed = parseUpdateYaml(`${raw}\nevilKey: 1\n`, { knownTopKeys: FEED_KNOWN_KEYS })
+    expect(parsed.ok).toBe(false)
+    expect(parsed.reason).toContain('unknown top-level key "evilKey"')
+  })
+
+  it('poisoned variant B — a bad line INSIDE a block scalar refuses by shape', () => {
+    const raw = readFileSync(REAL_FEED_FIXTURE, 'utf8')
+    // Injected at the ITEM-KEY column (4 spaces): shallower than the block
+    // content (6) → the block ends and the junk line has no legal shape.
+    const poisoned = raw.replace('    sha512: >-', `    sha512: >-\n    evil injection line`)
+    const parsed = parseUpdateYaml(poisoned, { knownTopKeys: FEED_KNOWN_KEYS })
+    expect(parsed.ok).toBe(false)
+    expect(parsed.reason).toContain('outside the known update-yaml shape')
+  })
+
+  it('poisoned variant C — deeper junk folds HONESTLY into the value and the base64 shape gate refuses it', async () => {
+    const raw = readFileSync(REAL_FEED_FIXTURE, 'utf8')
+    // Injected DEEPER than the block content (6 spaces): folded into the
+    // sha512 value by the (now honest) block semantics — and caught by the
+    // check-official field-shape gate instead of surviving into a download.
+    const poisoned = raw.replace(REAL_SHA512, `${REAL_SHA512}\n      evil injection line`)
+    const parsed = parseUpdateYaml(poisoned, { knownTopKeys: FEED_KNOWN_KEYS })
+    expect(parsed.ok).toBe(true)
+    expect(parsed.doc?.files?.[0].sha512).toContain('evil injection line')
+    const work = tempDir('zctx-d8e-poison-')
+    const { appDir } = await buildRealInstall(work, { feedBaseUrl: 'https://download.deepseek.com/dsh-desk', feed: { version: '0.2.2-rc.5', installerPath: 'installer.exe', installerBytes: Buffer.alloc(8) } })
+    const result = await checkOfficial({
+      appDir,
+      updaterIdPath: join(work, 'updater-id', '.updaterId'),
+      localAppData: join(work, 'localappdata'),
+      logFile: join(work, 'auto.log'),
+      fetchImpl: (async () => ({ status: 200, text: async () => poisoned })) as unknown as typeof fetch,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.state).toBe('feed-incomplete')
+    expect(result.detail).toContain('sha512 is not well-formed base64')
+  })
+})

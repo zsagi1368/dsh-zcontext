@@ -2668,18 +2668,69 @@ export function pipelineLogLine(tag, state, detail) {
   return `[${new Date().toISOString()}] [${tag}] state=${state} detail=${detail}`
 }
 
+const FEED_YAML_KNOWN_KEYS = ['version', 'path', 'sha512', 'releaseDate', 'githubArtifactName', 'files', 'stagingPercentage']
+const APP_UPDATE_YAML_KNOWN_KEYS = ['provider', 'url', 'updaterCacheDirName', 'channel', 'publisherName']
+
+/**
+ * Fold collected block-scalar content lines (D8e): folded (`>`) joins
+ * consecutive base-indent lines with a single space (a blank line becomes a
+ * literal newline), more-indented lines are kept literally after a newline;
+ * literal (`|`) always joins with newlines. Chomping per the header:
+ * `-` strip (no trailing newline — the shape real feeds use for sha512/url),
+ * default clip (one trailing newline), `+` keep all trailing newlines.
+ */
+function foldBlockScalar(entries, style, chomp) {
+  let value = ''
+  let pending = 0
+  let started = false
+  for (const entry of entries) {
+    if (entry.empty) {
+      pending += 1
+      continue
+    }
+    if (!started) {
+      value = entry.text
+      started = true
+      continue
+    }
+    if (style === '|' || /^\s/.test(entry.text)) {
+      value += '\n'.repeat(pending + 1) + entry.text
+    } else {
+      value += (pending > 0 ? `${'\n'.repeat(pending)} ` : ' ') + entry.text
+    }
+    pending = 0
+  }
+  if (started && chomp === 'clip') value += '\n'
+  if (started && chomp === 'keep') value += '\n'.repeat(pending)
+  if (chomp === 'strip') value = value.replace(/\n+$/, '')
+  return value
+}
+
 /**
  * Minimal YAML-subset parser for the two update manifests (app-update.yml,
- * <channel>.yml): flat `key: value` pairs plus a `files:` list of `  - key:
- * value` items. This is NOT a general YAML parser — anything outside the
- * electron-updater manifest shape yields missing REQUIRED fields downstream,
- * which the callers refuse loudly (fail-closed by shape, not by guessing).
+ * <channel>.yml): flat `key: value` pairs, a `files:` list of `  - key:
+ * value` items, and BLOCK SCALARS (`>`, `>-`, `|`, `|-`, with optional
+ * numeric indent indicators) on both top-level keys and list-item keys —
+ * the REAL nightly.yml folds its long url/sha512 values exactly that way
+ * (D8e: the previous strict-flat reader refused the real feed's `>-`
+ * continuations and dead-ended check-official on the real machine).
+ * Folding/chomping semantics per the YAML spec (folded joins with spaces,
+ * literal joins with newlines, `-` strip / clip / `+` keep).
+ *
+ * This is NOT a general YAML parser — anything outside the electron-updater
+ * manifest shape yields missing REQUIRED fields or a loud refusal (fail-
+ * closed by shape, not by guessing). When `knownTopKeys` is provided, an
+ * unknown top-level key refuses (feed-format drift = loud, per the review);
+ * list-item keys stay permissive (real feeds carry blockMapSize et al).
  * Values: quoted strings unquoted; `null`/empty → null; integers → numbers.
+ * A top-level key with an empty non-block value starts a nested block the
+ * reader does not consume (e.g. publisherName's list) — skipped wholesale.
  */
-export function parseUpdateYaml(text) {
+export function parseUpdateYaml(text, opts = {}) {
   if (typeof text !== 'string' || text.startsWith('<')) {
     return { ok: false, reason: text.startsWith('<') ? 'response looks like HTML (the SPA fallback electron-updater never reads — wrong channel file)' : 'manifest is not text' }
   }
+  const knownTopKeys = opts.knownTopKeys
   const scalar = (raw) => {
     const value = raw.trim()
     if (value === '' || value === 'null' || value === '~') return null
@@ -2687,30 +2738,84 @@ export function parseUpdateYaml(text) {
     if (/^-?\d+$/.test(value)) return Number.parseInt(value, 10)
     return value
   }
+  const lines = text.split(/\r?\n/)
   const doc = { files: [] }
   let inFiles = false
   let skippingNested = false
   let current = null
-  for (const rawLine of text.split(/\r?\n/)) {
+  for (let index = 0; index < lines.length; index++) {
+    const rawLine = lines[index]
     const line = rawLine.replace(/\t/g, '  ')
     if (line.trim() === '' || line.trim().startsWith('#')) continue
     const indented = /^\s/.test(line)
     const listItem = /^\s+-\s+(\w[\w-]*):\s*(.*)$/.exec(line)
     const nestedItem = /^\s{2,}(\w[\w-]*):\s*(.*)$/.exec(line)
     const topItem = /^(\w[\w-]*):\s*(.*)$/.exec(line)
-    if (topItem !== null && !indented) {
-      // A new top-level key ends any nested block we were skipping.
-      skippingNested = false
-      inFiles = topItem[1] === 'files'
-      if (inFiles) continue
-      current = null
-      doc[topItem[1]] = scalar(topItem[2])
-      // An empty value starts a nested block (e.g. publisherName's list) the
-      // reader does not consume — skip it wholesale, honestly.
-      if (doc[topItem[1]] === null) skippingNested = true
+    const isTop = topItem !== null && !indented
+    if (!isTop && listItem === null && !(inFiles && nestedItem && current !== null)) {
+      if (skippingNested && indented) continue
+      return { ok: false, reason: `manifest line outside the known update-yaml shape: ${JSON.stringify(rawLine.slice(0, 120))}` }
+    }
+    const key = isTop ? topItem[1] : listItem !== null ? listItem[1] : nestedItem[1]
+    const inlineValue = isTop ? topItem[2] : listItem !== null ? listItem[2] : nestedItem[2]
+    // Block scalar? `>` / `|` + optional chomping (+/-) and indent digits (in
+    // the YAML header orders: `>-`, `|2-`, `>+`, ...). Collect the following
+    // lines indented DEEPER than the key itself; the content indent is the
+    // first non-empty line's indent; the block ends at a non-empty line at or
+    // above the key column.
+    const header = /^([>|])([0-9+-]*)$/.exec(inlineValue)
+    if (header !== null && header[2] !== '') {
+      const style = header[1]
+      const chomp = header[2].includes('-') ? 'strip' : header[2].includes('+') ? 'keep' : 'clip'
+      const keyColumn = isTop ? 0 : line.indexOf(key)
+      const entries = []
+      let baseIndent = null
+      let cursor = index + 1
+      for (; cursor < lines.length; cursor++) {
+        const blockLine = lines[cursor].replace(/\t/g, '  ')
+        if (blockLine.trim() === '') {
+          entries.push({ empty: true })
+          continue
+        }
+        const indent = blockLine.length - blockLine.trimStart().length
+        if (indent <= keyColumn) break
+        if (baseIndent === null) baseIndent = indent
+        entries.push({ empty: false, text: blockLine.slice(baseIndent) })
+      }
+      const value = foldBlockScalar(entries, style, chomp)
+      index = cursor - 1
+      if (isTop) {
+        if (knownTopKeys !== undefined && !knownTopKeys.includes(key)) {
+          return { ok: false, reason: `unknown top-level key "${key}" in the update manifest (fail-closed: feed-format drift needs a human)` }
+        }
+        inFiles = key === 'files'
+        if (inFiles) continue
+        current = null
+        doc[key] = value
+        continue
+      }
+      if (listItem !== null) {
+        current = { [key]: value }
+        doc.files.push(current)
+        continue
+      }
+      current[key] = value
       continue
     }
-    if (skippingNested && indented) continue
+    if (isTop) {
+      skippingNested = false
+      if (knownTopKeys !== undefined && !knownTopKeys.includes(key)) {
+        return { ok: false, reason: `unknown top-level key "${key}" in the update manifest (fail-closed: feed-format drift needs a human)` }
+      }
+      inFiles = key === 'files'
+      if (inFiles) continue
+      current = null
+      doc[key] = scalar(inlineValue)
+      // An empty value starts a nested block (e.g. publisherName's list) the
+      // reader does not consume — skip it wholesale, honestly.
+      if (doc[key] === null) skippingNested = true
+      continue
+    }
     if (inFiles && listItem) {
       current = { [listItem[1]]: scalar(listItem[2]) }
       doc.files.push(current)
@@ -2720,7 +2825,6 @@ export function parseUpdateYaml(text) {
       current[nestedItem[1]] = scalar(nestedItem[2])
       continue
     }
-    return { ok: false, reason: `manifest line outside the known update-yaml shape: ${JSON.stringify(rawLine.slice(0, 120))}` }
   }
   return { ok: true, doc }
 }
@@ -2841,7 +2945,7 @@ export async function checkOfficial(options = {}) {
     }
     let updaterConfig
     try {
-      const parsed = parseUpdateYaml(readFileSync(updaterYamlPath, 'utf8'))
+      const parsed = parseUpdateYaml(readFileSync(updaterYamlPath, 'utf8'), { knownTopKeys: APP_UPDATE_YAML_KNOWN_KEYS })
       if (!parsed.ok) throw new Error(parsed.reason)
       updaterConfig = parsed.doc
     } catch (error) {
@@ -2880,7 +2984,7 @@ export async function checkOfficial(options = {}) {
       return finish('feed-not-found', `GET ${feedUrl} → HTTP ${response.status} (channel file missing or renamed — electron-updater would raise ERR_UPDATER_CHANNEL_FILE_NOT_FOUND)`, 1)
     }
     const feedText = await response.text()
-    const feedParsed = parseUpdateYaml(feedText)
+    const feedParsed = parseUpdateYaml(feedText, { knownTopKeys: FEED_YAML_KNOWN_KEYS })
     if (!feedParsed.ok) {
       return finish('feed-unparsable', `${feedUrl}: ${feedParsed.reason}`, 1)
     }
@@ -2893,6 +2997,16 @@ export async function checkOfficial(options = {}) {
     const installerEntry = Array.isArray(feed.files) ? feed.files.find((entry) => typeof entry?.url === 'string' && String(entry.url).endsWith('.exe')) : undefined
     if (installerEntry === undefined) {
       return finish('feed-incomplete', `${feedUrl} has no .exe installer entry in files[]`, 1)
+    }
+    // Field-shape gate (D8e): a poisoned block scalar (junk folded into a
+    // hash, a mutated URL) must refuse HERE — never survive into a download
+    // decision. sha512 is BASE64 on the electron-updater wire; size is a
+    // positive integer.
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(String(installerEntry.sha512))) {
+      return finish('feed-incomplete', `${feedUrl} installer sha512 is not well-formed base64 (folded-block poisoning or corrupt feed) — refusing`, 1)
+    }
+    if (!Number.isInteger(Number(installerEntry.size)) || Number(installerEntry.size) <= 0) {
+      return finish('feed-incomplete', `${feedUrl} installer size "${String(installerEntry.size)}" is not a positive integer — refusing`, 1)
     }
     for (const field of INSTALLER_ENTRY_REQUIRED_FIELDS) {
       if (installerEntry[field] === undefined || installerEntry[field] === null) {

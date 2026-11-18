@@ -518,8 +518,16 @@ export function landAnchorSet(
 /** One pipeline contract line: `[ISO8601] [<tag>] state=<X> detail=<...>`. */
 export function pipelineLogLine(tag: string, state: string, detail: string): string
 
-/** Minimal YAML-subset parser for the two electron-updater manifests (loud on any foreign shape). */
-export function parseUpdateYaml(text: string): {
+/**
+ * Minimal YAML-subset parser for the two electron-updater manifests — flat
+ * keys, the files list, and BLOCK SCALARS (`>`/`|` + chomping/indent, the
+ * real nightly.yml's folded url/sha512 shape). Loud on any foreign shape;
+ * with knownTopKeys an unknown top-level key refuses (feed drift = loud).
+ */
+export function parseUpdateYaml(
+  text: string,
+  opts?: { knownTopKeys?: readonly string[] },
+): {
   ok: boolean
   reason?: string
   doc?: Record<string, unknown> & { files?: readonly (Record<string, unknown> & { url?: string; size?: number; sha512?: string })[] }
