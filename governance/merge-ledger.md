@@ -47,3 +47,11 @@
 - RSI：查册执行 Z15/Z19/Z20/Z23/Z28/Z29/Z30/A43；Z30 取证法实证（多帧 zstd 切分读 data.source——stdout 流与 message.* 形态均不含 fold 事件）。
 - 备份面：del/20261116-p6f-prechange（13 件仓内文件）+ del/20261116-p6f-bench-prechange（装件 lib 7 件+patch yml）。
 - post-merge 台账沿用：BENCH-L2（桌面 web 组合激活态未测）、BENCH-L3（D/E 组重估）、BENCH-L7（nudge 措辞/模型面研究杠杆，v0.4 候选）、P6E-4（吸收窗资格）。
+
+## patcher-auto-20261118a（2026-11-18 · ZCTX-PATCH-AUTO · B5 合并）
+
+- 主仓 main=90d8a9f（--no-ff 合并 feat/ZCTX-PATCH-AUTO 17 提交，d951ebf..6556789）+ tag patcher-auto-20261118a；+5825 行/22 文件（patcher/zctx-patch.mjs +1916）。
+- 交付：补丁版自愈三件套（fuse 探测器 VERIFY-P#11 口径 / auto 状态机+tick mutex+双超时 / install-task/uninstall-task hourly 计划任务）+ 快速适配架构（锚集数据外置 patcher/anchors/<version>.json + reanchor 再适配工具 + check-official feed 读侧 + preadapt 预适配管线：下载→sha512→7z 双层提取→fuse 前置→reanchor→模拟 patch 5/5→--accept）+ auto feed 联动（pending→preadapt→落地即自动重打）。
+- 质量证据：671/671 测试+tsc 0；B3 评审三轮 96.5→97.5→100 PASS（evaluator≠author）；B4 verifier 100 PASS（V1-V14 逐项，真机 status/auto 只读实测）；R1 红线三波字节不变式（SUPPORTED 段 8e2d0b7e… 口径钉死）；Mimosa 深扫终态 scanId=scan-2026-11-18T19-03-51.979Z-8cf71c6fd981 seal=befb1949… coverage 73/73 truncated=false，5 findings 全分诊误报（mock-session 不在产物束/mongo 全仓零命中/env 只喂模块解析与调试门），依赖风险 0。
+- 真机预检：check-official 实测 pending rc.5（feed 2026-11-18T11:35Z，staging 30%，本机 0.4347% 不含，[U1] 保留）；发现并热修 P1（严格解析器拒收真实 feed 的 >- 块标量 → D8e 6556789，fixture=真实 nightly.yml 钉 SHA bd30dc2d…）。
+- 开放项移交：B5 真机面（真 300MB 下载 [U2]/真 7z [U3]/V4/V6/V8 主树复测）；插件 pin a4ae662 无需轮转（本波零插件 src 变更）。
