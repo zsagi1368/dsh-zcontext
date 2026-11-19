@@ -1,0 +1,162 @@
+{
+  "schema": "scorecard/v1",
+  "task": "ZCTX-UI",
+  "block": "B5",
+  "evaluator": "reviewer-B5",
+  "author": "coder",
+  "independent": true,
+  "date": "2026-11-18",
+  "rework_round": 1,
+  "rework_of": "B5 r0 (98/100 PASS with 6 suggestions)",
+  "worktree": "G:\\000Github\\zDSH\\zDSH-plugins\\dsh-zcontext\\worktrees\\ZCTX-UI",
+  "head": "d88a315a2a70d48c9307bd7a9a801e4753f24f67",
+  "rework_commits": ["a9f2f0d (B5-4 mainline: closure phase block→post-merge)", "d88a315 (B5-1/2/3/5/6 rework r1)"],
+  "base": "03ec933",
+  "dimensions": [
+    {
+      "name": "correctness",
+      "max": 25,
+      "score": 25,
+      "evidence": [
+        "R1 SUPPORTED 段复评复算（HEAD=d88a315）：chars=14889 bytes=14926 sha256=8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9，与 r0 及三 ref 锚点一致（未变）",
+        "fail-closed r0 已独立复现（错误 token 即便 loopback READ/WRITE 均 false），r1 未触碰 auth.ts",
+        "B5-1 独立复现：apply() 无 React → component() 真实渲染 {tag:'a', href:'/zctx-ui', text:'打开 zcontext 面板 →'}，注入 document 时生成真实 DOM anchor（href/text 均正确）；bare-node 无 document 仍返回合法描述符，非 null 假绿",
+        "B5-3 独立复现真抛点：storeFor 抛错 → sessionResolution='degraded' + degraded 'store resolution failed: store boom'；route target 抛错（Proxy 使 header.config 读取在 routedRequestTarget 内部 try/catch 之后抛）→ degraded + 'route target read failed: header.config boom'；两者均不抛出",
+        "pnpm build EXIT=0 握手 4/4 PASS；npx tsc --noEmit EXIT=0；pnpm test 34 files/730 tests PASS（较 r0 +6）"
+      ]
+    },
+    {
+      "name": "completeness",
+      "max": 20,
+      "score": 20,
+      "evidence": [
+        "V1-V7 全覆盖；r0 的 6 条 [建议] 全部处理（B5-1/2/3/5/6 由 d88a315 修复，B5-4 由 a9f2f0d 主线修正）",
+        "B5-1 降级链接兑现（真实 href/text/DOM node），B5-5 多会话切换控件落地（真 <select> + availableSessions 填充 + change→refresh），均已独立复现/验证"
+      ]
+    },
+    {
+      "name": "consistency",
+      "max": 20,
+      "score": 20,
+      "evidence": [
+        "B5-1 实现与 README/README.zh/DESIGN §5.3『降级为链接』承诺一致（r0 的不一致已消除）",
+        "B5-2 源码仅 routes.ts:218 一处 ctx.effect('zctx-ui-routes') 实际调用（plugin.ts 仅注释），独立复现注册次数=1",
+        "manifest/cordis.patch.yml/双语/README/契约一致性 r0 已核、r1 未破坏（cordis.patch.yml diff 仍为空）"
+      ]
+    },
+    {
+      "name": "verifiability",
+      "max": 15,
+      "score": 15,
+      "evidence": [
+        "每条复评结论附命令+输出：R1 复算、B5-1/2/3 独立 node --experimental-strip-types 复现输出、build/tsc/vitest 输出、grep 零命中、git status、closure diff",
+        "B5-3 测试真抛点臂经源码审（routedRequestTarget 内部 try/catch 仅包 requestHeader() 调用）+ 独立 Proxy 触发验证，非假绿"
+      ]
+    },
+    {
+      "name": "security_rollback",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "复评 grep：src/tests/scripts 零可用凭据字面量；src/ui+src/client 零 llm.stream/req.body/internal/config（均 PASS）",
+        "additive revert 不变；closure 5 项仍全 open 未被单方面关闭；B5-4 主线将 V8-A4-5/V8-A2-4 phase block→post-merge 并附更正说明，§11 block 门 OPEN 张力消除"
+      ]
+    },
+    {
+      "name": "maintainability",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "B5-2 disposer 去重（单一注册点）、B5-3 异常统一 degraded、B5-5 availableSessions 薄封装（plugin.ts listSessions 遍历 liveSessions，非新造）、B5-6 esc/escAttr 语义清晰，均可维护性正向",
+        "src/ui/** 叶子边界、依赖注入 seam、命名与 DESIGN 一致保持"
+      ]
+    }
+  ],
+  "total": 100,
+  "threshold": 98,
+  "verdict": "PASS",
+  "hard_blocks": {
+    "forged_evidence": false,
+    "security_bottom_line": false,
+    "correctness_below_23": false,
+    "security_rollback_below_9": false,
+    "test_failure_or_p0p1_open": false,
+    "open_closure_blocking_b5": false,
+    "note": "closure 5 项 open 属真机 B6 且均为 post-merge phase（B5-4 已更正），不作 B5 阻断"
+  },
+  "rework_verification": [
+    {
+      "id": "B5-1",
+      "claim": "真降级链接 href/text/DOM node 真断言，非 typeof 假绿",
+      "verified": true,
+      "method": "读 src/client/index.ts createFallbackLink + tests/client-slot.spec.ts 真渲染断言；独立 node --experimental-strip-types 加载 apply() 无 React 调用 component()",
+      "output": "rendered {tag:'a',href:'/zctx-ui',text:'打开 zcontext 面板 →'}; DOM anchor {href:'/zctx-ui',text:'打开 zcontext 面板 →'}; bare-node fallback hasNode:false 但描述符完整"
+    },
+    {
+      "id": "B5-2",
+      "claim": "disposer label 唯一注册",
+      "verified": true,
+      "method": "grep 'zctx-ui-routes' + 独立复现 registerUiRoutes 计数 effect label",
+      "output": "src 仅 routes.ts:218 实际调用（plugin.ts 仅注释）；effect 注册次数=1"
+    },
+    {
+      "id": "B5-3",
+      "claim": "storeFor/route try-catch→degraded，真抛点臂",
+      "verified": true,
+      "method": "读 src/ui/snapshot.ts:138-177 + routedRequestTarget 源码审；独立 Proxy 触发 header.config 抛错",
+      "output": "storeFor throw → degraded ['store resolution failed: store boom']; route throw → degraded ['route target read failed: header.config boom']; 均不抛出"
+    },
+    {
+      "id": "B5-5",
+      "claim": "availableSessions + 真实 select 切换控件",
+      "verified": true,
+      "method": "读 src/ui/page.ts（session-pick select + renderSessionPicker + change handler）+ snapshot.ts listSessions 薄封装 + 测试断言",
+      "output": "page 含 id=session-pick 真 <select>、从 s.availableSessions 填充、change→refresh；snapshot.availableSessions 由 plugin.listSessions() 遍历 liveSessions 产出；测试新臂 PASS"
+    },
+    {
+      "id": "B5-6",
+      "claim": "esc 补引号 + escAttr",
+      "verified": true,
+      "method": "读 src/ui/page.ts esc() 增 replace(/\"/g,&quot;)/replace(/'/g,&#39;) + escAttr 别名用于属性上下文 + 测试断言",
+      "output": "esc 覆盖 &<>\"'；表单 value/data-key/data-type 属性用 escAttr；测试断言两条 replace 链 + escAttr( 存在"
+    },
+    {
+      "id": "B5-4",
+      "claim": "主线 closure phase block→post-merge 附更正说明",
+      "verified": true,
+      "method": "git diff 9082b52..a9f2f0d -- closure.json + 当前 5 项 status/phase",
+      "output": "V8-A4-5/V8-A2-4 phase block→post-merge + _main_note；当前 5 项全 post-merge/open，block 门无 OPEN"
+    }
+  ],
+  "findings": [
+    { "id": "B5-1", "severity": "suggestion", "disposition": "fixed", "evidence": "d88a315 createFallbackLink 真渲染 <a href=/zctx-ui>；测试真渲染断言；reviewer 独立复现通过" },
+    { "id": "B5-2", "severity": "suggestion", "disposition": "fixed", "evidence": "d88a315 移除 plugin 二次 ctx.effect；独立复现注册次数=1" },
+    { "id": "B5-3", "severity": "suggestion", "disposition": "fixed", "evidence": "d88a315 snapshot.ts storeFor/route try-catch→degraded；真抛点臂独立复现通过" },
+    { "id": "B5-4", "severity": "suggestion", "disposition": "fixed", "evidence": "a9f2f0d 主线更正两条 closure phase + 说明；block 门无 OPEN" },
+    { "id": "B5-5", "severity": "suggestion", "disposition": "fixed", "evidence": "d88a315 availableSessions 薄封装 + 真 select 切换控件；测试新臂 PASS" },
+    { "id": "B5-6", "severity": "suggestion", "disposition": "fixed", "evidence": "d88a315 esc 补双引号 + escAttr 别名；测试断言 PASS" }
+  ],
+  "blocking_findings": [],
+  "open_items_b6": [
+    "真机浏览器 /zctx-ui 三块渲染 + 5s 轮询 + face 灯（V8-C-3）",
+    "face 三重证据真机（BENCH-L2，原始 user_approved_deferred 不自动关闭）",
+    "非 loopback 真机只读语义（V8-A2-4 真机臂）",
+    "设置页 26 primitive 可见性（V8-A3-4）",
+    "session 真机切换（V8-A4-5 真机臂）",
+    "真机 React 不可用降级链接（B5-1 真机臂）"
+  ],
+  "evidence_commands": [
+    "git -C <WT> show HEAD:patcher/zctx-patch.mjs | node -e '<R1 SUPPORTED 段切片+sha256>' → 8e2d0b7e…059b0f9 / chars14889 / bytes14926",
+    "grep -rnE 'zctx_[0-9a-z]+_[0-9a-f]{16,}' <WT>/src <WT>/tests <WT>/scripts → 零命中",
+    "node --experimental-strip-types --input-type=module -e 'import {apply} from \"./src/client/index.ts\"; ...'(B5-1 真渲染)",
+    "node --experimental-strip-types --input-type=module -e 'import {createSnapshotSource} from \"./src/ui/snapshot.ts\"; ...'(B5-3 真抛点)",
+    "node --experimental-strip-types --input-type=module -e 'import {registerUiRoutes} from \"./src/ui/routes.ts\"; ...'(B5-2 注册计数=1)",
+    "cd <WT> && pnpm build  (握手 4/4 PASS) ; npx tsc --noEmit (EXIT=0) ; pnpm test (34 files/730 tests PASS)",
+    "git -C <WT> status --short  (build churn 按 Z3 checkout -- 还原后仅剩评审产物目录 ?? handoffs/ ?? scorecards/)"
+  ],
+  "honesty": {
+    "real_device_touched": false,
+    "unverifiable_items": "无（所有复评项均取得证据；真机项明确标注属 B6/未验）",
+    "note": "r1 复评 100/100 PASS：r0 六条 [建议] 全部 fixed/verified，无 [阻断]；真机开放项属 B6 不作阻断。"
+  }
+}
