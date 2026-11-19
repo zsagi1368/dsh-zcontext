@@ -1,19 +1,25 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-PATCH-AUTO",
-  "step": 15,
-  "block": "AUTOLOG-20261119-autocrlf-fixture根因",
+  "step": 16,
+  "block": "SCHED-20261119-计划任务频率可配置默认DAILY",
   "status": "done",
-  "ts": "2026-11-19T01:48:00.000Z",
+  "ts": "2026-11-19T02:00:00.000Z",
   "artifacts": [
     {
-      "path": ".gitattributes"
+      "path": "patcher/zctx-patch.mjs"
     },
     {
-      "path": "tasks/ZCTX-PATCH-AUTO/artifacts/nightly-rc5-real.yml"
+      "path": "patcher/zctx-patch.d.mts"
+    },
+    {
+      "path": "tests/patcher-auto.spec.ts"
+    },
+    {
+      "path": "patcher/README.md"
     }
   ],
-  "next": "收口：全量绿+工作树干净，交主线裁决/合并",
-  "prev_hash": "ecc0da2d8868211deda25e4b5f9711172f95db8b1b5db9d67ef51564bfa6eca3",
-  "hash": "d5551d3eae42222f3d077fcc32774e58109fafba6efaadb1c30e342d443a7562"
+  "next": "交主线：reviewer 对抗评审 + 真机用新代码重建计划任务（coder 不碰真机）",
+  "prev_hash": "d5551d3eae42222f3d077fcc32774e58109fafba6efaadb1c30e342d443a7562",
+  "hash": "7b547991495967d8ad8723a616b97d9478339bae1eee96355a849365af13d1de"
 }
