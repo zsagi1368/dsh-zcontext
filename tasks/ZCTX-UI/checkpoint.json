@@ -1,28 +1,31 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-UI",
-  "step": 7,
+  "step": 8,
   "block": "B4",
   "status": "done",
-  "ts": "2026-11-19T04:10:00.000Z",
+  "ts": "2026-11-19T04:25:00.000Z",
   "artifacts": [
     {
-      "path": "src/ui/face-probe.ts"
+      "path": "src/client/index.ts"
     },
     {
-      "path": "src/ui/index.ts"
+      "path": "dist/client.cjs"
     },
     {
-      "path": "src/plugin.ts"
+      "path": "package.json"
     },
     {
-      "path": "src/index.ts"
+      "path": "tsdown.config.ts"
     },
     {
-      "path": "tests/ui-face-probe.spec.ts"
+      "path": "scripts/assert-client-banner-handshake.mjs"
+    },
+    {
+      "path": "tests/client-slot.spec.ts"
     }
   ],
-  "next": "B4 D6 slot client bundle + manifest",
-  "prev_hash": "88dd4b82eac1dc5181846a7109e4656c41d51bb6ffac14933da88ed431de3636",
-  "hash": "d74e44e27ad451de3782688928e170e86404ff60fdcb28b173949b461a273634"
+  "next": "B4 D7 docs + closure draft",
+  "prev_hash": "d74e44e27ad451de3782688928e170e86404ff60fdcb28b173949b461a273634",
+  "hash": "fb858c6edb69278fb772742c1e462adaa15eb60e4af42a7b697e94e83f6276db"
 }

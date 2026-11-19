@@ -2217,18 +2217,25 @@ interface ConfigWriteResult {
   readonly error?: 'unavailable' | 'invalid';
 }
 /**
- * Desktop face-activation probe contract (ZCTX-UI DESIGN §4).
+ * Desktop face-activation probe (ZCTX-UI DESIGN §4) — D5.
  *
- * PHASE-ONE SCOPE (B3): this module defines the full tri-state vocabulary
- * (`FaceState` / `FaceEvidence` / `FaceProbeState` / `detectFaceActivation`)
- * and an honest minimal view derived from observable plugin state. The full
- * three-signal probe + visible sink (stderr fail-soft, never memoized) is
- * delivered in B4 — the seam and types are already stable so the snapshot API
- * and UI can consume `faceHealth` without churn.
+ * A machine-readable judgement of "is the zctx face alive in THIS composition"
+ * (V5, BENCH-L2 prerequisite). It is NOT a claim to solve BENCH-L2, which stays
+ * `user_approved_deferred` until real-device tri-evidence (§4.3).
  *
- * The probe is a machine-readable judgement of "is the zctx face alive in THIS
- * composition" (V5, BENCH-L2 prerequisite) — it is NOT a claim to solve
- * BENCH-L2, which stays `user_approved_deferred` until real-device tri-evidence.
+ * THREE OBSERVABLE SIGNALS (Z28 tri-evidence):
+ *   1. tools.register — did the tool face actually register?
+ *   2. system-prompt.guidance — was the guidance section injected?
+ *   3. guard-observe / observe — is the observe listener + guard bridge on disk?
+ *
+ * FAIL-SOFT + VISIBLE SINK (Z28): every signal is try/catch-wrapped; any fault
+ * yields evidence(ok:false, detail) rather than a throw. On degraded/absent the
+ * probe writes ONE diagnostic line to a composition-independent visible sink —
+ * default `process.stderr` (headless/web/desktop all have it), injectable in
+ * tests. It never relies on `ctx.logger.warn` alone (headless has no sink).
+ *
+ * NO MEMOIZATION (Z25): the probe recomputes on every call; absence is never
+ * cached, so a face that appears later is detected on the next on-demand probe.
  *
  * @module ui/face-probe
  */
@@ -2256,17 +2263,36 @@ interface FaceHealthView {
   readonly probedAt: number;
   readonly summary: string;
 }
+/** Structural host surface the probe capability-checks (duck-typed). */
+interface HostContextLike$1 {
+  readonly tools?: {
+    register?(definition: unknown): unknown;
+  };
+  readonly systemPrompt?: {
+    section?(spec: unknown): unknown;
+    context?(spec: unknown): unknown;
+  };
+}
+/** Sink signature (injectable in tests, stderr by default). */
+type FaceSink = (line: string) => void;
 /**
- * Honest phase-one face view. With a `FaceProbeState` supplied, derive the
- * tri-state from the observable counts; with no state (the common B3 path),
- * return an `absent`-with-unknown view that explicitly says the full probe
- * lands in B4 — never a fabricated "active".
+ * Run the three-signal face probe on demand. Pure with respect to the probe
+ * result (fresh every call, no caching); the only side effect is an optional
+ * visible sink line when the state is not `active`.
  *
- * @param state optional observable counters (B4 wires the real probe body)
- * @param sink  optional visible sink; fail-soft degradation writes here (B4 uses stderr by default)
+ * @param ctx   host context, capability-probed (may be a bare/mock object)
+ * @param state observable counters maintained by plugin.ts wire*Face
+ * @param sink  visible sink; defaults to stderr. Tests inject a recorder.
  */
-declare function detectFaceActivation(state?: FaceProbeState, sink?: (line: string) => void): FaceHealthView;
-/** A phase-one "no state" view — an explicit, honest unknown, not a fake active. */
+declare function detectFaceActivation(ctx: HostContextLike$1, state: FaceProbeState, sink?: FaceSink): FaceHealthView;
+/**
+ * A transition-deduping sink for production: emits a line only when the
+ * diagnostic text changes (first degraded/absent + state transitions), so a
+ * 5s UI poll does not spam stderr. This dedups SINK EMISSION only — the probe
+ * itself still recomputes on demand (Z25: no memoized absence).
+ */
+declare function createTransitionSink(write?: FaceSink): FaceSink;
+/** Honest bootstrap view for paths with no probe state yet (B3 compatibility). */
 declare function unknownFaceHealth(): FaceHealthView;
 /** Provenance of a displayed number: measured=instrumented / estimated=model / unknown=unavailable / none=no data. */
 type Basis = 'measured' | 'estimated' | 'unknown' | 'none';
@@ -2561,14 +2587,17 @@ declare class ZcontextPlugin extends ServiceBase {
   private toolFaceRegistered;
   private toolFaceBuilt;
   private guidanceRegistered;
+  /** Transition-deduping visible sink for face degradation (Z28: stderr, not ctx.logger). */
+  private readonly faceSink;
   /** The UI snapshot source (thin delegate behind public `snapshotFor`). */
   private readonly snapshotSource;
   constructor(ctx: HostContextLike, config?: Partial<ZcontextConfig>);
   /** Read-only process-memory snapshot (thin delegate). Never touches the wire. */
   snapshotFor(sessionId?: string): ZctxSnapshot;
   /**
-   * Face-health view (B3 phase one: honest unknown; B4 replaces the body with
-   * the tri-state probe + visible sink). Counts are maintained by wire*Face.
+   * Face-health view (D5): the three-signal tri-state probe over observable
+   * wire*Face counters + host capabilities, with a transition-deduping visible
+   * sink (stderr). Recomputed on every call — no memoized absence (Z25).
    */
   faceHealth(): FaceHealthView;
   /** session/event feed: maintain live stores + warm the window cache. @internal */
@@ -2987,5 +3016,5 @@ declare function createZctxAdapterClass(Base: abstract new () => unknown): new (
  */
 /** Plugin identity exported for loader probes. */
 declare const name = "dsh-zcontext";
-export { type AdapterFaces, type AttributionFoldEntry, type Basis, type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type ClassifyAttributionInput, type CommittedFold, type ConfigSchemaLike, type ConfigView, type DefineToolFn, type EngineAnomaly, type FaceEvidence, type FaceHealthView, type FaceProbeState, type FaceState, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type HostImagePriceLike, type HostImagePricingLike, type HostLlmFace, KNOWN_PROTOCOLS, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, type MappingFace, type MappingSource, type MarkedNumber, type MeterAnchorLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, PER_IMAGE_FALLBACK_TOKENS, PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE, type ParamSpec, type PiAiApiStreams, type PiAiFace, type PrefixBreakRecord, type PrefixBreakResetRef, type PreflightCalibrationRecord, type PreflightDeps, type PreflightEstimate, type PreflightImagePricing, type PreflightJudgment, PreflightListener, type PreflightMode, type PreflightOutcome, type PreflightStoreAccess, type PreflightStreamListener, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type ResolvedZctxModel, type ResolvedZctxProvider, type RouteHeader, type SnapshotAggregationInput, type SnapshotDeps, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, UI_PAGE_HTML, UI_TOKEN_PLACEHOLDER, type UiAccessors, type UiRouteDeps, type UsageRecord, type UsageRecordSemiKind, type UsageRecordState, type UsageSample, type UsageSnapshot, type WireFaces, type WireRequestIdentity, type WireSink, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxAdapterDeps, type ZctxAdapterFace, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxProviderConfig, type ZctxProviderModelConfig, type ZctxProvidersSection, type ZctxSnapshot, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, assertZctxProvidersResolvable, attachUi, billedInputTokens, buildGuidanceSection, buildObservabilitySnapshot, buildPreflightErrorFinish, buildWireFaces, buildZctxCommand, buildZctxTools, ccmWindowGate, classifyFoldAttribution, cleanSampleRatio, computeBreakevenReport, computeBudget, configDefaults, configSchema, createSnapshotSource, createTokenSource, createZctxAdapterClass, crossedThresholds, detectFaceActivation, estimateProjectedRequest, estimateTokens, fold, foldableRanges, judgeEstimate, loadAdapterFaces, loadSupportedProtocols, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, registerUiRoutes, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, requestHeaders, resolveDefineTool, resolveMarginRatio, resolveZctxProviders, unfold, unknownFaceHealth, validateFold, zctxDisplayNameOf, zctxRouteOf };
+export { type AdapterFaces, type AttributionFoldEntry, type Basis, type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type ClassifyAttributionInput, type CommittedFold, type ConfigSchemaLike, type ConfigView, type DefineToolFn, type EngineAnomaly, type FaceEvidence, type FaceHealthView, type FaceProbeState, type FaceState, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type HostImagePriceLike, type HostImagePricingLike, type HostLlmFace, KNOWN_PROTOCOLS, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, type MappingFace, type MappingSource, type MarkedNumber, type MeterAnchorLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, PER_IMAGE_FALLBACK_TOKENS, PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE, type ParamSpec, type PiAiApiStreams, type PiAiFace, type PrefixBreakRecord, type PrefixBreakResetRef, type PreflightCalibrationRecord, type PreflightDeps, type PreflightEstimate, type PreflightImagePricing, type PreflightJudgment, PreflightListener, type PreflightMode, type PreflightOutcome, type PreflightStoreAccess, type PreflightStreamListener, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type ResolvedZctxModel, type ResolvedZctxProvider, type RouteHeader, type SnapshotAggregationInput, type SnapshotDeps, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, UI_PAGE_HTML, UI_TOKEN_PLACEHOLDER, type UiAccessors, type UiRouteDeps, type UsageRecord, type UsageRecordSemiKind, type UsageRecordState, type UsageSample, type UsageSnapshot, type WireFaces, type WireRequestIdentity, type WireSink, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxAdapterDeps, type ZctxAdapterFace, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxProviderConfig, type ZctxProviderModelConfig, type ZctxProvidersSection, type ZctxSnapshot, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, assertZctxProvidersResolvable, attachUi, billedInputTokens, buildGuidanceSection, buildObservabilitySnapshot, buildPreflightErrorFinish, buildWireFaces, buildZctxCommand, buildZctxTools, ccmWindowGate, classifyFoldAttribution, cleanSampleRatio, computeBreakevenReport, computeBudget, configDefaults, configSchema, createSnapshotSource, createTokenSource, createTransitionSink, createZctxAdapterClass, crossedThresholds, detectFaceActivation, estimateProjectedRequest, estimateTokens, fold, foldableRanges, judgeEstimate, loadAdapterFaces, loadSupportedProtocols, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, registerUiRoutes, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, requestHeaders, resolveDefineTool, resolveMarginRatio, resolveZctxProviders, unfold, unknownFaceHealth, validateFold, zctxDisplayNameOf, zctxRouteOf };
 //# sourceMappingURL=index.d.ts.map
