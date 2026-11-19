@@ -1,22 +1,25 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-UI",
-  "step": 4,
+  "step": 5,
   "block": "B3",
   "status": "done",
-  "ts": "2026-11-19T03:20:00.000Z",
+  "ts": "2026-11-19T03:35:00.000Z",
   "artifacts": [
     {
-      "path": "src/ui/auth.ts"
+      "path": "src/ui/page.ts"
     },
     {
-      "path": "src/ui/config-write.ts"
+      "path": "src/ui/index.ts"
     },
     {
-      "path": "src/ui/routes.ts"
+      "path": "src/plugin.ts"
+    },
+    {
+      "path": "src/index.ts"
     }
   ],
-  "next": "B3 D3 UI page",
-  "prev_hash": "b34a2aff4282832028fc01eb116092d37fcd798287b6087ccbebb04be81ca441",
-  "hash": "f41d6a049164a75cf3aa145404a2e909cbb92caa78a72e0aac262cd12b2aaed7"
+  "next": "B3 D4 tests",
+  "prev_hash": "f41d6a049164a75cf3aa145404a2e909cbb92caa78a72e0aac262cd12b2aaed7",
+  "hash": "6ae62fabac35a7e9d1d9fcd45bb6b692b39fff4a09c17b844fef1f05e51c34cf"
 }
