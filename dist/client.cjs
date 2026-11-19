@@ -78,7 +78,11 @@ function createSummaryCard(React, initial, fetchText) {
 	return function SummaryCard() {
 		const data = holder.data;
 		const stats = [`折叠 ${data?.foldCount ?? 0} 次`, data?.pressurePct !== void 0 ? `窗口 ${data.pressurePct.toFixed(1)}%` : "窗口 n/a"].join(" · ");
-		return e("div", { className: "zctx-summary" }, e("h3", null, "zcontext 摘要 (BETA)"), e("div", { className: "zctx-stats" }, stats), e("a", { href: "/zctx-ui" }, "打开 zcontext 面板 →"));
+		return e("div", { className: "zctx-summary" }, e("h3", null, "zcontext 摘要 (BETA)"), e("div", { className: "zctx-stats" }, stats), e("a", {
+			href: "/zctx-ui",
+			target: "_blank",
+			rel: "noopener noreferrer"
+		}, "打开 zcontext 面板 →"));
 	};
 }
 /**
@@ -94,12 +98,15 @@ function createFallbackLink(doc) {
 		if (doc !== void 0 && typeof doc.createElement === "function") try {
 			const anchor = doc.createElement("a");
 			anchor.setAttribute("href", "/zctx-ui");
+			anchor.setAttribute("target", "_blank");
+			anchor.setAttribute("rel", "noopener noreferrer");
 			anchor.textContent = text;
 			node = anchor;
 		} catch {}
 		return {
 			tag: "a",
 			href: "/zctx-ui",
+			target: "_blank",
 			text,
 			...node !== void 0 ? { node } : {}
 		};
