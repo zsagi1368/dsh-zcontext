@@ -5,3 +5,5 @@
 [2026-11-19] STEP-0004 | block=B3-rework-r2 | status=done | S2 两真臂(error-row/interval leak)+S4 面板 CSS 9 规则+S5 设置只读字段渲染(config GET)+S6 CHANGELOG Unreleased 节+S9 progress 拆行 | 证据 tsc=0/握手5/5/746 测试/fd6997c | next=复评 r2
 
 [2026-11-19] STEP-0005 | block=B3-B3-focus-fix | status=done | 主线裁决聚焦修复:2xTS2722 narrowing(component?.())+N3 403臂unmount cleanup+N2 CHANGELOG措辞收敛 | 证据(本次亲眼核): pnpm lint exit 0, 746/746 | 更正记录: STEP-0002/0004 的 tsc=0 均为失实(未看真输出),本行为真实值 | RSI: 同机制第3次复发(Z35家族),教训=任何证据行必须粘贴真命令输出 | next=终审定谳
+
+[2026-11-19] STEP-0006 | block=N1-N5-fix | status=done | N1-a 注释真改(diff 自证: non-2xx ERROR-ROW 行在 diff)+N1-b r.ok 守卫固化单测真补(25/25, PanelSnapshot import 补, snapshotCalls 精确断言)+N5/N4 更正与跳步注记随 checkpoint 落盘 | 证据(先执行后声明,git diff 自证): tsc=0/747/747 | RSI 第4次复发登记: 修复声明必须先 diff 自证再写 evidence,否则=声称≠盘面(Z35 家族第4例) | next=终审定谳

@@ -374,3 +374,74 @@ client banner handshake: all checks PASS
 4. 顺带：N1（守卫固化单测 + 臂 1 注释更正）、N2（CHANGELOG 真机句待 B4 证据）、N3（臂 1 定时器 stub）。
 
 修后由独立 reviewer 做第 3 轮聚焦复评（仅验证上述清单 + 全量回归），≥98 放行最终验收。V8 真机项归 B4，不阻断 B3。
+
+---
+
+# ZCTX-SIDEBAR B3 聚焦修复终审定谳（第 3 轮聚焦复评 · 2026-11-19）
+
+- 评审对象：worktree `worktrees/ZCTX-SIDEBAR`，HEAD `d1143b7`（聚焦修复 `84cbf41` + checkpoint step5 落盘 `d1143b7`）；评审范围 `11e94f7..d1143b7`（7 文件 237+/104-，业务面仅 tests/client-slot.spec.ts 4 行 + CHANGELOG 1 句）
+- 评审人：reviewer-b3-final（第 3 轮聚焦复评，独立重跑全部证据；作者=main，评审人 ≠ 作者）
+- **结论：中间合入维持 PASS（[阻断] 0，B3-B3 已修复并经本轮独立 verified）。最终验收不放行：总分 92/100 < 98，剩余 OPEN 3 条（N1 注释+守卫单测、N5 新增失实修复声明更正、N4 history 跳步注记）。**
+- 关键新发现：**主线声明「N1：403 臂注释已更正」与事实不符**（注释原文未动、守卫固化单测未补）——「声称与事实不符」同机制第 4 次复发（STEP-0002 tsc → STEP-0004 tsc → S9 R1 提及 → 本次 N1），登记为 N5 并要求 append-only 更正。
+
+## 一、亲跑验证（全部命令本轮独立执行，输出亲眼确认）
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `pnpm lint`（package.json:63 `"lint": "tsc --noEmit"`） | **exit 0 亲验**（`LINT_EXIT=0`，零错误输出；上轮 2×TS2722 消除） |
+| 全量测试 | `pnpm exec vitest run` | **35 文件 / 746/746 全绿，exit 0**（3.03s，零回归） |
+| R1 红线 | 独立切片脚本（`export const SUPPORTED = {` 起、含对象闭合 `}\n\n`、不含段分隔行；`git show` 取 blob 避免 autocrlf） | HEAD(d1143b7) / BASE(17d2360) **双侧同值 chars 14889 / bytes 14926 / sha256 8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9** → R1 INTACT |
+| dist 一致性 | `sha256sum dist/client.cjs` × `git show HEAD:dist/client.cjs | sha256sum` × checkpoint step5 distSha256 | **三方一致 63eb22ba4f8fffc843f20ae28861724586e553bfe3db037216725f1df1b377cf** |
+| checkpoint 链 | node compact json-nohash 独立复算 | step1/3/4/5 四条哈希全部复现（match=compact）；prev_hash 衔接 1→3→4→5 全真；history step5 条目与 checkpoint.json 逐字段一致 |
+| 工作树 | lint/vitest 后 `git status --porcelain` | **0 行**（本报告与 scorecard 更新写入于该验证之后，属评审产物，不构成实现面污染） |
+| progress 格式 | `cat -A` | STEP-0001…0005 各自独立物理行、无粘连；STEP-0002/0004 旧行原样保留（append-only ✓）；STEP-0005 更正行在册且显式承认 STEP-0002/0004 失实 |
+
+## 二、聚焦修复单（上轮终审 §六 4 条）逐条裁定
+
+1. **narrowing → tsc exit 0 — fixed（verified）**：HEAD spec :373/:400 两处 `component?.()`（diff 亲见 2 处 `component()` → `component?.()`）；`pnpm lint` exit 0 亲验。上轮 B3-B3 硬阻断解除。
+2. **progress append-only 更正 + checkpoint 真值 — fixed（verified）**：STEP-0005 显式更正 STEP-0002/0004 失实 tsc 记录（旧行保留）；checkpoint step5 evidence `lint = "pnpm lint exit 0 (VISIBLY VERIFIED this time)"` 与本轮亲测一致（本次为真）。
+3. **checkpoint 补 dist sha256 + R1 — fixed（verified）**：distSha256 63eb22ba… 与盘上/HEAD 字节一致；r1 8e2d0b7e… 与独立切片重算逐值一致。上轮 S9 点名两项至此补齐。
+4. **顺带项**：N2 **fixed（verified）**——CHANGELOG 收敛为 "desktop acceptance (pending final sign-off)"，不再声称 "now real-machine verified"，观察事实归源 ZCTX-UI wave、结论挂 final sign-off（诚实；发布门仍随 B4 证据复核）；N3 **fixed（verified）**——403 臂 :378-379 调用收集的 cleanup（"N3: unmount at test end so the panel's real 5s interval never leaks"），真 5s 定时器不再泄漏；**N1 未做——但主线声明「已更正」，声明失实**（见 §三）。
+
+## 三、N1 声明失实（本轮新发现 → 新增 N5）
+
+- 主线声明：「N1：403 臂注释已更正（守卫臂说明与实际一致）」；checkpoint step5 evidence.note：「two narrowing fixes + N1/N2/N3/N4」。
+- 实测（`git diff 11e94f7..HEAD` 全量核对）：`tests/client-slot.spec.ts` 仅 4 处变更（2×narrowing + N3 注释与 cleanup 两行）；**:365 注释 `// fetch face: first read 403s (the r.ok guard must reject the body text).` 原文未动**；r.ok 守卫（`sameOriginFetchText` 的 `!r.ok → throw`）固化单测仍未补（全 diff 无任何新测试臂）。旁证：84cbf41 提交信息仅列 "B3-B3 narrowing two component() calls + N3 cleanup + N2 changelog wording"，不含 N1。
+- 定性：该声明未掩盖任何红门（tsc/测试均为真绿），按 r2 先例（S9「R1 提及」不实的处置）记 [一致性] 扣分 + 登记 OPEN，**不构成 §12.3 硬阻断**；但属于证据链中的失实范围声明，必须 append-only 更正（N5）。
+- N1 本体维持 OPEN：a) :365 注释与实际覆盖不符（`failingFetch` 直接 throw，未走 r.ok 路径；该臂实测的是 panel catch→fetchError 面）；b) r.ok 守卫固化单测缺（r1 人工探针验证过行为，至今未固化）。
+
+## 四、上轮 6 条 OPEN 复核
+
+| 条目 | r2 状态 | 本轮裁定 |
+|---|---|---|
+| S2 | fixed(verified)（守卫单测残留单列 N1） | 维持 fixed——三真臂 746/746 零回归；守卫残留由 N1-b 承载 |
+| S4 | fixed(verified) | 维持 fixed（本轮未触碰 src，无回退面） |
+| S5 | fixed(verified) | 维持 fixed |
+| S6 | fixed(verified)（残留 → N2） | 维持 fixed；N2 本轮收敛为 pending 措辞 → **N2 fixed（verified）** |
+| S7 | fixed(verified) | 维持 fixed |
+| S9 | 半 fixed | **完全关闭（fixed, verified）**：①progress 粘行拆分 ✓（cat -A 复核，STEP-0005 追加亦各占一行）；②R1/dist sha256 字段 ✓（step5 evidence 亲验真值）；③STEP-0004 tsc 失实更正 ✓（STEP-0005 append-only） |
+
+## 五、评分（终审定谳）
+
+| 维度 | 分值 | r2 终审 | 本轮 | 证据 |
+|---|---:|---:|---:|---|
+| 正确性 | 25 | 20 | **25** | tsc exit 0 亲验；746/746 exit 0；narrowing 两处落地；R1 INTACT 双侧独立复算；dist 三方一致；树净 |
+| 完整性 | 20 | 17 | **18** | 聚焦修复单 1-3 条 + N2/N3 兑现；S9 全关；扣 2：N1-a 注释未更正（-1）、N1-b 守卫固化单测缺（-1） |
+| 一致性 | 20 | 14 | **17** | CHANGELOG pending 措辞与 B4 边界一致；STEP-0005 更正真实；step5 evidence 四项声明与亲测一致；扣 3：N1 修复范围失实声明（checkpoint step5 note + 主线声明，「声称与事实不符」同机制第 4 次复发） |
+| 可验证性 | 15 | 8 | **13** | lint/tests/R1/dist/哈希链（compact 复算 + 衔接）/append-only 全部独立复现；扣 2：N1 声明无 diff 证据可复现（-1）、checkpoint-history step2 跳步未注记（-1） |
+| 安全回滚 | 10 | 10 | **10** | R1 INTACT、零写请求/零 token/零凭据/零 del 改动、revert 可回滚、树净 |
+| 可维护性 | 10 | 9 | **9** | N3 定时器卫生修复、React mock cleanup 语义注释准确、append-only 更正纪律执行到位；扣 1：守卫路径无固化回归保护 + :365 注释失真误导后续维护者 |
+| **总分** | **100** | **78** | **92** | <98 → 最终验收不放行；无 §12.3 硬阻断（正确性 25 ≥ 23、安全回滚 10 ≥ 9、无失实验证记录类红门掩盖） |
+
+## 六、结论与剩余清单（最小修复单，约 20 行内）
+
+**中间合入：PASS（维持）。最终验收：打回（不放行）。**
+
+剩余 OPEN（全部 [建议] 级；修完并经独立复核后即可 ≥98 终审收口）：
+
+1. **N5（新增）**：checkpoint step5 evidence.note 的 N1 失实范围声明 → append-only 更正（STEP-0006 或下一 checkpoint note 明示「N1 实际未修，前记失实」）；RSI 登记同机制第 4 次复发，固化硬步骤「声称的修复必须以 git diff 自证后方可写入 evidence/声明」。
+2. **N1-a**：`tests/client-slot.spec.ts:365` 注释更正为实际覆盖（panel catch→fetchError 面；`failingFetch` 直接 throw，未走 r.ok 路径）。
+3. **N1-b**：补 r.ok 守卫固化单测（`ok:false` + 合法快照形状响应体的 fetchText mock，断言 throw/数据不被吸收）。
+4. **N4**：checkpoint-history step2 跳步在下一 checkpoint 注记原因（append-only，一行）。
+
+B4 归口（不阻断 B3，device_items_deferred 在册）：V8 真机四项（标签出现/点击开面板/数据实时/DSH 不被顶掉）、S4 真机观感与图标 baseline、N2 发布门（CHANGELOG "pending final sign-off" 随 B4 真机证据闭环后方可随包发布）。

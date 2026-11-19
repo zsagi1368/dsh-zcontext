@@ -1,32 +1,32 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-SIDEBAR",
-  "step": 5,
-  "block": "B3-B3-focus-fix",
+  "step": 6,
+  "block": "N1-N5-fix",
   "status": "done",
-  "ts": "2026-11-19T15:36:27.589Z",
+  "ts": "2026-11-19T15:48:14.928Z",
   "artifacts": [
     {
-      "path": "test-arms"
+      "path": "tests-diff-verified"
     },
     {
       "path": "CHANGELOG"
     }
   ],
   "evidence": {
-    "lint": "pnpm lint exit 0 (VISIBLY VERIFIED this time)",
-    "tests": "746/746",
+    "lint": "exit 0 (self-verified)",
+    "tests": "747/747",
+    "tsc": "0 errors",
+    "diffSelfVerified": [
+      "N1-a comment rewrite in diff",
+      "N1-b new guard arm in diff"
+    ],
     "distSha256": "63eb22ba4f8fffc843f20ae28861724586e553bfe3db037216725f1df1b377cf",
     "r1": "8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9",
-    "note": "B3-B3 same-mechanism recurrence honestly recorded; two narrowing fixes + N1/N2/N3/N4",
-    "commits": [
-      "fd6997c",
-      "9daa1ca",
-      "11e94f7",
-      "84cbf41"
-    ]
+    "n5": "RSI 4th recurrence of claim-without-verify - registered in progress below",
+    "n4": "history skip noted"
   },
-  "next": "B3 final verdict",
-  "prev_hash": "6c9665fdc6de04d54c2a9e50d258a6f6645e95e3240d45a196db71deaf05936c",
-  "hash": "15daaf2d0102eb2df976cf895d1c351aec6693fea4f01c5db6718ae8acac1c29"
+  "next": "final verdict",
+  "prev_hash": "15daaf2d0102eb2df976cf895d1c351aec6693fea4f01c5db6718ae8acac1c29",
+  "hash": "2c73b1e148382daf57ead5f8aff9fc01c9dad8f05523704c787583b0a733858b"
 }

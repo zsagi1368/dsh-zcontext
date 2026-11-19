@@ -1,16 +1,16 @@
 {
   "block": "B3",
   "task": "ZCTX-SIDEBAR",
-  "range": "5047c2c..11e94f7（终审对象：返工 r2=fd6997c 7 文件 383+/95- + checkpoint step4=11e94f7；历史轮次见 round1_snapshot 与 round2_snapshot）",
+  "range": "11e94f7..d1143b7（终审定谳对象：聚焦修复 84cbf41（spec 4 行 + CHANGELOG 1 句 + 评审落盘文件）+ checkpoint step5 d1143b7；7 文件 237+/104-；历史轮次见 round1/round2/round3_snapshot）",
   "evaluator": "reviewer-b3-final",
   "author": "main",
-  "role_independence": "reviewer ≠ author：实现作者=主线，终审=独立 subagent（与 r1 复评 reviewer-b3 同角色线但独立重跑全部证据）；证据在本文件与 handoffs/review-B3.md（终审报告段，L302-376）留证",
-  "review_kind": "rework-r2 终审（第 3 轮评审 = 复评第 2 轮终审；round1 见 round1_snapshot，round2 见 round2_snapshot）",
+  "role_independence": "reviewer ≠ author：实现作者=main，终审定谳=独立 subagent 全量重跑证据；证据在本文件与 handoffs/review-B3.md（定谳报告段 L377-447）留证",
+  "review_kind": "聚焦修复终审定谳（第 4 轮评审 = 第 3 轮聚焦复评；主线按上轮 §六聚焦修复单执行后复审）",
   "date": "2026-11-19",
-  "verdict": "打回（总分 78 < 98；§12.3 硬阻断：三处 tsc=0 失实验证记录 + 正确性 20 < 23）。返工 2 轮额度已用尽 → 升级主线裁决（聚焦修复清单见 handoffs/review-B3.md §六）",
+  "verdict": "中间合入维持 PASS（[阻断] 0，B3-B3 修复经本轮独立 verified）；最终验收不放行（92 < 98）：剩余 OPEN 3 条（N1 注释+守卫单测、N5 新增失实修复声明更正、N4 history 跳步注记）",
   "threshold": 98,
-  "final_acceptance_gate": "阻塞：B3-B3（narrowing 修复 + tsc 记录 append-only 更正 + checkpoint 补 dist sha/R1 字段）落地并经第 3 轮聚焦复评 ≥98；残留 N1-N4 同步关闭（fixed/verified 或 user_approved_deferred 须用户真实批准）",
-  "total": 78,
+  "final_acceptance_gate": "阻塞：剩余 OPEN 3 条按最小修复单（handoffs/review-B3.md 定谳段 §六，约 20 行内）落地并经独立复核；B4 归口项（V8 真机/S4 观感/N2 发布门）不阻断 B3 但随 B4 证据闭环",
+  "total": 92,
   "round1_snapshot": {
     "total": 76,
     "verdict": "打回（正确性 18 < 23 触发 §12.3 硬阻断 + 失实证据）",
@@ -23,67 +23,73 @@
     "blockers_open": [],
     "suggestions_open": ["B3-S2", "B3-S4", "B3-S5", "B3-S6", "B3-S7", "B3-S9"]
   },
+  "round3_snapshot": {
+    "total": 78,
+    "verdict": "打回（终审）：B3-B3 tsc 红 + 三处 tsc=0 失实记录；升级主线裁决出聚焦修复单",
+    "blockers_open": ["B3-B3"],
+    "suggestions_open": ["B3-N1", "B3-N2", "B3-N3", "B3-N4"]
+  },
   "scores": {
-    "correctness": 20,
-    "completeness": 17,
-    "consistency": 14,
-    "verifiability": 8,
+    "correctness": 25,
+    "completeness": 18,
+    "consistency": 17,
+    "verifiability": 13,
     "safety_rollback": 10,
     "maintainability": 9
   },
   "score_evidence": {
-    "correctness": "源码功能修复真实有效（S4/S5/S6/S7 verified，746/746 全绿）；扣 5：npx tsc --noEmit 实测 exit 2（2×TS2722 tests/client-slot.spec.ts:373:5/:398:7，createPanelComponent 返回 (()=>unknown)|undefined 未 narrowing）——质量门（package.json lint= tsc --noEmit；tsconfig include tests/**/*.ts）红，r1 同类问题复发。<23 → §12.3 硬阻断",
-    "completeness": "6 条建议 5.5 条实质兑现（S4 CSS 9 条/S5 只读字段/S6 CHANGELOG/S7 提示行+S2 三真臂）；扣 3：S9 之 R1/dist sha256 字段未补（grep R1|8e2d0b7e 于 checkpoint.json/checkpoint-history.jsonl/progress.md 零命中）、r.ok 守卫固化单测缺（N1）、臂 1 注释声称守卫覆盖与实际不符（N1）",
-    "consistency": "CHANGELOG [Unreleased] 与实现逐句一致、CSS 走 --dsw-alias-* 变量、plan §4 只读字段承诺兑现；扣 6：STEP-0004（progress.md）+ checkpoint step4 evidence + 返工声明三处 tsc=0 与实测 exit 2 不符（-4）、CHANGELOG L22-26 真机句超前声称（V8 归 B4，B3 阶段无真机证据）（-2）",
-    "verifiability": "24/24、746/746、握手 5/5、R1 三侧切片同值 8e2d0b7e…(14889 chars/14926 bytes)、build 后树净、dist 重建字节一致、checkpoint 链 prev_hash 衔接 VALID 均本轮独立复现；扣 7：核心声明 tsc=0 复现失败（实测 exit 2）（-5）、checkpoint 证据缺 dist sha256/R1 值（-1）、history 数字跳步 step1→3→4 无 step2（-1）",
-    "safety_rollback": "R1 INTACT 三侧同值复现（HEAD/r2/BASE 独立切片重算）、零写请求/零 token、零凭据字面量、零 del 改动、build 后 git status 0 行、revert 可回滚，无扣分",
-    "maintainability": "CSS 9 条规则结构清晰、React mock cleanup 语义注释准确（收集不立即调 = React 真实语义，核验正确）；扣 1：403 臂经真实 setInterval 创建 5s 定时器未清理（未 stub/未调 cleanup，vitest worker 强杀无实际影响，属测试卫生，N3）"
+    "correctness": "pnpm lint（=tsc --noEmit）exit 0 亲验（LINT_EXIT=0 零错误输出，上轮 2×TS2722 消除）；pnpm exec vitest run 35 文件 746/746 全绿 exit 0；narrowing 两处落地（HEAD spec :373/:400 component?.()，diff 亲见）；R1 INTACT 双侧独立复算（chars 14889/bytes 14926/8e2d0b7e…）；dist 三方一致；树净。无扣分",
+    "completeness": "聚焦修复单 1-3 条全部兑现 + N2/N3 兑现 + S9 完全关闭；扣 2：N1-a 403 臂 :365 注释未更正（-1）、N1-b r.ok 守卫固化单测缺（-1）",
+    "consistency": "CHANGELOG 收敛为 pending final sign-off（诚实挂起）；STEP-0005 append-only 更正真实（旧行保留）；checkpoint step5 evidence 四项声明与亲测一致；扣 3：N1 修复范围失实声明——主线声明「N1 注释已更正」+ checkpoint step5 note「two narrowing fixes + N1/N2/N3/N4」，实测 :365 注释原文未动、守卫单测未补、84cbf41 提交信息不含 N1（「声称与事实不符」同机制第 4 次复发：STEP-0002 tsc → STEP-0004 tsc → S9 R1 提及 → 本次 N1）",
+    "verifiability": "lint/746/R1/dist sha/哈希链（compact json-nohash 四条全复现 + prev_hash 1→3→4→5 衔接）/progress append-only 全部本轮独立复现；扣 2：N1 修复声明无 diff 证据可复现（-1）、checkpoint-history step2 跳步未注记（-1）",
+    "safety_rollback": "R1 INTACT 双侧同值复算、零写请求/零 token/零凭据字面量、零 del 改动、revert 可回滚、lint/vitest 后 git status 0 行（评审文件写入于该验证之后）、checkpoint 链 VALID，无扣分",
+    "maintainability": "N3 定时器卫生修复（403 臂 :378-379 调用收集的 cleanup）、React mock cleanup 收集语义注释准确、append-only 更正纪律执行到位；扣 1：守卫路径无固化回归保护 + :365 注释失真误导后续维护者"
   },
-  "hard_blockers": ["B3-B3"],
-  "hard_blocker_note": "§12.3：失实验证记录（progress STEP-0004「tsc=0」+ checkpoint step4 evidence「0 errors」+ 返工声明，实测 exit 2）→ 伪造验证记录类硬阻断；且正确性 20 < 23。上轮 B3-B1 同机制（tsc 红 + 失实证据）在 STEP-0003 已固化 RSI 教训后立即复发",
+  "hard_blockers": [],
+  "hard_blocker_note": "无 §12.3 硬阻断：正确性 25 ≥ 23、安全回滚 10 ≥ 9、tsc 门真绿（亲验）、无掩盖红门的失实验证记录。N5（N1 修复范围失实声明）按 r2 先例（S9「R1 提及」不实处置）记一致性扣分 + OPEN 登记，不构成硬阻断——该声明未掩盖任何红门",
   "items": [
     {
       "id": "B3-B1",
       "severity": "blocker",
       "location": "src/client/index.ts:369-370,372,384,392",
-      "fix_verified": "r1 修复并经 r1 复评 verified（tsc exit 0 当时亲跑）",
+      "fix_verified": "r1 修复并经 r1 复评 verified；r2/r3 无回退（746/746 + tsc exit 0 本轮亲验）",
       "disposition": "fixed",
-      "verified": "2026-11-19 reviewer-b3 r1 复评；注意：同类机制在 r2 复发为 B3-B3（新代码引入 tsc 错 + 失实记录），本条目本身不回退"
+      "verified": "2026-11-19 reviewer-b3 r1 复评 + 本轮 tsc exit 0 亲验"
     },
     {
       "id": "B3-B2",
       "severity": "blocker",
       "location": "src/client/index.ts:241,243,244,249,256-262; tests/client-slot.spec.ts:294-332",
-      "fix_verified": "r1 修复并经 r1 复评 verified（契约逐字段对齐 types.ts:40-74）；r2 后 746/746 仍全绿，零回归",
+      "fix_verified": "r1 修复并经 r1 复评 verified；r2/r3 零回归（746/746 本轮亲验）",
       "disposition": "fixed",
-      "verified": "2026-11-19 reviewer-b3 r1 复评 + 本轮终审 746/746 复跑"
+      "verified": "2026-11-19 reviewer-b3 r1 复评 + 本轮全量亲跑"
     },
     {
       "id": "B3-B3",
       "severity": "blocker",
       "origin": "r2 终审新增",
-      "location": "tests/client-slot.spec.ts:373,398; tasks/ZCTX-SIDEBAR/progress.md(STEP-0004); tasks/ZCTX-SIDEBAR/checkpoint.json+checkpoint-history.jsonl(step4 evidence)",
-      "issue": "两新测试臂 component() 未对 createPanelComponent 返回类型 narrowing → tsc --noEmit exit 2（2×TS2722）；而返工声明、progress STEP-0004「验证 tsc=0」、checkpoint step4 evidence「tsc: 0 errors」三处均声称类型检查通过，与实测不符（r1 B3-B1 同机制复发，STEP-0003 RSI 教训刚固化即重犯）",
-      "fix": "① :373/:398 加 narrowing（如 if (component === undefined) throw new Error('react mock must build panel')）；② progress append-only 追加更正行（附真实 tsc 输出）；③ 下一 checkpoint evidence tsc 字段写真实值；④ RSI 教训条目补复发记录 + 「跑完 lint 才准写 tsc=0」硬步骤；⑤ checkpoint evidence 补 dist sha256 与 R1 值（上轮 S9 点名两项，r2 遗漏）",
-      "disposition": "OPEN",
-      "phase": "block"
+      "location": "tests/client-slot.spec.ts:373,400; tasks/ZCTX-SIDEBAR/progress.md(STEP-0005); checkpoint.json step5 evidence",
+      "issue": "（历史）两新测试臂 component() 未 narrowing → tsc exit 2；返工声明/STEP-0004/checkpoint step4 三处 tsc=0 失实",
+      "fix_verified": "聚焦修复单 1-3 条全部兑现并经本轮独立 verified：①:373/:400 component?.()（diff 亲见）+ pnpm lint exit 0 亲验；②STEP-0005 append-only 更正（STEP-0002/0004 旧行保留）；③checkpoint step5 evidence 补 dist sha256（63eb22ba… 三方一致）与 R1（8e2d0b7e… 独立切片复算一致），lint 字段本轮实测为真",
+      "disposition": "fixed",
+      "verified": "2026-11-19 reviewer-b3-final 定谳轮亲跑（lint exit 0 / 746/746 / dist sha / R1 切片 / 哈希链 compact 复算）"
     },
     {
       "id": "B3-S1",
       "severity": "suggestion",
       "location": "src/client/index.ts:381-382",
-      "fix_verified": "r1 修复并经 r1 复评 verified（react-missing 双不注册无死入口；五臂探针全符合）",
+      "fix_verified": "r1 修复并经 r1 复评 verified（react-missing 双不注册无死入口）；r3 无回退",
       "disposition": "fixed",
       "verified": "2026-11-19 reviewer-b3 r1 复评探针"
     },
     {
       "id": "B3-S2",
       "severity": "suggestion",
-      "location": "tests/client-slot.spec.ts:340-404",
-      "fix_verified": "r2 三真臂兑现并经终审 verified：①403 臂（fetchError 进 states 真断言 :377-378）；②interval=1 + unmount cleanup cleared=1（:383-404）；③24/24 + 全量 746/746 零回归。React 语义核验：cleanup 收集不立即调 = React「effect 立即跑、cleanup 推迟到卸载」真实语义",
-      "residual": "r.ok 守卫（sameOriginFetchText !r.ok → throw）仍无固化单测——403 臂经 failingFetch 直接 throw，未走 guard 路径；guard 行为 r1 人工探针已验证但未固化 → N1",
+      "location": "tests/client-slot.spec.ts:340-409",
+      "fix_verified": "r2 三真臂兑现并经终审 verified；r3 零回归（746/746）；403 臂 N3 卫生修复后 cleanup 实调",
+      "residual": "r.ok 守卫固化单测缺 → N1-b 承载",
       "disposition": "fixed",
-      "verified": "2026-11-19 reviewer-b3-final 亲跑 24/24 + 746/746 + 逐行对照"
+      "verified": "2026-11-19 reviewer-b3-final r2 亲跑 + r3 全量复跑"
     },
     {
       "id": "B3-S3",
@@ -97,60 +103,58 @@
       "id": "B3-S4",
       "severity": "suggestion",
       "location": "src/client/index.ts:124-132(CSS),:132(icon)",
-      "fix_verified": "r2 补齐 .zctx-panel 区段 9 条规则（panel/title/face/h3/row/note/err/a/icon），全部走 var(--dsw-alias-*, fallback) 主题变量；与渲染端 class 一一对应；dist bundle 同步（grep 命中）",
+      "fix_verified": "r2 补齐 9 条 CSS 规则并经终审 verified；r3 未触碰 src，无回退面",
       "disposition": "fixed",
-      "verified": "2026-11-19 reviewer-b3-final 逐条对照 :124-132 与渲染 class；真机观感仍归 B4（device_items_deferred）"
+      "verified": "2026-11-19 reviewer-b3-final 逐条对照；真机观感归 B4（device_items_deferred）"
     },
     {
       "id": "B3-S5",
       "severity": "suggestion",
       "location": "src/client/index.ts:299-301,318-323,345-350",
-      "fix_verified": "r2 兑现 plan §4「只读字段 + 链接」：GET /zctx-ui/api/config → fields 全量 Object.entries k=v 展示（空时「（配置未加载）」）+ 保留 /zctx-ui 跳转链接（noopener noreferrer）；设置仍零写请求（U-2 边界保持）",
+      "fix_verified": "r2 兑现 plan §4 只读字段+链接并经终审 verified；r3 无回退",
       "disposition": "fixed",
-      "verified": "2026-11-19 reviewer-b3-final 代码对照（无专门测试臂，对照核验可接受；config fetch 失败静默保持空 + 提示，诚实性 OK）"
+      "verified": "2026-11-19 reviewer-b3-final 代码对照"
     },
     {
       "id": "B3-S6",
       "severity": "suggestion",
-      "location": "CHANGELOG.md:5-26; README.md; README.zh.md",
-      "fix_verified": "r2 补 [Unreleased] 节四小节（realtime web panel / native left-menu entry / face tri-state probe / desktop real-machine acceptance），内容与实现逐句一致；双语 README 上轮已 verified",
-      "residual": "L22-26「desktop real-machine acceptance … now real-machine verified」超前声称——V8 真机归 B4，B4 证据落地前不得随包发布 → N2（发布门复核项）",
+      "location": "CHANGELOG.md:5-30; README.md; README.zh.md",
+      "fix_verified": "r2 [Unreleased] 节 verified；r3 N2 收敛后 CHANGELOG 与实现及 B4 边界一致",
       "disposition": "fixed",
-      "verified": "2026-11-19 reviewer-b3-final 对照 CHANGELOG 与 src/client/index.ts 实现"
+      "verified": "2026-11-19 reviewer-b3-final r2 对照 + r3 diff 复核"
     },
     {
       "id": "B3-S7",
       "severity": "suggestion",
       "location": "src/client/index.ts:296-297,306-314,336-337",
-      "fix_verified": "r2 兑现：fetchError state + catch 设置（成功清空）+ 渲染红字提示行「数据读取失败: …（保留上次快照，5s 后重试）」+ 403 真断言臂（states 含 'HTTP 403'）；上轮残留 a)「无提示行」消除",
+      "fix_verified": "r2 兑现并经终审 verified；r3 403 真断言臂零回归",
       "disposition": "fixed",
-      "verified": "2026-11-19 reviewer-b3-final 源码 + 测试臂亲跑"
+      "verified": "2026-11-19 reviewer-b3-final r2 亲跑 + r3 全量复跑"
     },
     {
       "id": "B3-S8",
       "severity": "suggestion",
       "location": "tasks/ZCTX-SIDEBAR/checkpoint.json; checkpoint-history.jsonl; progress.md",
-      "fix_verified": "r1 checkpoint step3 verified；r2 checkpoint step4 prev_hash 衔接正确（7835e13a→6c9665fd）且逐条哈希本轮独立复算 VALID",
-      "residual": "step4 evidence tsc 字段失实（→ B3-B3）+ R1/dist sha256 缺（→ B3-B3 ⑤）",
+      "fix_verified": "r1 step3 verified；r2 step4 链衔接 verified；r3 step5 落盘且 evidence 真值（dist sha/R1/lint/tests 四项亲验一致）",
       "disposition": "fixed",
-      "verified": "2026-11-19 reviewer-b3-final node 独立复算链"
+      "verified": "2026-11-19 reviewer-b3-final node compact json-nohash 独立复算（step1/3/4/5 全 match + 衔接全真）"
     },
     {
       "id": "B3-S9",
       "severity": "suggestion",
       "location": "tasks/ZCTX-SIDEBAR/progress.md; checkpoint.json; checkpoint-history.jsonl",
-      "fix_verified": "r2 半兑现：progress 粘行拆分 ✓（STEP-0001/0002/0003/0004 各自独立物理行，cat -A 核验）；checkpoint step4 存在 ✓ tests 746/746 ✓ 链 VALID ✓",
-      "residual": "①「含 R1 提及」声明不实——grep R1|8e2d0b7e 于三文件零命中，R1/dist sha256 字段未补（→ B3-B3 ⑤）；②STEP-0004 tsc=0 失实（→ B3-B3 ②③）",
+      "fix_verified": "r3 完全关闭：①progress 粘行拆分 ✓（cat -A 复核，STEP-0001…0005 各占一行，STEP-0005 追加无粘连）；②R1/dist sha256 字段 ✓（step5 evidence 亲验真值）；③STEP-0004 tsc 失实更正 ✓（STEP-0005 append-only，旧行保留）",
       "disposition": "fixed",
-      "verified": "2026-11-19 reviewer-b3-final cat -A + grep + node 链复算；残余项并入 B3-B3，不单列 OPEN"
+      "verified": "2026-11-19 reviewer-b3-final 定谳轮 cat -A + 哈希链复算 + evidence 字段三方核对"
     },
     {
       "id": "B3-N1",
       "severity": "suggestion",
       "origin": "r2 终审新增",
-      "location": "tests/client-slot.spec.ts:355(注释),340-378(臂)",
-      "issue": "403 臂注释「the r.ok guard must reject the body text」与实际覆盖不符（failingFetch 直接 throw，未走 sameOriginFetchText 的 r.ok 路径）；r.ok 守卫至今无固化单测（r1 人工探针验证过行为，但未固化）",
-      "fix": "补 ok:false + 合法快照形状响应体的 fetchText mock 固化守卫单测；更正臂 1 注释为「panel catch → fetchError 面」",
+      "location": "tests/client-slot.spec.ts:365(注释),341-380(臂)",
+      "issue": "a) :365 注释「the r.ok guard must reject the body text」与实际覆盖不符（failingFetch 直接 throw，未走 sameOriginFetchText r.ok 路径；该臂实测 panel catch→fetchError 面）；b) r.ok 守卫至今无固化单测",
+      "fix": "a) 注释更正为实际覆盖；b) 补 ok:false + 合法快照形状响应体的 fetchText mock 固化单测（断言 throw/数据不被吸收）",
+      "disposition_note": "主线声明「N1 注释已更正」失实（git diff 11e94f7..HD 全量核对：注释原文未动、无新测试臂；84cbf41 提交信息亦不含 N1）——N1 自 r2 起持续 OPEN，未发生关闭",
       "disposition": "OPEN",
       "phase": "block-final-acceptance"
     },
@@ -158,64 +162,74 @@
       "id": "B3-N2",
       "severity": "suggestion",
       "origin": "r2 终审新增",
-      "location": "CHANGELOG.md:22-26",
-      "issue": "「desktop real-machine acceptance … now real-machine verified」超前声称（V8 归 B4，B3 阶段无真机证据）",
-      "fix": "B4 真机验收过门后方可随包发布；B4 未过则该句须修正或标注待验",
-      "disposition": "OPEN",
-      "phase": "block-final-acceptance"
+      "location": "CHANGELOG.md:26-30",
+      "issue": "（历史）「desktop real-machine acceptance … now real-machine verified」超前声称",
+      "fix_verified": "聚焦修复兑现：收敛为「desktop acceptance (pending final sign-off)」，观察事实归源 ZCTX-UI wave、结论挂 final sign-off，不再超前声称",
+      "disposition": "fixed",
+      "verified": "2026-11-19 reviewer-b3-final diff 对照；发布门仍随 B4 真机证据复核（device_items_deferred）"
     },
     {
       "id": "B3-N3",
       "severity": "suggestion",
       "origin": "r2 终审新增",
-      "location": "tests/client-slot.spec.ts:373(403 臂)",
-      "issue": "403 臂经真实全局 setInterval 创建 5s 周期定时器且 cleanup 未调用（该臂未 stub、cleanups 收集后未触发）；vitest worker 结束强杀无实际影响，属测试卫生",
-      "fix": "修 B3-B3 narrowing 时顺手 stub setInterval/clearInterval 或补调收集的 cleanup（对齐臂 2 做法）",
-      "disposition": "OPEN",
-      "phase": "block-final-acceptance"
+      "location": "tests/client-slot.spec.ts:378-379(403 臂)",
+      "issue": "（历史）403 臂创建真实 5s 定时器且 cleanup 未调用",
+      "fix_verified": "聚焦修复兑现：:378-379 测试末调用收集的 cleanup（'N3: unmount at test end so the panel's real 5s interval never leaks'），真定时器不再泄漏",
+      "disposition": "fixed",
+      "verified": "2026-11-19 reviewer-b3-final diff + 源码行亲读"
     },
     {
       "id": "B3-N4",
       "severity": "suggestion",
       "location": "tasks/ZCTX-SIDEBAR/checkpoint-history.jsonl",
-      "issue": "数字跳步 step1→3→4（无 step2 条目；D2/D3 由 step3 commits 列表覆盖，链衔接有效）——沿用 r1 复评已登记项，r2 未处理也未声称处理",
-      "fix": "补 step2 追溯条目或在下一次 checkpoint 注记跳步原因（append-only）",
+      "issue": "数字跳步 step1→3→4→5（无 step2 条目；链衔接经复算有效，step2 步骤由 step3 commits 覆盖）——r2 登记后未处理（主线也未声称处理，无失实）",
+      "fix": "下一 checkpoint 注记跳步原因（append-only，一行）或补 step2 追溯条目",
+      "disposition": "OPEN",
+      "phase": "block-final-acceptance"
+    },
+    {
+      "id": "B3-N5",
+      "severity": "suggestion",
+      "origin": "r3 定谳新增",
+      "location": "checkpoint.json step5 evidence.note; 主线聚焦修复声明",
+      "issue": "失实修复范围声明：note「two narrowing fixes + N1/N2/N3/N4」与主线声明「N1：403 臂注释已更正」均列 N1 为已修，实测未修（注释未动、守卫单测缺、提交信息不含 N1）——「声称与事实不符」同机制第 4 次复发（STEP-0002 tsc → STEP-0004 tsc → S9 R1 提及 → 本次 N1）。未掩盖红门（tsc/测试真绿），按 r2 先例不构成 §12.3 硬阻断，但属证据链失实记录，必须 append-only 更正",
+      "fix": "STEP-0006 或下一 checkpoint note 明示「N1 实际未修，前记失实」（append-only）；RSI 登记第 4 次复发并固化硬步骤「声称的修复必须以 git diff 自证后方可写入 evidence/声明」",
       "disposition": "OPEN",
       "phase": "block-final-acceptance"
     }
   ],
   "required_checks": {
-    "1_contract_binding": "PASS — PANEL_ID 单常量 bind panellist.id 与 main.key（r1 探针 verified；r2 未触碰该面，746/746 含 Z21 最小集守护）",
-    "2_capability_gate": "PASS — r1 五臂探针 verified 保持；新增面板代码 React.useState?/useEffect? 可选链能力探测不变",
-    "3_data_plane": "PASS — 同源无 token fetch + r.ok 守卫（r1 决定性探针）+ 5s 轮询 + cleanup；r2 新增 fetchError 诚实提示面（403 真断言臂）",
-    "4_u2_boundary": "PASS — 设置区只读字段展示 + 链接（:345-350）；零 POST（grep 无命中）；零 token；GET config 失败静默保持空（诚实降级注释）",
-    "5_r1_redline": "PASS — 三 ref（11e94f7/fd6997c/17d2360）独立脚本切片重算同值 sha256=8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9（chars 14889 / bytes 14926）；返工 diff 不含 patcher/",
-    "6_z35_handshake": "PASS — pnpm build 握手 5/5；dist/lib 重建与 HEAD 提交字节一致；build 后 git status 0 行",
-    "7_test_quality": "FAIL（部分）— 定向 24/24 + 全量 746/746 亲跑通过，但 tsc --noEmit exit 2（2×TS2722）→ 质量门红（B3-B3）；守卫固化单测缺（N1）",
-    "8_existing_test_changes": "PASS — r2 仅新增 2 臂（22→24），既有臂零回归（746/746）",
-    "9_inject_credentials_tree": "PASS — inject ['slots'] 未变；零凭据字面量；工作树干净（build 后仍净）",
-    "diff_size_gate": "PASS — r2 diff 7 文件 383+/95-（含评审与落盘文件，业务面更小）< 600 行",
-    "evidence_honesty": "FAIL — 三处 tsc=0 声明与实测 exit 2 不符（B3-B3，§12.3 硬阻断）；R1 提及声明不实（S9 残余）",
-    "v8_device": "无法验证（未触碰真机），归 B4；S4 观感与 CHANGELOG 真机句随 B4 证据闭环"
+    "1_contract_binding": "PASS — PANEL_ID 单常量 bind（r1 探针 verified，r2/r3 未触碰该面，746/746 含 Z21 最小集守护）",
+    "2_capability_gate": "PASS — r1 五臂探针 verified 保持；r3 未触碰 src",
+    "3_data_plane": "PASS — 同源无 token fetch + r.ok 守卫 + 5s 轮询 + cleanup（r3 403 臂 cleanup 实调）；fetchError 诚实提示面 746/746 含真断言",
+    "4_u2_boundary": "PASS — 设置区只读字段+链接、零 POST、零 token（r3 未触碰 src）",
+    "5_r1_redline": "PASS — HEAD(d1143b7)/BASE(17d2360) 双侧独立切片重算同值 sha256=8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9（chars 14889 / bytes 14926）；聚焦修复 diff 不含 patcher/",
+    "6_z35_handshake": "PASS — r2 握手 5/5 在案；r3 未触碰构建面（dist sha 三方一致：盘上/HEAD/checkpoint step5 = 63eb22ba…）",
+    "7_test_quality": "PASS — pnpm lint exit 0 亲验 + 746/746 exit 0 亲验（上轮 FAIL 项消除）；守卫固化单测缺由 N1-b 承载（[建议] 级）",
+    "8_existing_test_changes": "PASS — r3 仅 narrowing 2 处 + N3 cleanup 2 行，既有断言零改动（746/746 零回归）",
+    "9_inject_credentials_tree": "PASS — inject ['slots'] 未变；零凭据字面量；lint/vitest 后 git status 0 行（评审文件写入其后）",
+    "diff_size_gate": "PASS — 聚焦修复 11e94f7..d1143b7 共 7 文件 237+/104-（含评审与落盘文件，业务面 4+1 行）< 600 行",
+    "evidence_honesty": "PARTIAL — 聚焦修复单 1-3 条与 N2/N3 声明全部属实且经亲验（STEP-0005 更正真实）；但 N1「已更正」声明失实（→ N5 登记，append-only 更正待做）",
+    "v8_device": "无法验证（未触碰真机），归 B4；N2 发布门与 S4 观感随 B4 证据闭环"
   },
   "positive_verifications": [
-    "S4 CSS 9 条规则 + 主题变量逐条对照渲染 class，dist 同步",
-    "S5 只读字段（GET config → 全量 k=v）+ 链接保留，plan §4 承诺兑现，零写面保持",
-    "S7 fetchError 状态机（catch 设置/成功清空/渲染提示行）+ 403 真断言臂",
-    "S2 interval=1/cleanup=1 臂 + React cleanup 收集语义核验正确",
-    "R1 三侧切片同值 8e2d0b7e…（14889/14926）独立复现",
-    "构建可复现：dist/lib 重建与提交字节一致，build 后树净",
-    "checkpoint 哈希链独立复算 VALID（step1→3→4 prev_hash 衔接 + 逐条哈希复现）",
-    "746/746 全量零回归（r1 744 + r2 新增 2 臂）",
-    "工作树干净、零凭据、零 del 改动、零写请求"
+    "tsc 质量门真绿：pnpm lint exit 0 亲验（上轮 2×TS2722 消除，narrowing 两处 diff 亲见）",
+    "746/746 全量全绿 exit 0 亲验，零回归",
+    "R1 INTACT：HEAD/BASE 双侧独立切片重算同值（14889 chars / 14926 bytes / 8e2d0b7e…）",
+    "dist sha 三方一致（盘上 = HEAD = checkpoint step5 = 63eb22ba…）",
+    "checkpoint 哈希链 compact json-nohash 独立复算：step1/3/4/5 四条全 match，prev_hash 衔接 1→3→4→5 全真，history step5 == checkpoint.json",
+    "STEP-0005 append-only 更正真实：STEP-0002/0004 旧行保留、更正行在册、progress 五条 STEP 各占一行（cat -A）",
+    "N2 CHANGELOG 收敛为 pending final sign-off（不再超前声称真机验证）",
+    "N3 403 臂 cleanup 实调（真 5s 定时器不泄漏）",
+    "零写请求/零 token/零凭据/零 del 改动、树净、revert 可回滚"
   ],
   "rework_round": 2,
-  "review_round": 3,
-  "budget_note": "返工额度已用尽：round1 打回（76）→ r1 修复 → 复评 PASS 中间合入（91）→ r2 修复 → 终审打回（78）。按 §12.4/§1.4 不再自动派发第 3 轮 coder 返工，升级主线裁决：聚焦修复清单（B3-B3 五子项 + N1-N3 顺带）约十行以内，建议按「小修单」处理，修后独立 reviewer 聚焦复评",
-  "escalation": "升级主线裁决：①授权聚焦修复单（不计新返工轮次或书面豁免 2 轮上限，须主线明示）；②修复后第 3 轮聚焦复评（仅验证 B3-B3 清单 + 全量回归）≥98 放行最终验收；③N2 真机句随 B4 证据闭环；④V8 真机归 B4 不阻断 B3",
+  "review_round": 4,
+  "budget_note": "返工 2 轮额度已用尽后经主线裁决走聚焦修复单（不计新返工轮次）：聚焦修复单 4 条中 1-3 条 + N2/N3 兑现并经本轮 verified；N1 未兑现且声明失实（→ N5）。剩余 OPEN 3 条均为 [建议] 级最小修复（约 20 行内），修完经独立复核即可 ≥98 终审收口",
+  "escalation": "最小修复单交主线执行（同聚焦修复模式）：①N5 append-only 更正 + RSI 第 4 次复发登记；②N1-a 注释更正；③N1-b 守卫固化单测；④N4 history 跳步注记。修后独立 reviewer 复核（预计一轮即过）。B4 归口：V8 真机四项、S4 真机观感、N2 发布门（device_items_deferred 在册）",
   "device_items_deferred": [
     "V8 真机：标签出现 / 点击开面板 / 数据实时 / DSH 不被顶掉（B4）",
     "真机观察项：S4 面板观感与图标 baseline（B4）",
-    "N2：CHANGELOG 真机句在 B4 真机证据落地前不得随包发布（发布门复核）"
+    "N2：CHANGELOG「pending final sign-off」在 B4 真机证据落地并过发布门前不得随包发布（发布门复核）"
   ]
 }

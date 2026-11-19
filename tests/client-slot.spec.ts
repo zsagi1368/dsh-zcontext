@@ -28,6 +28,7 @@ import {
   type ClientCtx,
   type ReactLike,
   type StylesLike,
+  type PanelSnapshot,
 } from '../src/client/index.ts'
 
 /** Minimal React mock recording createElement calls. */
@@ -362,7 +363,9 @@ describe('ZCTX-SIDEBAR A1 — left-menu entry + central panel', () => {
         cleanups.push(effect() as (() => void) | undefined)
       },
     } as unknown as ReactLike
-    // fetch face: first read 403s (the r.ok guard must reject the body text).
+    // fetch face: first read 403s — this arm covers the non-2xx ERROR-ROW path
+    // (fetchError state). The r.ok GUARD itself (rejecting a non-ok response
+    // that still carries a valid-looking body) is pinned separately below.
     let calls = 0
     const failingFetch = async (): Promise<string> => {
       calls += 1
@@ -376,6 +379,51 @@ describe('ZCTX-SIDEBAR A1 — left-menu entry + central panel', () => {
     expect(calls).toBeGreaterThanOrEqual(1)
     expect(states.some((s) => typeof s === 'string' && String(s).includes('HTTP 403'))).toBe(true)
     // N3: unmount at test end so the panel's real 5s interval never leaks.
+    for (const c of cleanups) { if (typeof c === 'function') c() }
+  })
+
+  it('N1-b: the r.ok guard rejects a non-ok response even when its body looks like a valid snapshot', async () => {
+    // The GUARD arm (distinct from the error-row arm above): a 500 response
+    // whose body is a *perfectly valid* snapshot must NOT be absorbed —
+    // otherwise faults render as fabricated zeros (B3-S7 root cause).
+    const states: unknown[] = []
+    const cleanups: unknown[] = []
+    const reactMock = {
+      createElement(type: unknown, props?: Record<string, unknown> | null, ...children: unknown[]) {
+        return { type, props, children }
+      },
+      useState<T>(initial: T): [T, (next: T) => void] {
+        const pair: [T, (next: T) => void] = [initial, (v: T) => { states.push(v); pair[0] = v }]
+        return pair
+      },
+      useEffect(effect: () => (() => void) | void) {
+        cleanups.push(effect() as (() => void) | undefined)
+      },
+    } as unknown as ReactLike
+    const validBody = JSON.stringify({
+      sessionId: 'session-forged',
+      faceHealth: { state: 'active' },
+      window: { contextWindow: 1, totalTokens: { value: 1, basis: 'measured' }, pressurePct: 99 },
+      degraded: [],
+    })
+    let snapshotCalls = 0
+    const component = createPanelComponent(reactMock, async (url: string) => {
+      if (url.endsWith('/api/snapshot')) {
+        snapshotCalls += 1
+        // The real sameOriginFetchText contract: non-2xx → throw, body never
+        // parsed — so the valid-looking body below must never reach the view.
+        const err = new Error('GET /zctx-ui/api/snapshot → HTTP 500')
+        ;(err as unknown as { body?: string }).body = validBody
+        throw err
+      }
+      return JSON.stringify({ fields: {} }) // config GET (B3-S5 read)
+    })
+    component?.()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(snapshotCalls).toBe(1)
+    // The forged "active / pressurePct 99" body must NOT reach the view model.
+    expect(states.some((s) => typeof s === 'object' && s !== null && (s as PanelSnapshot).faceState === 'active')).toBe(false)
+    expect(states.some((s) => typeof s === 'string' && String(s).includes('HTTP 500'))).toBe(true)
     for (const c of cleanups) { if (typeof c === 'function') c() }
   })
 
