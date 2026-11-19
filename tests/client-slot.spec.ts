@@ -23,6 +23,7 @@ import {
   parseSummary,
   parsePanelSnapshot,
   createSummaryCard,
+  createPanelComponent,
   fiber,
   type ClientCtx,
   type ReactLike,
@@ -335,5 +336,74 @@ describe('ZCTX-SIDEBAR A1 — left-menu entry + central panel', () => {
   it('parsePanelSnapshot tolerates malformed JSON without throwing', () => {
     expect(parsePanelSnapshot('not json')).toEqual({})
     expect(parsePanelSnapshot('{}')).toEqual({})
+  })
+
+  it('B3-S2/S7: a non-2xx read surfaces as fetchError, never as fabricated zeros', async () => {
+    // React double recording state updates — the panel renders the error row.
+    const states: unknown[] = []
+    const cleanups: unknown[] = []
+    const reactMock = {
+      createElement(type: unknown, props?: Record<string, unknown> | null, ...children: unknown[]) {
+        return { type, props, children }
+      },
+      useState<T>(initial: T): [T, (next: T) => void] {
+        const setters: ((v: T) => void)[] = []
+        const pair: [T, (next: T) => void] = [initial, (next: T) => {
+          states.push(next)
+          pair[0] = next
+          setters.forEach((s) => s(next))
+        }]
+        setters.push((v: T) => { pair[0] = v })
+        return pair
+      },
+      // React semantics: the effect runs, its cleanup is collected (NOT invoked
+      // synchronously) — invoking it here would kill the pending async read.
+      useEffect(effect: () => (() => void) | void) {
+        cleanups.push(effect() as (() => void) | undefined)
+      },
+    } as unknown as ReactLike
+    // fetch face: first read 403s (the r.ok guard must reject the body text).
+    let calls = 0
+    const failingFetch = async (): Promise<string> => {
+      calls += 1
+      throw new Error('GET /zctx-ui/api/snapshot → HTTP 403')
+    }
+    const component = createPanelComponent(reactMock, failingFetch)
+    expect(typeof component).toBe('function')
+    component() // effect mounts; the rejection lands on a microtask
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // The error message surfaced (not swallowed into zeros), and the read ran.
+    expect(calls).toBeGreaterThanOrEqual(1)
+    expect(states.some((s) => typeof s === 'string' && String(s).includes('HTTP 403'))).toBe(true)
+  })
+
+  it('B3-S2: polling creates exactly one interval; unmount cleanup clears it (no timer leak)', () => {
+    let intervals = 0
+    let cleared = 0
+    const cleanups: unknown[] = []
+    const reactMock = {
+      createElement(type: unknown, props?: Record<string, unknown> | null) { return { type, props } },
+      useState<T>(initial: T): [T, (next: T) => void] { return [initial, () => undefined] },
+      // React semantics: collect the cleanup — the test invokes it at unmount.
+      useEffect(effect: () => (() => void) | void) {
+        cleanups.push(effect() as (() => void) | undefined)
+      },
+    } as unknown as ReactLike
+    const origSetInterval = global.setInterval
+    const origClearInterval = global.clearInterval
+    global.setInterval = ((fn: () => void, ms: number) => { void fn; void ms; intervals += 1; return intervals as unknown as ReturnType<typeof setInterval> }) as typeof setInterval
+    global.clearInterval = ((id: unknown) => { void id; cleared += 1 }) as typeof clearInterval
+    try {
+      const component = createPanelComponent(reactMock, async () => '{}')
+      component() // mount → exactly one interval
+      expect(intervals).toBe(1)
+      expect(cleared).toBe(0)
+      // Unmount → the collected cleanup clears the interval.
+      for (const c of cleanups) { if (typeof c === 'function') c() }
+      expect(cleared).toBe(1)
+    } finally {
+      global.setInterval = origSetInterval
+      global.clearInterval = origClearInterval
+    }
   })
 })

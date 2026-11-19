@@ -45,7 +45,16 @@ const CSS = [
 	".zctx-summary{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--dsw-alias-border-color, #444);border-radius:8px;background:var(--dsw-alias-bg-layer-1, transparent);}",
 	".zctx-summary h3{margin:0;font-size:var(--dsw-alias-font-size-lg, 15px);color:var(--dsw-alias-label-primary, inherit);}",
 	".zctx-summary .zctx-stats{display:flex;gap:16px;color:var(--dsw-alias-label-secondary, #aaa);font-size:var(--dsw-alias-font-size-sm, 12px);}",
-	".zctx-summary a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}"
+	".zctx-summary a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}",
+	".zctx-panel{display:flex;flex-direction:column;gap:6px;padding:14px 18px;overflow-y:auto;height:100%;box-sizing:border-box;background:var(--dsw-alias-bg-layer-1, transparent);}",
+	".zctx-panel-title{margin:0 0 4px;font-size:var(--dsw-alias-font-size-lg, 16px);color:var(--dsw-alias-label-primary, inherit);}",
+	".zctx-panel-face{display:flex;align-items:center;gap:6px;font-size:var(--dsw-alias-font-size-sm, 12px);}",
+	".zctx-panel h3{margin:10px 0 2px;font-size:var(--dsw-alias-font-size-sm, 13px);color:var(--dsw-alias-label-secondary, #aaa);border-bottom:1px solid var(--dsw-alias-border-color, #444);padding-bottom:2px;}",
+	".zctx-panel-row{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-primary, inherit);}",
+	".zctx-panel-note{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-secondary, #aaa);}",
+	".zctx-panel-err{font-size:var(--dsw-alias-font-size-sm, 12px);color:#f85149;background:rgba(248,81,73,.08);border-radius:4px;padding:4px 8px;}",
+	".zctx-panel a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}",
+	".zctx-panel-icon{display:inline-flex;align-items:center;justify-content:center;line-height:1;}"
 ].join("");
 /** Parse the minimal summary out of a snapshot JSON text (fail-soft). */
 function parseSummary(text) {
@@ -168,14 +177,27 @@ function createPanelComponent(React, fetchText) {
 	return function ZctxPanel() {
 		const [data, setData] = React.useState?.({}) ?? [{}, () => void 0];
 		const value = data;
+		const [fetchError, setFetchError] = React.useState?.(void 0) ?? [void 0, () => void 0];
+		const [configFields, setConfigFields] = React.useState?.({}) ?? [{}, () => void 0];
+		const cfg = configFields;
 		React.useEffect?.(() => {
 			let alive = true;
 			const load = () => {
 				fetchText("/zctx-ui/api/snapshot").then((text) => {
-					if (alive) setData(parsePanelSnapshot(text));
-				}).catch(() => {});
+					if (!alive) return;
+					setData(parsePanelSnapshot(text));
+					setFetchError(void 0);
+				}).catch((err) => {
+					if (!alive) return;
+					setFetchError(err instanceof Error ? err.message : String(err));
+				});
 			};
 			load();
+			fetchText("/zctx-ui/api/config").then((text) => {
+				if (!alive) return;
+				const raw = JSON.parse(text);
+				if (raw.fields !== void 0 && typeof raw.fields === "object") setConfigFields(raw.fields);
+			}).catch(() => {});
 			const timer = setInterval(load, 5e3);
 			return () => {
 				alive = false;
@@ -187,7 +209,7 @@ function createPanelComponent(React, fetchText) {
 		return e("div", { className: "zctx-panel" }, e("h2", { className: "zctx-panel-title" }, "zcontext 面板 (BETA)"), e("div", { className: "zctx-panel-face" }, e("span", {
 			className: "zctx-dot",
 			style: { color: faceColor }
-		}, "●"), e("span", null, ` face: ${face}`)), e("h3", null, "查看"), e("div", { className: "zctx-panel-row" }, `会话: ${value.sessionId ?? "n/a"} (${value.sessionResolution ?? "n/a"})`), e("div", { className: "zctx-panel-row" }, `窗口占用: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("div", { className: "zctx-panel-row" }, `tokens: ${value.totalTokens ?? "n/a"} / ${value.contextWindow ?? "n/a"}`), value.degradedCount !== void 0 ? e("div", { className: "zctx-panel-note" }, `降级提示: ${value.degradedCount} 条`) : null, e("h3", null, "统计"), e("div", { className: "zctx-panel-row" }, `折叠次数: ${value.foldCount ?? 0}`), e("div", { className: "zctx-panel-row" }, `可折叠区间: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? " (measured)" : " (estimated/none)"}`), e("h3", null, "设置"), e("div", { className: "zctx-panel-note" }, "设置修改请到完整面板（此处只读，避免越权写入）："), e("a", {
+		}, "●"), e("span", null, ` face: ${face}`)), fetchError !== void 0 ? e("div", { className: "zctx-panel-err" }, `数据读取失败: ${fetchError}（保留上次快照，5s 后重试）`) : null, e("h3", null, "查看"), e("div", { className: "zctx-panel-row" }, `会话: ${value.sessionId ?? "n/a"} (${value.sessionResolution ?? "n/a"})`), e("div", { className: "zctx-panel-row" }, `窗口占用: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("div", { className: "zctx-panel-row" }, `tokens: ${value.totalTokens ?? "n/a"} / ${value.contextWindow ?? "n/a"}`), value.degradedCount !== void 0 ? e("div", { className: "zctx-panel-note" }, `降级提示: ${value.degradedCount} 条`) : null, e("h3", null, "统计"), e("div", { className: "zctx-panel-row" }, `折叠次数: ${value.foldCount ?? 0}`), e("div", { className: "zctx-panel-row" }, `可折叠区间: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? " (measured)" : " (estimated/none)"}`), e("h3", null, "设置"), e("div", { className: "zctx-panel-row" }, Object.keys(cfg).length > 0 ? Object.entries(cfg).map(([k, v]) => `${k}=${String(v)}`).join(" · ") : "（配置未加载）"), e("div", { className: "zctx-panel-note" }, "设置修改请到完整面板（此处只读，避免越权写入）："), e("a", {
 			href: "/zctx-ui",
 			target: "_blank",
 			rel: "noopener noreferrer"

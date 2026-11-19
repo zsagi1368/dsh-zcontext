@@ -203,3 +203,99 @@ client banner handshake: all checks PASS
 ## 七、结论
 
 **打回。** [阻断] 2：B3-B1（tsc 红 + 失实证据）、B3-B2（快照契约不符 + 假绿夹具）。[建议] 8：B3-S1…S8，全部 OPEN，按 §11 记账，阻塞最终验收。修复后可走第 2 轮（本轮为第 1 轮返工额度内）。V8 真机项归 B4。
+---
+
+# ZCTX-SIDEBAR B3 复评报告（返工 r1 · 独立复核 · 2026-11-19）
+
+- 评审对象：worktree `worktrees/ZCTX-SIDEBAR`，分支 `feat/ZCTX-SIDEBAR`，HEAD `5047c2c`（返工提交 `9daa1ca` + checkpoint 落盘 `5047c2c`）；返工 diff 范围 `8543e0a..5047c2c`，10 文件 / 479+ / 55-（含评审与落盘文件，业务面为 src/tests/dist/README）
+- 评审人：reviewer-b3（复评，与上轮同一角色角度、独立重跑全部证据；作者=main，评审人≠作者）
+- 日期：2026-11-19
+- **结论：PASS（中间合入放行）· 总分 91/100。** [阻断] 0（B3-B1/B3-B2 均已修复并经本轮独立 verified）。残留 [建议] 6 项 OPEN（S2 / S4 / S5 / S7 部分 / S6 部分 + 新增 S9），按角色纪律**不阻塞中间合入、阻塞最终验收**。§12.3 硬阻断全部解除（正确性 24 ≥ 23、安全回滚 10 ≥ 9、无失实证据、744/744 通过、无 del 越权改动）。最终验收需 ≥98：残留逐项落到 fixed/verified 或 user_approved_deferred（须用户真实批准）后方可达标。
+
+## 一、亲跑验证（全部命令本轮独立执行）
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `pnpm exec tsc --noEmit` | **exit 0**（上轮 2×TS18048 消除） |
+| 定向测试 | `pnpm exec vitest run tests/client-slot.spec.ts` | **22/22 通过**（278ms；上轮 21 → 新增「API 缺字段诚实 n/a」臂） |
+| 构建 | `pnpm build` | tsdown 成功；**握手 5/5 PASS**（node-check-syntax / banner-single-arg / banner-id / footer-two-braces / no-three-arg） |
+| 全量测试 | `pnpm exec vitest run` | **35 文件 / 744/744 全绿**（4.54s） |
+| R1 切片 | `git show <ref>:patcher/zctx-patch.mjs` 独立切片重算 | HEAD / 8543e0a / 17d2360 **三侧同值 sha256=8e2d0b7effb1b9af…（chars 14889 / bytes 14926）** → R1 INTACT |
+| 工作树 | build 后 `git status --porcelain` | **0 行**；`dist/client.cjs` 重建 sha256 `60cfe618…` 与 HEAD 提交版本字节一致；lib 无 churn |
+| checkpoint 链 | node 独立复算（json-nohash 算法） | step1/step3 `prev_hash` 衔接 OK（dd404c4b…→7835e13a…），两条目哈希双双复现 → **链 VALID** |
+
+## 二、逐条裁定（上轮条目 → 本轮）
+
+### B3-B1 — fixed（verified）
+- 源码 `src/client/index.ts:369` `const slots = ctx.slots` 局部化，:370 门控；后续 :372/:384/:392 全用 `slots`。gate 前仅剩 :349 `ctx.slots?.register?.`（可选链，安全）。亲跑 tsc exit 0。
+- STEP-0002 失实证据处置：历史行保留（append-only 日志纪律），STEP-0003 显式更正并固化 RSI 教训（「曾写tsc=0未看真输出=失实证据，已认并改」）；checkpoint step3 的 tsc 证据为本轮真实重跑值。判 honest correction，成立。
+
+### B3-B2 — fixed（verified）
+- `pressurePct` 直读（:241，服务器已算值 verbatim 使用 :256，不再现算）；`totalTokens.value`（:243）+ `contextWindow`（:244）新增 tokens 渲染行（:307-308）；`degraded` 按 `string[]` 计数（:249 → degradedCount :262 → 面板「降级提示: N 条」:309-311）；`limitTokens`/`windowTokens` 全仓清除（grep src/tests/dist 仅剩注释中「不存在该字段」的说明）。
+- 夹具逐字段对照 `src/ui/types.ts:40-74`：`window{contextWindow, totalTokens{value,basis}, pressurePct, routed}` = ZctxSnapshot.window（MarkedNumber :24-27 含 value/basis）；`cache{samples,measured,basis}` = :61-64；`degraded: ['session-unresolved']` = :74 `readonly string[]`。**逐字段一致，无虚构字段。**
+- 新增「API 缺字段诚实 n/a」臂为真断言（JSON.stringify 丢 undefined → `window:{}` → pressure/degradedCount 均不出现在 view）。
+
+### B3-S1 — fixed（verified）
+- :381-382 `panel === undefined → return` 位于 main / panellist 两注册之前。
+- 探针（tsc 单文件转译至仓库外临时目录执行，规避 worktree 内 `require('react')` 命中真实依赖）：
+  - **react-missing → injected `["settings.section"]`**：main 与 panellist 均不注册，无死图标入口；
+  - react-present → `["settings.section","main","sidebar.panellist"]`，main.key = panellist.id = `dsh-zcontext.panel`（binding 保持）；
+  - panellist-absent → main 仍注册；main-absent → panellist 仍注册（互不拖累）。
+
+### B3-S3 — fixed（verified）
+- 测试 :85 改回精确 `toEqual(['settings.section','main','sidebar.panellist'])`；:87-89 opts 改从过滤后 `cards[0]` 取（去除 registered[0] 下标依赖）。探针实测注入顺序与断言完全一致。
+
+### B3-S7 — 部分修复（主体 verified，残留 OPEN）
+- `sameOriginFetchText`（:154-158）真查 `!r.ok → throw`（含 status），生产默认面 :340 启用；panel load catch 保留上一份好快照（:289）。
+- **决定性探针**：mock fetch 返回 `ok:false, status:403` 且响应体故意内含合法快照字段（`pressurePct:99`）→ 面板 `setData` 从未被调用、99 未被吸收（GUARD WORKS）。上轮「403/500 响应体被解析成数据」的问题实证消除。
+- 残留（OPEN，并入下述条目）：a) 持续性首次读取失败时，统计区仍按初始 `{}` 渲染 `?? 0` 零值、无「读取失败」提示行（查看区 n/a 是诚实的）；b) 守卫本身零单测（测试全部走 `fetchText` 注入绕过该路径）→ 测试缺口归 S2 范围。
+
+### B3-S6 — 部分修复（README verified，CHANGELOG 残留 OPEN）
+- README.md / README.zh.md 各 +2 行「侧栏面板（左侧菜单）」节：id/key/5s 轮询/设置只读+链接/React 缺失双不注册——逐句与实现核对一致，双语对齐。
+- 残留：CHANGELOG 无新条目（B5 发布波归口可接受，但需 closure 登记 owner/触发条件）。
+
+### B3-S8 — fixed（verified，细节残留 → 新增 S9）
+- checkpoint step3（block=B3-rework-r1）：evidence `tsc 0 errors / 握手 5/5 / 744/744 / 4 commits` 与本轮亲跑值一致；链复算 VALID。
+- progress STEP-0003 补齐（含对 STEP-0002 的更正与 RSI 自纠记录）。
+
+### S2 / S4 / S5 — 如实残留与裁定
+- **S2 OPEN**：main/panellist 缺失两臂 + 首拉/5s 轮询/unmount 清理 + r.ok 守卫，均无自动化测试（本轮 grep 确认无 useFakeTimers/setInterval 类测试；本轮探针系人工验证，不等于固化）。
+- **S4 OPEN**：面板 CSS 规则仍为 0（`.zctx-panel*` 无任何样式规则，新增 `.zctx-panel-note` 亦无）；图标仍包 inline span（:329）。本轮仅新增 degraded 提示行。
+- **S5 OPEN（本轮裁定）**：设置区「说明+链接」形式**满足 V4 字面验收**（「设置区只读+跳完整页入口」）与 U-2 诚实边界目标，且双语 README 已如实记载该形态；但 `reports/plans/ZCTX-SIDEBAR-plan.md:18` 明文承诺「设置（只读字段 + 链接）」，该契约偏差未走方案门修订。裁定：**不阻塞中间合入；阻塞最终验收**——收口二选一：(a) 渲染只读配置字段子集（GET `/zctx-ui/api/config`），或 (b) 修订 plan §4 措辞并在 closure 留修订证据。评审人无权代授 `user_approved_deferred`，须用户真实批准。
+
+## 三、新增条目（本轮复评发现）
+
+### B3-S9｜落盘格式与证据完备性残留（新，[建议]）
+- `tasks/ZCTX-SIDEBAR/progress.md`：STEP-0003 与 STEP-0002 **粘连同一物理行**（文件仅 2 行；STEP-0002 原行无结尾换行，追加未补 `\n`）——内容完整可读，但破坏「一条一行」约定，影响机器解析。
+- `checkpoint-history.jsonl` 数字跳步 step1→step3（无 step2 条目；D2/D3 仅由 step3 的 commits 列表覆盖，链衔接本身有效）。
+- checkpoint evidence 未含 dist sha256 与 R1 值（上轮 S8 修复建议点名的两项）。
+- 修复建议：progress 粘行拆分（后续追加前补换行）；下一 checkpoint 补 dist sha256/R1 字段。
+- disposition：OPEN
+
+## 四、正面确认
+- 两个阻断均真修且本轮独立复现（非仅声明）；五臂注册探针全部符合预期；契约逐字段对齐 `src/ui/types.ts:40-74`。
+- R1 三侧同值 8e2d0b7e…（14889/14926），patcher 零触碰；返工 diff 无请求体改写面。
+- 构建可复现：dist 重建字节一致（60cfe618…），build 后树净。
+- checkpoint 哈希链独立复算 VALID；失实证据以 append-only 更正留痕并固化 RSI 教训。
+- 双语 README 与实现逐句一致（含「React 缺失双不注册」承诺，探针证实）。
+- inject 最小集未变、零凭据字面量、零 del 改动。
+
+## 五、真机项（B4，无法验证）
+- V8 真机：标签出现 / 点击开面板 / 数据实时 / DSH 不被顶掉——本轮未触碰真机，**无法验证**，归 B4。
+- S4 的观感影响（裸文本流 / 图标 baseline）会在真机暴露，B4 验收一并观察。
+
+## 六、评分（复评终评）
+
+| 维度 | 分值 | 上轮 | 本轮 | 证据 |
+|---|---:|---:|---:|---|
+| 正确性 | 25 | 18 | 24 | tsc exit 0 亲跑；B3-B2 契约逐字段对齐 + 五臂探针；r.ok 决定性探针 PASS；扣 1：首读持续失败时统计区零值无失败提示行（S7 残留） |
+| 完整性 | 20 | 15 | 17 | V1-V5 满足；degraded 提示行进面板；扣 3：S2 测试缺口（两臂+轮询+守卫零自动化）、CHANGELOG 缺、S5 只读字段缺 |
+| 一致性 | 20 | 15 | 18 | 夹具/parser/渲染与 types.ts:40-74 一致；injected 精确集恢复；双语 README 一致；扣 2：plan §4「只读字段」偏差未走修订（S5）、progress 粘行 |
+| 可验证性 | 15 | 11 | 13 | 全部命令独立复现（tsc/22/744/握手/R1 三侧切片/哈希链复算/dist 字节一致）；扣 2：checkpoint 证据缺 dist sha/R1、history 数字跳步 |
+| 安全回滚 | 10 | 9 | 10 | 零写/零 token/R1 INTACT/死入口闭环/树净/revert 可回滚 |
+| 可维护性 | 10 | 8 | 9 | 解析与夹具同源单一契约、注释充分、RSI 教训固化；扣 1：面板 CSS 仍缺（S4）+ progress 格式 |
+| **总分** | **100** | **76** | **91** | 残留全部为 [建议] 级；§12.3 硬阻断全部解除 |
+
+## 七、结论
+
+**PASS（中间合入放行）。** [阻断] 0：B3-B1 / B3-B2 已修复并经本轮独立 verified。[建议] 残留 OPEN 6 项：S2（测试缺口，含 r.ok 守卫）、S4（面板 CSS + 图标 wrapper）、S5（设置只读字段或 plan 修订）、S6（CHANGELOG）、S7（首读失败无提示行）、S9（progress 粘行 + checkpoint 证据缺项）；S1/S3/S8 判 fixed（verified）。以上 OPEN 项**不阻塞中间合入，阻塞最终验收**：最终验收前逐项落到 fixed/verified 或 user_approved_deferred（须用户真实批准并登记 owner/触发条件/复核日期），不得静默降级为「后续建议」。V8 真机项归 B4。

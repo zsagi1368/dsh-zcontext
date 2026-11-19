@@ -119,6 +119,17 @@ const CSS = [
   '.zctx-summary h3{margin:0;font-size:var(--dsw-alias-font-size-lg, 15px);color:var(--dsw-alias-label-primary, inherit);}',
   '.zctx-summary .zctx-stats{display:flex;gap:16px;color:var(--dsw-alias-label-secondary, #aaa);font-size:var(--dsw-alias-font-size-sm, 12px);}',
   '.zctx-summary a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}',
+  // ZCTX-SIDEBAR panel styles (B3-S4): the central panel previously rendered as
+  // bare text — every class now has a rule using theme variables.
+  '.zctx-panel{display:flex;flex-direction:column;gap:6px;padding:14px 18px;overflow-y:auto;height:100%;box-sizing:border-box;background:var(--dsw-alias-bg-layer-1, transparent);}',
+  '.zctx-panel-title{margin:0 0 4px;font-size:var(--dsw-alias-font-size-lg, 16px);color:var(--dsw-alias-label-primary, inherit);}',
+  '.zctx-panel-face{display:flex;align-items:center;gap:6px;font-size:var(--dsw-alias-font-size-sm, 12px);}',
+  '.zctx-panel h3{margin:10px 0 2px;font-size:var(--dsw-alias-font-size-sm, 13px);color:var(--dsw-alias-label-secondary, #aaa);border-bottom:1px solid var(--dsw-alias-border-color, #444);padding-bottom:2px;}',
+  '.zctx-panel-row{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-primary, inherit);}',
+  '.zctx-panel-note{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-secondary, #aaa);}',
+  '.zctx-panel-err{font-size:var(--dsw-alias-font-size-sm, 12px);color:#f85149;background:rgba(248,81,73,.08);border-radius:4px;padding:4px 8px;}',
+  '.zctx-panel a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}',
+  '.zctx-panel-icon{display:inline-flex;align-items:center;justify-content:center;line-height:1;}',
 ].join('')
 
 /** Parse the minimal summary out of a snapshot JSON text (fail-soft). */
@@ -281,14 +292,37 @@ export function createPanelComponent(
   return function ZctxPanel(): unknown {
     const [data, setData] = React.useState?.<PanelSnapshot>({}) ?? [{} as PanelSnapshot, () => undefined]
     const value = data as PanelSnapshot
+    // B3-S7: a failed read is SHOWN, never silently rendered as fabricated zeros.
+    const [fetchError, setFetchError] = React.useState?.<string | undefined>(undefined)
+      ?? [undefined as string | undefined, () => undefined]
+    // B3-S5: settings are READ-ONLY here — the values come from the config API
+    // (GET /zctx-ui/api/config); writes stay on the full /zctx-ui page (U-2).
+    const [configFields, setConfigFields] = React.useState?.<Record<string, unknown>>({})
+      ?? [{} as Record<string, unknown>, () => undefined]
+    const cfg = configFields as Record<string, unknown>
     React.useEffect?.(() => {
       let alive = true
       const load = (): void => {
         void fetchText('/zctx-ui/api/snapshot')
-          .then((text) => { if (alive) (setData as (v: PanelSnapshot) => void)(parsePanelSnapshot(text)) })
-          .catch(() => { /* keep last good snapshot; the next tick retries */ })
+          .then((text) => {
+            if (!alive) return
+            ;(setData as (v: PanelSnapshot) => void)(parsePanelSnapshot(text))
+            ;(setFetchError as (v: string | undefined) => void)(undefined)
+          })
+          .catch((err: unknown) => {
+            if (!alive) return
+            // keep last good snapshot; surface the failure honestly (B3-S7)
+            ;(setFetchError as (v: string | undefined) => void)(err instanceof Error ? err.message : String(err))
+          })
       }
       load()
+      void fetchText('/zctx-ui/api/config')
+        .then((text) => {
+          if (!alive) return
+          const raw = JSON.parse(text) as { fields?: Record<string, unknown> }
+          if (raw.fields !== undefined && typeof raw.fields === 'object') (setConfigFields as (v: Record<string, unknown>) => void)(raw.fields)
+        })
+        .catch(() => { /* settings stay read-only-empty on error; the full page still works */ })
       const timer = setInterval(load, 5000)
       return () => { alive = false; clearInterval(timer) }
     }, [])
@@ -299,6 +333,9 @@ export function createPanelComponent(
       e('div', { className: 'zctx-panel-face' },
         e('span', { className: 'zctx-dot', style: { color: faceColor } }, '●'),
         e('span', null, ` face: ${face}`)),
+      fetchError !== undefined
+        ? e('div', { className: 'zctx-panel-err' }, `数据读取失败: ${fetchError}（保留上次快照，5s 后重试）`)
+        : null,
       e('h3', null, '查看'),
       e('div', { className: 'zctx-panel-row' },
         `会话: ${value.sessionId ?? 'n/a'} (${value.sessionResolution ?? 'n/a'})`),
@@ -315,6 +352,11 @@ export function createPanelComponent(
       e('div', { className: 'zctx-panel-row' },
         `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ' (measured)' : ' (estimated/none)'}`),
       e('h3', null, '设置'),
+      // B3-S5: the promised read-only field display (values from GET config).
+      e('div', { className: 'zctx-panel-row' },
+        Object.keys(cfg).length > 0
+          ? Object.entries(cfg).map(([k, v]) => `${k}=${String(v)}`).join(' · ')
+          : '（配置未加载）'),
       e('div', { className: 'zctx-panel-note' }, '设置修改请到完整面板（此处只读，避免越权写入）：'),
       e('a', { href: '/zctx-ui', target: '_blank', rel: 'noopener noreferrer' }, '打开完整面板 →'),
     )
