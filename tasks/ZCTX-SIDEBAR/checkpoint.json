@@ -1,22 +1,36 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-SIDEBAR",
-  "step": 1,
-  "block": "B1",
+  "step": 3,
+  "block": "B3-rework-r1",
   "status": "done",
-  "ts": "2026-11-19T06:06:17.537Z",
+  "ts": "2026-11-19T08:08:31.631Z",
   "artifacts": [
     {
-      "path": "docs/specs/ZCTX-SIDEBAR/options.md"
+      "path": "client-half"
     },
     {
-      "path": "reports/plans/ZCTX-SIDEBAR-plan.md"
+      "path": "tests"
     },
     {
-      "path": "tasks/ZCTX-SIDEBAR/task.json"
+      "path": "READMEs"
+    },
+    {
+      "path": "dist"
     }
   ],
-  "next": "B2 coder",
-  "prev_hash": "",
-  "hash": "dd404c4bc85d4af54efd55833befe6d5796b9bf0ff16df91ed0d349941f1874e"
+  "evidence": {
+    "tsc": "0 errors",
+    "handshake": "5/5 PASS",
+    "tests": "744/744",
+    "commits": [
+      "c67247f",
+      "b811efc",
+      "8543e0a",
+      "9daa1ca"
+    ]
+  },
+  "next": "B3 re-review",
+  "prev_hash": "dd404c4bc85d4af54efd55833befe6d5796b9bf0ff16df91ed0d349941f1874e",
+  "hash": "7835e13ad224cd82212d164c29c4958802acd312fbd42745c7348fc77ddde9c7"
 }
