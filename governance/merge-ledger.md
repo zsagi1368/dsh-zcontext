@@ -72,3 +72,11 @@
 - 质量：B3 快审 100/100 PASS（reviewer-autolog，R1 段 8e2d0b7e… 不变、fixture 跑前后 sha 恒等、checkpoint STEP-0014/0015 链 VALID）；推云 e544cc3。
 - 真机运维止血（不在代码审查面）：XML 导入重建 ZCTX-Patch-Auto，shell 重定向改 auto.console.log；**真机补丁态 rc.5 patched 5/5 + marker 在，无需用户操作**。
 - 新坑 A73（候选，待 RSI 收口）：subprocess 双写同一 Windows 文件（shell 重定向 + 进程内 sink）→ EBUSY；判据=时间戳区分生产 tick 与测试进程日志（zctx-mutex-* 临时路径=测试写入，非生产故障）。
+
+## SCHED-20261119（2026-11-19 · 用户 "按推荐继续，把补丁弄好" · 推云 main=ad09dff）
+
+- 决策：应用户对"能否不用计划任务改启动判断"之问，评估后按推荐方案1执行——保留后台兜底、频率由每小时降为**每天 1 次**（纯启动检查会引入官方后台更新落地后的无保护窗口，否决）。
+- 代码（cc2d22d + 073225c checkpoint）：installScheduledTask 频率参数化（默认 DAILY，CLI `--schedule HOURLY` 可改回）；README/d.mts/测试同步（675 测试绿、R1 段 8e2d0b7e… 不变、STEP-0016 链 VALID）。
+- 快审 PASS 98/100（reviewer-sched）；唯一建议 S-1=顶层 README 仍写 hourly → 当波修复（ad09dff 随评审件一并推送）。
+- 真机：用新代码 install-task 重建 ZCTX-Patch-Auto 为 `/SC DAILY`（每天 18:03 本地，auto.console.log 独立兜底日志）；终验 status=rc.5 patched 5/5 + fuse '0' + anchorSetSource=data；手动 auto 冒烟=up-to-date/already-ok；工作树干净。
+- RSI：coder 报 no-new-lesson；开工查命中 条目32/A68/A72/Z19/Z15/Z3/A14 全执行。
