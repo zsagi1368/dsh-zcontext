@@ -385,6 +385,8 @@ export function installScheduledTask(args?: {
   nodePath?: string
   scriptPath?: string
   logFile?: string
+  /** schtasks /SC frequency (default 'DAILY'); DAILY / HOURLY / ... */
+  schedule?: string
   taskName?: string
   platform?: NodeJS.Platform
   run?: (args: readonly string[]) => { status: number | null; stdout?: string; stderr?: string }

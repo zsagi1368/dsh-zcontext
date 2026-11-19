@@ -522,9 +522,39 @@ describe('scheduled task (fixture-level; real registration is B5)', () => {
     ])
     expect(calls).toEqual([
       ['/Query', '/TN', TASK_NAME],
+      ['/Create', '/TN', TASK_NAME, '/SC', 'DAILY', '/TR', action, '/F'],
+      ['/Query', '/TN', TASK_NAME],
+    ])
+  })
+
+  it('install: default schedule is DAILY (no --schedule / no injection)', () => {
+    const { run, calls } = fakeRun([
+      { status: 1, stderr: 'ERROR: The scheduled task "ZCTX-Patch-Auto" does not exist' },
+      { status: 0, stdout: 'SUCCESS' },
+      { status: 0, stdout: 'SUCCESS' },
+    ])
+    const result = installScheduledTask({ nodePath: 'C:\\n\\node.exe', scriptPath: 'C:\\r\\zctx-patch.mjs', logFile: 'C:\\l\\auto.log', run })
+    expect(result.ok).toBe(true)
+    expect(calls.find((c) => c[0] === '/Create')).toContain('DAILY')
+    // The detail string mirrors the /SC value.
+    expect(result.steps.find((s) => s.name === 'create')?.detail).toContain('/SC DAILY')
+  })
+
+  it('install: explicit schedule:HOURLY creates an HOURLY task (configurable, not hard-coded)', () => {
+    const { run, calls } = fakeRun([
+      { status: 1, stderr: 'ERROR: The scheduled task "ZCTX-Patch-Auto" does not exist' },
+      { status: 0, stdout: 'SUCCESS' },
+      { status: 0, stdout: 'SUCCESS' },
+    ])
+    const action = buildTaskAction({ nodePath: 'C:\\n\\node.exe', scriptPath: 'C:\\r\\zctx-patch.mjs', logPath: 'C:\\l\\auto.log' })
+    const result = installScheduledTask({ nodePath: 'C:\\n\\node.exe', scriptPath: 'C:\\r\\zctx-patch.mjs', logFile: 'C:\\l\\auto.log', schedule: 'HOURLY', run })
+    expect(result.ok).toBe(true)
+    expect(calls).toEqual([
+      ['/Query', '/TN', TASK_NAME],
       ['/Create', '/TN', TASK_NAME, '/SC', 'HOURLY', '/TR', action, '/F'],
       ['/Query', '/TN', TASK_NAME],
     ])
+    expect(result.steps.find((s) => s.name === 'create')?.detail).toContain('/SC HOURLY')
   })
 
   it('install is IDEMPOTENT: an existing task is /Delete /F-d first, then rebuilt', () => {

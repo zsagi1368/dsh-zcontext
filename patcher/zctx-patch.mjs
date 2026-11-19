@@ -3709,7 +3709,8 @@ export async function runAuto(options) {
 }
 
 // ---------------------------------------------------------------------------
-// install-task / uninstall-task — the Windows hourly scheduled task.
+// install-task / uninstall-task — the Windows scheduled self-heal task
+// (configurable frequency, default daily; see installScheduledTask `schedule`).
 // ---------------------------------------------------------------------------
 
 /** The scheduled-task name (plan §4 contract; the real machine registers it in B5). */
@@ -3762,7 +3763,7 @@ function taskStep(steps, name, status, detail) {
 }
 
 /**
- * INSTALL the hourly self-heal task (idempotent): an existing task is
+ * INSTALL the scheduled self-heal task (idempotent): an existing task is
  * /Delete /F'd first, then created, then re-queried as the visibility proof.
  * Every schtasks invocation and its outcome is recorded in `steps` (and
  * printed by the CLI) — registration leaves a full audit trail.
@@ -3775,6 +3776,9 @@ function taskStep(steps, name, status, detail) {
  *                          Kept injectable. Deliberately NOT the internal
  *                          auto.log sink: the two writers must never append
  *                          the same file (Windows EBUSY race).
+ * @param options.schedule  schtasks /SC frequency (default 'DAILY'). Any value
+ *                          accepted by schtasks /SC works (DAILY, HOURLY, ...);
+ *                          the task name/detail string mirrors this value.
  * @param options.taskName  default {@link TASK_NAME}
  * @param options.platform  injectable for tests (default process.platform)
  * @param options.run       injectable schtasks runner (tests)
@@ -3784,6 +3788,7 @@ export function installScheduledTask(options = {}) {
     nodePath = process.execPath,
     scriptPath = thisScriptPath(),
     logFile = defaultConsoleLogPath(),
+    schedule = 'DAILY',
     taskName = TASK_NAME,
     platform = process.platform,
     run = runSchtasksDefault,
@@ -3807,8 +3812,8 @@ export function installScheduledTask(options = {}) {
   } else {
     taskStep(steps, 'delete existing', 'skip', `schtasks /Query /TN ${taskName} → exit ${existing.status} (not present)`)
   }
-  const created = run(['/Create', '/TN', taskName, '/SC', 'HOURLY', '/TR', tr, '/F'])
-  taskStep(steps, 'create', created.status === 0 ? 'ok' : 'FAILED', `schtasks /Create /TN ${taskName} /SC HOURLY /TR <action> /F → exit ${created.status}${created.status !== 0 ? ` (${[created.stderr, created.stdout].map((text) => String(text ?? '').trim()).filter(Boolean).join(' ')})` : ''}`)
+  const created = run(['/Create', '/TN', taskName, '/SC', schedule, '/TR', tr, '/F'])
+  taskStep(steps, 'create', created.status === 0 ? 'ok' : 'FAILED', `schtasks /Create /TN ${taskName} /SC ${schedule} /TR <action> /F → exit ${created.status}${created.status !== 0 ? ` (${[created.stderr, created.stdout].map((text) => String(text ?? '').trim()).filter(Boolean).join(' ')})` : ''}`)
   if (created.status !== 0) {
     return { ok: false, taskName, steps, recovery: 'inspect the printed schtasks output — a common cause is a path with a quote; re-run with --script/--log-file' }
   }
@@ -3913,7 +3918,7 @@ export function tryAcquireAutoLock(lockPath = defaultAutoLockPath(), leaseMs = A
 // CLI.
 // ---------------------------------------------------------------------------
 
-const VALUE_OPTIONS = new Set(['--app-dir', '--dsh-home', '--backup', '--script', '--log-file', '--out', '--seven-zip'])
+const VALUE_OPTIONS = new Set(['--app-dir', '--dsh-home', '--backup', '--script', '--log-file', '--out', '--seven-zip', '--schedule'])
 const FLAG_OPTIONS = new Set(['--yes', '--accept', '--keep-workdir'])
 
 function parseArgs(argv) {
@@ -3952,19 +3957,19 @@ async function main(argv) {
     args = parseArgs(argv)
   } catch (error) {
     console.error(`[refuse] ${error instanceof Error ? error.message : String(error)}`)
-    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor|check-official|preadapt> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept] [--seven-zip <path>] [--keep-workdir]')
+    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor|check-official|preadapt> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept] [--seven-zip <path>] [--keep-workdir] [--schedule DAILY|HOURLY]')
     return 2
   }
   const command = args._[0]
   if (!COMMANDS.includes(command)) {
-    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor|check-official|preadapt> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept] [--seven-zip <path>] [--keep-workdir]')
+    console.error('usage: node patcher/zctx-patch.mjs <patch|restore|status|auto|install-task|uninstall-task|reanchor|check-official|preadapt> [--app-dir <dir>] [--dsh-home <dir>] [--backup <dir>] [--yes] [--script <path>] [--log-file <path>] [--out <path>] [--accept] [--seven-zip <path>] [--keep-workdir] [--schedule DAILY|HOURLY]')
     return 2
   }
   // Scheduled-task registration does not need the app dir: it registers THIS
   // script (or --script) against the resolved node + log paths.
   if (command === 'install-task' || command === 'uninstall-task') {
     const result = command === 'install-task'
-      ? installScheduledTask({ scriptPath: args.script, logFile: args.log_file })
+      ? installScheduledTask({ scriptPath: args.script, logFile: args.log_file, schedule: args.schedule })
       : uninstallScheduledTask({})
     printSteps('[task]', result.steps)
     if (!result.ok) {

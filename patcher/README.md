@@ -60,7 +60,7 @@ node patcher/zctx-patch.mjs patch         [--app-dir <dir>] [--dsh-home <dir>]
 node patcher/zctx-patch.mjs restore       [--app-dir <dir>] [--backup <dir>] [--dsh-home <dir>]
 node patcher/zctx-patch.mjs status        [--app-dir <dir>] [--dsh-home <dir>]
 node patcher/zctx-patch.mjs auto          [--app-dir <dir>] [--dsh-home <dir>] [--yes] [--log-file <path>]
-node patcher/zctx-patch.mjs install-task  [--script <path>] [--log-file <path>]
+node patcher/zctx-patch.mjs install-task  [--script <path>] [--log-file <path>] [--schedule DAILY|HOURLY]
 node patcher/zctx-patch.mjs uninstall-task
 node patcher/zctx-patch.mjs reanchor      --app-dir <新构建目录> [--out <path>] [--accept]
 node patcher/zctx-patch.mjs check-official [--app-dir <dir>] [--log-file <path>]
@@ -144,8 +144,12 @@ marker（含逐文件哈希与集合版本）/ 备份清单 / 锁面 / 进程 / 
 ### install-task / uninstall-task（Windows 计划任务）
 
 ```
-schtasks /Create /TN ZCTX-Patch-Auto /SC HOURLY /TR "<action>" /F
+schtasks /Create /TN ZCTX-Patch-Auto /SC DAILY /TR "<action>" /F
 ```
+
+- **频率默认每天一次（DAILY）**：后台兜底保留，避免无保护窗口；如需恢复每小时，
+  安装时传 `--schedule HOURLY`（`/SC` 接受 DAILY/HOURLY 等 schtasks 频率值）。
+  `--schedule` 不传即 DAILY；步名 detail 字符串随 `/SC` 值同步。
 
 - action = `cmd /c ""<node>" "<script>" auto --yes >> "<log>" 2>&1"`：三个路径全部
   双引号，**整体再包一层外引号**——cmd.exe `/C` 规则 2（cmd /?）会剥掉行首行尾引号，
