@@ -130,6 +130,12 @@ const CSS = [
   '.zctx-panel-err{font-size:var(--dsw-alias-font-size-sm, 12px);color:#f85149;background:rgba(248,81,73,.08);border-radius:4px;padding:4px 8px;}',
   '.zctx-panel a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}',
   '.zctx-panel-icon{display:inline-flex;align-items:center;justify-content:center;line-height:1;}',
+  '.zctx-panel-fields{display:flex;flex-direction:column;gap:4px;}',
+  '.zctx-field{display:flex;align-items:center;gap:8px;font-size:var(--dsw-alias-font-size-sm, 12px);}',
+  '.zctx-field-key{min-width:180px;color:var(--dsw-alias-label-secondary, #aaa);}',
+  '.zctx-field-input{flex:1;background:var(--dsw-alias-bg-layer-2, #222);color:var(--dsw-alias-label-primary, inherit);border:1px solid var(--dsw-alias-border-color, #444);border-radius:4px;padding:2px 6px;}',
+  '.zctx-save{align-self:flex-start;background:var(--dsw-alias-bg-layer-2, #238636);color:#fff;border:0;border-radius:6px;padding:4px 12px;font-size:var(--dsw-alias-font-size-sm, 12px);cursor:pointer;}',
+  '.zctx-save-result{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-secondary, #aaa);}',
 ].join('')
 
 /** Parse the minimal summary out of a snapshot JSON text (fail-soft). */
@@ -353,11 +359,47 @@ export function createPanelComponent(
         `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ' (measured)' : ' (estimated/none)'}`),
       e('h3', null, '设置'),
       // B3-S5: the promised read-only field display (values from GET config).
-      e('div', { className: 'zctx-panel-row' },
+      e('div', { className: 'zctx-panel-fields' },
         Object.keys(cfg).length > 0
-          ? Object.entries(cfg).map(([k, v]) => `${k}=${String(v)}`).join(' · ')
+          ? Object.entries(cfg).map(([k, v]) => e('label', { className: 'zctx-field', key: k },
+              e('span', { className: 'zctx-field-key' }, k),
+              e('input', {
+                className: 'zctx-field-input',
+                type: typeof v === 'boolean' ? 'checkbox' : 'text',
+                ...(typeof v === 'boolean' ? { checked: v } : { value: String(v) }),
+                'data-key': k,
+              })))
           : '（配置未加载）'),
-      e('div', { className: 'zctx-panel-note' }, '设置修改请到完整面板（此处只读，避免越权写入）：'),
+      e('button', {
+        className: 'zctx-save',
+        onClick: () => {
+          const patch: Record<string, unknown> = {}
+          const root = doc?.querySelector?.('.zctx-panel-fields')
+          if (root === undefined || root === null) return
+          const inputs = root.querySelectorAll('[data-key]')
+          for (const el of Array.from(inputs)) {
+            const key = el.getAttribute('data-key')
+            if (key === null) continue
+            const type = el.getAttribute('type')
+            const input = el as unknown as { checked?: boolean; value: string }
+            patch[key] = type === 'checkbox' ? input.checked === true : input.value
+          }
+          void fetch('/zctx-ui/api/config', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ fields: patch }),
+          })
+            .then((r) => r.json())
+            .then((j: { ok?: boolean; error?: string }) => {
+              const el2 = doc?.querySelector?.('.zctx-save-result')
+              if (el2 === undefined || el2 === null) return
+              el2.textContent = j.ok === true ? '✓ 已保存' : `✗ ${j.error ?? '保存失败'}`
+            })
+            .catch(() => { /* next poll refreshes; never throw from a click */ })
+        },
+      }, '保存设置'),
+      e('span', { className: 'zctx-save-result' }),
+      e('div', { className: 'zctx-panel-note' }, '也可在完整面板修改：'),
       e('a', { href: '/zctx-ui', target: '_blank', rel: 'noopener noreferrer' }, '打开完整面板 →'),
     )
   }

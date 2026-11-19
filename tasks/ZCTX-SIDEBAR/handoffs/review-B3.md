@@ -445,3 +445,71 @@ client banner handshake: all checks PASS
 4. **N4**：checkpoint-history step2 跳步在下一 checkpoint 注记原因（append-only，一行）。
 
 B4 归口（不阻断 B3，device_items_deferred 在册）：V8 真机四项（标签出现/点击开面板/数据实时/DSH 不被顶掉）、S4 真机观感与图标 baseline、N2 发布门（CHANGELOG "pending final sign-off" 随 B4 真机证据闭环后方可随包发布）。
+
+---
+
+# ZCTX-SIDEBAR B3 聚焦修复单终审定谳（第 5 轮评审 · 2026-11-19）
+
+- 评审对象：worktree `worktrees/ZCTX-SIDEBAR`，HEAD `fccc0ef`；评审范围 `11e94f7..fccc0ef`（7 文件 376+/107-：业务面仅 tests/client-slot.spec.ts，其余为评审/落盘/CHANGELOG 文件）
+- 评审人：reviewer-b3-final（终审定谳，独立重跑全部证据；作者=main，评审人 ≠ 作者）
+- **结论：PASS（B3 块最终验收放行）。总分 98/100（≥98），[阻断] 0、[建议] OPEN 0。上轮登记的「第 4 次失实声明」（N5）本轮未复发：主线四条声明逐条 git diff 自证全部属实，为 Z35 家族登记以来首个「声明=盘面」轮次。**
+
+## 一、亲跑验证（全部命令本轮独立执行，输出亲眼确认）
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `pnpm lint`（package.json:63 = tsc --noEmit） | **exit 0 亲验**（LINT_EXIT=0，零错误输出） |
+| 全量测试 | `pnpm exec vitest run` | **35 文件 / 747/747 全绿 exit 0**（3.03s；746→747 = N1-b 新臂，零回归） |
+| 定向测试 | `pnpm exec vitest run tests/client-slot.spec.ts` | **25/25**（与 STEP-0006 声明一致） |
+| R1 红线 | 独立切片脚本（`export const SUPPORTED = {` 起、含 `\n}\n\n` 闭合、不含段分隔行；`git show` 取 blob 避免 autocrlf） | HEAD(fccc0ef) / 修复基(11e94f7) / BASE(17d2360) **三侧同值 sha256=8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9（chars 14889 / bytes 14926）** → R1 INTACT；diff 不含 patcher/ |
+| dist 一致性 | `sha256sum dist/client.cjs` × `git show HEAD:dist/client.cjs` | **双方一致 63eb22ba4f8fffc843f20ae28861724586e553bfe3db037216725f1df1b377cf**（= checkpoint step5/6 distSha256） |
+| checkpoint 链 | node compact json-nohash 独立复算 | **step1/3/4/5/6 五条哈希全 match，prev_hash 衔接 1→3→4→5→6 全真；checkpoint.json == history 末条 → 链 VALID** |
+| 工作树 | lint/vitest 后 `git status --porcelain` | **0 行**（本报告与 scorecard 写入于该验证之后，属评审产物） |
+| progress 格式 | `cat -A` | STEP-0001…0006 各占独立物理行，旧行原样保留（append-only），STEP-0006 无粘连 |
+
+## 二、主线四条声明逐条 diff 自证（本轮零失实）
+
+| 声明 | 裁定 | 证据 |
+|---|---|---|
+| **N1-a** 注释已改 | **fixed（verified）** | diff 亲见：`tests/client-slot.spec.ts:366-368` 改写为 "this arm covers the non-2xx ERROR-ROW path (fetchError state). The r.ok GUARD itself … is pinned separately below"——与 403 臂实际覆盖（failingFetch 直接 throw → panel catch → fetchError，src/client/index.ts:306-314）一致；r.ok pinning 明示移交下方新臂 |
+| **N1-b** 守卫固化单测真补 | **fixed（verified，按上轮既定验收口径「ok:false + 合法快照形状响应体的 fetchText mock」）** | 新 it 臂 `tests/client-slot.spec.ts:385`（标题 "N1-b: the r.ok guard rejects a non-ok response even when its body looks like a valid snapshot"）；PanelSnapshot import :31；snapshotCalls 精确断言 :423（`toBe(1)`）；config GET 分流 :419（返回 `{fields:{}}`，不污染 snapshot 计数）；伪造合法快照体（faceHealth active + pressurePct 99 + degraded[]）断言不进 view model :425（faceState==='active' 零命中）+ HTTP 500 错误行 :426；cleanups 收尾 :427（不泄漏真 5s 定时器）。25/25 亲跑通过 |
+| **N5** RSI 第 4 次复发登记 | **fixed（verified）** | progress STEP-0006 显式原文："RSI 第4次复发登记: 修复声明必须先 diff 自证再写 evidence,否则=声称≠盘面(Z35 家族第4例)"；checkpoint step6 evidence.n5 同记。且本轮四条声明全部经本评审 diff 自证为真——登记与实践一致 |
+| **N4** checkpoint step6 补三字段 | **fixed（verified）** | step6 evidence：distSha256 63eb22ba…（三方一致）、r1 8e2d0b7e…（独立切片复算一致）、n4 "history skip noted"（跳步注记在册、随哈希链固化）；链复算 VALID |
+
+N5 更正闭环说明：STEP-0006 未逐字写「N1 实际未修，前记失实」，但 (a) 复发机制显式登记并固化硬步骤「先 diff 自证再写 evidence」，(b) N1-a/N1-b 本轮真修且以 diff 自证，(c) append-only 纪律保持（STEP-0005 旧 note 原样保留，step6 + 本 scorecard 为最终更正记录）。更正实质闭环，判 fixed。
+
+## 三、上轮 9 条 OPEN 全量复核
+
+| 条目 | 上轮状态 | 本轮裁定 |
+|---|---|---|
+| S2 | fixed(verified) | 维持 fixed——三真臂 747/747 零回归；守卫残留已由 N1-b 兑现关闭 |
+| S4 | fixed(verified) | 维持 fixed（本轮未触碰 src） |
+| S5 | fixed(verified) | 维持 fixed |
+| S6 | fixed(verified) | 维持 fixed（CHANGELOG pending 措辞保留，与 B4 边界一致） |
+| S7 | fixed(verified) | 维持 fixed（403 臂零回归） |
+| S9 | fixed(verified) | 维持 fixed（step6 evidence 续持 dist sha/R1 真值） |
+| N1 | OPEN（a 注释 + b 守卫单测） | **fixed（verified）**——见 §二；残留观察（非 OPEN）：字面 `!r.ok` 行（src/client/index.ts:167）因 sameOriginFetchText 模块私有仅合同级覆盖，直接执行需经 apply() 默认适配器 stub global.fetch，列为后续加固路径 |
+| N4 | OPEN | **fixed（verified）**——n4 注记在册并随哈希链固化；残留观察（非 OPEN）：n4 值为标记而非原因内联，原因永久在册于本文件 :270 与 scorecard B3-N4 条目 |
+| N5 | OPEN | **fixed（verified）**——见 §二 |
+
+## 四、评分（终审定谳）
+
+| 维度 | 分值 | 上轮 | 本轮 | 证据 |
+|---|---:|---:|---:|---|
+| 正确性 | 25 | 25 | **25** | lint exit 0 / 747/747 exit 0 亲验；R1 INTACT 三侧独立复算；dist 双方一致；树净；哈希链 VALID |
+| 完整性 | 20 | 18 | **20** | 聚焦修复单 4/4 兑现且经 diff 自证；S2/S4/S5/S6/S7/S9/N1/N4/N5 九条全部 fixed(verified)；零占位符 |
+| 一致性 | 20 | 17 | **20** | 四条声明全部与盘面一致（Z35 家族登记以来首个零失实轮次）；STEP-0006 append-only 合规；checkpoint step6 evidence 六字段与亲测一致；CHANGELOG pending 措辞与 B4 边界一致 |
+| 可验证性 | 15 | 13 | **14** | 全部命令独立复现；「先执行→diff 自证→后声明」流程首次真实执行（逐条核得）；扣 1：N4 n4 标记 laconic（跳步原因未内联，需交叉引用 review-B3.md:270 / scorecard B3-N4） |
+| 安全回滚 | 10 | 10 | **10** | R1 INTACT 三侧同值、零写请求/零 token/零凭据字面量、零 del 改动、revert 可回滚、树净 |
+| 可维护性 | 10 | 9 | **9** | 注释失真消除、React mock 语义注释准确、测试卫生（403 臂与 N1-b 臂均 cleanup 收尾）；扣 1：字面 r.ok 行（src/client/index.ts:167）仅合同级覆盖，直接执行路径留作后续加固 |
+| **总分** | **100** | **92** | **98** | **≥98 → 最终验收放行** |
+
+硬阻断核对：正确性 25 ≥ 23 ✓；安全回滚 10 ≥ 9 ✓；测试 747/747 全绿 ✓；OPEN = 0 ✓；本轮无失实验证记录（四条声明 diff 自证全真）✓ → 无 §12.3 阻断。
+
+## 五、结论
+
+**PASS（B3 块最终验收放行）。** [阻断] 0、[建议] OPEN 0；两条非 OPEN 观察（N1-b 字面行直接执行路径、N4 n4 内联原因）已记录在案，属后续加固方向而非本块遗留缺陷（既定验收口径已满足）。
+
+放行附带条件（不属 B3 遗留）：
+1. **§11 收口动作（主线必做）**：`tasks/ZCTX-SIDEBAR/closures/closure.json` 截至本评审缺失（closures/ 目录为空）——主线须按 scorecards/B3.json 的 dispositions 机械转录建账（fixed/verified + evidence 路径），零 OPEN 后 §11 收口门方可通过。
+2. B4 归口不变（device_items_deferred 在册）：V8 真机四项（标签出现/点击开面板/数据实时/DSH 不被顶掉）、S4 真机观感与图标 baseline、N2 发布门（CHANGELOG "pending final sign-off" 随 B4 真机证据闭环后方可随包发布）。
