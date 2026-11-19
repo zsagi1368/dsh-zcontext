@@ -184,6 +184,7 @@ export {
   attachUi,
   createSnapshotSource,
   createTokenSource,
+  createTransitionSink,
   detectFaceActivation,
   registerUiRoutes,
   UI_PAGE_HTML,

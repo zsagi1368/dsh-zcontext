@@ -112,7 +112,7 @@ import type {
   ValidatorConfig,
   WireSnapshot,
 } from './types.ts'
-import { attachUi, createSnapshotSource, unknownFaceHealth } from './ui/index.ts'
+import { attachUi, createSnapshotSource, createTransitionSink, detectFaceActivation } from './ui/index.ts'
 import type { FaceHealthView, ZctxSnapshot } from './ui/index.ts'
 
 /** Service name the plugin registers under. */
@@ -341,6 +341,8 @@ export class ZcontextPlugin extends ServiceBase {
   private toolFaceRegistered = 0
   private toolFaceBuilt = 0
   private guidanceRegistered = false
+  /** Transition-deduping visible sink for face degradation (Z28: stderr, not ctx.logger). */
+  private readonly faceSink = createTransitionSink()
   /** The UI snapshot source (thin delegate behind public `snapshotFor`). */
   private readonly snapshotSource: ReturnType<typeof createSnapshotSource>
 
@@ -469,24 +471,24 @@ export class ZcontextPlugin extends ServiceBase {
   }
 
   /**
-   * Face-health view (B3 phase one: honest unknown; B4 replaces the body with
-   * the tri-state probe + visible sink). Counts are maintained by wire*Face.
+   * Face-health view (D5): the three-signal tri-state probe over observable
+   * wire*Face counters + host capabilities, with a transition-deduping visible
+   * sink (stderr). Recomputed on every call — no memoized absence (Z25).
    */
   faceHealth(): FaceHealthView {
-    if (this.toolFaceBuilt === 0 && this.toolFaceRegistered === 0 && !this.guidanceRegistered) {
-      return unknownFaceHealth()
-    }
-    return {
-      state: this.toolFaceRegistered > 0 && this.guidanceRegistered ? 'active' : 'degraded',
-      evidence: [
-        { signal: 'tools.register', ok: this.toolFaceRegistered > 0, detail: `registered=${this.toolFaceRegistered} built=${this.toolFaceBuilt}` },
-        { signal: 'system-prompt.guidance', ok: this.guidanceRegistered, detail: this.guidanceRegistered ? 'registered' : 'absent' },
-      ],
-      probedAt: Date.now(),
-      summary: this.toolFaceRegistered > 0 && this.guidanceRegistered
-        ? 'tools + guidance face 在盘（完整三重探针见 B4）'
-        : 'face 部分激活（完整三重探针见 B4）',
-    }
+    const session = this.currentSession()
+    const sessionId = (session as { id?: unknown } | undefined)?.id
+    const guardRecords = typeof sessionId === 'string'
+      ? (this.guardBridge.summary(sessionId)?.total ?? 0)
+      : 0
+    return detectFaceActivation(this.ctx, {
+      toolFaceRegistered: this.toolFaceRegistered,
+      toolFaceBuilt: this.toolFaceBuilt,
+      guidanceRegistered: this.guidanceRegistered,
+      observeWired: this.observe !== undefined,
+      guardBridgePresent: this.guardBridge !== undefined,
+      guardRecordsSeen: guardRecords,
+    }, this.faceSink)
   }
 
   // -- face wiring -----------------------------------------------------------
