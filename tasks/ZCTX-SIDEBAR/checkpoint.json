@@ -1,10 +1,10 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-SIDEBAR",
-  "step": 3,
-  "block": "B3-rework-r1",
+  "step": 4,
+  "block": "B3-rework-r2",
   "status": "done",
-  "ts": "2026-11-19T08:08:31.631Z",
+  "ts": "2026-11-19T15:23:21.029Z",
   "artifacts": [
     {
       "path": "client-half"
@@ -13,7 +13,7 @@
       "path": "tests"
     },
     {
-      "path": "READMEs"
+      "path": "CHANGELOG"
     },
     {
       "path": "dist"
@@ -22,15 +22,13 @@
   "evidence": {
     "tsc": "0 errors",
     "handshake": "5/5 PASS",
-    "tests": "744/744",
+    "tests": "746/746",
     "commits": [
-      "c67247f",
-      "b811efc",
-      "8543e0a",
-      "9daa1ca"
+      "9daa1ca",
+      "fd6997c"
     ]
   },
-  "next": "B3 re-review",
-  "prev_hash": "dd404c4bc85d4af54efd55833befe6d5796b9bf0ff16df91ed0d349941f1874e",
-  "hash": "7835e13ad224cd82212d164c29c4958802acd312fbd42745c7348fc77ddde9c7"
+  "next": "B3 re-review r2",
+  "prev_hash": "7835e13ad224cd82212d164c29c4958802acd312fbd42745c7348fc77ddde9c7",
+  "hash": "6c9665fdc6de04d54c2a9e50d258a6f6645e95e3240d45a196db71deaf05936c"
 }
