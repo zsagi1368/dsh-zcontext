@@ -226,17 +226,18 @@ export function parsePanelSnapshot(text: string): PanelSnapshot {
     const cache = (raw.cache ?? {}) as Record<string, unknown>
     const folds = Array.isArray(raw.folds) ? raw.folds.length : undefined
     const ranges = Array.isArray(raw.ranges) ? raw.ranges.length : undefined
-    return {
-      sessionId: typeof raw.sessionId === 'string' ? raw.sessionId : undefined,
-      sessionResolution: typeof raw.sessionResolution === 'string' ? raw.sessionResolution : undefined,
-      faceState: typeof face.state === 'string' ? face.state : undefined,
-      foldCount: folds,
-      pressurePct: t !== undefined && l !== undefined && l > 0 ? (t / l) * 100 : undefined,
-      cacheSamples: typeof cache.samples === 'number' ? cache.samples : undefined,
-      cacheMeasured: cache.measured === true,
-      ranges,
-      degraded: raw.degraded === true,
-    }
+    // Only defined fields land in the view model (an empty snapshot stays `{}`).
+    const view: Record<string, unknown> = {}
+    if (typeof raw.sessionId === 'string') view.sessionId = raw.sessionId
+    if (typeof raw.sessionResolution === 'string') view.sessionResolution = raw.sessionResolution
+    if (typeof face.state === 'string') view.faceState = face.state
+    if (folds !== undefined) view.foldCount = folds
+    if (t !== undefined && l !== undefined && l > 0) view.pressurePct = (t / l) * 100
+    if (typeof cache.samples === 'number') view.cacheSamples = cache.samples
+    if (cache.measured === true) view.cacheMeasured = true
+    if (ranges !== undefined) view.ranges = ranges
+    if (raw.degraded === true) view.degraded = true
+    return view as PanelSnapshot
   } catch {
     return {}
   }

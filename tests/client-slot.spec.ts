@@ -21,6 +21,7 @@ import {
   inject as fiberInject,
   apply,
   parseSummary,
+  parsePanelSnapshot,
   createSummaryCard,
   fiber,
   type ClientCtx,
@@ -80,8 +81,9 @@ describe('ZCTX-UI D6: client fiber identity + inject gate (V7)', () => {
     const ctx = slotsCtx()
     const React = mockReact()
     apply(ctx, { React, fetchText: async () => '{}' })
-    expect(ctx.injected).toEqual(['settings.section'])
-    expect(ctx.registered).toHaveLength(1)
+    // ZCTX-SIDEBAR adds `main` + `sidebar.panellist` injections alongside the card.
+    expect(ctx.injected).toContain('settings.section')
+    expect(ctx.registered.filter((r) => r.opts.name === 'settings.section')).toHaveLength(1)
     const opts = ctx.registered[0].opts
     expect(opts).toMatchObject({ name: 'settings.section', id: 'dsh-zcontext-summary', order: 50, registrant: 'dsh-zcontext' })
     expect(Object.prototype.hasOwnProperty.call(opts, 'priority')).toBe(false)
@@ -123,8 +125,12 @@ describe('ZCTX-UI D6: client fiber identity + inject gate (V7)', () => {
       },
     }
     apply(ctx, { React: undefined, fetchText: async () => '{}', document: doc as never })
-    expect(ctx.registered).toHaveLength(1)
-    const component = ctx.registered[0].component as () => { tag: string; href: string; target: string; text: string; node?: unknown }
+    // React absent: the CARD still degrades to a plain link; the sidebar panel
+    // is React-only and contributes no `main` component (capability gate).
+    const cards = ctx.registered.filter((r) => r.opts.name === 'settings.section')
+    expect(cards).toHaveLength(1)
+    expect(ctx.registered.filter((r) => r.opts.name === 'main')).toHaveLength(0)
+    const component = cards[0].component as () => { tag: string; href: string; target: string; text: string; node?: unknown }
     expect(typeof component).toBe('function')
     // TRUE render assertion: invoke the component and inspect the product.
     const rendered = component()
@@ -243,5 +249,68 @@ describe('ZCTX-UI D6/B6: bundle factory contract (Z1)', () => {
     expect(pkg.exports['./client']).toBe('./dist/client.cjs')
     // bundle patch entry unchanged
     expect(pkg.dsh.bundle).toEqual({ patch: './cordis.patch.yml' })
+  })
+})
+
+describe('ZCTX-SIDEBAR A1 — left-menu entry + central panel', () => {
+  const PANEL_ID = 'dsh-zcontext.panel'
+
+  it('registers sidebar.panellist with the panel id, order and a text label thunk', () => {
+    const ctx = slotsCtx()
+    apply(ctx, { React: mockReact(), fetchText: async () => '{}' })
+    const entry = ctx.registered.find((r) => r.opts.name === 'sidebar.panellist')
+    expect(entry).toBeDefined()
+    expect(entry?.opts.id).toBe(PANEL_ID)
+    expect(typeof entry?.opts.order).toBe('number')
+    // label is a thunk (re-read on each projection so locale can change)
+    expect(typeof entry?.opts.label).toBe('function')
+    expect((entry?.opts.label as () => string)()).toBe('zcontext')
+  })
+
+  it('registers the SAME key on `main` so the menu entry selects this panel', () => {
+    const ctx = slotsCtx()
+    apply(ctx, { React: mockReact(), fetchText: async () => '{}' })
+    const panel = ctx.registered.find((r) => r.opts.name === 'main')
+    expect(panel).toBeDefined()
+    // The binding invariant: panellist.id === main.key.
+    expect(panel?.opts.key).toBe(PANEL_ID)
+    expect(typeof panel?.component).toBe('function')
+  })
+
+  it('injects main and sidebar.panellist through the capability gate', () => {
+    const ctx = slotsCtx()
+    apply(ctx, { React: mockReact(), fetchText: async () => '{}' })
+    expect(ctx.injected).toContain('sidebar.panellist')
+    expect(ctx.injected).toContain('main')
+  })
+
+  it('degrades to a no-op (no throw, no PENDING) when the slots service is absent', () => {
+    const bare = { get: () => undefined } as unknown as ClientCtx
+    expect(() => apply(bare, { React: mockReact() })).not.toThrow()
+  })
+
+  it('parsePanelSnapshot derives the panel view model from the live API shape', () => {
+    const parsed = parsePanelSnapshot(JSON.stringify({
+      sessionId: 'session-abc',
+      sessionResolution: 'latest-watched',
+      faceHealth: { state: 'active' },
+      window: { totalTokens: { value: 50000 }, limitTokens: { value: 200000 } },
+      folds: [{ id: 'f1' }, { id: 'f2' }],
+      ranges: [{ seq: 1 }],
+      cache: { samples: 7, measured: true },
+      degraded: false,
+    }))
+    expect(parsed.sessionId).toBe('session-abc')
+    expect(parsed.faceState).toBe('active')
+    expect(parsed.foldCount).toBe(2)
+    expect(parsed.pressurePct).toBeCloseTo(25, 5)
+    expect(parsed.cacheSamples).toBe(7)
+    expect(parsed.cacheMeasured).toBe(true)
+    expect(parsed.ranges).toBe(1)
+  })
+
+  it('parsePanelSnapshot tolerates malformed JSON without throwing', () => {
+    expect(parsePanelSnapshot('not json')).toEqual({})
+    expect(parsePanelSnapshot('{}')).toEqual({})
   })
 })
