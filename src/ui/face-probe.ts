@@ -27,7 +27,7 @@ export type FaceState = 'active' | 'degraded' | 'absent'
 
 /** One probe signal's outcome. `detail` is human-readable and never leaks credentials. */
 export interface FaceEvidence {
-  readonly signal: 'tools.register' | 'system-prompt.guidance' | 'guard-observe' | 'observe'
+  readonly signal: 'tools.register' | 'system-prompt.guidance' | 'guard-observe' | 'observe' | 'webServer'
   readonly ok: boolean
   readonly detail: string
 }
@@ -40,6 +40,13 @@ export interface FaceProbeState {
   readonly observeWired: boolean
   readonly guardBridgePresent: boolean
   readonly guardRecordsSeen: number
+  /**
+   * Whether the host webServer service is available (ZCTX-UI P0). When false,
+   * the four /zctx-ui routes cannot register and the UI is unreachable — the
+   * probe surfaces this so "UI empty" vs "face dead" stays distinguishable.
+   * Optional so legacy/probe-unit callers keep the 3-signal semantics.
+   */
+  readonly webServerPresent?: boolean
 }
 
 /** The view consumed by the snapshot and rendered in the UI "view" block. */
@@ -152,13 +159,29 @@ export function detectFaceActivation(
     evidence.push({ signal: 'guard-observe', ok: false, detail: `probe fault: ${error instanceof Error ? error.message : String(error)}` })
   }
 
-  // Tri-state ruling (DESIGN §4.1).
+  // Signal 4 — webServer (ZCTX-UI P0): the host HTTP surface the UI routes need.
+  // Only asserted when the caller supplies the flag (legacy 3-signal callers
+  // are unaffected). A missing webServer is a DEGRADE, never 'active'.
+  let webServerOk = true
+  if (state.webServerPresent !== undefined) {
+    webServerOk = state.webServerPresent
+    evidence.push({
+      signal: 'webServer',
+      ok: webServerOk,
+      detail: webServerOk
+        ? 'webServer service available — /zctx-ui routes can register'
+        : 'webServer service unavailable — /zctx-ui routes NOT registered (UI unreachable)',
+    })
+  }
+
+  // Tri-state ruling (DESIGN §4.1). webServer absent forces a degrade: the UI
+  // cannot be served, so reporting 'active' would be a false-green.
   const anyCapability = toolsCapable || guidanceCapable
   const anyFlag = toolsOk || guidanceOk || state.toolFaceBuilt > 0 || state.observeWired || state.guardBridgePresent
-  const active = toolsOk && guidanceOk && (state.observeWired || state.guardBridgePresent)
+  const active = webServerOk && toolsOk && guidanceOk && (state.observeWired || state.guardBridgePresent)
   const result: FaceState = active
     ? 'active'
-    : (!anyCapability && !anyFlag)
+    : (!anyCapability && !anyFlag && webServerOk)
       ? 'absent'
       : 'degraded'
 
@@ -167,7 +190,7 @@ export function detectFaceActivation(
     evidence,
     probedAt,
     summary: active
-      ? '桌面 face 三重信号齐全（tools + guidance + observe/guard），已激活'
+      ? '桌面 face 三重信号齐全（tools + guidance + observe/guard），webServer 在位，已激活'
       : result === 'degraded'
         ? 'face 部分信号缺席或被拒：' + evidence.filter((e) => !e.ok).map((e) => e.signal).join(', ')
         : '桌面 face 未激活（无 tools/guidance/observe 信号）',

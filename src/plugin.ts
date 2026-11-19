@@ -249,6 +249,14 @@ export class ZcontextPlugin extends ServiceBase {
    *   - `commands`     interaction/commands/src/index.ts:277 `super(ctx, 'commands')`
    *   - `llm`          llm/llm/src/index.ts:354            `super(ctx, 'llm')`
    *   - `tokenMeter`   llm/token-meter/src/index.ts:111    `super(ctx, 'tokenMeter')`
+   *   - `webServer`    host/webserver/src/index.ts (the web/desktop profile
+   *                    provides it; ZCTX-UI P0 — without this declaration
+   *                    `ctx.get('webServer')` returns undefined while that
+   *                    provider is not ACTIVE, so the UI routes silently never
+   *                    registered on the real desktop host: GET /zctx-ui → 404).
+   *                    The dsh-headless profile does NOT mount dsh-zcontext at
+   *                    all, so no headless PENDING regression; the route layer
+   *                    still capability-probes `register` and degrades no-op.
    *
    * P3 HF-02 (AUD-host-faces §8): the v0.2.1 declaration also listed
    * `'sessions'` — a DECLARED-BUT-NEVER-READ key (grep across src: zero
@@ -270,7 +278,7 @@ export class ZcontextPlugin extends ServiceBase {
    * `ctx.logger` (own Context property, cordis context.ts:81) and `ctx.on`
    * (mixin accessor) need no declaration.
    */
-  static inject: string[] = ['tools', 'systemPrompt', 'commands', 'llm', 'tokenMeter']
+  static inject: string[] = ['tools', 'systemPrompt', 'commands', 'llm', 'tokenMeter', 'webServer']
   static Config: ConfigSchemaLike = configSchema
 
   /** Host context (structural duck-type; capability-probed per face). */
@@ -488,6 +496,17 @@ export class ZcontextPlugin extends ServiceBase {
     const guardRecords = typeof sessionId === 'string'
       ? (this.guardBridge.summary(sessionId)?.total ?? 0)
       : 0
+    // ZCTX-UI P0: probe the host webServer service so the UI can self-diagnose
+    // "webServer unavailable → routes not registered" (was silent before).
+    let webServerPresent = false
+    try {
+      const c = this.ctx as unknown as { get?(key: string): unknown; webServer?: unknown }
+      const candidate = c?.get?.('webServer') ?? c?.webServer
+      webServerPresent = candidate !== undefined && candidate !== null
+        && typeof (candidate as { register?: unknown }).register === 'function'
+    } catch {
+      webServerPresent = false
+    }
     return detectFaceActivation(this.ctx, {
       toolFaceRegistered: this.toolFaceRegistered,
       toolFaceBuilt: this.toolFaceBuilt,
@@ -495,6 +514,7 @@ export class ZcontextPlugin extends ServiceBase {
       observeWired: this.observe !== undefined,
       guardBridgePresent: this.guardBridge !== undefined,
       guardRecordsSeen: guardRecords,
+      webServerPresent,
     }, this.faceSink)
   }
 

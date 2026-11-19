@@ -2243,7 +2243,7 @@ interface ConfigWriteResult {
 type FaceState = 'active' | 'degraded' | 'absent';
 /** One probe signal's outcome. `detail` is human-readable and never leaks credentials. */
 interface FaceEvidence {
-  readonly signal: 'tools.register' | 'system-prompt.guidance' | 'guard-observe' | 'observe';
+  readonly signal: 'tools.register' | 'system-prompt.guidance' | 'guard-observe' | 'observe' | 'webServer';
   readonly ok: boolean;
   readonly detail: string;
 }
@@ -2255,6 +2255,13 @@ interface FaceProbeState {
   readonly observeWired: boolean;
   readonly guardBridgePresent: boolean;
   readonly guardRecordsSeen: number;
+  /**
+   * Whether the host webServer service is available (ZCTX-UI P0). When false,
+   * the four /zctx-ui routes cannot register and the UI is unreachable — the
+   * probe surfaces this so "UI empty" vs "face dead" stays distinguishable.
+   * Optional so legacy/probe-unit callers keep the 3-signal semantics.
+   */
+  readonly webServerPresent?: boolean;
 }
 /** The view consumed by the snapshot and rendered in the UI "view" block. */
 interface FaceHealthView {
@@ -2505,6 +2512,14 @@ declare class ZcontextPlugin extends ServiceBase {
    *   - `commands`     interaction/commands/src/index.ts:277 `super(ctx, 'commands')`
    *   - `llm`          llm/llm/src/index.ts:354            `super(ctx, 'llm')`
    *   - `tokenMeter`   llm/token-meter/src/index.ts:111    `super(ctx, 'tokenMeter')`
+   *   - `webServer`    host/webserver/src/index.ts (the web/desktop profile
+   *                    provides it; ZCTX-UI P0 — without this declaration
+   *                    `ctx.get('webServer')` returns undefined while that
+   *                    provider is not ACTIVE, so the UI routes silently never
+   *                    registered on the real desktop host: GET /zctx-ui → 404).
+   *                    The dsh-headless profile does NOT mount dsh-zcontext at
+   *                    all, so no headless PENDING regression; the route layer
+   *                    still capability-probes `register` and degrades no-op.
    *
    * P3 HF-02 (AUD-host-faces §8): the v0.2.1 declaration also listed
    * `'sessions'` — a DECLARED-BUT-NEVER-READ key (grep across src: zero
