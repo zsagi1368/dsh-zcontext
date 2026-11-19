@@ -72,6 +72,8 @@ export interface DocumentLike {
 export interface LinkRender {
   readonly tag: 'a'
   readonly href: string
+  /** New tab: opening the panel must never navigate away from the DSH window. */
+  readonly target: '_blank'
   readonly text: string
   /** The real DOM anchor when a document is available; absent in bare Node. */
   readonly node?: unknown
@@ -161,7 +163,7 @@ export function createSummaryCard(
     return e('div', { className: 'zctx-summary' },
       e('h3', null, 'zcontext 摘要 (BETA)'),
       e('div', { className: 'zctx-stats' }, stats),
-      e('a', { href: '/zctx-ui' }, '打开 zcontext 面板 →'),
+      e('a', { href: '/zctx-ui', target: '_blank', rel: 'noopener noreferrer' }, '打开 zcontext 面板 →'),
     )
   }
 }
@@ -180,13 +182,15 @@ export function createFallbackLink(doc?: DocumentLike): (() => LinkRender) {
       try {
         const anchor = doc.createElement('a')
         anchor.setAttribute('href', '/zctx-ui')
+        anchor.setAttribute('target', '_blank')
+        anchor.setAttribute('rel', 'noopener noreferrer')
         anchor.textContent = text
         node = anchor
       } catch {
         /* DOM best-effort; descriptor still carries the link */
       }
     }
-    return { tag: 'a', href: '/zctx-ui', text, ...(node !== undefined ? { node } : {}) }
+    return { tag: 'a', href: '/zctx-ui', target: '_blank', text, ...(node !== undefined ? { node } : {}) }
   }
 }
 

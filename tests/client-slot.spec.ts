@@ -110,26 +110,36 @@ describe('ZCTX-UI D6: client fiber identity + inject gate (V7)', () => {
         const node = {
           tag,
           href: '',
+          target: '',
+          rel: '',
           textContent: '',
-          setAttribute(name: string, value: string) { if (name === 'href') node.href = value },
+          setAttribute(name: string, value: string) {
+            if (name === 'href') node.href = value
+            if (name === 'target') node.target = value
+            if (name === 'rel') node.rel = value
+          },
         }
         return node
       },
     }
     apply(ctx, { React: undefined, fetchText: async () => '{}', document: doc as never })
     expect(ctx.registered).toHaveLength(1)
-    const component = ctx.registered[0].component as () => { tag: string; href: string; text: string; node?: unknown }
+    const component = ctx.registered[0].component as () => { tag: string; href: string; target: string; text: string; node?: unknown }
     expect(typeof component).toBe('function')
     // TRUE render assertion: invoke the component and inspect the product.
     const rendered = component()
     expect(rendered).not.toBeNull()
     expect(rendered.tag).toBe('a')
     expect(rendered.href).toBe('/zctx-ui')
+    // New tab: opening the panel must NOT navigate away from the DSH window.
+    expect(rendered.target).toBe('_blank')
     expect(rendered.text.length).toBeGreaterThan(0)
-    // The real DOM anchor was created with the href + label.
+    // The real DOM anchor was created with href + target + label.
     expect(rendered.node).toBeDefined()
-    const anchor = rendered.node as { href: string; textContent: string }
+    const anchor = rendered.node as { href: string; target: string; rel: string; textContent: string }
     expect(anchor.href).toBe('/zctx-ui')
+    expect(anchor.target).toBe('_blank')
+    expect(anchor.rel).toContain('noopener')
     expect(anchor.textContent.length).toBeGreaterThan(0)
   })
 })
