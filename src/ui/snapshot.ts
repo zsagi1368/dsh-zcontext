@@ -2,8 +2,8 @@
  * Realtime process-memory snapshot source (ZCTX-UI DESIGN §2) — D1.
  *
  * HARD RULE (DESIGN §0 / §2.1 / R1): this is a THIN WRAPPER over existing
- * accessors. It does NOT re-implement budget / range / attribution math, does
- * NOT call `llm.stream`, registers NO `llm/stream` listener, and is strictly
+ * accessors. It does NOT re-implement budget / range / attribution math, never
+ * touches the model stream or registers any stream listener, and is strictly
  * READ-ONLY. Every number carries honest provenance (measured / estimated /
  * unknown) so the UI never presents an estimate as a fact.
  *

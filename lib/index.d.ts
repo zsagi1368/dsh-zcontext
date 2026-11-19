@@ -2195,6 +2195,230 @@ declare function renderStatus(runtime: ZctxToolRuntime, session: SessionLike): P
  * defineTool implementation (host's official one, or the fail-soft shim).
  */
 declare function buildZctxTools(defineTool: DefineToolFn, runtime: ZctxToolRuntime): ZctxToolDefinition[];
+/**
+ * Overlay config write channel (ZCTX-UI DESIGN §3.4) — D2.
+ *
+ * HARD RULE (DESIGN §0/#3, §9/#4): configuration is written ONLY through the
+ * host `ctx.configEditor.edit(entry, change)` API. The plugin never does fs
+ * writes to `cordis.patch.yml` directly. Only the 13 allow-listed keys are
+ * accepted; no credentials, no `providers`, no R1 segment.
+ *
+ * Capability probe: when no configEditor / no `dsh-zcontext` entry exists, the
+ * caller returns 503 — never a fabricated success and never a throw.
+ *
+ * @module ui/config-write
+ */
+/** The nine core fold/budget fields + four face switches (DESIGN §3.4). */
+declare const UI_CONFIG_KEYS: readonly ["enabled", "nudgeThresholds", "keepRecentTokens", "maxFoldFraction", "minFoldableTokens", "protectionFloorTokens", "summaryFloorChars", "summaryCeilingChars", "netShrinkTolerance", "observe.enabled", "patch.guardObserveEvents", "autofold.enabled", "preflightMode"];
+type UiConfigKey = (typeof UI_CONFIG_KEYS)[number];
+interface ConfigWriteResult {
+  readonly ok: boolean;
+  /** Reason when !ok: 'unavailable' (no service/entry) or 'invalid' (bad patch). */
+  readonly error?: 'unavailable' | 'invalid';
+}
+/**
+ * Desktop face-activation probe contract (ZCTX-UI DESIGN §4).
+ *
+ * PHASE-ONE SCOPE (B3): this module defines the full tri-state vocabulary
+ * (`FaceState` / `FaceEvidence` / `FaceProbeState` / `detectFaceActivation`)
+ * and an honest minimal view derived from observable plugin state. The full
+ * three-signal probe + visible sink (stderr fail-soft, never memoized) is
+ * delivered in B4 — the seam and types are already stable so the snapshot API
+ * and UI can consume `faceHealth` without churn.
+ *
+ * The probe is a machine-readable judgement of "is the zctx face alive in THIS
+ * composition" (V5, BENCH-L2 prerequisite) — it is NOT a claim to solve
+ * BENCH-L2, which stays `user_approved_deferred` until real-device tri-evidence.
+ *
+ * @module ui/face-probe
+ */
+/** Tri-state activation grade. */
+type FaceState = 'active' | 'degraded' | 'absent';
+/** One probe signal's outcome. `detail` is human-readable and never leaks credentials. */
+interface FaceEvidence {
+  readonly signal: 'tools.register' | 'system-prompt.guidance' | 'guard-observe' | 'observe';
+  readonly ok: boolean;
+  readonly detail: string;
+}
+/** Observable counters the plugin hands the probe (DESIGN §4.1). */
+interface FaceProbeState {
+  readonly toolFaceRegistered: number;
+  readonly toolFaceBuilt: number;
+  readonly guidanceRegistered: boolean;
+  readonly observeWired: boolean;
+  readonly guardBridgePresent: boolean;
+  readonly guardRecordsSeen: number;
+}
+/** The view consumed by the snapshot and rendered in the UI "view" block. */
+interface FaceHealthView {
+  readonly state: FaceState;
+  readonly evidence: readonly FaceEvidence[];
+  readonly probedAt: number;
+  readonly summary: string;
+}
+/**
+ * Honest phase-one face view. With a `FaceProbeState` supplied, derive the
+ * tri-state from the observable counts; with no state (the common B3 path),
+ * return an `absent`-with-unknown view that explicitly says the full probe
+ * lands in B4 — never a fabricated "active".
+ *
+ * @param state optional observable counters (B4 wires the real probe body)
+ * @param sink  optional visible sink; fail-soft degradation writes here (B4 uses stderr by default)
+ */
+declare function detectFaceActivation(state?: FaceProbeState, sink?: (line: string) => void): FaceHealthView;
+/** A phase-one "no state" view — an explicit, honest unknown, not a fake active. */
+declare function unknownFaceHealth(): FaceHealthView;
+/** Provenance of a displayed number: measured=instrumented / estimated=model / unknown=unavailable / none=no data. */
+type Basis = 'measured' | 'estimated' | 'unknown' | 'none';
+/** A number tagged with how it was obtained. */
+interface MarkedNumber {
+  readonly value: number;
+  readonly basis: Basis;
+}
+/** The immutable process-memory snapshot returned by `snapshotFor`. */
+interface ZctxSnapshot {
+  readonly version: 1;
+  readonly generatedAt: number;
+  readonly sessionId: string | undefined;
+  /** How the session was resolved — explicit / latest-watched / none (never silent). */
+  readonly sessionResolution: 'explicit' | 'latest-watched' | 'none';
+  readonly window: {
+    /** From the already-resolved model-info window cache; measured source, never fabricated. */
+    readonly contextWindow: number | undefined;
+    /** tokenMeter.measure → measured; failure → unknown. */
+    readonly totalTokens: MarkedNumber | undefined;
+    /** totalTokens / contextWindow * 100 when both are known. */
+    readonly pressurePct: number | undefined;
+    readonly routed: {
+      provider: string;
+      model: string;
+    } | undefined;
+  };
+  readonly budget: Readonly<Budget> | undefined;
+  /** Foldable ranges — estimatedTokens has built-in estimated semantics. */
+  readonly ranges: readonly NudgeRange[];
+  readonly folds: readonly FoldLedgerEntry[];
+  readonly attribution: {
+    readonly threeState: ThreeStateCounts;
+    readonly cleanSampleRatio: number;
+    readonly clean: boolean;
+    readonly breakevenTable: readonly BreakevenTableRow[];
+    readonly resetSummary: readonly ResetSummaryRow[];
+    readonly foldCount: number;
+    /** Σ(before - after); basis follows the dominant three-state grade. */
+    readonly netTokensSaved: MarkedNumber;
+  } | undefined;
+  readonly cache: {
+    readonly samples: number;
+    readonly measured: boolean;
+    readonly basis: 'measured' | 'estimated' | 'none';
+    readonly latest?: {
+      readonly cacheReadTokens?: number;
+      readonly cacheWriteTokens?: number;
+      readonly measured: boolean;
+    };
+  };
+  /** Face health — session independent; full tri-state probe + visible sink lands in B4. */
+  readonly faceHealth: FaceHealthView;
+  /** Honest degradation rows (same vocabulary as zctx_status). */
+  readonly degraded: readonly string[];
+}
+/** Injected dependencies of the snapshot source (DESIGN §2.2, dependency seam). */
+interface SnapshotDeps {
+  /** The existing runtime carrying storeFor / validatorConfig / tokenMeter / cleanSampleFloor. */
+  readonly runtime: ZctxToolRuntime;
+  /** Explicit id → live session (resolveWatchedSession); never falls back on miss. */
+  readonly resolveSession: (id: string) => SessionLike | undefined;
+  /** Default session (currentSession) when no id was supplied. */
+  readonly currentSession: () => SessionLike | undefined;
+  /** Cached context window for a session (windowCache); measured source. */
+  readonly windowFor: (session: SessionLike) => number | undefined;
+  /** Face-health view (session independent); B4 replaces the body with the tri-state probe. */
+  readonly faceHealth: () => FaceHealthView;
+}
+/** Config view returned by GET /api/config. */
+interface ConfigView {
+  readonly fields: Record<string, unknown>;
+  readonly faceSwitches: Record<string, unknown>;
+  readonly writable: boolean;
+}
+/** Injected dependencies of the UI route bundle. */
+interface UiRouteDeps {
+  readonly ctx: unknown;
+  /** The inline page HTML (D3). A token placeholder is replaced at registration. */
+  readonly pageHtml: string;
+  readonly snapshotFor: (sessionId?: string) => ZctxSnapshot;
+  readonly getConfig: () => ConfigView;
+  readonly writeConfig: (patch: Partial<Record<UiConfigKey, unknown>>) => ConfigWriteResult;
+  /** Capability probe seam — defaults to ctx.get('webServer'). Overridable in tests. */
+  readonly webServer?: WebServerLike;
+}
+interface WebServerLike {
+  register(route: {
+    kind: 'exact' | 'prefix';
+    path: string;
+    handler: (req: unknown, res: unknown) => void | Promise<void>;
+  }): () => void;
+}
+/**
+ * Register all four UI routes. Returns a disposer that unregisters them; the
+ * disposer is also hooked into `ctx.effect` when that seam exists (RA1d/FileHub
+ * precedent). If no webServer is present (CLI headless), the whole UI surface
+ * is skipped with a no-op disposer — never a throw, never PENDING.
+ */
+declare function registerUiRoutes(deps: UiRouteDeps): () => void;
+/** Runtime token source — no literal, ever. */
+declare function createTokenSource(): {
+  token(): string;
+};
+/**
+ * Create a snapshot source from injected dependencies. The dependency seam is
+ * what lets unit tests inject a known ledger (V1) without constructing a live
+ * host; production wires it from `ZcontextPlugin` (DESIGN §2.2).
+ */
+declare function createSnapshotSource(deps: SnapshotDeps): {
+  snapshotFor(sessionId?: string): ZctxSnapshot;
+};
+/**
+ * Inline UI page for the zcontext realtime panel (ZCTX-UI DESIGN §3.5) — D3.
+ *
+ * Delivered as a single inline HTML string compiled into lib/index.js: zero
+ * build, zero runtime fs read, zero path-traversal surface (DESIGN §3.5). The
+ * bridge token placeholder is replaced by `registerUiRoutes` at registration
+ * time, so the page is bound to the exact token of this process session.
+ *
+ * HARD RULES:
+ *   - Written with the Write tool (Z23/条目32/A14: NEVER heredoc for HTML/JS).
+ *   - The embedded JS uses string CONCATENATION, never `${...}` template syntax,
+ *     so it cannot collide with this TS template literal's interpolation.
+ *   - Data goes over same-origin HTTP only; the UI never enters the model
+ *     stream or the session wire (V3/R1: no billed tokens are burned).
+ *   - BETA honesty boundary: the UI solves "view/stats without opening a
+ *     session"; it does NOT eliminate all fold tokens (autofold still spends).
+ *
+ * @module ui/page
+ */
+/**
+ * The token placeholder (a plain marker, not a credential). registerUiRoutes
+ * replaces every occurrence with the runtime-generated bridge token.
+ */
+declare const UI_TOKEN_PLACEHOLDER = "__ZCTX_BRIDGE_TOKEN__";
+/**
+ * Complete single-file page: inline CSS + inline JS, three blocks
+ * (查看 / 统计 / 设置), 5s polling, same-origin fetch with token header.
+ */
+declare const UI_PAGE_HTML = "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>zcontext 面板 · BETA</title>\n<style>\n  :root { color-scheme: dark; }\n  * { box-sizing: border-box; }\n  body { margin: 0; font-family: -apple-system, \"Segoe UI\", system-ui, sans-serif;\n         background: #10131a; color: #e6e9ef; font-size: 14px; line-height: 1.5; }\n  header { padding: 14px 20px; border-bottom: 1px solid #262c3a; display: flex;\n           align-items: baseline; gap: 12px; flex-wrap: wrap; }\n  header h1 { margin: 0; font-size: 17px; font-weight: 650; }\n  .beta { font-size: 11px; color: #f0b429; border: 1px solid #f0b429; border-radius: 4px;\n          padding: 1px 6px; }\n  .meta { margin-left: auto; color: #8b93a7; font-size: 12px; }\n  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));\n         gap: 16px; padding: 18px 20px; max-width: 1500px; }\n  section { background: #171b25; border: 1px solid #262c3a; border-radius: 10px;\n            padding: 16px; min-width: 0; }\n  section h2 { margin: 0 0 12px; font-size: 14px; font-weight: 650; color: #cdd4e3;\n               border-bottom: 1px solid #262c3a; padding-bottom: 8px; }\n  .row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; }\n  .row .k { color: #8b93a7; }\n  .row .v { font-variant-numeric: tabular-nums; text-align: right; }\n  .badge { font-size: 10px; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }\n  .measured { background: #1c4a2e; color: #7ee2a8; }\n  .estimated { background: #4a3a1c; color: #e7c27a; }\n  .unknown { background: #3a3f4d; color: #aeb6c7; }\n  .none { background: #2a2f3b; color: #798195; }\n  table { width: 100%; border-collapse: collapse; font-size: 12px; }\n  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #222838; }\n  th { color: #8b93a7; font-weight: 500; }\n  td.num { text-align: right; font-variant-numeric: tabular-nums; }\n  .scroll { max-height: 220px; overflow: auto; }\n  .face { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }\n  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }\n  .dot.active { background: #3ecf8e; }\n  .dot.degraded { background: #f0b429; }\n  .dot.absent { background: #e05561; }\n  .degraded-line { color: #e7c27a; font-size: 12px; }\n  label.f { display: block; margin: 8px 0; }\n  label.f span { display: block; color: #8b93a7; margin-bottom: 3px; }\n  input[type=text], input[type=number], select { width: 100%; background: #0f131c; color: #e6e9ef;\n    border: 1px solid #333b4e; border-radius: 5px; padding: 6px 8px; font-family: inherit; }\n  .chk { display: flex; align-items: center; gap: 8px; margin: 6px 0; }\n  .chk input { width: auto; }\n  button { background: #2f6fed; color: #fff; border: 0; border-radius: 6px;\n           padding: 9px 16px; font-size: 14px; cursor: pointer; margin-top: 8px; }\n  button:disabled { background: #394154; cursor: not-allowed; }\n  .note { font-size: 12px; color: #8b93a7; margin-top: 10px; }\n  .msg { font-size: 12px; margin-top: 8px; min-height: 16px; }\n  .msg.ok { color: #7ee2a8; }\n  .msg.err { color: #e05561; }\n  .empty { color: #798195; font-style: italic; }\n</style>\n</head>\n<body>\n<header>\n  <h1>zcontext 实时面板</h1>\n  <span class=\"beta\">BETA</span>\n  <span class=\"meta\" id=\"meta\">加载中…</span>\n</header>\n<main>\n  <section>\n    <h2>查看 · 实时账本（5s 轮询）</h2>\n    <div id=\"view-body\"><div class=\"empty\">暂无活动会话</div></div>\n  </section>\n  <section>\n    <h2>统计 · 累计折叠 / 回本 / 缓存</h2>\n    <div id=\"stats-body\"><div class=\"empty\">暂无活动会话</div></div>\n  </section>\n  <section>\n    <h2>设置 · 配置 overlay</h2>\n    <form id=\"settings-form\"></form>\n    <div class=\"msg\" id=\"settings-msg\"></div>\n    <div class=\"note\">保存后下次加载生效，不热更新已挂载的 face。写入仅经宿主 configEditor 落到 profile overlay。</div>\n  </section>\n</main>\n<script>\n(function () {\n  'use strict';\n  window.__ZCTX_TOKEN__ = '__ZCTX_BRIDGE_TOKEN__';\n  var TOKEN = window.__ZCTX_TOKEN__;\n  var session = null; // locked to first observed session id, then reused\n  var formBuilt = false;\n\n  function authHeaders(extra) {\n    var h = { 'x-zctx-token': TOKEN };\n    if (extra) { for (var k in extra) { if (extra.hasOwnProperty(k)) h[k] = extra[k]; } }\n    return h;\n  }\n  function api(path) {\n    return fetch(path, { headers: authHeaders() }).then(function (r) {\n      if (!r.ok) throw new Error('HTTP ' + r.status);\n      return r.json();\n    });\n  }\n  function esc(s) {\n    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n  }\n  function badge(basis) {\n    var b = basis || 'none';\n    return '<span class=\"badge ' + b + '\">' + b + '</span>';\n  }\n  function num(v) { return (typeof v === 'number' && isFinite(v)) ? v.toLocaleString() : 'n/a'; }\n  function rows(pairs) {\n    return pairs.map(function (p) {\n      return '<div class=\"row\"><span class=\"k\">' + esc(p[0]) + '</span><span class=\"v\">' + p[1] + '</span></div>';\n    }).join('');\n  }\n  function table(headers, data) {\n    if (!data.length) return '<div class=\"empty\">(空)</div>';\n    var h = '<table><thead><tr>' + headers.map(function (x) { return '<th>' + esc(x) + '</th>'; }).join('') + '</tr></thead><tbody>';\n    return h + data.map(function (cells) {\n      return '<tr>' + cells.map(function (c, i) {\n        return '<td' + (i > 0 ? ' class=\"num\"' : '') + '>' + c + '</td>';\n      }).join('') + '</tr>';\n    }).join('') + '</tbody></table>';\n  }\n\n  function renderView(s) {\n    var w = s.window || {};\n    var tt = w.totalTokens || {};\n    var budget = s.budget || {};\n    var face = s.faceHealth || {};\n    var head = rows([\n      ['会话', s.sessionId ? esc(s.sessionId) : '（无）'],\n      ['解析路径', esc(s.sessionResolution || 'none')],\n      ['上下文窗口', num(w.contextWindow) + badge('measured')],\n      ['已用 tokens', num(tt.value) + badge(tt.basis)],\n      ['压力', (typeof w.pressurePct === 'number' ? w.pressurePct.toFixed(1) + '%' : 'n/a')],\n      ['路由', w.routed ? esc(w.routed.provider + '/' + w.routed.model) : 'n/a'],\n      ['触发线', num(budget.triggerLine)],\n      ['face 健康', '<span class=\"face\"><span class=\"dot ' + esc(face.state || 'absent') + '\"></span>' + esc(face.state || 'absent') + '</span>']\n    ]);\n    var cache = s.cache || {};\n    var cl = rows([\n      ['样本数', num(cache.samples)],\n      ['cache 口径', badge(cache.basis)],\n      ['缓存读取', cache.latest && cache.latest.cacheReadTokens !== undefined ? num(cache.latest.cacheReadTokens) + badge(cache.latest.measured ? 'measured' : 'estimated') : 'n/a'],\n      ['缓存写入', cache.latest && cache.latest.cacheWriteTokens !== undefined ? num(cache.latest.cacheWriteTokens) : 'n/a']\n    ]);\n    var rangeRows = (s.ranges || []).map(function (r) {\n      return [r.startSeq + '-' + r.endSeq, num(r.estimatedTokens), r.protected ? 'protected' : '可折叠'];\n    });\n    var foldRows = (s.folds || []).map(function (f) {\n      return [esc(f.foldId), esc(f.status), f.startSeq + '-' + f.endSeq, num(f.tokensBefore - f.tokensAfter)];\n    });\n    var deg = (s.degraded || []).map(function (d) { return '<div class=\"degraded-line\">- ' + esc(d) + '</div>'; }).join('');\n    var faceDetail = (face.evidence || []).map(function (e) {\n      return '<div class=\"degraded-line\">' + (e.ok ? '[OK] ' : '[--] ') + esc(e.signal) + ': ' + esc(e.detail) + '</div>';\n    }).join('');\n    document.getElementById('view-body').innerHTML =\n      head +\n      '<h2 style=\"font-size:12px;margin:12px 0 4px;border:0;padding:0\">窗口 / 预算 / 缓存</h2>' +\n      // budget six lines appended below\n      rows([\n        ['max output cap', num(budget.maxOutputCap)],\n        ['reserve', num(budget.reserve)],\n        ['pessimistic reserve', num(budget.pessimisticReserve)],\n        ['keep-recent', num(budget.keepRecent)],\n        ['summary input cap', num(budget.summaryInputCap)],\n        ['reply cap', num(budget.replyCap)]\n      ]) + cl +\n      '<h2 style=\"font-size:12px;margin:12px 0 4px;border:0;padding:0\">可折叠区间</h2>' +\n      '<div class=\"scroll\">' + table(['区间 seq', '估算 tokens', '状态'], rangeRows) + '</div>' +\n      '<h2 style=\"font-size:12px;margin:12px 0 4px;border:0;padding:0\">折叠账本</h2>' +\n      '<div class=\"scroll\">' + table(['foldId', '状态', '覆盖', '净省'], foldRows) + '</div>' +\n      (face.summary ? '<h2 style=\"font-size:12px;margin:12px 0 4px;border:0;padding:0\">face 诊断</h2><div class=\"degraded-line\">' + esc(face.summary) + '</div>' + faceDetail : '') +\n      deg;\n  }\n\n  function renderStats(s) {\n    var a = s.attribution || {};\n    var ts = a.threeState || { measured: 0, semi: 0, estimated: 0 };\n    var total = ts.measured + ts.semi + ts.estimated;\n    var pct = function (n) { return total > 0 ? (n / total * 100).toFixed(1) + '%' : '0%'; };\n    var repaid = (a.breakevenTable || []).filter(function (r) { return r.repaid === true; }).length;\n    var head = rows([\n      ['累计折叠', num(a.foldCount)],\n      ['净省 tokens', num(a.netTokensSaved && a.netTokensSaved.value) + badge(a.netTokensSaved && a.netTokensSaved.basis)],\n      ['回本次数', num(repaid) + ' / ' + num((a.breakevenTable || []).length)],\n      ['纯净样本占比', (typeof a.cleanSampleRatio === 'number' ? (a.cleanSampleRatio * 100).toFixed(1) + '%' : 'n/a') + (a.clean ? ' [可信]' : ' [不足·结论保留]')],\n      ['三态 measured', pct(ts.measured) + badge('measured')],\n      ['三态 semi', pct(ts.semi)],\n      ['三态 estimated', pct(ts.estimated) + badge('estimated')],\n      ['cache 实测占比', badge(s.cache && s.cache.basis)]\n    ]);\n    var resetRows = (a.resetSummary || []).map(function (r) { return [esc(r.kind), num(r.count)]; });\n    document.getElementById('stats-body').innerHTML =\n      head +\n      '<h2 style=\"font-size:12px;margin:12px 0 4px;border:0;padding:0\">重置台账摘要</h2>' +\n      table(['类型', '次数'], resetRows);\n  }\n\n  var FIELDS = [\n    ['enabled', 'enabled (boolean)', 'boolean'],\n    ['nudgeThresholds', 'nudgeThresholds', 'text'],\n    ['keepRecentTokens', 'keepRecentTokens', 'number'],\n    ['maxFoldFraction', 'maxFoldFraction', 'number'],\n    ['minFoldableTokens', 'minFoldableTokens', 'number'],\n    ['protectionFloorTokens', 'protectionFloorTokens', 'number'],\n    ['summaryFloorChars', 'summaryFloorChars', 'number'],\n    ['summaryCeilingChars', 'summaryCeilingChars', 'number'],\n    ['netShrinkTolerance', 'netShrinkTolerance', 'number']\n  ];\n  var SWITCHES = [\n    ['observe.enabled', 'observe.enabled'],\n    ['patch.guardObserveEvents', 'patch.guardObserveEvents'],\n    ['autofold.enabled', 'autofold.enabled']\n  ];\n\n  function buildForm(cfg) {\n    if (formBuilt) return;\n    var f = cfg.fields || {}, fs = cfg.faceSwitches || {};\n    var html = '';\n    FIELDS.forEach(function (spec) {\n      var key = spec[0], label = spec[1], type = spec[2];\n      var val = f[key];\n      if (type === 'boolean') {\n        html += '<label class=\"chk\"><input type=\"checkbox\" data-key=\"' + key + '\" data-type=\"boolean\"' + (val === true ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';\n      } else {\n        html += '<label class=\"f\"><span>' + esc(label) + '</span><input type=\"text\" data-key=\"' + key + '\" data-type=\"' + type + '\" value=\"' + esc(val === undefined ? '' : val) + '\"></label>';\n      }\n    });\n    html += '<h2 style=\"font-size:12px;margin:14px 0 4px;border:0;padding:0\">face 开关</h2>';\n    SWITCHES.forEach(function (spec) {\n      var key = spec[0], label = spec[1];\n      var val = fs[key] !== undefined ? fs[key] : f[key];\n      html += '<label class=\"chk\"><input type=\"checkbox\" data-key=\"' + key + '\" data-type=\"boolean\"' + (val === true ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';\n    });\n    html += '<label class=\"f\"><span>preflightMode (off|observe|enforce)</span><select data-key=\"preflightMode\" data-type=\"select\">' +\n      ['off', 'observe', 'enforce'].map(function (m) {\n        var cur = fs.preflightMode !== undefined ? fs.preflightMode : f.preflightMode;\n        return '<option value=\"' + m + '\"' + (cur === m ? ' selected' : '') + '>' + m + '</option>';\n      }).join('') + '</select></label>';\n    html += '<button type=\"submit\" id=\"settings-save\"' + (cfg.writable ? '' : ' disabled') + '>保存 overlay</button>';\n    if (!cfg.writable) html += '<div class=\"note\">当前 composition 无 configEditor，设置只读。</div>';\n    document.getElementById('settings-form').innerHTML = html;\n    formBuilt = true;\n    document.getElementById('settings-form').addEventListener('submit', function (ev) {\n      ev.preventDefault();\n      saveSettings();\n    });\n  }\n\n  function saveSettings() {\n    var form = document.getElementById('settings-form');\n    var patch = {};\n    var inputs = form.querySelectorAll('[data-key]');\n    for (var i = 0; i < inputs.length; i++) {\n      var el = inputs[i];\n      var key = el.getAttribute('data-key');\n      var type = el.getAttribute('data-type');\n      if (type === 'boolean') patch[key] = !!el.checked;\n      else if (type === 'number') { var n = Number(el.value); patch[key] = isFinite(n) ? n : el.value; }\n      else patch[key] = el.value;\n    }\n    var msg = document.getElementById('settings-msg');\n    msg.className = 'msg';\n    msg.textContent = '保存中…';\n    fetch('/zctx-ui/api/config', {\n      method: 'POST',\n      headers: authHeaders({ 'content-type': 'application/json' }),\n      body: JSON.stringify(patch)\n    }).then(function (r) {\n      return r.json().then(function (j) { return { ok: r.ok, body: j }; });\n    }).then(function (res) {\n      msg.className = 'msg ' + (res.ok ? 'ok' : 'err');\n      msg.textContent = res.ok ? '已保存，下次加载生效。' : ('保存失败：' + (res.body && res.body.error || ('HTTP ' + (res.ok ? 200 : 500))));\n    }).catch(function (e) {\n      msg.className = 'msg err';\n      msg.textContent = '保存失败：' + e.message;\n    });\n  }\n\n  function refresh() {\n    var url = '/zctx-ui/api/snapshot' + (session ? '?session=' + encodeURIComponent(session) : '');\n    api(url).then(function (s) {\n      if (!session && s.sessionId) session = s.sessionId;\n      document.getElementById('meta').textContent =\n        (s.sessionId ? esc(s.sessionId) : '无会话') + ' · ' + new Date(s.generatedAt).toLocaleTimeString();\n      renderView(s);\n      renderStats(s);\n    }).catch(function (e) {\n      document.getElementById('meta').textContent = '快照读取失败：' + e.message;\n    });\n    if (!formBuilt) {\n      api('/zctx-ui/api/config').then(buildForm).catch(function () { /* settings stay empty on error */ });\n    }\n  }\n\n  refresh();\n  setInterval(refresh, 5000);\n})();\n</script>\n</body>\n</html>\n";
+/** Accessors the plugin injects (all pre-existing methods, DESIGN §2.1). */
+interface UiAccessors {
+  /** The plugin's snapshot source (shared by the public method and the route). */
+  readonly snapshotFor: (sessionId?: string) => ZctxSnapshot;
+  /** Current config values for the settings form (from plugin.config). */
+  readonly configValues: () => Record<string, unknown>;
+  /** Optional webServer override (tests); production resolves via ctx.get. */
+  readonly webServer?: UiRouteDeps['webServer'];
+}
+/** Attach the four UI routes to a host context. Returns the route disposer. */
+declare function attachUi(ctx: unknown, accessors: UiAccessors): () => void;
 /** Nudge context registration metadata (official PromptContext subset). */
 declare const NUDGE_CONTEXT_NAME = "zctx-nudge";
 /** Nudge context join order (after core layers, before the guidance section). */
@@ -2329,7 +2553,24 @@ declare class ZcontextPlugin extends ServiceBase {
   private patchMountState;
   private patchHost;
   private patchHostLoaded;
+  /**
+   * ZCTX-UI face-activation counters (DESIGN §4 / B4 seam): wire*Face records
+   * successful registrations here so the face probe can render an honest view.
+   * Only additions — the degrade/skip semantics of each face are unchanged.
+   */
+  private toolFaceRegistered;
+  private toolFaceBuilt;
+  private guidanceRegistered;
+  /** The UI snapshot source (thin delegate behind public `snapshotFor`). */
+  private readonly snapshotSource;
   constructor(ctx: HostContextLike, config?: Partial<ZcontextConfig>);
+  /** Read-only process-memory snapshot (thin delegate). Never touches the wire. */
+  snapshotFor(sessionId?: string): ZctxSnapshot;
+  /**
+   * Face-health view (B3 phase one: honest unknown; B4 replaces the body with
+   * the tri-state probe + visible sink). Counts are maintained by wire*Face.
+   */
+  faceHealth(): FaceHealthView;
   /** session/event feed: maintain live stores + warm the window cache. @internal */
   private wireSessionFeed;
   /** The four zctx tools (defineTool-wrapped; S8: no isConcurrencySafe). @internal */
@@ -2746,5 +2987,5 @@ declare function createZctxAdapterClass(Base: abstract new () => unknown): new (
  */
 /** Plugin identity exported for loader probes. */
 declare const name = "dsh-zcontext";
-export { type AdapterFaces, type AttributionFoldEntry, type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type ClassifyAttributionInput, type CommittedFold, type ConfigSchemaLike, type DefineToolFn, type EngineAnomaly, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type HostImagePriceLike, type HostImagePricingLike, type HostLlmFace, KNOWN_PROTOCOLS, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, type MappingFace, type MappingSource, type MeterAnchorLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, PER_IMAGE_FALLBACK_TOKENS, PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE, type ParamSpec, type PiAiApiStreams, type PiAiFace, type PrefixBreakRecord, type PrefixBreakResetRef, type PreflightCalibrationRecord, type PreflightDeps, type PreflightEstimate, type PreflightImagePricing, type PreflightJudgment, PreflightListener, type PreflightMode, type PreflightOutcome, type PreflightStoreAccess, type PreflightStreamListener, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type ResolvedZctxModel, type ResolvedZctxProvider, type RouteHeader, type SnapshotAggregationInput, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, type UsageRecord, type UsageRecordSemiKind, type UsageRecordState, type UsageSample, type UsageSnapshot, type WireFaces, type WireRequestIdentity, type WireSink, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxAdapterDeps, type ZctxAdapterFace, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxProviderConfig, type ZctxProviderModelConfig, type ZctxProvidersSection, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, assertZctxProvidersResolvable, billedInputTokens, buildGuidanceSection, buildObservabilitySnapshot, buildPreflightErrorFinish, buildWireFaces, buildZctxCommand, buildZctxTools, ccmWindowGate, classifyFoldAttribution, cleanSampleRatio, computeBreakevenReport, computeBudget, configDefaults, configSchema, createZctxAdapterClass, crossedThresholds, estimateProjectedRequest, estimateTokens, fold, foldableRanges, judgeEstimate, loadAdapterFaces, loadSupportedProtocols, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, requestHeaders, resolveDefineTool, resolveMarginRatio, resolveZctxProviders, unfold, validateFold, zctxDisplayNameOf, zctxRouteOf };
+export { type AdapterFaces, type AttributionFoldEntry, type Basis, type BreakevenTableRow, CCM_MIN_CONTEXT_WINDOW, type CapturedAttemptUsage, type CcmWindowGate, type ClassifyAttributionInput, type CommittedFold, type ConfigSchemaLike, type ConfigView, type DefineToolFn, type EngineAnomaly, type FaceEvidence, type FaceHealthView, type FaceProbeState, type FaceState, type FoldCommitResult, type FoldLedgerEntry, type FoldLedgerStatus, type FoldSessionLike, FoldStore, type FoldSubmission, type FoldSurfaceIntent, type FoldUsageAttribution, type HostContextLike, type HostImagePriceLike, type HostImagePricingLike, type HostLlmFace, KNOWN_PROTOCOLS, type LlmCallConfigAdapterDefaultsLike, type LlmCallConfigLike, type LlmRuntimeLike, type LoggerLike, type MappingFace, type MappingSource, type MarkedNumber, type MeterAnchorLike, NUDGE_CONTEXT_NAME, NUDGE_CONTEXT_ORDER, type ObservabilitySnapshot, PER_IMAGE_FALLBACK_TOKENS, PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE, type ParamSpec, type PiAiApiStreams, type PiAiFace, type PrefixBreakRecord, type PrefixBreakResetRef, type PreflightCalibrationRecord, type PreflightDeps, type PreflightEstimate, type PreflightImagePricing, type PreflightJudgment, PreflightListener, type PreflightMode, type PreflightOutcome, type PreflightStoreAccess, type PreflightStreamListener, type RequestSnapshot, type ResetEvent, type ResetEventKind, type ResetSummaryRow, type ResolvedZctxModel, type ResolvedZctxProvider, type RouteHeader, type SnapshotAggregationInput, type SnapshotDeps, type SnapshotProjector, type StoreAnomaly, type ThreeStateCounts, type TokenMeterLike, UI_PAGE_HTML, UI_TOKEN_PLACEHOLDER, type UiAccessors, type UiRouteDeps, type UsageRecord, type UsageRecordSemiKind, type UsageRecordState, type UsageSample, type UsageSnapshot, type WireFaces, type WireRequestIdentity, type WireSink, type ZcontextConfig, ZcontextPlugin, ZcontextPlugin as default, type ZctxAdapterDeps, type ZctxAdapterFace, type ZctxCommandDefinition, type ZctxCommandResult, type ZctxProviderConfig, type ZctxProviderModelConfig, type ZctxProvidersSection, type ZctxSnapshot, type ZctxToolDefinition, type ZctxToolRuntime, type ZctxToolSpec, assertZctxProvidersResolvable, attachUi, billedInputTokens, buildGuidanceSection, buildObservabilitySnapshot, buildPreflightErrorFinish, buildWireFaces, buildZctxCommand, buildZctxTools, ccmWindowGate, classifyFoldAttribution, cleanSampleRatio, computeBreakevenReport, computeBudget, configDefaults, configSchema, createSnapshotSource, createTokenSource, createZctxAdapterClass, crossedThresholds, detectFaceActivation, estimateProjectedRequest, estimateTokens, fold, foldableRanges, judgeEstimate, loadAdapterFaces, loadSupportedProtocols, materializeRange, name, nudgeContextText, parseFoldContent, parseThresholds, recall, registerUiRoutes, renderFoldReply, renderNudge, renderStatus, renderUnfoldReply, requestHeaders, resolveDefineTool, resolveMarginRatio, resolveZctxProviders, unfold, unknownFaceHealth, validateFold, zctxDisplayNameOf, zctxRouteOf };
 //# sourceMappingURL=index.d.ts.map

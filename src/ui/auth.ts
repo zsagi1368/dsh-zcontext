@@ -86,18 +86,23 @@ export function hasValidToken(req: WebReqLike, expectedToken: string): boolean {
   return header.length > 0 && tokenMatches(header, expectedToken)
 }
 
-/** Read authorization (DESIGN §3.3 arms 1-4). */
+/** Read authorization (DESIGN §3.3 arms 1-4). A PRESENT token header is
+ * authoritative: a wrong token fails closed (no fall-through to loopback) —
+ * aligned with AutoPilot authorizeAction's direct `return header === token`. */
 export function authorizeRequest(req: WebReqLike, expectedToken: string): boolean {
-  if (hasValidToken(req, expectedToken)) return true
+  const header = firstHeader(req, 'x-zctx-token') ?? ''
+  if (header.length > 0) return tokenMatches(header, expectedToken)
   // No token header: origin present → same-origin; absent → loopback.
   const origin = firstHeader(req, 'origin')
   if (origin !== undefined && origin.length > 0) return isSameOrigin(req)
   return isLoopback(req)
 }
 
-/** Write authorization — stricter: token OR (same-origin AND loopback). */
+/** Write authorization — stricter: token OR (same-origin AND loopback).
+ * Present-but-wrong token fails closed (same rule as read authorization). */
 export function authorizeWrite(req: WebReqLike, expectedToken: string): boolean {
-  if (hasValidToken(req, expectedToken)) return true
+  const header = firstHeader(req, 'x-zctx-token') ?? ''
+  if (header.length > 0) return tokenMatches(header, expectedToken)
   return isSameOrigin(req) && isLoopback(req)
 }
 

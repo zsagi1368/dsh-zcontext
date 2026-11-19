@@ -23,7 +23,7 @@ import {
   type WebReqLike,
   type WebResLike,
 } from './auth.ts'
-import { sanitizePatch, type ConfigWriteResult } from './config-write.ts'
+import { sanitizePatch, type ConfigWriteResult, type UiConfigKey } from './config-write.ts'
 import type { ZctxSnapshot } from './types.ts'
 
 /** Config view returned by GET /api/config. */
@@ -40,7 +40,7 @@ export interface UiRouteDeps {
   readonly pageHtml: string
   readonly snapshotFor: (sessionId?: string) => ZctxSnapshot
   readonly getConfig: () => ConfigView
-  readonly writeConfig: (patch: unknown) => ConfigWriteResult
+  readonly writeConfig: (patch: Partial<Record<UiConfigKey, unknown>>) => ConfigWriteResult
   /** Capability probe seam — defaults to ctx.get('webServer'). Overridable in tests. */
   readonly webServer?: WebServerLike
 }
