@@ -1,0 +1,32 @@
+{
+  "schema": "task/v1",
+  "id": "ZCTX-SIDEBAR",
+  "title": "zcontext 原生左菜单栏标签+侧栏面板（替代 webview 链接）",
+  "type": "DEV",
+  "owner": "main",
+  "depends": [],
+  "priority": "high",
+  "budget": { "max_minutes": 150, "max_agents": 3, "max_rework_rounds": 2 },
+  "base_sha": "a75246e",
+  "branch": "feat/ZCTX-SIDEBAR",
+  "worktree": "worktrees/ZCTX-SIDEBAR",
+  "acceptance": [
+    "V1 panellist 注册 zcontext 标签（id/order/label）",
+    "V2 main.<key> panel 注册且点击渲染",
+    "V3 panel 同源 fetch snapshot 5s 刷新（查看/统计）",
+    "V4 设置区只读+跳完整页入口（U-2 降级诚实）",
+    "V5 inject ['slots'] 最小集+缺席降级不 PENDING",
+    "V6 R1 段 8e2d0b7e… 不变+握手真语法校验（Z35）",
+    "V7 全量测试绿+tsc 0+工作树净",
+    "V8 真机：点标签开面板、DSH 不被顶掉、数据实时"
+  ],
+  "artifacts": ["docs/specs/ZCTX-SIDEBAR/options.md", "reports/plans/ZCTX-SIDEBAR-plan.md", "tasks/ZCTX-SIDEBAR/*", "src/client/index.ts", "dist/client.cjs"],
+  "constraints": [
+    "方向裁定 A1（主内容区 panel，基于用户'左侧菜单栏'字面）；基于字面非用户逐字确认，报告如实标注",
+    "U-2 写 token 洞：设置写降级为跳完整页，不在 slot panel 直接写（非目标）",
+    "坑册：Z1 单参 factory / Z21+Z25 inject 最小集+能力探测降级 / Z34+Z35 真机 tab 验证+握手真语法校验 / 条目32+A68",
+    "R1 红线零请求体改写；SUPPORTED 段 8e2d0b7e… 字节不变",
+    "禁写可用凭据字面量；bridge token 沿用运行时生成"
+  ],
+  "status": "open"
+}

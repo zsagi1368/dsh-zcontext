@@ -1,0 +1,1 @@
+[2026-11-19] STEP-0001 | block=B1 | status=done | artifacts=RES-SIDEBAR-TAB.md(361行 SHA 749a368e)+VERIFY-SIDEBAR.md(7/7确认); options.md(A1方向裁定); plan.md; task.json(V1-V8) | 方向U-1按用户'左侧菜单栏'字面裁定A1(主内容区panel),非逐字确认如实标注; U-2写洞=设置降级跳完整页 | 过程自纠:plan V6曾混入占位符→清除 | next=B2 coder

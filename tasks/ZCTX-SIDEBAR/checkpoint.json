@@ -1,0 +1,22 @@
+{
+  "schema": "checkpoint/v1",
+  "task": "ZCTX-SIDEBAR",
+  "step": 1,
+  "block": "B1",
+  "status": "done",
+  "ts": "2026-11-19T06:06:17.537Z",
+  "artifacts": [
+    {
+      "path": "docs/specs/ZCTX-SIDEBAR/options.md"
+    },
+    {
+      "path": "reports/plans/ZCTX-SIDEBAR-plan.md"
+    },
+    {
+      "path": "tasks/ZCTX-SIDEBAR/task.json"
+    }
+  ],
+  "next": "B2 coder",
+  "prev_hash": "",
+  "hash": "dd404c4bc85d4af54efd55833befe6d5796b9bf0ff16df91ed0d349941f1874e"
+}
