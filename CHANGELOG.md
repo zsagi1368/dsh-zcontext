@@ -23,9 +23,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com); versioning follow
 - **Face tri-state probe** with a visible fail-soft sink: distinguishes "no
   data" from "the desktop face is not active" (never fabricated zeros; fetch
   failures surface as an honest error row, B3-S7).
-- **desktop real-machine acceptance**: `/zctx-ui` HTTP 200 with live snapshot
-  JSON, faceHealth `active` (4 signals), config writable — the BENCH-L2
-  "desktop face unverified" item is now real-machine verified.
+- **desktop acceptance** (pending final sign-off): `/zctx-ui` HTTP 200 with a
+  live snapshot JSON and faceHealth `active` (4 signals) was observed during
+  the ZCTX-UI wave; the sidebar-panel wave reuses that same surface and its
+  own tab/panel visibility is verified per the sidebar acceptance matrix.
 
 ## [0.3.0] - 2026-11-16
 

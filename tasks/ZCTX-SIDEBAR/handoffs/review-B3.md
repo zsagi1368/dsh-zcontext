@@ -299,3 +299,78 @@ client banner handshake: all checks PASS
 ## 七、结论
 
 **PASS（中间合入放行）。** [阻断] 0：B3-B1 / B3-B2 已修复并经本轮独立 verified。[建议] 残留 OPEN 6 项：S2（测试缺口，含 r.ok 守卫）、S4（面板 CSS + 图标 wrapper）、S5（设置只读字段或 plan 修订）、S6（CHANGELOG）、S7（首读失败无提示行）、S9（progress 粘行 + checkpoint 证据缺项）；S1/S3/S8 判 fixed（verified）。以上 OPEN 项**不阻塞中间合入，阻塞最终验收**：最终验收前逐项落到 fixed/verified 或 user_approved_deferred（须用户真实批准并登记 owner/触发条件/复核日期），不得静默降级为「后续建议」。V8 真机项归 B4。
+
+---
+
+# ZCTX-SIDEBAR B3 终审报告（返工 r2 · 复评第 2 轮 = 终审 · 2026-11-19）
+
+- 评审对象：worktree `worktrees/ZCTX-SIDEBAR`，HEAD `11e94f7`（返工 r2=`fd6997c` + checkpoint step4 落盘=`11e94f7`）；评审范围 `5047c2c..11e94f7`（fd6997c：7 文件 383+/95-，含评审与落盘文件；业务面 src/tests/dist/CHANGELOG）
+- 评审人：reviewer-b3-final（终审，独立于实现作者 main；全部证据本轮独立重跑，评审人 ≠ 作者）
+- **结论：打回。总分 78/100（<98），触发 §12.3 硬阻断 1 项（失实验证记录 + 正确性 20 < 23）。**
+- 程序状态：本块返工评审已达第 2 轮上限（r1 打回 → r1 复评 91 PASS 中间合入 → r2 终审打回）。按 §12.4 / §1.4，**第 3 轮 coder 返工不可再自动派发，升级主线裁决**（聚焦修复清单见 §六，工作量约十行以内）。
+- V8 真机项：本轮未触碰真机，**无法验证**，归 B4（不阻断 B3）。
+
+## 一、亲跑验证（全部命令本轮独立执行）
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `npx tsc --noEmit` | **exit 2，2×TS2722**：`tests/client-slot.spec.ts(373,5)`、`(398,7)` — `Cannot invoke an object which is possibly 'undefined'`（`createPanelComponent` 返回 `(() => unknown) \| undefined`，两处 `component()` 未 narrowing）。**与返工声明「tsc --noEmit（0）」不符。** |
+| 定向测试 | `npx vitest run tests/client-slot.spec.ts` | 24/24 通过（vitest 转译不做类型检查，故能过；273ms） |
+| 构建 | `pnpm build` | tsdown 成功；握手 5/5 PASS（node-check-syntax / banner-single-arg / banner-id / footer-two-braces / no-three-arg） |
+| 全量测试 | `npx vitest run` | 35 文件 / **746/746 全绿**（2.98s；r1 时 744 → +2 新臂，零回归） |
+| R1 切片 | `git show <ref>:patcher/zctx-patch.mjs` 独立脚本切片重算（自 `export const SUPPORTED = {` 起、含对象闭合 `}\n\n`、不含段分隔行） | HEAD(11e94f7) / r2(fd6997c) / BASE(17d2360) **三侧同值 sha256=8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9（chars 14889 / bytes 14926）** → R1 INTACT |
+| 工作树 | build 后 `git status --porcelain` | **0 行**；dist/lib 重建与 HEAD 提交字节一致（构建可复现） |
+| checkpoint 链 | node 独立复算 | step1→step3→step4 `prev_hash` 衔接正确（dd404c4b→7835e13a→6c9665fd），逐条哈希可复现 → 链 VALID；step2 条目仍缺（沿用上轮跳步） |
+
+## 二、阻断（1 项，新增）
+
+### B3-B3｜[阻断] 类型检查门红 + 三处 tsc=0 失实验证记录（上轮 B3-B1 同机制复发）
+
+- **位置**：`tests/client-slot.spec.ts:373`（403 臂 `component()`）、`:398`（interval 臂 `component()`）；失实记录三处：返工 r2 声明、`tasks/ZCTX-SIDEBAR/progress.md` STEP-0004（「验证 tsc=0」）、`tasks/ZCTX-SIDEBAR/checkpoint.json` + checkpoint-history.jsonl step4 evidence（`"tsc": "0 errors"`）。
+- **问题**：`npx tsc --noEmit` 实测 exit 2（2×TS2722，strict 模式下 `createPanelComponent` 返回类型含 `undefined`，两新臂未 narrowing）。上轮 B3-B1 就是「tsc 红 + 失实证据」，STEP-0003 刚固化 RSI 教训（「曾写tsc=0未看真输出=失实证据，已认并改」），r2 在新增代码上立即复发。vitest/esbuild 不查类型所以 746 全绿，但项目质量门（`package.json` lint script = `tsc --noEmit`，tsconfig include 含 `tests/**/*.ts`）是红的。
+- **修复建议**（约 10 行内）：① 两臂 `component()` 前加 narrowing，如 `if (component === undefined) throw new Error('react mock must build panel')`（或 `component?.()` 改断言式）；② progress 按 append-only 追加更正行（修正 STEP-0004 的 tsc 记录，附真实 tsc 输出）；③ 下一 checkpoint evidence `tsc` 字段写真实值；④ RSI：上轮教训条目追加复发记录并加「跑完 lint 才准写 tsc=0」硬步骤。
+
+## 三、上轮 6 条 OPEN 逐条裁定（r2 声明 vs 本轮实测）
+
+| 条目 | r2 声明 | 实测裁定 | 证据 |
+|---|---|---|---|
+| S7 fetchError | 加 state+红字提示行 | **fixed（verified）** | `src/client/index.ts:296-297`（state）、`:306-314`（catch 设置/成功清空）、`:336-337`（渲染 `数据读取失败: …（保留上次快照，5s 后重试）`）；测试臂 `tests/client-slot.spec.ts:340-378`（HTTP 403 进 states 真断言，:377-378）。上轮残留 a)「无提示行」消除 |
+| S5 只读字段 | GET config fields 全量 k=v + 链接 | **fixed（verified，代码对照）** | `src/client/index.ts:299-301`（state）、`:318-323`（GET /zctx-ui/api/config → fields）、`:345-348`（`Object.entries(cfg)` 全量展示，空时「（配置未加载）」）、`:350`（保留 `/zctx-ui` 链接）。plan §4「只读字段 + 链接」承诺兑现；无专门测试臂（对照核验可接受） |
+| S4 CSS | 9 条规则 + 主题变量 | **fixed（verified）** | `src/client/index.ts:124-132`：.zctx-panel / -title / -face / h3 / -row / -note / -err / a / -icon 共 9 条，全部走 `var(--dsw-alias-*, fallback)`；与渲染端 class 一一对应。dist bundle 同步（grep 命中） |
+| S2 测试臂 | 3 真臂（403 / interval+cleanup / 零回归） | **fixed（verified，按声明口径）** | 臂 1（:340-378）：403 → fetchError 真断言；臂 2（:380-404）：interval=1 + cleanup cleared=1；③ 746/746 零回归。React 语义核验：useEffect mock 收集 cleanup 不立即调用，与 React「effect 立即跑、cleanup 推迟到卸载」一致，正确。残留 → 新建议 N1/N3 |
+| S6 CHANGELOG | [Unreleased] 节 | **fixed（verified）** | `CHANGELOG.md:5-26`：realtime web panel / native left-menu entry / face tri-state probe / desktop real-machine acceptance 四小节，内容与实现逐句一致。残留 → 新建议 N2（真机句超前声称） |
+| S9 落盘 | 粘行拆分 + checkpoint step4 补齐（含 746/R1 提及） | **半 fixed（部分 verified）** | 粘行拆分 ✓（STEP-0001/0002/0003/0004 各自独立行，cat -A 核验）；checkpoint step4 存在 ✓、tests 746/746 ✓、哈希链 VALID ✓。**但「R1 提及」不实**：checkpoint.json / checkpoint-history.jsonl / progress.md 全文 grep `R1\|8e2d0b7e` 零命中，上轮点名「补 dist sha256/R1 字段」未做；且 STEP-0004 tsc=0 记录失实（→ B3-B3） |
+
+裁定小结：6 条中 S4/S5/S6/S7 真修且 verified；S2 按声明口径 verified（守卫固化单测残留单列 N1）；S9 半兑现（剩余项并入 B3-B3 修复清单）。**上轮 6 条 OPEN 无「静默降级」问题，但 r2 的 S9 子项声明（R1 提及）与事实不符。**
+
+## 四、新增残留 [建议]（修 B3-B3 时顺带处理，单独不阻断）
+
+- **N1**：`tests/client-slot.spec.ts:355`（403 臂注释「the r.ok guard must reject the body text」）与实际覆盖不符——`failingFetch` 直接 throw，未走 `sameOriginFetchText` 的 r.ok 路径；该臂测的是 panel 的 catch→fetchError 面。r.ok 守卫行为 r1 已人工探针验证，但至今无固化单测。建议：补一条 `ok:false + 合法快照形状响应体` 的 fetchText mock 单测固化守卫。
+- **N2**：`CHANGELOG.md:22-26`「desktop real-machine acceptance … now real-machine verified」——V8 真机归 B4，本轮无真机证据；B4 闭环前该句超前。B4 过门后方可随包发布（发布门复核项）。
+- **N3**：403 臂（`tests/client-slot.spec.ts:373`）经真实全局 `setInterval` 创建了一个 5s 周期定时器且 cleanup 从未调用（该臂未 stub、未调 cleanup）——vitest worker 结束强杀无实际影响，属测试卫生；修 narrowing 时顺手 stub 或补调 cleanup。
+- **N4**：checkpoint-history.jsonl 数字跳步 step1→3→4（无 step2 条目；沿用上轮，r2 未处理也未声称处理，如实登记）。
+
+## 五、评分（终审）
+
+| 维度 | 分值 | r1 复评 | 本轮终审 | 证据 |
+|---|---:|---:|---:|---|
+| 正确性 | 25 | 24 | **20** | 源码功能修复真实有效（S4/S5/S6/S7 verified、746/746 全绿）；扣 5：tsc 门红 2×TS2722（质量门 fail，r1 同类问题复发）+ 三处 tsc=0 失实记录。<23 → 触发 §12.3 硬阻断 |
+| 完整性 | 20 | 17 | **17** | 6 条建议 5.5 条实质兑现；扣 3：S9 之 R1/dist sha 字段未补、r.ok 守卫固化单测缺（N1）、臂 1 注释覆盖面失实（N1） |
+| 一致性 | 20 | 18 | **14** | CHANGELOG 与实现一致、CSS 主题变量、plan §4 承诺兑现；扣 6：STEP-0004 + checkpoint step4 + 返工声明三处 tsc=0 与实测不符（-4）、CHANGELOG 真机句超前声称（-2） |
+| 可验证性 | 15 | 13 | **8** | 24/746/握手/R1 三侧切片/树净/dist 字节一致/链 VALID 均可复现；扣 7：核心声明 tsc=0 **复现失败（实测 exit 2）**（-5）、checkpoint 证据缺 dist sha/R1（-1）、history 跳步（-1） |
+| 安全回滚 | 10 | 10 | **10** | R1 INTACT 三侧同值复现、零写请求/零 token、零凭据、零 del 改动、树净、revert 可回滚 |
+| 可维护性 | 10 | 9 | **9** | CSS/组件/注释结构清晰、React mock 语义注释准确；扣 1：臂 1 定时器泄漏测试卫生（N3） |
+| **总分** | **100** | **91** | **78** | **<98 → 打回** |
+
+## 六、结论与程序裁定
+
+**打回（终审）。** §12.3 硬阻断：失实验证记录（三处 tsc=0，实测 exit 2）+ 正确性 20 < 23。
+
+按 §12.4 / §1.4，本块 reviewer↔coder 返工已达 2 轮上限，**升级主线裁决**。给主线的聚焦修复清单（工作量约十行以内，建议按「小修单」处理而非整块重开）：
+
+1. `tests/client-slot.spec.ts:373`、`:398` narrowing 修复 → `tsc --noEmit` exit 0（附真实输出）。
+2. progress append-only 更正 STEP-0004 tsc 记录 + 下一 checkpoint evidence 写真实值（RSI 教训复发记录）。
+3. 下一 checkpoint evidence 补 dist sha256 与 R1 值（上轮 S9 点名两项，r2 遗漏）。
+4. 顺带：N1（守卫固化单测 + 臂 1 注释更正）、N2（CHANGELOG 真机句待 B4 证据）、N3（臂 1 定时器 stub）。
+
+修后由独立 reviewer 做第 3 轮聚焦复评（仅验证上述清单 + 全量回归），≥98 放行最终验收。V8 真机项归 B4，不阻断 B3。

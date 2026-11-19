@@ -370,11 +370,13 @@ describe('ZCTX-SIDEBAR A1 — left-menu entry + central panel', () => {
     }
     const component = createPanelComponent(reactMock, failingFetch)
     expect(typeof component).toBe('function')
-    component() // effect mounts; the rejection lands on a microtask
+    component?.() // effect mounts; the rejection lands on a microtask
     await new Promise((resolve) => setTimeout(resolve, 0))
     // The error message surfaced (not swallowed into zeros), and the read ran.
     expect(calls).toBeGreaterThanOrEqual(1)
     expect(states.some((s) => typeof s === 'string' && String(s).includes('HTTP 403'))).toBe(true)
+    // N3: unmount at test end so the panel's real 5s interval never leaks.
+    for (const c of cleanups) { if (typeof c === 'function') c() }
   })
 
   it('B3-S2: polling creates exactly one interval; unmount cleanup clears it (no timer leak)', () => {
@@ -395,7 +397,7 @@ describe('ZCTX-SIDEBAR A1 — left-menu entry + central panel', () => {
     global.clearInterval = ((id: unknown) => { void id; cleared += 1 }) as typeof clearInterval
     try {
       const component = createPanelComponent(reactMock, async () => '{}')
-      component() // mount → exactly one interval
+      component?.() // mount → exactly one interval
       expect(intervals).toBe(1)
       expect(cleared).toBe(0)
       // Unmount → the collected cleanup clears the interval.
