@@ -89,3 +89,9 @@
 - 真机 P0（B6-RISK-1）：首装 `/zctx-ui` 404——根因 static inject 漏声明 webServer（Z21 同型，cordis get 未声明服务返回 undefined→路由静默跳过）；ce9cc7a 修复（inject 加 webServer+face 第 4 信号+5 测试）。重装 pin ce9cc7a 后决定性复测：**`/zctx-ui` HTTP 200 完整页面 + `/api/snapshot` 实时 JSON（availableSessions/sessionResolution=latest-watched/window 账本真值）+ faceHealth=active 四信号全 ok（tools.register registered=4）+ config GET 200 writable:true + 页面三块齐全**。BENCH-L2 桌面 face 未验证项在真机被证实为 active。
 - 应用户"每天省一点"偏好：桌面 profile pin 已从 a4ae662→90c9cd6→ce9cc7a 两次轮转（改前备份 I:/Dev/ZCode/workbuddy/del/20261119-zctx-ui-pin-prechange/）；app 已重启加载新 UI。
 - closure 5 项：V8-A3-4（primitive 可见性）、V8-A4-5（session 绑定）、V8-A2-4（非 loopback 只读）、V8-C-3（端到端真机）、BENCH-L2——真机终验后逐项定谳。
+
+## ZCTX-UI P0 client bundle（2026-11-19，tag 后续 main=6cea9f6）
+
+- 用户报设置页报错 "client-modules: loaded without registering dsh-zcontext"。根因：dist/client.cjs footer 少一个 `}`（factory 箭头函数体未闭合）→ 语法错误 → 脚本没执行 → __ModuleLoader__.load 从未调用；握手脚本正则假绿放行。
+- 修复（6cea9f6）：tsdown client footer 补 `}`；握手脚本改 node --check 真语法校验+严格双 `}` 断言（4→5 检查）；tests/client-slot.spec.ts 加 REAL PARSE+REAL EXECUTION 真臂（13→15）。737 测试绿、R1 不变式、零凭据字面量。
+- 真机：pin 6cea9f6 重装（网络超时重试一次，3m52s 成功）→ node --check 新 bundle CHECK=0、尾部双 `}` → 浏览器模拟执行 REG-OK（id/factory/exports 7 键全在）→ app 重启 UI 路由 200（端口 60628）、face active、config 200。设置页摘要卡加载失败已消除。
