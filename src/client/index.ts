@@ -35,6 +35,9 @@ export type ReactElementLike = unknown
 /** Minimal React factory surface the card needs. */
 export interface ReactLike {
   createElement(type: unknown, props?: Record<string, unknown> | null, ...children: unknown[]): ReactElementLike
+  /** Hook faces are capability-probed: a bare test double may omit them. */
+  useState?<T>(initial: T): [T, (next: T) => void]
+  useEffect?(effect: () => (() => void) | void, deps?: readonly unknown[]): void
 }
 
 /** Minimal styles service (provider signature: styles.insert(css): () => void). */
@@ -108,6 +111,9 @@ export interface SummaryData {
 
 const SLOT_KEY = 'settings.section'
 const CARD_ID = 'dsh-zcontext-summary'
+/** The left-menu panel id — the SAME value binds `sidebar.panellist` and `main`. */
+const PANEL_ID = 'dsh-zcontext.panel'
+const PANEL_ORDER = 60
 const CSS = [
   '.zctx-summary{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--dsw-alias-border-color, #444);border-radius:8px;background:var(--dsw-alias-bg-layer-1, transparent);}',
   '.zctx-summary h3{margin:0;font-size:var(--dsw-alias-font-size-lg, 15px);color:var(--dsw-alias-label-primary, inherit);}',
@@ -194,6 +200,107 @@ export function createFallbackLink(doc?: DocumentLike): (() => LinkRender) {
   }
 }
 
+/** A parsed snapshot for the side panel (defensive: every field optional). */
+export interface PanelSnapshot {
+  readonly sessionId?: string
+  readonly sessionResolution?: string
+  readonly faceState?: string
+  readonly foldCount?: number
+  readonly pressurePct?: number | undefined
+  readonly cacheSamples?: number
+  readonly cacheMeasured?: boolean
+  readonly ranges?: number
+  readonly degraded?: boolean
+}
+
+/** Parse the /zctx-ui/api/snapshot JSON into the panel's view model. */
+export function parsePanelSnapshot(text: string): PanelSnapshot {
+  try {
+    const raw = JSON.parse(text) as Record<string, unknown>
+    const face = (raw.faceHealth ?? {}) as Record<string, unknown>
+    const win = (raw.window ?? {}) as Record<string, unknown>
+    const total = (win.totalTokens ?? {}) as Record<string, unknown>
+    const limit = (win.limitTokens ?? win.windowTokens ?? {}) as Record<string, unknown>
+    const t = typeof total.value === 'number' ? total.value : undefined
+    const l = typeof limit.value === 'number' ? limit.value : undefined
+    const cache = (raw.cache ?? {}) as Record<string, unknown>
+    const folds = Array.isArray(raw.folds) ? raw.folds.length : undefined
+    const ranges = Array.isArray(raw.ranges) ? raw.ranges.length : undefined
+    return {
+      sessionId: typeof raw.sessionId === 'string' ? raw.sessionId : undefined,
+      sessionResolution: typeof raw.sessionResolution === 'string' ? raw.sessionResolution : undefined,
+      faceState: typeof face.state === 'string' ? face.state : undefined,
+      foldCount: folds,
+      pressurePct: t !== undefined && l !== undefined && l > 0 ? (t / l) * 100 : undefined,
+      cacheSamples: typeof cache.samples === 'number' ? cache.samples : undefined,
+      cacheMeasured: cache.measured === true,
+      ranges,
+      degraded: raw.degraded === true,
+    }
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Build the side-panel component (方案 A1: `sidebar.panellist` + `main`).
+ * Renders 查看 / 统计 / 设置 (read-only; writes point at the full `/zctx-ui`
+ * page — U-2 token gap, honest degrade). Polls the same-origin snapshot API
+ * every 5s. Returns undefined when React is unavailable (caller degrades).
+ */
+export function createPanelComponent(
+  React: ReactLike | undefined,
+  fetchText: (url: string) => Promise<string>,
+): (() => unknown) | undefined {
+  if (React === undefined) return undefined
+  const e = React.createElement
+  return function ZctxPanel(): unknown {
+    const [data, setData] = React.useState?.<PanelSnapshot>({}) ?? [{} as PanelSnapshot, () => undefined]
+    const value = data as PanelSnapshot
+    React.useEffect?.(() => {
+      let alive = true
+      const load = (): void => {
+        void fetchText('/zctx-ui/api/snapshot')
+          .then((text) => { if (alive) (setData as (v: PanelSnapshot) => void)(parsePanelSnapshot(text)) })
+          .catch(() => { /* keep last good snapshot; the next tick retries */ })
+      }
+      load()
+      const timer = setInterval(load, 5000)
+      return () => { alive = false; clearInterval(timer) }
+    }, [])
+    const face = value.faceState ?? 'unknown'
+    const faceColor = face === 'active' ? '#3fb950' : face === 'degraded' ? '#d29922' : '#f85149'
+    return e('div', { className: 'zctx-panel' },
+      e('h2', { className: 'zctx-panel-title' }, 'zcontext 面板 (BETA)'),
+      e('div', { className: 'zctx-panel-face' },
+        e('span', { className: 'zctx-dot', style: { color: faceColor } }, '●'),
+        e('span', null, ` face: ${face}`)),
+      e('h3', null, '查看'),
+      e('div', { className: 'zctx-panel-row' },
+        `会话: ${value.sessionId ?? 'n/a'} (${value.sessionResolution ?? 'n/a'})`),
+      e('div', { className: 'zctx-panel-row' },
+        `窗口占用: ${value.pressurePct !== undefined ? `${value.pressurePct.toFixed(1)}%` : 'n/a'}`),
+      e('h3', null, '统计'),
+      e('div', { className: 'zctx-panel-row' }, `折叠次数: ${value.foldCount ?? 0}`),
+      e('div', { className: 'zctx-panel-row' }, `可折叠区间: ${value.ranges ?? 0}`),
+      e('div', { className: 'zctx-panel-row' },
+        `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ' (measured)' : ' (estimated/none)'}`),
+      e('h3', null, '设置'),
+      e('div', { className: 'zctx-panel-note' }, '设置修改请到完整面板（此处只读，避免越权写入）：'),
+      e('a', { href: '/zctx-ui', target: '_blank', rel: 'noopener noreferrer' }, '打开完整面板 →'),
+    )
+  }
+}
+
+/** A minimal left-menu icon component (panellist renders the icon, label is text). */
+export function createPanelIcon(React: ReactLike | undefined): (() => unknown) {
+  if (React === undefined) return () => null
+  const e = React.createElement
+  return function ZctxIcon(): unknown {
+    return e('span', { className: 'zctx-panel-icon', 'aria-hidden': 'true' }, '◎')
+  }
+}
+
 /**
  * Top-level fiber apply. Capability-probes every host surface; `slots` absent
  * → lazy no-op (no PENDING, no throw). Falls back to a plain link component if
@@ -234,6 +341,32 @@ export function apply(ctx: ClientCtx, adapters: ClientAdapters = {}): void {
     ctx.slots.inject(SLOT_KEY, register)
   } catch {
     /* undeclared slot → lazy no-op; self-activates if declared later */
+  }
+
+  // 方案 A1: a native left-menu entry + its central panel (the same PANEL_ID
+  // binds both). Each registration is independently capability-gated so a host
+  // that dropped one slot still gets the other (Z21/Z25 — never PENDING).
+  const panel = createPanelComponent(React, fetchText)
+  const icon = createPanelIcon(React)
+  if (panel !== undefined) {
+    try {
+      ctx.slots.inject('main', () => ctx.slots.register?.({
+        name: 'main',
+        key: PANEL_ID,
+      }, panel))
+    } catch {
+      /* main absent → lazy no-op */
+    }
+  }
+  try {
+    ctx.slots.inject('sidebar.panellist', () => ctx.slots.register?.({
+      name: 'sidebar.panellist',
+      id: PANEL_ID,
+      order: PANEL_ORDER,
+      label: () => 'zcontext',
+    }, icon))
+  } catch {
+    /* panellist absent → lazy no-op */
   }
 }
 
