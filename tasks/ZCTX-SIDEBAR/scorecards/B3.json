@@ -1,0 +1,134 @@
+{
+  "block": "B3",
+  "task": "ZCTX-SIDEBAR",
+  "range": "17d2360..8543e0a（c67247f D1 panellist+main 注册 / b811efc D2 测试+解析增强 / 8543e0a D3 bundle 重建；diff 442 行 < 600）",
+  "evaluator": "reviewer-b3",
+  "author": "main",
+  "role_independence": "reviewer ≠ author：实现作者=主线（原 coder 被打断后亲做），评审为独立 subagent，实测命令与输出均在本文件与 handoffs/review-B3.md 留证",
+  "date": "2026-11-19",
+  "verdict": "打回（总分 76 < 98；且正确性 18 < 23 触发 §12.3 硬阻断）",
+  "threshold": 98,
+  "total": 76,
+  "scores": {
+    "correctness": 18,
+    "completeness": 15,
+    "consistency": 15,
+    "verifiability": 11,
+    "safety_rollback": 9,
+    "maintainability": 8
+  },
+  "hard_blockers": [
+    {
+      "id": "B3-B1",
+      "location": "src/client/index.ts:354,363; tasks/ZCTX-SIDEBAR/progress.md STEP-0002",
+      "issue": "pnpm lint (= tsc --noEmit, strict) exit 2: TS18048 'ctx.slots' is possibly 'undefined' ×2（D1 即存在，git show c67247f 单测同报）；progress 却记 'tsc --noEmit=0'，属失实证据（§9/§12.3）",
+      "evidence": "命令: pnpm exec tsc --noEmit > out; echo EXIT=$? → EXIT=2, 两行 TS18048；pnpm lint → [ELIFECYCLE] exit 2；基线 17d2360 同文件 tsc 单测 BASE-EXIT=0；D1 快照单测 D1-EXIT=2 同错",
+      "fix": "在 :340 早退后提升 const slots = ctx.slots 并全用 slots；重跑 pnpm lint 至 0 并如实回填 progress/checkpoint",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "B3-B2",
+      "location": "src/client/index.ts:223,283; tests/client-slot.spec.ts:297",
+      "issue": "parsePanelSnapshot 读 win.limitTokens ?? win.windowTokens，真实快照仅有 window.contextWindow/pressurePct（src/ui/types.ts:40,44; src/ui/snapshot.ts:239），全仓无 limitTokens（git grep 仅 :223+测试夹具）→ 面板窗口占用恒 n/a（V3 失效）；测试夹具用虚构形状造成假绿。附带 degraded 真实为 readonly string[]（types.ts:74），按 === true 解析恒 false",
+      "evidence": "真实形状回放: parsePanelSnapshot(真实 ZctxSnapshot 形状) => {\"sessionId\":\"s1\",\"sessionResolution\":\"latest-watched\",\"faceState\":\"active\",\"foldCount\":1,\"cacheSamples\":7,\"cacheMeasured\":true,\"ranges\":1}（无 pressurePct）；21/21 与 743/743 均绿（测试输入 window.limitTokens 虚构）",
+      "fix": "改读 win.pressurePct（typeof number）或 contextWindow+totalTokens.value 现算；degraded 按数组解析；夹具换真实快照形状并补真实/空快照两臂",
+      "disposition": "OPEN"
+    }
+  ],
+  "suggestions": [
+    {
+      "id": "B3-S1",
+      "location": "src/client/index.ts:350-351,362-371",
+      "issue": "React 缺失时 main 不注册但 panellist 仍注册（createPanelIcon(undefined) → () => null），形成空图标死入口；点击经 layout.selectPanel 对未注册 panel 抛 Error（ui-layout/src/client/service.ts:72-74）",
+      "evidence": "node 探针: react-missing registered: [\"settings.section\",\"sidebar.panellist\"]；sidebar click 链 SidebarRoot.tsx:68 → ui-sidebar/index.ts:70-72 → service.ts:74 throw",
+      "fix": "panellist 注册同样以 panel !== undefined 为门，或在渲染/点击侧兜底不抛",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "B3-S2",
+      "location": "tests/client-slot.spec.ts（A1 describe 6 条）",
+      "issue": "三臂能力门只测 slots 缺失 1 臂；main 缺失/panellist 缺失无测试；createPanelComponent 首拉/5s 轮询/卸载 clearInterval 零覆盖",
+      "evidence": "vitest 21/21 亲跑；node 探针证明两缺失臂实现正确（main-missing 注册 panellist / panellist-missing 注册 main）但无固化测试；cleanup 返回 function 亦仅探针验证",
+      "fix": "vi.useFakeTimers + fetchText mock 覆盖首拉/推进 5000ms/unmount 后停止；用抛错 inject 构造两缺失臂",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "B3-S3",
+      "location": "tests/client-slot.spec.ts:85,87",
+      "issue": "injected 断言由 toEqual 精确集弱化为 toContain（虽因真实新增注入而必须改，但丢掉 Z21 最小集守护）；settings.section 断言仍用 registered[0] 下标，依赖注册顺序",
+      "evidence": "diff 17d2360..HEAD tests: -expect(ctx.injected).toEqual(['settings.section']); +toContain('settings.section')；:87 opts = ctx.registered[0].opts",
+      "fix": "改 toEqual(['settings.section','main','sidebar.panellist'])；opts 从过滤后的 cards[0] 取",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "B3-S4",
+      "location": "src/client/index.ts:117-122,301",
+      "issue": "CSS 仅 .zctx-summary*，面板 10+ class 均无规则（V8 真机裸文本流）；图标在 glyph 槽再包 span，正是先例 TaskManagerIcon.tsx 注释警告的『inline wrapper 使图标偏离 baseline』形态",
+      "evidence": "node 检查 CSS 段含 .zctx-panel 规则 = false；先例 ui-schedule/src/client/TaskManagerIcon.tsx 文档注释逐字警告 wrapper",
+      "fix": "补 .zctx-panel 区段样式（--dsw-alias-* 变量）；图标不包 wrapper 或按 size prop 渲染",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "B3-S5",
+      "location": "src/client/index.ts:289-291",
+      "issue": "plan §4 契约写『设置（只读字段 + 链接）』，实现仅有说明句+链接，无任何只读设置字段（V4 字面可过，但偏离已批准契约）",
+      "evidence": "reports/plans/ZCTX-SIDEBAR-plan.md §4 面板三区；源码 :289-291 仅 h3+note+a",
+      "fix": "渲染只读配置字段（GET /zctx-ui/api/config 子集），或修订 plan/README 明确面板不展示字段",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "B3-S6",
+      "location": "README.md:245-267; CHANGELOG.md",
+      "issue": "README 仅描述 settings.section 摘要卡，未提左菜单 zcontext 标签/主区面板/U-2 只读边界；CHANGELOG 无本次条目（grep -c panellist README.md README.zh.md CHANGELOG.md 均 0）",
+      "evidence": "grep -c panellist README.md README.zh.md CHANGELOG.md → 0/0/0；README.md:265 仍只写 settings.section 卡片",
+      "fix": "B4 合并同批更新 README（Native entry 段扩写）+ CHANGELOG 条目；若归 B4 需 closure 登记 owner/disposition",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "B3-S7",
+      "location": "src/client/index.ts:202,253-267,281-288",
+      "issue": "fetch 不查 r.ok；403（{ok:false,error:'unauthorized'}）/500 被解析成空 view，面板把读失败渲染为『折叠次数 0 / 缓存样本 0』，违反项目 honest-degrade 词汇",
+      "evidence": "默认 fetchText = fetch(url).then(r=>r.text()) 无 ok 检查（:202）；auth.ts:92-99 远程非 loopback 无 token → 403；渲染 ?? 0 兜底（:285-288）",
+      "fix": "检查非 2xx/ok:false 并渲染失败提示行（可复用修正后的 degraded 数组）",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "B3-S8",
+      "location": "tasks/ZCTX-SIDEBAR/checkpoint.json; tasks/ZCTX-SIDEBAR/progress.md",
+      "issue": "D2(b811efc)/D3(8543e0a) 无 checkpoint/progress 落盘（当前 step=1/B1/next=B2 coder）；D3 的 743 与 dist sha256 证据无回执；STEP-0002 证据失实（见 B3-B1）",
+      "evidence": "checkpoint.json 亲读 step=1 block=B1 next='B2 coder'；progress.md 仅 2 行止于 'next=D2 测试+构建'",
+      "fix": "补 D2/D3 两条 progress + checkpoint（dist sha256 83a2e3c081f1f3730d3747afd3f24d0792ee308b1110030737b9c4d946af5db1、743/743、握手 5/5、R1 值），修正 tsc 记录",
+      "disposition": "OPEN"
+    }
+  ],
+  "required_checks": {
+    "1_contract_binding": "PASS — PANEL_ID 单常量（:115）同时作 panellist.id（:365）与 main.key（:356）；id/order/label 三项齐（thunk :367）；先例 ui-plugin-manager:110-147 / ui-schedule:168-184 同形",
+    "2_capability_gate": "PASS（实现）— slots 缺失 :340 早退；main/panellist 各自 try/catch 独立；React 缺失 main 不注册、card 降级链接（:256,:175-179）。探针三臂输出在案。测试缺口→B3-S2，React 缺失 panellist 残留→B3-S1",
+    "3_data_plane": "FAIL — 同源无 token fetch（:202; auth.ts:92-99）PASS；5s 轮询 + clearInterval（:269-270）PASS；fail-soft 'not json'→{}（:241-243）PASS；pressurePct 契约错配 → B3-B2",
+    "4_u2_boundary": "PASS（代码）— 设置区只读+跳转（:290-291），src/产物零 POST；契约缺只读字段→B3-S5，文档未同步→B3-S6",
+    "5_r1_redline": "PASS — git 对象切片 HEAD/BASE 同值 8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9（14889 chars / 14926 bytes）；patcher diff 为空；无请求体改写面",
+    "6_z35_handshake": "PASS — pnpm build 成功；握手 5/5 PASS；node --check OK；bundle 含 panellist/panel/main 注册；重建后树净、dist 字节一致（sha256 83a2e3c0…）",
+    "7_test_quality": "PARTIAL — client-slot 21/21、全量 743/743 亲跑；binding/降级臂为真断言；缺两缺失臂+轮询测试（B3-S2）；夹具假绿（B3-B2）",
+    "8_existing_test_changes": "行为变化真实（新增两注入），非纯为绿而改；但精确性回退 → B3-S3；React 缺失臂新增 main 计数 0 属强化",
+    "9_inject_credentials_tree": "PASS — inject ['slots'] 未变（:30,:375,测试 :74-77）；无凭据字面量；git status --porcelain=0",
+    "diff_size_gate": "PASS — 442 行 < 600",
+    "v8_device": "无法验证（未触碰真机），归 B4"
+  },
+  "positive_verifications": [
+    "binding 不变量与先例逐行一致（单常量双注册）",
+    "三臂能力门实现正确（node 探针实测不抛、互不拖累）",
+    "同源只读 fetch 不越权（auth.ts 读授权臂）",
+    "5s 轮询 + 卸载 clearInterval 实现正确（探针 cleanup=function）",
+    "parsePanelSnapshot fail-soft 与空快照 ''{}' → {}' 成立",
+    "R1 双侧同值 8e2d0b7e…（14889/14926），patcher 零改动",
+    "握手 5/5 + node --check + 构建可复现（dist 哈希 83a2e3c0…）",
+    "743/743 全量绿、21/21 定向绿",
+    "inject 最小集未变、零凭据、工作树干净"
+  ],
+  "rework_round": 1,
+  "budget_note": "本轮为第 1 轮评审（≤2 轮返工），修复 B3-B1/B3-B2 后可提交第 2 轮复评",
+  "device_items_deferred": [
+    "V8 真机：标签出现 / 点击开面板 / 数据实时 / DSH 不被顶掉（B4）",
+    "真机观察项：B3-S1 空图标死入口、B3-S4 图标 baseline 与无 CSS 观感"
+  ]
+}

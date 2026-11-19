@@ -145,6 +145,18 @@ async function refreshSummary(fetchText: (url: string) => Promise<string>): Prom
   }
 }
 
+/**
+ * The production fetch face: it must REJECT on a non-2xx (`403` after a policy
+ * change, `500` on a fault). Resolving the error page as text would render
+ * "折叠 0 / 缓存 0" — fabricated zeros against the honest-degrade vocabulary
+ * (B3-S7). Callers then keep the last good snapshot.
+ */
+const sameOriginFetchText = (url: string): Promise<string> =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error(`zctx panel: GET ${url} → HTTP ${r.status}`)
+    return r.text()
+  })
+
 /** Build the card component. `React` may be absent → caller degrades to a link. */
 export function createSummaryCard(
   React: ReactLike | undefined,
@@ -206,11 +218,15 @@ export interface PanelSnapshot {
   readonly sessionResolution?: string
   readonly faceState?: string
   readonly foldCount?: number
-  readonly pressurePct?: number | undefined
+  /** Real API field (`window.pressurePct`), already computed server-side. */
+  readonly pressurePct?: number
+  readonly totalTokens?: number
+  readonly contextWindow?: number
   readonly cacheSamples?: number
   readonly cacheMeasured?: boolean
   readonly ranges?: number
-  readonly degraded?: boolean
+  /** Count of honest-degradation rows (`degraded: string[]` in the API). */
+  readonly degradedCount?: number
 }
 
 /** Parse the /zctx-ui/api/snapshot JSON into the panel's view model. */
@@ -219,24 +235,31 @@ export function parsePanelSnapshot(text: string): PanelSnapshot {
     const raw = JSON.parse(text) as Record<string, unknown>
     const face = (raw.faceHealth ?? {}) as Record<string, unknown>
     const win = (raw.window ?? {}) as Record<string, unknown>
+    // Real contract (src/ui/types.ts:40-44): window carries contextWindow,
+    // totalTokens{value}, and an already-computed pressurePct. There is no
+    // `limitTokens` field — reading one fabricates a number the API never sends.
+    const pressure = typeof win.pressurePct === 'number' ? win.pressurePct : undefined
     const total = (win.totalTokens ?? {}) as Record<string, unknown>
-    const limit = (win.limitTokens ?? win.windowTokens ?? {}) as Record<string, unknown>
     const t = typeof total.value === 'number' ? total.value : undefined
-    const l = typeof limit.value === 'number' ? limit.value : undefined
+    const cw = typeof win.contextWindow === 'number' ? win.contextWindow : undefined
     const cache = (raw.cache ?? {}) as Record<string, unknown>
     const folds = Array.isArray(raw.folds) ? raw.folds.length : undefined
     const ranges = Array.isArray(raw.ranges) ? raw.ranges.length : undefined
+    // `degraded` is a string[] of honest-degradation rows (types.ts:74).
+    const degradedRows = Array.isArray(raw.degraded) ? raw.degraded.length : 0
     // Only defined fields land in the view model (an empty snapshot stays `{}`).
     const view: Record<string, unknown> = {}
     if (typeof raw.sessionId === 'string') view.sessionId = raw.sessionId
     if (typeof raw.sessionResolution === 'string') view.sessionResolution = raw.sessionResolution
     if (typeof face.state === 'string') view.faceState = face.state
     if (folds !== undefined) view.foldCount = folds
-    if (t !== undefined && l !== undefined && l > 0) view.pressurePct = (t / l) * 100
+    if (pressure !== undefined) view.pressurePct = pressure
+    if (t !== undefined) view.totalTokens = t
+    if (cw !== undefined) view.contextWindow = cw
     if (typeof cache.samples === 'number') view.cacheSamples = cache.samples
     if (cache.measured === true) view.cacheMeasured = true
     if (ranges !== undefined) view.ranges = ranges
-    if (raw.degraded === true) view.degraded = true
+    if (degradedRows > 0) view.degradedCount = degradedRows
     return view as PanelSnapshot
   } catch {
     return {}
@@ -281,6 +304,11 @@ export function createPanelComponent(
         `会话: ${value.sessionId ?? 'n/a'} (${value.sessionResolution ?? 'n/a'})`),
       e('div', { className: 'zctx-panel-row' },
         `窗口占用: ${value.pressurePct !== undefined ? `${value.pressurePct.toFixed(1)}%` : 'n/a'}`),
+      e('div', { className: 'zctx-panel-row' },
+        `tokens: ${value.totalTokens ?? 'n/a'} / ${value.contextWindow ?? 'n/a'}`),
+      value.degradedCount !== undefined
+        ? e('div', { className: 'zctx-panel-note' }, `降级提示: ${value.degradedCount} 条`)
+        : null,
       e('h3', null, '统计'),
       e('div', { className: 'zctx-panel-row' }, `折叠次数: ${value.foldCount ?? 0}`),
       e('div', { className: 'zctx-panel-row' }, `可折叠区间: ${value.ranges ?? 0}`),
@@ -309,7 +337,7 @@ export function createPanelIcon(React: ReactLike | undefined): (() => unknown) {
  */
 export function apply(ctx: ClientCtx, adapters: ClientAdapters = {}): void {
   const React = resolveReact(adapters)
-  const fetchText = adapters.fetchText ?? ((url: string) => fetch(url).then((r) => r.text()))
+  const fetchText = adapters.fetchText ?? sameOriginFetchText
   const styles = (ctx.get?.('styles') ?? undefined) as StylesLike | undefined
   const doc: DocumentLike | undefined = adapters.document ?? (typeof document !== 'undefined' ? document : undefined)
 
@@ -337,35 +365,36 @@ export function apply(ctx: ClientCtx, adapters: ClientAdapters = {}): void {
   }
 
   // inject gate: slots absent → lazy no-op, no throw, no PENDING.
-  if (ctx.slots === undefined || typeof ctx.slots.inject !== 'function') return
+  // Narrow to a non-optional local so every later use is type-safe (B3-B1).
+  const slots = ctx.slots
+  if (slots === undefined || typeof slots.inject !== 'function') return
   try {
-    ctx.slots.inject(SLOT_KEY, register)
+    slots.inject(SLOT_KEY, register)
   } catch {
     /* undeclared slot → lazy no-op; self-activates if declared later */
   }
 
   // 方案 A1: a native left-menu entry + its central panel (the same PANEL_ID
-  // binds both). Each registration is independently capability-gated so a host
-  // that dropped one slot still gets the other (Z21/Z25 — never PENDING).
+  // binds both). Both registrations hang off the panel component, so a host
+  // without React gets neither (B3-S1: no dead icon entry that would throw on
+  // click). Each is independently capability-gated (Z21/Z25 — never PENDING).
   const panel = createPanelComponent(React, fetchText)
-  const icon = createPanelIcon(React)
-  if (panel !== undefined) {
-    try {
-      ctx.slots.inject('main', () => ctx.slots.register?.({
-        name: 'main',
-        key: PANEL_ID,
-      }, panel))
-    } catch {
-      /* main absent → lazy no-op */
-    }
+  if (panel === undefined) return
+  try {
+    slots.inject('main', () => slots.register?.({
+      name: 'main',
+      key: PANEL_ID,
+    }, panel))
+  } catch {
+    /* main absent → lazy no-op */
   }
   try {
-    ctx.slots.inject('sidebar.panellist', () => ctx.slots.register?.({
+    slots.inject('sidebar.panellist', () => slots.register?.({
       name: 'sidebar.panellist',
       id: PANEL_ID,
       order: PANEL_ORDER,
       label: () => 'zcontext',
-    }, icon))
+    }, createPanelIcon(React)))
   } catch {
     /* panellist absent → lazy no-op */
   }

@@ -70,6 +70,16 @@ async function refreshSummary(fetchText) {
 		return;
 	}
 }
+/**
+* The production fetch face: it must REJECT on a non-2xx (`403` after a policy
+* change, `500` on a fault). Resolving the error page as text would render
+* "折叠 0 / 缓存 0" — fabricated zeros against the honest-degrade vocabulary
+* (B3-S7). Callers then keep the last good snapshot.
+*/
+const sameOriginFetchText = (url) => fetch(url).then((r) => {
+	if (!r.ok) throw new Error(`zctx panel: GET ${url} → HTTP ${r.status}`);
+	return r.text();
+});
 /** Build the card component. `React` may be absent → caller degrades to a link. */
 function createSummaryCard(React, initial, fetchText) {
 	if (React === void 0) return void 0;
@@ -121,23 +131,26 @@ function parsePanelSnapshot(text) {
 		const raw = JSON.parse(text);
 		const face = raw.faceHealth ?? {};
 		const win = raw.window ?? {};
+		const pressure = typeof win.pressurePct === "number" ? win.pressurePct : void 0;
 		const total = win.totalTokens ?? {};
-		const limit = win.limitTokens ?? win.windowTokens ?? {};
 		const t = typeof total.value === "number" ? total.value : void 0;
-		const l = typeof limit.value === "number" ? limit.value : void 0;
+		const cw = typeof win.contextWindow === "number" ? win.contextWindow : void 0;
 		const cache = raw.cache ?? {};
 		const folds = Array.isArray(raw.folds) ? raw.folds.length : void 0;
 		const ranges = Array.isArray(raw.ranges) ? raw.ranges.length : void 0;
+		const degradedRows = Array.isArray(raw.degraded) ? raw.degraded.length : 0;
 		const view = {};
 		if (typeof raw.sessionId === "string") view.sessionId = raw.sessionId;
 		if (typeof raw.sessionResolution === "string") view.sessionResolution = raw.sessionResolution;
 		if (typeof face.state === "string") view.faceState = face.state;
 		if (folds !== void 0) view.foldCount = folds;
-		if (t !== void 0 && l !== void 0 && l > 0) view.pressurePct = t / l * 100;
+		if (pressure !== void 0) view.pressurePct = pressure;
+		if (t !== void 0) view.totalTokens = t;
+		if (cw !== void 0) view.contextWindow = cw;
 		if (typeof cache.samples === "number") view.cacheSamples = cache.samples;
 		if (cache.measured === true) view.cacheMeasured = true;
 		if (ranges !== void 0) view.ranges = ranges;
-		if (raw.degraded === true) view.degraded = true;
+		if (degradedRows > 0) view.degradedCount = degradedRows;
 		return view;
 	} catch {
 		return {};
@@ -174,7 +187,7 @@ function createPanelComponent(React, fetchText) {
 		return e("div", { className: "zctx-panel" }, e("h2", { className: "zctx-panel-title" }, "zcontext 面板 (BETA)"), e("div", { className: "zctx-panel-face" }, e("span", {
 			className: "zctx-dot",
 			style: { color: faceColor }
-		}, "●"), e("span", null, ` face: ${face}`)), e("h3", null, "查看"), e("div", { className: "zctx-panel-row" }, `会话: ${value.sessionId ?? "n/a"} (${value.sessionResolution ?? "n/a"})`), e("div", { className: "zctx-panel-row" }, `窗口占用: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("h3", null, "统计"), e("div", { className: "zctx-panel-row" }, `折叠次数: ${value.foldCount ?? 0}`), e("div", { className: "zctx-panel-row" }, `可折叠区间: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? " (measured)" : " (estimated/none)"}`), e("h3", null, "设置"), e("div", { className: "zctx-panel-note" }, "设置修改请到完整面板（此处只读，避免越权写入）："), e("a", {
+		}, "●"), e("span", null, ` face: ${face}`)), e("h3", null, "查看"), e("div", { className: "zctx-panel-row" }, `会话: ${value.sessionId ?? "n/a"} (${value.sessionResolution ?? "n/a"})`), e("div", { className: "zctx-panel-row" }, `窗口占用: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("div", { className: "zctx-panel-row" }, `tokens: ${value.totalTokens ?? "n/a"} / ${value.contextWindow ?? "n/a"}`), value.degradedCount !== void 0 ? e("div", { className: "zctx-panel-note" }, `降级提示: ${value.degradedCount} 条`) : null, e("h3", null, "统计"), e("div", { className: "zctx-panel-row" }, `折叠次数: ${value.foldCount ?? 0}`), e("div", { className: "zctx-panel-row" }, `可折叠区间: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? " (measured)" : " (estimated/none)"}`), e("h3", null, "设置"), e("div", { className: "zctx-panel-note" }, "设置修改请到完整面板（此处只读，避免越权写入）："), e("a", {
 			href: "/zctx-ui",
 			target: "_blank",
 			rel: "noopener noreferrer"
@@ -199,7 +212,7 @@ function createPanelIcon(React) {
 */
 function apply(ctx, adapters = {}) {
 	const React = resolveReact(adapters);
-	const fetchText = adapters.fetchText ?? ((url) => fetch(url).then((r) => r.text()));
+	const fetchText = adapters.fetchText ?? sameOriginFetchText;
 	const styles = ctx.get?.("styles") ?? void 0;
 	const doc = adapters.document ?? (typeof document !== "undefined" ? document : void 0);
 	const register = () => {
@@ -215,25 +228,26 @@ function apply(ctx, adapters = {}) {
 	if (styles !== void 0 && typeof styles.insert === "function") try {
 		ctx.effect?.(styles.insert(CSS), "zctx-summary-styles");
 	} catch {}
-	if (ctx.slots === void 0 || typeof ctx.slots.inject !== "function") return;
+	const slots = ctx.slots;
+	if (slots === void 0 || typeof slots.inject !== "function") return;
 	try {
-		ctx.slots.inject(SLOT_KEY, register);
+		slots.inject(SLOT_KEY, register);
 	} catch {}
 	const panel = createPanelComponent(React, fetchText);
-	const icon = createPanelIcon(React);
-	if (panel !== void 0) try {
-		ctx.slots.inject("main", () => ctx.slots.register?.({
+	if (panel === void 0) return;
+	try {
+		slots.inject("main", () => slots.register?.({
 			name: "main",
 			key: PANEL_ID
 		}, panel));
 	} catch {}
 	try {
-		ctx.slots.inject("sidebar.panellist", () => ctx.slots.register?.({
+		slots.inject("sidebar.panellist", () => slots.register?.({
 			name: "sidebar.panellist",
 			id: PANEL_ID,
 			order: PANEL_ORDER,
 			label: () => "zcontext"
-		}, icon));
+		}, createPanelIcon(React)));
 	} catch {}
 }
 /** The fiber object the loader expects (object form with inject + apply). */

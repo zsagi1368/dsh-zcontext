@@ -81,10 +81,13 @@ describe('ZCTX-UI D6: client fiber identity + inject gate (V7)', () => {
     const ctx = slotsCtx()
     const React = mockReact()
     apply(ctx, { React, fetchText: async () => '{}' })
-    // ZCTX-SIDEBAR adds `main` + `sidebar.panellist` injections alongside the card.
-    expect(ctx.injected).toContain('settings.section')
-    expect(ctx.registered.filter((r) => r.opts.name === 'settings.section')).toHaveLength(1)
-    const opts = ctx.registered[0].opts
+    // ZCTX-SIDEBAR adds `main` + `sidebar.panellist` alongside the card. The
+    // exact set stays pinned (B3-S3): a NEW injection must be a deliberate edit
+    // here, never a silent addition that could hang a fiber (Z21 discipline).
+    expect(ctx.injected).toEqual(['settings.section', 'main', 'sidebar.panellist'])
+    const cards = ctx.registered.filter((r) => r.opts.name === 'settings.section')
+    expect(cards).toHaveLength(1)
+    const opts = cards[0].opts
     expect(opts).toMatchObject({ name: 'settings.section', id: 'dsh-zcontext-summary', order: 50, registrant: 'dsh-zcontext' })
     expect(Object.prototype.hasOwnProperty.call(opts, 'priority')).toBe(false)
   })
@@ -289,24 +292,44 @@ describe('ZCTX-SIDEBAR A1 — left-menu entry + central panel', () => {
     expect(() => apply(bare, { React: mockReact() })).not.toThrow()
   })
 
-  it('parsePanelSnapshot derives the panel view model from the live API shape', () => {
+  it('parsePanelSnapshot derives the view model from the REAL API shape (B3-B2)', () => {
+    // Field-for-field from src/ui/types.ts:40-74 — window.pressurePct is computed
+    // server-side; `degraded` is a string[]; there is no `limitTokens`.
     const parsed = parsePanelSnapshot(JSON.stringify({
       sessionId: 'session-abc',
       sessionResolution: 'latest-watched',
       faceHealth: { state: 'active' },
-      window: { totalTokens: { value: 50000 }, limitTokens: { value: 200000 } },
+      window: {
+        contextWindow: 200000,
+        totalTokens: { value: 50000, basis: 'measured' },
+        pressurePct: 25,
+        routed: { provider: 'p', model: 'm' },
+      },
       folds: [{ id: 'f1' }, { id: 'f2' }],
       ranges: [{ seq: 1 }],
-      cache: { samples: 7, measured: true },
-      degraded: false,
+      cache: { samples: 7, measured: true, basis: 'measured' },
+      degraded: ['session-unresolved'],
     }))
     expect(parsed.sessionId).toBe('session-abc')
     expect(parsed.faceState).toBe('active')
     expect(parsed.foldCount).toBe(2)
-    expect(parsed.pressurePct).toBeCloseTo(25, 5)
+    // The server-computed pressure is used verbatim — not re-derived.
+    expect(parsed.pressurePct).toBe(25)
+    expect(parsed.totalTokens).toBe(50000)
+    expect(parsed.contextWindow).toBe(200000)
     expect(parsed.cacheSamples).toBe(7)
     expect(parsed.cacheMeasured).toBe(true)
     expect(parsed.ranges).toBe(1)
+    expect(parsed.degradedCount).toBe(1)
+  })
+
+  it('parsePanelSnapshot yields no pressure when the API omits it (honest n/a)', () => {
+    const parsed = parsePanelSnapshot(JSON.stringify({
+      window: { contextWindow: undefined, totalTokens: undefined, pressurePct: undefined },
+      degraded: [],
+    }))
+    expect(parsed.pressurePct).toBeUndefined()
+    expect(parsed.degradedCount).toBeUndefined()
   })
 
   it('parsePanelSnapshot tolerates malformed JSON without throwing', () => {

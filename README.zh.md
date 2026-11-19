@@ -264,6 +264,8 @@ v0.2.0 各段共用同一 schema：
 
 **原生入口** — `settings.section` 摘要卡显示折叠次数 / 窗口占比并跳转 `/zctx-ui`。client fiber 只声明 `inject: ['slots']`；该服务缺席时卡片惰性 no-op（绝不会悬挂 PENDING），React 不可用时降级为纯链接。
 
+**侧栏面板（左侧菜单）** — 除设置卡外，fiber 还注册一个原生**左菜单条目**（`sidebar.panellist`，id `dsh-zcontext.panel`，标签 `zcontext`）并绑定**中央面板**（`main`，同一 key）。点击条目即在应用内打开面板，DSH 窗口不会被导航离开（替代此前在桌面 webview 里不可靠的「浏览器新标签」流程）。面板显示实时快照（查看：会话、窗口压力、tokens/上下文；统计：折叠次数、可折叠区间、缓存样本 measured 与 estimated 区分），每 5 秒从同源 `/zctx-ui/api/snapshot` 轮询。**此处设置为只读**并附完整 `/zctx-ui` 页链接：面板内写入路径暂缓，因为 bridge token 只注入完整页（诚实降级，不扩权）。两个注册都挂靠面板组件——React 不可用时条目与面板都不注册（不留死菜单项）。
+
 > **诚实边界（BETA）：** 本面板解决的是*不开会话查看与改设置、不烧计费 token*。它**不**消灭所有折叠 token——模型驱动的折叠仍消耗会话 token；只有服务端 `autofold` 面才去除该依赖。面板是只读视图 + overlay 设置写入器，永不触碰模型请求体（R1 零请求改写）。
 
 <a id="behavior-notes"></a>
