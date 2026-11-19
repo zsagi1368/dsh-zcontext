@@ -63,3 +63,12 @@
 - rc.5 预适配演练（真链路）：check-official（feed rc.5/staging 30%/本机 0.4347% 不含）→ preadapt --yes（真 300MB 下载+sha512 校验+真 7z 双层提取+fuse 前置检查+reanchor 5/5 ALIVE+模拟全量 patch+status 5/5）→ --accept 落盘 patcher/anchors/0.2.2-rc.5.json（SHA 7df48246d9a43b40…）[U2][U3] 关闭。
 - auto 终态：feed-pending "anchors already prepared (data); the update will auto-repatch when it lands" + already-ok（patched 5/5）——官方更新落地后保护零断档。
 - 锚集数据文件入库：patcher/anchors/0.2.2-rc.5.json 随本提交入库（防仓库外丢失）。
+
+## AUTOLOG-20261119（2026-11-19 · 用户 "重试并继续" · 推云 main=e544cc3）
+
+- 触发：桌面端 rc.5 自动重打成功（01:05 tick，全门绿+备份+marker）后用户要求继续；发现 auto.log 51 次 EBUSY。
+- 修复 1（46e12a5）：defaultConsoleLogPath()=auto.console.log，buildTaskAction/installScheduledTask 默认分离 shell 兜底日志与内部 sink，根治双写争用；新用户 install 默认不双写。
+- 修复 2（0af0fc7）：.gitattributes 给 nightly-rc5-real.yml 加 `-text`，根除 core.autocrlf × 哈希守卫（bd30dc2d…）误报，干净 checkout 态 673 测试真绿。
+- 质量：B3 快审 100/100 PASS（reviewer-autolog，R1 段 8e2d0b7e… 不变、fixture 跑前后 sha 恒等、checkpoint STEP-0014/0015 链 VALID）；推云 e544cc3。
+- 真机运维止血（不在代码审查面）：XML 导入重建 ZCTX-Patch-Auto，shell 重定向改 auto.console.log；**真机补丁态 rc.5 patched 5/5 + marker 在，无需用户操作**。
+- 新坑 A73（候选，待 RSI 收口）：subprocess 双写同一 Windows 文件（shell 重定向 + 进程内 sink）→ EBUSY；判据=时间戳区分生产 tick 与测试进程日志（zctx-mutex-* 临时路径=测试写入，非生产故障）。
