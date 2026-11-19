@@ -112,6 +112,8 @@ import type {
   ValidatorConfig,
   WireSnapshot,
 } from './types.ts'
+import { attachUi, createSnapshotSource, createTransitionSink, detectFaceActivation } from './ui/index.ts'
+import type { FaceHealthView, ZctxSnapshot } from './ui/index.ts'
 
 /** Service name the plugin registers under. */
 const SERVICE_NAME = 'dsh-zcontext'
@@ -331,6 +333,18 @@ export class ZcontextPlugin extends ServiceBase {
   private patchMountState = 'idle (not armed)'
   private patchHost: HostLlmFace | undefined
   private patchHostLoaded = false
+  /**
+   * ZCTX-UI face-activation counters (DESIGN §4 / B4 seam): wire*Face records
+   * successful registrations here so the face probe can render an honest view.
+   * Only additions — the degrade/skip semantics of each face are unchanged.
+   */
+  private toolFaceRegistered = 0
+  private toolFaceBuilt = 0
+  private guidanceRegistered = false
+  /** Transition-deduping visible sink for face degradation (Z28: stderr, not ctx.logger). */
+  private readonly faceSink = createTransitionSink()
+  /** The UI snapshot source (thin delegate behind public `snapshotFor`). */
+  private readonly snapshotSource: ReturnType<typeof createSnapshotSource>
 
   constructor(ctx: HostContextLike, config: Partial<ZcontextConfig> = {}) {
     super(ctx, SERVICE_NAME)
@@ -404,6 +418,26 @@ export class ZcontextPlugin extends ServiceBase {
       },
     }
 
+    // ZCTX-UI D1: the read-only snapshot source, built from the SAME accessors
+    // the folding faces use. It is available even when `enabled=false` so the
+    // UI can honestly report "no session / disabled" instead of vanishing.
+    this.snapshotSource = createSnapshotSource({
+      runtime: this.runtime,
+      resolveSession: (id) => this.resolveWatchedSession(id),
+      currentSession: () => this.currentSession(),
+      windowFor: (session) => this.windowCache.get(session as object),
+      // B5-5: thin wrapper over liveSessions for the UI multi-session switcher.
+      listSessions: () => {
+        const ids: string[] = []
+        for (const session of this.liveSessions) {
+          const id = (session as { id?: unknown }).id
+          if (typeof id === 'string') ids.push(id)
+        }
+        return ids
+      },
+      faceHealth: () => this.faceHealth(),
+    })
+
     if (!this.config.enabled) {
       this.patchMountState = 'idle (plugin disabled by config)'
       zctxDebug('constructor: disabled by config — all faces stay unwired')
@@ -422,6 +456,46 @@ export class ZcontextPlugin extends ServiceBase {
     this.wireAutoFoldFace()
     this.wirePatchFace()
     zctxDebug('constructor: all wire*Face calls returned')
+    // ZCTX-UI D2/D3: register the four read-only UI routes. registerUiRoutes
+    // (via attachUi) ALREADY wires the disposer through ctx.effect (B5-2: single
+    // registration, label 'zctx-ui-routes' lives in routes.ts) — do not register
+    // a second one here; just invoke attachUi for its side effect.
+    try {
+      attachUi(ctx as unknown, {
+        snapshotFor: (sessionId) => this.snapshotFor(sessionId),
+        configValues: () => this.config as unknown as Record<string, unknown>,
+      })
+    } catch (error: unknown) {
+      zctxDebug(`attachUi: failed (${error instanceof Error ? error.message : String(error)}) — UI surface skipped`)
+    }
+  }
+
+  // -- ZCTX-UI public snapshot + face-health surface (DESIGN §1.2/#2/#4) ------
+
+  /** Read-only process-memory snapshot (thin delegate). Never touches the wire. */
+  snapshotFor(sessionId?: string): ZctxSnapshot {
+    return this.snapshotSource.snapshotFor(sessionId)
+  }
+
+  /**
+   * Face-health view (D5): the three-signal tri-state probe over observable
+   * wire*Face counters + host capabilities, with a transition-deduping visible
+   * sink (stderr). Recomputed on every call — no memoized absence (Z25).
+   */
+  faceHealth(): FaceHealthView {
+    const session = this.currentSession()
+    const sessionId = (session as { id?: unknown } | undefined)?.id
+    const guardRecords = typeof sessionId === 'string'
+      ? (this.guardBridge.summary(sessionId)?.total ?? 0)
+      : 0
+    return detectFaceActivation(this.ctx, {
+      toolFaceRegistered: this.toolFaceRegistered,
+      toolFaceBuilt: this.toolFaceBuilt,
+      guidanceRegistered: this.guidanceRegistered,
+      observeWired: this.observe !== undefined,
+      guardBridgePresent: this.guardBridge !== undefined,
+      guardRecordsSeen: guardRecords,
+    }, this.faceSink)
   }
 
   // -- face wiring -----------------------------------------------------------
@@ -492,9 +566,11 @@ export class ZcontextPlugin extends ServiceBase {
     // never breaks boot on a registration refusal, it logs and continues.
     for (const definition of buildZctxTools(defineTool, this.runtime)) {
       built += 1
+      this.toolFaceBuilt += 1 // ZCTX-UI face probe counter (additive, no semantic change)
       try {
         ctx.tools.register(definition)
         registered += 1
+        this.toolFaceRegistered += 1 // ZCTX-UI face probe counter
         zctxDebug(`wireToolFace: register OK — ${(definition as { name?: unknown }).name}`)
       } catch (error: unknown) {
         const name = (definition as { name?: unknown }).name
@@ -519,6 +595,7 @@ export class ZcontextPlugin extends ServiceBase {
     // absence check above — "缺席/抛错双态都降级").
     try {
       ctx.systemPrompt.section(buildGuidanceSection())
+      this.guidanceRegistered = true // ZCTX-UI face probe counter (additive, no semantic change)
       zctxDebug('wireGuidanceFace: systemPrompt.section OK — guidance registered')
     } catch (error: unknown) {
       zctxDebug(`wireGuidanceFace: REFUSED — ${error instanceof Error ? error.message : String(error)}`)

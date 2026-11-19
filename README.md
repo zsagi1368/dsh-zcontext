@@ -30,6 +30,7 @@ Model-driven incremental context folding for the [DeepSeek Harness](https://gith
 - [autoFold: server-initiated folding (opt-in, v0.3.0)](#autofold)
 - [The optional base-context patcher (external, user-run, v0.2)](#the-optional-patcher)
 - [Settings](#settings)
+- [Realtime UI panel (BETA)](#realtime-ui)
 - [Behavior notes](#behavior-notes)
 - [Limitations](#limitations)
 - [Security](#security)
@@ -239,6 +240,31 @@ The v0.2.0 sections ride the same schema:
 | `autofold.maxSummaryOutputTokens` | number | `32768` | Output cap for model-driven summary calls (clamped). |
 
 Independent of these settings, the whole automatic face (nudge + engine gate) stays off below a context window of 32768 tokens — the estimation formulas' legal domain. Tools remain usable; status renders an explicit note.
+
+<a id="realtime-ui"></a>
+## Realtime UI panel (BETA)
+
+A zero-token, realtime panel for **viewing / statistics / settings** without opening a chat session. In the web/desktop composition the plugin registers native read-only routes on the host webServer; open:
+
+```
+/zctx-ui
+```
+
+in the same browser (same origin as the DSH web app). It works only where a `webServer` exists (web/desktop profiles); CLI/headless has no UI and the plugin simply skips this surface.
+
+**Three blocks**
+
+- **查看 (View)** — polls `/zctx-ui/api/snapshot` every 5s and renders the live process-memory ledger: window tokens / capacity / pressure %, the six budget lines, foldable ranges, the fold ledger, the cache accounting badge (`measured` vs `estimated`), and a face-health light (green/amber/red). All reads come from the in-memory ledger via a thin read-only snapshot API — no log scanning, no model call.
+- **统计 (Stats)** — cumulative folds, net tokens saved (with a `measured`/`estimated` basis tag), repay count from the breakeven table, three-state sample split, clean-sample ratio (with the confidence-gate verdict), and the reset-ledger digest.
+- **设置 (Settings)** — a form for the nine core fields plus four face switches (`observe.enabled`, `patch.guardObserveEvents`, `autofold.enabled`, `preflightMode`). Saving writes the profile overlay **only through the host `configEditor.edit`** (never a direct file write); it takes effect on next load, not as a hot swap of already-mounted faces. When no `configEditor` is available the form is read-only.
+
+**Authorization** — a bridge token is generated at runtime (`node:crypto` randomBytes) and injected into the page for this process session only; it is never written to disk or logs. Reads accept the token, a same-origin request, or a loopback socket. Writes are stricter: token, **or** same-origin **and** loopback. Non-authorized requests get `403`; a headless host with no webServer registers no routes at all.
+
+**Face-health light** — a tri-state probe (tools registered / guidance injected / observe+guard on disk) with a visible fail-soft diagnostic to stderr when degraded or absent. It distinguishes "UI has no data" from "the desktop face is not active" (no silent failure). The probe is a machine-readable readiness signal, **not** proof that the face works end-to-end on your machine; real-device triple-evidence remains a manual acceptance item.
+
+**Native entry** — a `settings.section` summary card ("zcontext 摘要") shows the fold count / window occupancy and links to `/zctx-ui`. The client fiber declares only `inject: ['slots']`; if that service is absent the card is a lazy no-op (never a hanging PENDING), and if React is unavailable it degrades to a plain link.
+
+> **Honest boundary (BETA):** this panel solves *viewing and changing settings without opening a session and spending billed tokens*. It does **not** eliminate all fold tokens — model-driven folds still consume session tokens; only the server-side `autofold` face removes that dependency. The panel is a read-only view plus an overlay-settings writer; it never touches the model request body (R1 zero request-rewrite).
 
 <a id="behavior-notes"></a>
 ## Behavior notes

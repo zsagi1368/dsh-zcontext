@@ -175,6 +175,35 @@ export type {
 } from './adapter/providers.ts'
 export { createZctxAdapterClass } from './adapter/zctx-adapter.ts'
 export type { ZctxAdapterDeps, ZctxAdapterFace } from './adapter/zctx-adapter.ts'
+
+// ---------------------------------------------------------------------------
+// ZCTX-UI read-only realtime panel (B3; additive — identity exports unchanged).
+// ---------------------------------------------------------------------------
+
+export {
+  attachUi,
+  createSnapshotSource,
+  createTokenSource,
+  createTransitionSink,
+  detectFaceActivation,
+  registerUiRoutes,
+  UI_PAGE_HTML,
+  UI_TOKEN_PLACEHOLDER,
+  unknownFaceHealth,
+} from './ui/index.ts'
+export type {
+  Basis,
+  ConfigView,
+  FaceEvidence,
+  FaceHealthView,
+  FaceProbeState,
+  FaceState,
+  MarkedNumber,
+  SnapshotDeps,
+  UiAccessors,
+  UiRouteDeps,
+  ZctxSnapshot,
+} from './ui/index.ts'
 export { buildWireFaces, requestHeaders } from './adapter/wire.ts'
 export type { WireFaces, WireRequestIdentity, WireSink } from './adapter/wire.ts'
 

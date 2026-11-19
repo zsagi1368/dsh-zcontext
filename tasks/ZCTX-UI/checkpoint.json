@@ -1,0 +1,40 @@
+{
+  "schema": "checkpoint/v1",
+  "task": "ZCTX-UI",
+  "step": 10,
+  "block": "B5-rework",
+  "status": "done",
+  "ts": "2026-11-19T05:10:00.000Z",
+  "artifacts": [
+    {
+      "path": "src/client/index.ts"
+    },
+    {
+      "path": "src/plugin.ts"
+    },
+    {
+      "path": "src/ui/page.ts"
+    },
+    {
+      "path": "src/ui/snapshot.ts"
+    },
+    {
+      "path": "src/ui/types.ts"
+    },
+    {
+      "path": "tests/client-slot.spec.ts"
+    },
+    {
+      "path": "tests/zctx-ui.spec.ts"
+    },
+    {
+      "path": "lib/index.js"
+    },
+    {
+      "path": "dist/client.cjs"
+    }
+  ],
+  "next": "B6 reviewer 复审 + verifier 全量验证 + 真机收口",
+  "prev_hash": "174c3a4ff27638dbc747b29ec5bb87259db4071450d141b33cdb664ffb8ed8f6",
+  "hash": "6a2246f44b3934d795fe199e79d4b7f7c922f47e9d6129153e23051181977dd3"
+}

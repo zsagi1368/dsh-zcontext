@@ -5,6 +5,14 @@
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": "./dist/client.cjs",
+    "./package.json": "./package.json"
+  },
   "license": "MIT",
   "keywords": [
     "deepseek-harness",
@@ -29,6 +37,10 @@
     "manifestVersion": 1,
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-ui-slots"]
     }
   },
   "peerDependencies": {
@@ -47,7 +59,7 @@
     "vitest": "^4.1.0"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && node scripts/assert-client-banner-handshake.mjs",
     "lint": "tsc --noEmit",
     "test": "tsdown && vitest run"
   }
