@@ -1,25 +1,19 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-PATCH-AUTO",
-  "step": 14,
-  "block": "AUTOLOG-20261119-双写修复",
+  "step": 15,
+  "block": "AUTOLOG-20261119-autocrlf-fixture根因",
   "status": "done",
-  "ts": "2026-11-19T01:45:00.000Z",
+  "ts": "2026-11-19T01:48:00.000Z",
   "artifacts": [
     {
-      "path": "patcher/zctx-patch.mjs"
+      "path": ".gitattributes"
     },
     {
-      "path": "patcher/zctx-patch.d.mts"
-    },
-    {
-      "path": "tests/patcher-auto.spec.ts"
-    },
-    {
-      "path": "patcher/README.md"
+      "path": "tasks/ZCTX-PATCH-AUTO/artifacts/nightly-rc5-real.yml"
     }
   ],
-  "next": "reviewer 对抗评审 + 合并；真机 task 主线已止血（不在本任务范围）",
-  "prev_hash": "054454d0602df867b692ca1ef7b5d7089b4ed1f571e088dcb0864ccdf0debd40",
-  "hash": "ecc0da2d8868211deda25e4b5f9711172f95db8b1b5db9d67ef51564bfa6eca3"
+  "next": "收口：全量绿+工作树干净，交主线裁决/合并",
+  "prev_hash": "ecc0da2d8868211deda25e4b5f9711172f95db8b1b5db9d67ef51564bfa6eca3",
+  "hash": "d5551d3eae42222f3d077fcc32774e58109fafba6efaadb1c30e342d443a7562"
 }
