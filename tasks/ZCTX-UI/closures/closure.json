@@ -1,0 +1,73 @@
+{
+  "_draft": true,
+  "_note": "B4 D7 起草：研究 4 项未解决转验收项。disposition/status 暂列 open（待验证），由主线 B6 真机终验后按 §11 定谳（fixed/verified 或 user_approved_deferred）。agent 不得单方面关闭。禁用 status=closed 假装完成。",
+  "task": "ZCTX-UI",
+  "source": "RES-UI-FEASIBILITY.md §C-3 / VERIFY-UI.md 附条件 / DESIGN.md §8.1",
+  "items": [
+    {
+      "id": "V8-A3-4",
+      "source": "RES-UI-FEASIBILITY.md A3-4 / DESIGN.md §8.1",
+      "type": "unresolved-to-acceptance",
+      "title": "primitive 字段可见性（设置页渲染哪些 ZcontextConfig 字段）",
+      "disposition": "open",
+      "status": "open",
+      "phase": "post-merge",
+      "acceptance": "真机打开设置页，记录 26 个 primitive 中哪些渲染；与 CONFIG_FIELD_SPECS 对齐。裁定：primitive 不进自动 configForms 属预期（权威=overlay），本波以自带 UI 页面覆盖九字段+face 开关，不依赖 Models 页编辑。",
+      "evidence": "待 B6 真机实测：README UI 节 + tests/zctx-ui.spec.ts（config GET/POST 覆盖 13 键）+ 真机截图。",
+      "owner": "main (B6 verifier)",
+      "_coder_note": "阶段一/二已提供自带设置页绕开 U1 页内编辑阻断；此条验证的是官方 Models 页可见性，非本波可单方面关闭。"
+    },
+    {
+      "id": "V8-A4-5",
+      "source": "RES-UI-FEASIBILITY.md A4-5 / DESIGN.md §8.1/§2.3",
+      "type": "unresolved-to-acceptance",
+      "title": "session 绑定（显式/缺省/不可见 id 三臂）",
+      "disposition": "open",
+      "status": "open",
+      "phase": "block",
+      "acceptance": "单测三臂已过（tests/zctx-ui.spec.ts：显式 watched→explicit、缺省→latest-watched、不可见 id→空快照不回退）；真机 UI 页显示 sessionId 且可切换（页面锁定首个 sessionId 后带 ?session= 轮询）。",
+      "evidence": "单测臂=tests/zctx-ui.spec.ts 3 用例 PASS；真机臂待 B6 浏览器实测截图。",
+      "owner": "main (B6 verifier)",
+      "_coder_note": "单测部分已 fixed/verified；真机端到端臂未验，故整体保持 open 待主线定谳。"
+    },
+    {
+      "id": "V8-A2-4",
+      "source": "RES-UI-FEASIBILITY.md A2-4 / DESIGN.md §8.1",
+      "type": "unresolved-to-acceptance",
+      "title": "非 loopback 只读（远程只读允许、远程持久写受限）",
+      "disposition": "open",
+      "status": "open",
+      "phase": "block",
+      "acceptance": "单测：非 loopback 无 token → GET snapshot/config 走授权臂判定、POST 无 token 且非 loopback→403（tests/zctx-ui.spec.ts 已覆盖只读/写收紧臂）；真机确认远程持久写是否受限（S14 README:106 get no durable settings）。",
+      "evidence": "单测臂=tests/zctx-ui.spec.ts（403 越权/写收紧）PASS；真机远程臂待 B6。",
+      "owner": "main (B6 verifier)",
+      "_coder_note": "授权收紧（token OR same-origin+loopback 才写）已实现并测；真机远程只读语义待验。"
+    },
+    {
+      "id": "V8-C-3",
+      "source": "RES-UI-FEASIBILITY.md C-3 / VERIFY-UI.md / DESIGN.md §8.1",
+      "type": "unresolved-to-acceptance",
+      "title": "端到端真机（桌面 composition 浏览器打开 /zctx-ui 三块渲染 + 5s 轮询 + face 灯 + 三重证据）",
+      "disposition": "open",
+      "status": "open",
+      "phase": "post-merge",
+      "acceptance": "桌面 composition 浏览器打开 /zctx-ui：查看/统计/设置三块渲染、5s 轮询更新、faceHealth 绿/黄/红；三重证据取其一（模型工具清单列 zctx_* / 系统提示含 zctx / 行为痕迹）；截图入证。与 BENCH-L2 face 探针（D5）交叉核验。",
+      "evidence": "待 B6 真机截图 + tests/ui-face-probe.spec.ts（探针三态/可见 sink）+ tests/client-slot.spec.ts（slot 契约）。",
+      "owner": "main (B6 verifier)",
+      "_coder_note": "本波交付探针与页面，但真机端到端属主线验收，agent 不声称已解决。"
+    },
+    {
+      "id": "BENCH-L2",
+      "source": "BENCH-report.md §116 / DESIGN.md §4.3",
+      "type": "preexisting-deferred",
+      "title": "桌面 face 未真机验证（原始 disposition=user_approved_deferred）",
+      "disposition": "open",
+      "status": "open",
+      "phase": "post-merge",
+      "acceptance": "D5 探针提供机器可读就绪信号，但不自动关闭 BENCH-L2；真机三重证据仍待用户桌面环境验证。original disposition=user_approved_deferred 不因本探针自动关闭。",
+      "evidence": "tests/ui-face-probe.spec.ts（三态+sink）PASS；真机证据待 B6/用户。",
+      "owner": "main (B6 verifier)",
+      "_coder_note": "按 DESIGN §4.3 明确声明不自动关闭，保持 open 交主线。"
+    }
+  ]
+}

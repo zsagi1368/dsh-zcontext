@@ -30,6 +30,7 @@
 - [autoFold：服务端自主折叠（opt-in，v0.3.0）](#autofold)
 - [可选的 base-context 补丁器（外部工具，用户执行，v0.2）](#the-optional-patcher)
 - [设置项](#settings)
+- [实时 UI 面板（BETA）](#realtime-ui)
 - [行为说明](#behavior-notes)
 - [限制](#limitations)
 - [安全](#security)
@@ -239,6 +240,31 @@ v0.2.0 各段共用同一 schema：
 | `autofold.maxSummaryOutputTokens` | number | `32768` | 模型摘要调用的输出钳制上限。 |
 
 与设置项无关的一条独立约束：上下文窗口低于 32768 token 时，整个自动面（nudge + 引擎门）保持关闭——这是估算公式的法定域。工具仍可用；status 会渲染明确的说明行。
+
+<a id="realtime-ui"></a>
+## 实时 UI 面板（BETA）
+
+一个**不耗 session token、实时**的「查看 / 统计 / 设置」面板，无需开会话。在 web/desktop composition 中，插件在宿主 webServer 上注册原生只读路由；在同一浏览器（与 DSH web app 同源）打开：
+
+```
+/zctx-ui
+```
+
+仅在存在 `webServer` 的 profile（web/desktop）可用；CLI/headless 没有 UI，插件会直接跳过该面。
+
+**三块内容**
+
+- **查看** — 每 5s 轮询 `/zctx-ui/api/snapshot`，渲染进程内存实时账本：窗口 tokens / 容量 / 压力百分比、六行预算、可折叠区间、折叠账本、缓存口径徽标（`measured` / `estimated`）、以及 face 健康灯（绿/黄/红）。所有读数来自内存账本的只读快照 API——不扫日志、不调模型。
+- **统计** — 累计折叠次数、净省 tokens（带 `measured`/`estimated` 口径标注）、回本次数（回本表）、三态样本占比、纯净样本占比（含可信度门判定）、重置台账摘要。
+- **设置** — 九个核心字段 + 四个 face 开关（`observe.enabled`、`patch.guardObserveEvents`、`autofold.enabled`、`preflightMode`）的表单。保存时**只经宿主 `configEditor.edit`** 写 profile overlay（从不直接写文件）；下次加载生效，不热更新已挂载的 face。无 `configEditor` 时表单只读。
+
+**授权** — bridge token 在运行时用 `node:crypto` randomBytes 生成，仅在本进程会话注入页面，永不写盘或日志。读操作接受 token、同源请求或 loopback socket；写操作更严：token，**或**同源**且** loopback。非授权请求返回 `403`；无 webServer 的 headless 宿主完全不注册路由。
+
+**face 健康灯** — 三重探针（tools 是否注册 / guidance 是否注入 / observe+guard 是否在位），降级或缺席时向 stderr 写可见的 fail-soft 诊断，用于区分「UI 无数据」与「桌面 face 未激活」（不再静默失效）。该探针是机器可读的就绪信号，**不是**面在你机器上端到端可用的证明；真机三重证据仍属人工验收项。
+
+**原生入口** — `settings.section` 摘要卡显示折叠次数 / 窗口占比并跳转 `/zctx-ui`。client fiber 只声明 `inject: ['slots']`；该服务缺席时卡片惰性 no-op（绝不会悬挂 PENDING），React 不可用时降级为纯链接。
+
+> **诚实边界（BETA）：** 本面板解决的是*不开会话查看与改设置、不烧计费 token*。它**不**消灭所有折叠 token——模型驱动的折叠仍消耗会话 token；只有服务端 `autofold` 面才去除该依赖。面板是只读视图 + overlay 设置写入器，永不触碰模型请求体（R1 零请求改写）。
 
 <a id="behavior-notes"></a>
 ## 行为说明
