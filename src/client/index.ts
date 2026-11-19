@@ -56,6 +56,25 @@ export interface ClientCtx {
 export interface ClientAdapters {
   readonly React?: ReactLike
   readonly fetchText?: (url: string) => Promise<string>
+  /** Minimal DOM factory for the no-React fallback link (browser supplies `document`). */
+  readonly document?: DocumentLike
+}
+
+/** Minimal DOM surface the no-React fallback link needs (duck-typed, no lib.dom import). */
+export interface DocumentLike {
+  createElement(tag: string): {
+    setAttribute(name: string, value: string): void
+    textContent: string
+  }
+}
+
+/** The render product of the no-React fallback component — assertable in tests. */
+export interface LinkRender {
+  readonly tag: 'a'
+  readonly href: string
+  readonly text: string
+  /** The real DOM anchor when a document is available; absent in bare Node. */
+  readonly node?: unknown
 }
 
 /**
@@ -66,6 +85,7 @@ export interface ClientAdapters {
  * guards it and tests inject a mock via adapters.React.
  */
 declare const require: ((spec: string) => unknown) | undefined
+declare const document: DocumentLike | undefined
 
 function resolveReact(adapters: ClientAdapters): ReactLike | undefined {
   if (adapters.React !== undefined) return adapters.React
@@ -147,6 +167,30 @@ export function createSummaryCard(
 }
 
 /**
+ * Build the no-React fallback component. It returns a REAL, assertable render
+ * product: an `<a href="/zctx-ui">` DOM anchor (when a document is available)
+ * AND a `LinkRender` descriptor with a non-empty label. Never a blank `null`
+ * card (B5-1: the "plain link" promise must be genuinely rendered).
+ */
+export function createFallbackLink(doc?: DocumentLike): (() => LinkRender) {
+  return function FallbackLink(): LinkRender {
+    const text = '打开 zcontext 面板 →'
+    let node: unknown
+    if (doc !== undefined && typeof doc.createElement === 'function') {
+      try {
+        const anchor = doc.createElement('a')
+        anchor.setAttribute('href', '/zctx-ui')
+        anchor.textContent = text
+        node = anchor
+      } catch {
+        /* DOM best-effort; descriptor still carries the link */
+      }
+    }
+    return { tag: 'a', href: '/zctx-ui', text, ...(node !== undefined ? { node } : {}) }
+  }
+}
+
+/**
  * Top-level fiber apply. Capability-probes every host surface; `slots` absent
  * → lazy no-op (no PENDING, no throw). Falls back to a plain link component if
  * React/styles unavailable.
@@ -155,11 +199,13 @@ export function apply(ctx: ClientCtx, adapters: ClientAdapters = {}): void {
   const React = resolveReact(adapters)
   const fetchText = adapters.fetchText ?? ((url: string) => fetch(url).then((r) => r.text()))
   const styles = (ctx.get?.('styles') ?? undefined) as StylesLike | undefined
+  const doc: DocumentLike | undefined = adapters.document ?? (typeof document !== 'undefined' ? document : undefined)
 
   const register = (): unknown => {
     const component = createSummaryCard(React, undefined, fetchText)
-    // Expression-limit degrade (反-C2): no React → a plain-link render closure.
-    const finalComponent = component ?? ((..._args: never[]): unknown => null)
+    // Expression-limit degrade (反-C2, B5-1): no React → a REAL clickable link
+    // component (never a blank null card). The render product asserts href/text.
+    const finalComponent = component ?? createFallbackLink(doc)
     return ctx.slots?.register?.({
       name: SLOT_KEY,
       id: CARD_ID,

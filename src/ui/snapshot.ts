@@ -32,17 +32,20 @@ function dominantBasis(threeState: { measured: number; semi: number; estimated: 
   return 'none'
 }
 
-/** Build an honest empty snapshot (no session / explicit id not watched). */
+/** Build an honest empty snapshot (no session / invisible id / probe fault). */
 function emptySnapshot(
   reason: string,
   faceHealth: ZctxSnapshot['faceHealth'],
   generatedAt: number,
+  availableSessions: readonly string[],
+  resolution: ZctxSnapshot['sessionResolution'] = 'none',
 ): ZctxSnapshot {
   return {
     version: 1,
     generatedAt,
+    availableSessions: [...availableSessions],
     sessionId: undefined,
-    sessionResolution: 'none',
+    sessionResolution: resolution,
     window: { contextWindow: undefined, totalTokens: undefined, pressurePct: undefined, routed: undefined },
     budget: undefined,
     ranges: [],
@@ -64,6 +67,15 @@ export function createSnapshotSource(deps: SnapshotDeps): {
 } {
   const snapshotFor = (sessionId?: string): ZctxSnapshot => {
     const generatedAt = Date.now()
+
+    // Watched session ids — thin wrapper over liveSessions (DESIGN §2.1), for
+    // the UI multi-session switcher (B5-5). Never throws into the caller.
+    let availableSessions: readonly string[] = []
+    try {
+      availableSessions = deps.listSessions?.() ?? []
+    } catch {
+      availableSessions = []
+    }
 
     // face health is session-independent — always computed, even with no session.
     let faceHealth: ZctxSnapshot['faceHealth']
@@ -87,13 +99,13 @@ export function createSnapshotSource(deps: SnapshotDeps): {
     if (sessionId !== undefined) {
       session = deps.resolveSession(sessionId)
       if (session === undefined) {
-        return emptySnapshot(`session ${sessionId} not watched`, faceHealth, generatedAt)
+        return emptySnapshot(`session ${sessionId} not watched`, faceHealth, generatedAt, availableSessions)
       }
       sessionResolution = 'explicit'
     } else {
       session = deps.currentSession()
       if (session === undefined) {
-        return emptySnapshot('no active session', faceHealth, generatedAt)
+        return emptySnapshot('no active session', faceHealth, generatedAt, availableSessions)
       }
       sessionResolution = 'latest-watched'
     }
@@ -126,7 +138,16 @@ export function createSnapshotSource(deps: SnapshotDeps): {
       pressurePct = (totalTokens.value / contextWindow) * 100
     }
 
-    const routed = routedRequestTarget(session)
+    // routedRequestTarget (B5-3): wrap so a requestHeader getter that throws
+    // yields an honest degraded snapshot, never an uncaught error.
+    let routed: ZctxSnapshot['window']['routed']
+    try {
+      routed = routedRequestTarget(session)
+    } catch (error: unknown) {
+      const reason = `route target read failed: ${error instanceof Error ? error.message : String(error)}`
+      degraded.push(reason)
+      return emptySnapshot(reason, faceHealth, generatedAt, availableSessions, 'degraded')
+    }
 
     // -- budget: reuse computeBudget, never reimplement ----------------------
     let budget: ZctxSnapshot['budget']
@@ -139,7 +160,15 @@ export function createSnapshotSource(deps: SnapshotDeps): {
     }
 
     // -- store-backed views (all read-only accessors) -------------------------
-    const store = runtime.storeFor(session)
+    // storeFor (B5-3): wrap so a store attach/scan fault degrades honestly.
+    let store: ReturnType<typeof runtime.storeFor>
+    try {
+      store = runtime.storeFor(session)
+    } catch (error: unknown) {
+      const reason = `store resolution failed: ${error instanceof Error ? error.message : String(error)}`
+      degraded.push(reason)
+      return emptySnapshot(reason, faceHealth, generatedAt, availableSessions, 'degraded')
+    }
     let ranges: ZctxSnapshot['ranges'] = []
     try {
       ranges = foldableRanges(store.surfaceNodes(), runtime.validatorConfig(session))
@@ -204,6 +233,7 @@ export function createSnapshotSource(deps: SnapshotDeps): {
     return {
       version: 1,
       generatedAt,
+      availableSessions: [...availableSessions],
       sessionId: typeof resolvedSessionId === 'string' ? resolvedSessionId : undefined,
       sessionResolution,
       window: { contextWindow, totalTokens, pressurePct, routed },

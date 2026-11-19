@@ -30,9 +30,11 @@ export interface MarkedNumber {
 export interface ZctxSnapshot {
   readonly version: 1
   readonly generatedAt: number
+  /** Currently watched session ids (thin wrapper over liveSessions), for the UI switcher. */
+  readonly availableSessions: readonly string[]
   readonly sessionId: string | undefined
-  /** How the session was resolved — explicit / latest-watched / none (never silent). */
-  readonly sessionResolution: 'explicit' | 'latest-watched' | 'none'
+  /** How the session was resolved — explicit / latest-watched / none / degraded (never silent). */
+  readonly sessionResolution: 'explicit' | 'latest-watched' | 'none' | 'degraded'
   readonly window: {
     /** From the already-resolved model-info window cache; measured source, never fabricated. */
     readonly contextWindow: number | undefined
@@ -80,6 +82,8 @@ export interface SnapshotDeps {
   readonly resolveSession: (id: string) => SessionLike | undefined
   /** Default session (currentSession) when no id was supplied. */
   readonly currentSession: () => SessionLike | undefined
+  /** All watched session ids (thin wrapper over liveSessions), for the UI switcher. Optional for backward-compatible test deps. */
+  readonly listSessions?: () => readonly string[]
   /** Cached context window for a session (windowCache); measured source. */
   readonly windowFor: (session: SessionLike) => number | undefined
   /** Face-health view (session independent); B4 replaces the body with the tri-state probe. */

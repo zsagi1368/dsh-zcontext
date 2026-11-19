@@ -426,6 +426,15 @@ export class ZcontextPlugin extends ServiceBase {
       resolveSession: (id) => this.resolveWatchedSession(id),
       currentSession: () => this.currentSession(),
       windowFor: (session) => this.windowCache.get(session as object),
+      // B5-5: thin wrapper over liveSessions for the UI multi-session switcher.
+      listSessions: () => {
+        const ids: string[] = []
+        for (const session of this.liveSessions) {
+          const id = (session as { id?: unknown }).id
+          if (typeof id === 'string') ids.push(id)
+        }
+        return ids
+      },
       faceHealth: () => this.faceHealth(),
     })
 
@@ -447,17 +456,15 @@ export class ZcontextPlugin extends ServiceBase {
     this.wireAutoFoldFace()
     this.wirePatchFace()
     zctxDebug('constructor: all wire*Face calls returned')
-    // ZCTX-UI D2/D3: register the four read-only UI routes. The disposer is
-    // collected through ctx.effect (RA1d/FileHub) and also kept for direct use.
+    // ZCTX-UI D2/D3: register the four read-only UI routes. registerUiRoutes
+    // (via attachUi) ALREADY wires the disposer through ctx.effect (B5-2: single
+    // registration, label 'zctx-ui-routes' lives in routes.ts) — do not register
+    // a second one here; just invoke attachUi for its side effect.
     try {
-      const disposeUi = attachUi(ctx as unknown, {
+      attachUi(ctx as unknown, {
         snapshotFor: (sessionId) => this.snapshotFor(sessionId),
         configValues: () => this.config as unknown as Record<string, unknown>,
       })
-      const effectCtx = ctx as { effect?(cleanup: () => () => void, label?: string): unknown }
-      if (typeof effectCtx.effect === 'function') {
-        effectCtx.effect(() => () => disposeUi(), 'zctx-ui-routes')
-      }
     } catch (error: unknown) {
       zctxDebug(`attachUi: failed (${error instanceof Error ? error.message : String(error)}) — UI surface skipped`)
     }

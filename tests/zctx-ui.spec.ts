@@ -287,6 +287,60 @@ describe('ZCTX-UI D1: snapshotFor thin wrapper (V1)', () => {
     expect(snap.cache.basis).toBe('none')
     expect(snap.cache.samples).toBe(0)
   })
+
+  it('B5-5: exposes availableSessions (thin list of watched ids)', () => {
+    const session = routedSession('sess-A') as unknown as SessionLike
+    const store = seedLedger(session as MockSession)
+    const source = createSnapshotSource({
+      runtime: makeRuntime(() => store),
+      resolveSession: (id) => (id === 'sess-A' ? session : undefined),
+      currentSession: () => session,
+      windowFor: () => 200000,
+      listSessions: () => ['sess-A', 'sess-B'],
+      faceHealth: () => unknownFaceHealth(),
+    })
+    expect(source.snapshotFor().availableSessions).toEqual(['sess-A', 'sess-B'])
+    expect(source.snapshotFor('ghost').availableSessions).toEqual(['sess-A', 'sess-B'])
+  })
+
+  it('B5-3: storeFor throwing → degraded empty snapshot, never throws', () => {
+    const session = routedSession('sess-A') as unknown as SessionLike
+    const runtime = makeRuntime(() => { throw new Error('store boom') })
+    const source = createSnapshotSource({
+      runtime,
+      resolveSession: () => session,
+      currentSession: () => session,
+      windowFor: () => undefined,
+      faceHealth: () => unknownFaceHealth(),
+    })
+    let snap: ReturnType<typeof source.snapshotFor> | undefined
+    expect(() => { snap = source.snapshotFor('sess-A') }).not.toThrow()
+    expect(snap?.sessionResolution).toBe('degraded')
+    expect(snap?.degraded.some((d) => d.includes('store resolution failed'))).toBe(true)
+    expect(snap?.folds).toEqual([])
+  })
+
+  it('B5-3: route target read throwing → degraded empty snapshot, never throws', () => {
+    const session = routedSession('sess-A') as unknown as SessionLike
+    const store = seedLedger(session as MockSession)
+    // routedRequestTarget already try/catches session.requestHeader() itself;
+    // to exercise snapshot.ts's OUTER guard we make header.config throw (this
+    // read sits AFTER routedRequestTarget's internal try/catch).
+    ;(session as unknown as { requestHeader: () => unknown }).requestHeader = () => {
+      return new Proxy({}, { get() { throw new Error('header.config boom') } })
+    }
+    const source = createSnapshotSource({
+      runtime: makeRuntime(() => store),
+      resolveSession: () => session,
+      currentSession: () => session,
+      windowFor: () => undefined,
+      faceHealth: () => unknownFaceHealth(),
+    })
+    let snap: ReturnType<typeof source.snapshotFor> | undefined
+    expect(() => { snap = source.snapshotFor('sess-A') }).not.toThrow()
+    expect(snap?.sessionResolution).toBe('degraded')
+    expect(snap?.degraded.some((d) => d.includes('route target read failed'))).toBe(true)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -490,6 +544,25 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     expect(res.status).toBe(405)
   })
 
+  it('registers the disposer via ctx.effect exactly ONCE (B5-2 dedup)', () => {
+    const effectLabels: string[] = []
+    const { webServer } = mockWebServer()
+    const effectCtx = {
+      ...ctx,
+      effect: (_fn: unknown, label?: string) => { effectLabels.push(label ?? ''); return undefined },
+    }
+    registerUiRoutes({
+      ctx: effectCtx,
+      webServer,
+      pageHtml: UI_PAGE_HTML,
+      snapshotFor: (id) => snapshotSource.snapshotFor(id),
+      getConfig: () => configView,
+      writeConfig: () => ({ ok: true }),
+    })
+    const uiRouteEffects = effectLabels.filter((label) => label === 'zctx-ui-routes')
+    expect(uiRouteEffects).toHaveLength(1)
+  })
+
   it('disposer unregisters all routes', () => {
     const { routes, unregistered, disposer } = setup()
     expect(routes.size).toBe(4)
@@ -521,5 +594,31 @@ describe('ZCTX-UI V4: zero credential literals in source', () => {
     expect(src).toContain('randomBytes')
     // No hard-coded credential literal of the token shape (prefix + hex blob).
     expect(src).not.toMatch(/['"`]zctx_[0-9a-z]+_[0-9a-f]{16,}['"`]/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// B5 rework r1: multi-session switcher (B5-5) + attribute escaping (B5-6)
+// ---------------------------------------------------------------------------
+
+describe('ZCTX-UI B5-5/B5-6: page session switcher + escaping', () => {
+  it('page has a REAL session <select> wired to availableSessions + change handler', () => {
+    // A real control (not a fake): the select exists, is populated from the
+    // snapshot.availableSessions field, and switching triggers a re-poll.
+    expect(UI_PAGE_HTML).toContain('id="session-pick"')
+    expect(UI_PAGE_HTML).toContain('s.availableSessions')
+    expect(UI_PAGE_HTML).toContain("addEventListener('change'")
+    expect(UI_PAGE_HTML).toContain("?session=' + encodeURIComponent(session)")
+    // The snapshot API actually exposes the field (thin wrapper over liveSessions).
+    expect(UI_PAGE_HTML).not.toContain('__TODO_SESSION_PICKER__')
+  })
+
+  it('esc() escapes both quote kinds (B5-6): no attribute-breaking raw quotes', () => {
+    // The esc helper in the page must cover &<>"' — assert the replacement
+    // chains are present in source (string-level; the JS runs in browser).
+    expect(UI_PAGE_HTML).toContain("replace(/\"/g, '&quot;')")
+    expect(UI_PAGE_HTML).toContain("replace(/'/g, '&#39;')")
+    // Attribute contexts use escAttr (the aliased esc) for the form value.
+    expect(UI_PAGE_HTML).toContain('escAttr(')
   })
 })

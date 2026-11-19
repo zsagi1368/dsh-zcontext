@@ -82,6 +82,30 @@ function createSummaryCard(React, initial, fetchText) {
 	};
 }
 /**
+* Build the no-React fallback component. It returns a REAL, assertable render
+* product: an `<a href="/zctx-ui">` DOM anchor (when a document is available)
+* AND a `LinkRender` descriptor with a non-empty label. Never a blank `null`
+* card (B5-1: the "plain link" promise must be genuinely rendered).
+*/
+function createFallbackLink(doc) {
+	return function FallbackLink() {
+		const text = "打开 zcontext 面板 →";
+		let node;
+		if (doc !== void 0 && typeof doc.createElement === "function") try {
+			const anchor = doc.createElement("a");
+			anchor.setAttribute("href", "/zctx-ui");
+			anchor.textContent = text;
+			node = anchor;
+		} catch {}
+		return {
+			tag: "a",
+			href: "/zctx-ui",
+			text,
+			...node !== void 0 ? { node } : {}
+		};
+	};
+}
+/**
 * Top-level fiber apply. Capability-probes every host surface; `slots` absent
 * → lazy no-op (no PENDING, no throw). Falls back to a plain link component if
 * React/styles unavailable.
@@ -90,8 +114,9 @@ function apply(ctx, adapters = {}) {
 	const React = resolveReact(adapters);
 	const fetchText = adapters.fetchText ?? ((url) => fetch(url).then((r) => r.text()));
 	const styles = ctx.get?.("styles") ?? void 0;
+	const doc = adapters.document ?? (typeof document !== "undefined" ? document : void 0);
 	const register = () => {
-		const finalComponent = createSummaryCard(React, void 0, fetchText) ?? ((..._args) => null);
+		const finalComponent = createSummaryCard(React, void 0, fetchText) ?? createFallbackLink(doc);
 		return ctx.slots?.register?.({
 			name: SLOT_KEY,
 			id: CARD_ID,
@@ -116,6 +141,7 @@ const fiber = {
 };
 
 exports.apply = apply;
+exports.createFallbackLink = createFallbackLink;
 exports.createSummaryCard = createSummaryCard;
 exports.fiber = fiber;
 exports.inject = inject;

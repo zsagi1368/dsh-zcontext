@@ -45,6 +45,9 @@ export const UI_PAGE_HTML = `<!DOCTYPE html>
   .beta { font-size: 11px; color: #f0b429; border: 1px solid #f0b429; border-radius: 4px;
           padding: 1px 6px; }
   .meta { margin-left: auto; color: #8b93a7; font-size: 12px; }
+  .session-pick { color: #8b93a7; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .session-pick select { background: #0f131c; color: #e6e9ef; border: 1px solid #333b4e;
+    border-radius: 5px; padding: 3px 6px; font-family: inherit; font-size: 12px; max-width: 220px; }
   main { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
          gap: 16px; padding: 18px 20px; max-width: 1500px; }
   section { background: #171b25; border: 1px solid #262c3a; border-radius: 10px;
@@ -90,6 +93,9 @@ export const UI_PAGE_HTML = `<!DOCTYPE html>
 <header>
   <h1>zcontext 实时面板</h1>
   <span class="beta">BETA</span>
+  <label class="session-pick" id="session-pick-wrap" style="display:none">会话
+    <select id="session-pick" aria-label="切换会话"></select>
+  </label>
   <span class="meta" id="meta">加载中…</span>
 </header>
 <main>
@@ -128,8 +134,12 @@ export const UI_PAGE_HTML = `<!DOCTYPE html>
     });
   }
   function esc(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+  // Attribute-context alias (B5-6): same escaping, used where a value lands
+  // inside a quoted HTML attribute. Text contexts also benefit (harmless).
+  function escAttr(s) { return esc(s); }
   function badge(basis) {
     var b = basis || 'none';
     return '<span class="badge ' + b + '">' + b + '</span>';
@@ -252,7 +262,7 @@ export const UI_PAGE_HTML = `<!DOCTYPE html>
       if (type === 'boolean') {
         html += '<label class="chk"><input type="checkbox" data-key="' + key + '" data-type="boolean"' + (val === true ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';
       } else {
-        html += '<label class="f"><span>' + esc(label) + '</span><input type="text" data-key="' + key + '" data-type="' + type + '" value="' + esc(val === undefined ? '' : val) + '"></label>';
+        html += '<label class="f"><span>' + esc(label) + '</span><input type="text" data-key="' + escAttr(key) + '" data-type="' + escAttr(type) + '" value="' + escAttr(val === undefined ? '' : val) + '"></label>';
       }
     });
     html += '<h2 style="font-size:12px;margin:14px 0 4px;border:0;padding:0">face 开关</h2>';
@@ -306,10 +316,28 @@ export const UI_PAGE_HTML = `<!DOCTYPE html>
     });
   }
 
+  function renderSessionPicker(ids, current) {
+    var wrap = document.getElementById('session-pick-wrap');
+    var select = document.getElementById('session-pick');
+    if (!wrap || !select) return;
+    if (!ids || ids.length < 2) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    var prev = select.value;
+    var chosen = current || prev || ids[0];
+    var html = ids.map(function (id) {
+      return '<option value="' + escAttr(id) + '"' + (id === chosen ? ' selected' : '') + '>' + esc(id) + '</option>';
+    }).join('');
+    if (select.innerHTML !== html) {
+      select.innerHTML = html;
+      select.value = chosen;
+    }
+  }
+
   function refresh() {
     var url = '/zctx-ui/api/snapshot' + (session ? '?session=' + encodeURIComponent(session) : '');
     api(url).then(function (s) {
       if (!session && s.sessionId) session = s.sessionId;
+      renderSessionPicker(s.availableSessions || [], session || s.sessionId);
       document.getElementById('meta').textContent =
         (s.sessionId ? esc(s.sessionId) : '无会话') + ' · ' + new Date(s.generatedAt).toLocaleTimeString();
       renderView(s);
@@ -320,6 +348,14 @@ export const UI_PAGE_HTML = `<!DOCTYPE html>
     if (!formBuilt) {
       api('/zctx-ui/api/config').then(buildForm).catch(function () { /* settings stay empty on error */ });
     }
+  }
+
+  var pick = document.getElementById('session-pick');
+  if (pick) {
+    pick.addEventListener('change', function () {
+      session = pick.value; // user switch: lock to the chosen session, re-poll now
+      refresh();
+    });
   }
 
   refresh();

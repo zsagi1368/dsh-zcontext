@@ -101,11 +101,34 @@ describe('ZCTX-UI D6: client fiber identity + inject gate (V7)', () => {
     expect(() => apply(ctx, { React: mockReact() })).not.toThrow()
   })
 
-  it('React absent → degrades to non-null link component, still registers (反-C2)', () => {
+  it('React absent → degrades to a REAL clickable /zctx-ui link (not a blank null card, 反-C2/B5-1)', () => {
     const ctx = slotsCtx()
-    apply(ctx, { React: undefined, fetchText: async () => '{}' })
+    const doc = {
+      createElement(tag: string) {
+        const node = {
+          tag,
+          href: '',
+          textContent: '',
+          setAttribute(name: string, value: string) { if (name === 'href') node.href = value },
+        }
+        return node
+      },
+    }
+    apply(ctx, { React: undefined, fetchText: async () => '{}', document: doc as never })
     expect(ctx.registered).toHaveLength(1)
-    expect(typeof ctx.registered[0].component).toBe('function')
+    const component = ctx.registered[0].component as () => { tag: string; href: string; text: string; node?: unknown }
+    expect(typeof component).toBe('function')
+    // TRUE render assertion: invoke the component and inspect the product.
+    const rendered = component()
+    expect(rendered).not.toBeNull()
+    expect(rendered.tag).toBe('a')
+    expect(rendered.href).toBe('/zctx-ui')
+    expect(rendered.text.length).toBeGreaterThan(0)
+    // The real DOM anchor was created with the href + label.
+    expect(rendered.node).toBeDefined()
+    const anchor = rendered.node as { href: string; textContent: string }
+    expect(anchor.href).toBe('/zctx-ui')
+    expect(anchor.textContent.length).toBeGreaterThan(0)
   })
 })
 
