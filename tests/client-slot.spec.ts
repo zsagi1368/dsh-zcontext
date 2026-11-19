@@ -13,6 +13,8 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { execFileSync } from 'node:child_process'
+import process from 'node:process'
 
 import {
   name as fiberName,
@@ -168,13 +170,45 @@ describe('ZCTX-UI D6: styles + summary (V7)', () => {
   })
 })
 
-describe('ZCTX-UI D6: bundle factory contract (Z1)', () => {
+describe('ZCTX-UI D6/B6: bundle factory contract (Z1)', () => {
   const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'))
-  const dist = readFileSync(fileURLToPath(new URL('../dist/client.cjs', import.meta.url)), 'utf8')
+  const distPath = fileURLToPath(new URL('../dist/client.cjs', import.meta.url))
+  const dist = readFileSync(distPath, 'utf8')
+
+  it('REAL PARSE: node --check accepts the bundle (B6 P0 — no silent syntax error)', () => {
+    // Not a string assertion: actually parse the shipped artifact with Node.
+    // Pre-fix this threw "Unexpected token ')'" at the single-brace footer.
+    expect(() => execFileSync(process.execPath, ['--check', distPath], { stdio: 'pipe' })).not.toThrow()
+  })
+
+  it('REAL EXECUTION: script registers factory(require) under the package id', () => {
+    // Execute the bundle with a stubbed loader and assert load() receives the
+    // right id AND a callable single-arg factory whose return is module.exports.
+    const registered: { id: string; factory: unknown }[] = []
+    const win = {
+      __ModuleLoader__: {
+        load(entry: { id: string; factory: unknown }) { registered.push(entry) },
+      },
+    }
+    const run = new Function('window', dist) as (w: unknown) => void
+    expect(() => run(win)).not.toThrow()
+    expect(registered).toHaveLength(1)
+    expect(registered[0].id).toBe(pkg.name)
+    expect(typeof registered[0].factory).toBe('function')
+    // Invoke the factory with a minimal require stub — must return an exports
+    // object carrying apply/inject/name (the loader takes the return value).
+    const exportsObj = (registered[0].factory as (require: (s: string) => unknown) => Record<string, unknown>)(
+      (spec: string) => { if (spec === 'react') return { createElement: () => null }; return {} },
+    )
+    expect(exportsObj).toBeDefined()
+    expect(typeof exportsObj.apply).toBe('function')
+    expect(exportsObj.inject).toEqual(['slots'])
+  })
 
   it('bundle opens with single-arg factory(require) + self-built module scaffold', () => {
     expect(dist).toMatch(/^window\.__ModuleLoader__\.load\(\{ id: "[^"]+", factory: \(require\) => \{ var module = \{ exports: \{\} \}; var exports = module\.exports;/)
-    expect(dist).toMatch(/\breturn module\.exports;\s*\}\s*\);\s*$/)
+    // STRICT (B6 P0): two braces — factory body + load object — then `);`.
+    expect(dist).toMatch(/\breturn module\.exports;\s*\}\s*\}\s*\);\s*$/)
   })
 
   it('banner id (stripped /client) === package name (handshake)', () => {

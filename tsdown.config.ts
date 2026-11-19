@@ -48,6 +48,12 @@ export default defineConfig([
     // package name id is a literal kept in lockstep with package.json (name)
     // and asserted by scripts/assert-client-banner-handshake.mjs.
     banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(CLIENT_LOADER_ID)}, factory: (require) => { var module = { exports: {} }; var exports = module.exports;\n`,
-    footer: `return module.exports; });`,
+    // ZCTX-UI B6 P0: close THREE scopes — the arrow-function body `}`, the
+    // load() argument object `}`, then `);` for the call. The previous footer
+    // had only ONE `}` so the factory body stayed open → `node --check` failed
+    // with "Unexpected token ')'" → the script never registered its factory →
+    // loader reported "loaded without registering dsh-zcontext". AutoPilot's
+    // working footer is `return module.exports; } });` (two braces); match it.
+    footer: `return module.exports; } });`,
   },
 ])

@@ -147,4 +147,4 @@ exports.fiber = fiber;
 exports.inject = inject;
 exports.name = name;
 exports.parseSummary = parseSummary;
-return module.exports; });
+return module.exports; } });
