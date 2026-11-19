@@ -1,0 +1,14 @@
+{
+  "schema": "closure/v1",
+  "task": "ZCTX-SIDEBAR",
+  "items": [
+    { "id": "V1", "source": "plan §6", "type": "acceptance", "disposition": "fixed", "status": "verified", "phase": "block", "evidence": "tests/client-slot.spec.ts panellist 臂（id=PANEL_ID/order/label thunk）25/25；单测层 verified" },
+    { "id": "V2", "source": "plan §6", "type": "acceptance", "disposition": "fixed", "status": "verified", "phase": "block", "evidence": "main.key===PANEL_ID binding 臂 + 组件函数断言；真机渲染归 V8" },
+    { "id": "V3", "source": "plan §6", "type": "acceptance", "disposition": "fixed", "status": "verified", "phase": "block", "evidence": "panel 同源 fetch snapshot 5s 轮询臂（B3-S2 interval/cleanup 真臂 24/24）" },
+    { "id": "V4", "source": "plan §6", "type": "acceptance", "disposition": "fixed", "status": "verified", "phase": "block", "evidence": "设置区只读字段渲染（config GET）+跳完整页链接（B3-S5 fixed，U-2 诚实降级）" },
+    { "id": "V5", "source": "plan §6", "type": "acceptance", "disposition": "fixed", "status": "verified", "phase": "block", "evidence": "inject ['slots'] 最小集+缺席降级 no-op 臂（Z21/Z25）" },
+    { "id": "V6", "source": "plan §6", "type": "acceptance", "disposition": "fixed", "status": "verified", "phase": "block", "evidence": "R1 段 8e2d0b7e… INTACT（三 ref 独立复算）+握手 5/5 真语法校验（Z35）" },
+    { "id": "V7", "source": "plan §6", "type": "acceptance", "disposition": "fixed", "status": "verified", "phase": "block", "evidence": "tsc 0 + 747/747 + 工作树净（checkpoint step6，diff 自证）" },
+    { "id": "V8", "source": "plan §6", "type": "acceptance", "disposition": "open", "status": "open", "phase": "post-merge", "evidence": "真机四项（左菜单标签出现/点击开面板/数据实时/不顶 DSH）——pin 轮转重装后主线真机验证", "owner": "main (B4)" }
+  ]
+}
