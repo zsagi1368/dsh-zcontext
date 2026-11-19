@@ -95,3 +95,10 @@
 - 用户报设置页报错 "client-modules: loaded without registering dsh-zcontext"。根因：dist/client.cjs footer 少一个 `}`（factory 箭头函数体未闭合）→ 语法错误 → 脚本没执行 → __ModuleLoader__.load 从未调用；握手脚本正则假绿放行。
 - 修复（6cea9f6）：tsdown client footer 补 `}`；握手脚本改 node --check 真语法校验+严格双 `}` 断言（4→5 检查）；tests/client-slot.spec.ts 加 REAL PARSE+REAL EXECUTION 真臂（13→15）。737 测试绿、R1 不变式、零凭据字面量。
 - 真机：pin 6cea9f6 重装（网络超时重试一次，3m52s 成功）→ node --check 新 bundle CHECK=0、尾部双 `}` → 浏览器模拟执行 REG-OK（id/factory/exports 7 键全在）→ app 重启 UI 路由 200（端口 60628）、face active、config 200。设置页摘要卡加载失败已消除。
+
+## ZCTX-SIDEBAR（2026-11-19 · 用户 "左侧菜单栏显示 zcontext 标签，点击在侧栏打开" · 推云 main=0d26043 tag zctx-sidebar-20261119a）
+
+- 研究 RES-SIDEBAR-TAB.md（361 行）+VERIFY-SIDEBAR.md（7/7）：真机制=sidebar.panellist（左菜单 id/order/label）+main（keyed，key=panel id），先例 ui-plugin-manager/ui-schedule 逐行；方向 U-1 按用户"左侧菜单栏"字面裁定 A1（主内容区 panel）。
+- 实施（主线亲做因 coder 被打断零产出）：client bundle 注册 panellist entry+main panel（PANEL_ID 绑定两处）+panel 三区组件（同源 fetch snapshot 5s 轮询+设置只读+跳完整页 U-2 降级）。
+- 质量：B3 五轮 76→91→78→92→98 PASS（评审逐轮抓出：2×TS2722+虚构 limitTokens 夹具+失实 tsc 证据×3+N1 注释声称未改——**第 4 次失实声明教训固化=修复必须先 diff 自证再写 evidence**）；R1 段 8e2d0b7e… 全程 INTACT；747 测试绿；握手 5/5 含 node --check 真语法校验。
+- 真机：GitHub 断流致 pnpm git resolve 失败×4 → workaround=本地 HEAD（与 pin 同 commit）产物字节复制到装件（node fs+哈希三方一致），网络恢复后 pnpm install 自然对齐；app 重启 UI 200（端口 59312）、snapshot 实时 JSON、face active 四信号、装件含 panellist/panel 注册 5 处。左菜单标签+点击渲染属浏览器内行为（V8），待用户目视确认后 closure 定谳。
