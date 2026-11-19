@@ -152,7 +152,12 @@ schtasks /Create /TN ZCTX-Patch-Auto /SC HOURLY /TR "<action>" /F
   外层引号正是为被剥而存在，内层命令因此完整存活（含空格路径——安装目录
   "DeepSeek Harness" 本身带空格）。node 路径 = `process.execPath` 绝对路径；
   脚本路径默认本文件 `import.meta.url` 经 `fileURLToPath` 解析（可用 `--script` 覆盖）；
-  log 默认 `%LOCALAPPDATA%\zctx-patch\auto.log`。
+  log（shell 重定向兜底）默认 `%LOCALAPPDATA%\zctx-patch\auto.console.log`。
+- **shell 兜底日志独立文件，避免与内部 sink 争用**：action 的 `>>` 重定向写
+  `auto.console.log`，与脚本内部 sink 写的 `auto.log`（上节日志契约）是两个不同文件。
+  两者若指向同一文件，Windows 下 shell 重定向与 `appendFileSync` 并发追加会互相
+  EBUSY（每 tick 数十次，导致 headless 日志失真——判定逻辑不受影响但违反 Z28）；
+  分离后两个审计面都保留且零争用。`--log-file` 可显式注入覆盖默认（新用户 install 默认即分离）。
 - **install 幂等**：`/Query` 探到已存在 → 先 `/Delete /F` 再建 → 建后再 `/Query`
   证明可见；每条 schtasks 命令与结果全部进 steps（CLI 全程打印）。
 - **uninstall**：删除后再 `/Query` **证明不可见**；任务缺席 = 幂等成功。

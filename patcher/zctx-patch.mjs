@@ -3480,6 +3480,19 @@ export function defaultAutoLogPath() {
   return join(base, 'zctx-patch', 'auto.log')
 }
 
+/**
+ * The scheduled task's SHELL fallback log: `%LOCALAPPDATA%\zctx-patch\auto.console.log`.
+ * Deliberately SEPARATE from {@link defaultAutoLogPath} (the internal sink's
+ * auto.log): the schtasks `>>` redirect and the sink's appendFileSync used to
+ * append the SAME file, and on Windows the two writers race → dozens of EBUSY
+ * append errors per tick (headless log distortion; judgment logic unaffected).
+ * Same directory as auto.log, distinct filename — both audit faces survive
+ * with zero contention (Z28).
+ */
+export function defaultConsoleLogPath() {
+  return join(dirname(defaultAutoLogPath()), 'auto.console.log')
+}
+
 /** One contract line: `[ISO8601] [auto] state=<X> detail=<...>`. */
 export function autoLogLine(state, detail) {
   return `[${new Date().toISOString()}] [auto] state=${state} detail=${detail}`
@@ -3725,11 +3738,16 @@ export function thisScriptPath() {
  * that stripping consumes the wrapper pair and the inner command survives
  * fully quoted: `"node" "script" auto --yes >> "log" 2>&1`. Without it, the
  * first and last PATH quotes would be eaten and a spaced path breaks the
- * action. The `>>`/`2>&1` redirect rides cmd, landing stdout+stderr in the
- * same file sink the patcher writes (Z28: belt-and-suspenders — a crash
- * before the sink starts still leaves the console face in the file).
+ * action. The `>>`/`2>&1` redirect rides cmd, landing stdout+stderr in a SHELL
+ * fallback log that is DELIBERATELY SEPARATE from the patcher's internal
+ * auto.log sink ({@link defaultConsoleLogPath} vs {@link defaultAutoLogPath}):
+ * both writers appending the SAME file raced on Windows → dozens of EBUSY
+ * append errors per tick (headless log distortion; judgment logic unaffected).
+ * The shell face stays belt-and-suspenders (a crash before the sink starts
+ * still leaves stdout/stderr on disk) — now with zero sink contention (Z28).
+ * `logPath` remains injectable: callers may still pass it explicitly.
  */
-export function buildTaskAction({ nodePath = process.execPath, scriptPath, logPath }) {
+export function buildTaskAction({ nodePath = process.execPath, scriptPath, logPath = defaultConsoleLogPath() }) {
   return `cmd /c ""${nodePath}" "${scriptPath}" auto --yes >> "${logPath}" 2>&1"`
 }
 
@@ -3752,7 +3770,11 @@ function taskStep(steps, name, status, detail) {
  * @param options.nodePath  the node executable (default process.execPath)
  * @param options.scriptPath the patcher script (default {@link thisScriptPath};
  *                            the real machine passes the MAIN-TREE path)
- * @param options.logFile   the auto log sink (default {@link defaultAutoLogPath})
+ * @param options.logFile   the task action's SHELL fallback log (stdout/stderr
+ *                          redirect; default {@link defaultConsoleLogPath}).
+ *                          Kept injectable. Deliberately NOT the internal
+ *                          auto.log sink: the two writers must never append
+ *                          the same file (Windows EBUSY race).
  * @param options.taskName  default {@link TASK_NAME}
  * @param options.platform  injectable for tests (default process.platform)
  * @param options.run       injectable schtasks runner (tests)
@@ -3761,7 +3783,7 @@ export function installScheduledTask(options = {}) {
   const {
     nodePath = process.execPath,
     scriptPath = thisScriptPath(),
-    logFile = defaultAutoLogPath(),
+    logFile = defaultConsoleLogPath(),
     taskName = TASK_NAME,
     platform = process.platform,
     run = runSchtasksDefault,

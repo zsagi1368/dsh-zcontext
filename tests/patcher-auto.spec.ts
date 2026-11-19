@@ -27,7 +27,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, sep } from 'node:path'
+import { basename, dirname, join, sep } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as asar from '@electron/asar'
 
@@ -36,6 +36,8 @@ import {
   SUPPORTED,
   TASK_NAME,
   buildTaskAction,
+  defaultAutoLogPath,
+  defaultConsoleLogPath,
   desktopExePath,
   installScheduledTask,
   normalizeEntry,
@@ -459,15 +461,47 @@ describe('scheduled task (fixture-level; real registration is B5)', () => {
     const action = buildTaskAction({
       nodePath: 'C:\\Program Files\\node.exe',
       scriptPath: 'C:\\My Repo\\patcher\\zctx-patch.mjs',
-      logPath: 'C:\\Users\\Z S\\AppData\\Local\\zctx-patch\\auto.log',
+      logPath: 'C:\\Users\\Z S\\AppData\\Local\\zctx-patch\\auto.console.log',
     })
     expect(action).toBe(
-      'cmd /c ""C:\\Program Files\\node.exe" "C:\\My Repo\\patcher\\zctx-patch.mjs" auto --yes >> "C:\\Users\\Z S\\AppData\\Local\\zctx-patch\\auto.log" 2>&1"',
+      'cmd /c ""C:\\Program Files\\node.exe" "C:\\My Repo\\patcher\\zctx-patch.mjs" auto --yes >> "C:\\Users\\Z S\\AppData\\Local\\zctx-patch\\auto.console.log" 2>&1"',
     )
     // Shape invariants, independently of the exact paths.
     expect(action.startsWith('cmd /c ""')).toBe(true)
     expect(action.endsWith('2>&1"')).toBe(true)
     expect(action).toContain('auto --yes >>')
+    // The shell redirect target is NOT the internal sink's auto.log — the two
+    // writers appending the same file raced on Windows (EBUSY, Z28).
+    expect(action).not.toContain('>> "C:\\Users\\Z S\\AppData\\Local\\zctx-patch\\auto.log"')
+  })
+
+  it('buildTaskAction defaults: shell redirect goes to auto.console.log, DISTINCT from the internal auto.log sink', () => {
+    // Two independent default helper results — the two writers must never
+    // append the same file (AUTOLOG-20261119: EBUSY double-write root cause).
+    const sinkLog = defaultAutoLogPath()
+    const consoleLog = defaultConsoleLogPath()
+    expect(consoleLog).not.toBe(sinkLog)
+    expect(dirname(consoleLog)).toBe(dirname(sinkLog))
+    expect(basename(sinkLog)).toBe('auto.log')
+    expect(basename(consoleLog)).toBe('auto.console.log')
+
+    // With no logPath injected, the action must use the separate console log.
+    const action = buildTaskAction({ nodePath: 'C:\\n\\node.exe', scriptPath: 'C:\\r\\zctx-patch.mjs' })
+    expect(action).toContain(`>> "${consoleLog}" 2>&1`)
+    expect(action).not.toContain(`>> "${sinkLog}" 2>&1`)
+  })
+
+  it('install default action: shell redirect targets auto.console.log, never the internal auto.log sink', () => {
+    const { run } = fakeRun([
+      { status: 1, stderr: 'ERROR: The scheduled task "ZCTX-Patch-Auto" does not exist' },
+      { status: 0, stdout: 'SUCCESS' },
+      { status: 0, stdout: 'SUCCESS' },
+    ])
+    // No logFile injected — the new-user install path.
+    const result = installScheduledTask({ nodePath: 'C:\\n\\node.exe', scriptPath: 'C:\\r\\zctx-patch.mjs', run })
+    expect(result.ok).toBe(true)
+    expect(result.action).toContain(`>> "${defaultConsoleLogPath()}" 2>&1`)
+    expect(result.action).not.toContain(`>> "${defaultAutoLogPath()}" 2>&1`)
   })
 
   it('install: query(not present) → create → verify visible (exact schtasks call sequence)', () => {

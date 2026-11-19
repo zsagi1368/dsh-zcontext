@@ -297,6 +297,13 @@ export async function statusAsar(args: {
 /** The default auto log file: `%LOCALAPPDATA%\zctx-patch\auto.log` (Z28). */
 export function defaultAutoLogPath(): string
 
+/**
+ * The scheduled task's SHELL fallback log: `%LOCALAPPDATA%\zctx-patch\auto.console.log`.
+ * Separate from auto.log so the schtasks `>>` redirect and the internal sink
+ * never append the same file (Windows EBUSY race).
+ */
+export function defaultConsoleLogPath(): string
+
 /** One contract line: `[ISO8601] [auto] state=<X> detail=<...>`. */
 export function autoLogLine(state: string, detail: string): string
 
@@ -350,11 +357,13 @@ export function thisScriptPath(): string
 /**
  * `cmd /c ""<node>" "<script>" auto --yes >> "<log>" 2>&1"` — every path
  * quoted, plus the outer pair cmd.exe's /C rule 2 consumes (spaced paths).
+ * `logPath` defaults to the independent shell log (defaultConsoleLogPath),
+ * NOT the internal auto.log sink, to avoid the two writers' Windows EBUSY race.
  */
 export function buildTaskAction(args: {
   nodePath?: string
   scriptPath: string
-  logPath: string
+  logPath?: string
 }): string
 
 export interface TaskStep {
