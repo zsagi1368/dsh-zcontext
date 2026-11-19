@@ -38,11 +38,23 @@ function resolveReact(adapters) {
 }
 const SLOT_KEY = "settings.section";
 const CARD_ID = "dsh-zcontext-summary";
+/** The left-menu panel id — the SAME value binds `sidebar.panellist` and `main`. */
+const PANEL_ID = "dsh-zcontext.panel";
+const PANEL_ORDER = 60;
 const CSS = [
 	".zctx-summary{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--dsw-alias-border-color, #444);border-radius:8px;background:var(--dsw-alias-bg-layer-1, transparent);}",
 	".zctx-summary h3{margin:0;font-size:var(--dsw-alias-font-size-lg, 15px);color:var(--dsw-alias-label-primary, inherit);}",
 	".zctx-summary .zctx-stats{display:flex;gap:16px;color:var(--dsw-alias-label-secondary, #aaa);font-size:var(--dsw-alias-font-size-sm, 12px);}",
-	".zctx-summary a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}"
+	".zctx-summary a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}",
+	".zctx-panel{display:flex;flex-direction:column;gap:6px;padding:14px 18px;overflow-y:auto;height:100%;box-sizing:border-box;background:var(--dsw-alias-bg-layer-1, transparent);}",
+	".zctx-panel-title{margin:0 0 4px;font-size:var(--dsw-alias-font-size-lg, 16px);color:var(--dsw-alias-label-primary, inherit);}",
+	".zctx-panel-face{display:flex;align-items:center;gap:6px;font-size:var(--dsw-alias-font-size-sm, 12px);}",
+	".zctx-panel h3{margin:10px 0 2px;font-size:var(--dsw-alias-font-size-sm, 13px);color:var(--dsw-alias-label-secondary, #aaa);border-bottom:1px solid var(--dsw-alias-border-color, #444);padding-bottom:2px;}",
+	".zctx-panel-row{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-primary, inherit);}",
+	".zctx-panel-note{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-secondary, #aaa);}",
+	".zctx-panel-err{font-size:var(--dsw-alias-font-size-sm, 12px);color:#f85149;background:rgba(248,81,73,.08);border-radius:4px;padding:4px 8px;}",
+	".zctx-panel a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}",
+	".zctx-panel-icon{display:inline-flex;align-items:center;justify-content:center;line-height:1;}"
 ].join("");
 /** Parse the minimal summary out of a snapshot JSON text (fail-soft). */
 function parseSummary(text) {
@@ -67,6 +79,16 @@ async function refreshSummary(fetchText) {
 		return;
 	}
 }
+/**
+* The production fetch face: it must REJECT on a non-2xx (`403` after a policy
+* change, `500` on a fault). Resolving the error page as text would render
+* "折叠 0 / 缓存 0" — fabricated zeros against the honest-degrade vocabulary
+* (B3-S7). Callers then keep the last good snapshot.
+*/
+const sameOriginFetchText = (url) => fetch(url).then((r) => {
+	if (!r.ok) throw new Error(`zctx panel: GET ${url} → HTTP ${r.status}`);
+	return r.text();
+});
 /** Build the card component. `React` may be absent → caller degrades to a link. */
 function createSummaryCard(React, initial, fetchText) {
 	if (React === void 0) return void 0;
@@ -112,6 +134,99 @@ function createFallbackLink(doc) {
 		};
 	};
 }
+/** Parse the /zctx-ui/api/snapshot JSON into the panel's view model. */
+function parsePanelSnapshot(text) {
+	try {
+		const raw = JSON.parse(text);
+		const face = raw.faceHealth ?? {};
+		const win = raw.window ?? {};
+		const pressure = typeof win.pressurePct === "number" ? win.pressurePct : void 0;
+		const total = win.totalTokens ?? {};
+		const t = typeof total.value === "number" ? total.value : void 0;
+		const cw = typeof win.contextWindow === "number" ? win.contextWindow : void 0;
+		const cache = raw.cache ?? {};
+		const folds = Array.isArray(raw.folds) ? raw.folds.length : void 0;
+		const ranges = Array.isArray(raw.ranges) ? raw.ranges.length : void 0;
+		const degradedRows = Array.isArray(raw.degraded) ? raw.degraded.length : 0;
+		const view = {};
+		if (typeof raw.sessionId === "string") view.sessionId = raw.sessionId;
+		if (typeof raw.sessionResolution === "string") view.sessionResolution = raw.sessionResolution;
+		if (typeof face.state === "string") view.faceState = face.state;
+		if (folds !== void 0) view.foldCount = folds;
+		if (pressure !== void 0) view.pressurePct = pressure;
+		if (t !== void 0) view.totalTokens = t;
+		if (cw !== void 0) view.contextWindow = cw;
+		if (typeof cache.samples === "number") view.cacheSamples = cache.samples;
+		if (cache.measured === true) view.cacheMeasured = true;
+		if (ranges !== void 0) view.ranges = ranges;
+		if (degradedRows > 0) view.degradedCount = degradedRows;
+		return view;
+	} catch {
+		return {};
+	}
+}
+/**
+* Build the side-panel component (方案 A1: `sidebar.panellist` + `main`).
+* Renders 查看 / 统计 / 设置 (read-only; writes point at the full `/zctx-ui`
+* page — U-2 token gap, honest degrade). Polls the same-origin snapshot API
+* every 5s. Returns undefined when React is unavailable (caller degrades).
+*/
+function createPanelComponent(React, fetchText) {
+	if (React === void 0) return void 0;
+	const e = React.createElement;
+	return function ZctxPanel() {
+		const [data, setData] = React.useState?.({}) ?? [{}, () => void 0];
+		const value = data;
+		const [fetchError, setFetchError] = React.useState?.(void 0) ?? [void 0, () => void 0];
+		const [configFields, setConfigFields] = React.useState?.({}) ?? [{}, () => void 0];
+		const cfg = configFields;
+		React.useEffect?.(() => {
+			let alive = true;
+			const load = () => {
+				fetchText("/zctx-ui/api/snapshot").then((text) => {
+					if (!alive) return;
+					setData(parsePanelSnapshot(text));
+					setFetchError(void 0);
+				}).catch((err) => {
+					if (!alive) return;
+					setFetchError(err instanceof Error ? err.message : String(err));
+				});
+			};
+			load();
+			fetchText("/zctx-ui/api/config").then((text) => {
+				if (!alive) return;
+				const raw = JSON.parse(text);
+				if (raw.fields !== void 0 && typeof raw.fields === "object") setConfigFields(raw.fields);
+			}).catch(() => {});
+			const timer = setInterval(load, 5e3);
+			return () => {
+				alive = false;
+				clearInterval(timer);
+			};
+		}, []);
+		const face = value.faceState ?? "unknown";
+		const faceColor = face === "active" ? "#3fb950" : face === "degraded" ? "#d29922" : "#f85149";
+		return e("div", { className: "zctx-panel" }, e("h2", { className: "zctx-panel-title" }, "zcontext 面板 (BETA)"), e("div", { className: "zctx-panel-face" }, e("span", {
+			className: "zctx-dot",
+			style: { color: faceColor }
+		}, "●"), e("span", null, ` face: ${face}`)), fetchError !== void 0 ? e("div", { className: "zctx-panel-err" }, `数据读取失败: ${fetchError}（保留上次快照，5s 后重试）`) : null, e("h3", null, "查看"), e("div", { className: "zctx-panel-row" }, `会话: ${value.sessionId ?? "n/a"} (${value.sessionResolution ?? "n/a"})`), e("div", { className: "zctx-panel-row" }, `窗口占用: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("div", { className: "zctx-panel-row" }, `tokens: ${value.totalTokens ?? "n/a"} / ${value.contextWindow ?? "n/a"}`), value.degradedCount !== void 0 ? e("div", { className: "zctx-panel-note" }, `降级提示: ${value.degradedCount} 条`) : null, e("h3", null, "统计"), e("div", { className: "zctx-panel-row" }, `折叠次数: ${value.foldCount ?? 0}`), e("div", { className: "zctx-panel-row" }, `可折叠区间: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? " (measured)" : " (estimated/none)"}`), e("h3", null, "设置"), e("div", { className: "zctx-panel-row" }, Object.keys(cfg).length > 0 ? Object.entries(cfg).map(([k, v]) => `${k}=${String(v)}`).join(" · ") : "（配置未加载）"), e("div", { className: "zctx-panel-note" }, "设置修改请到完整面板（此处只读，避免越权写入）："), e("a", {
+			href: "/zctx-ui",
+			target: "_blank",
+			rel: "noopener noreferrer"
+		}, "打开完整面板 →"));
+	};
+}
+/** A minimal left-menu icon component (panellist renders the icon, label is text). */
+function createPanelIcon(React) {
+	if (React === void 0) return () => null;
+	const e = React.createElement;
+	return function ZctxIcon() {
+		return e("span", {
+			className: "zctx-panel-icon",
+			"aria-hidden": "true"
+		}, "◎");
+	};
+}
 /**
 * Top-level fiber apply. Capability-probes every host surface; `slots` absent
 * → lazy no-op (no PENDING, no throw). Falls back to a plain link component if
@@ -119,7 +234,7 @@ function createFallbackLink(doc) {
 */
 function apply(ctx, adapters = {}) {
 	const React = resolveReact(adapters);
-	const fetchText = adapters.fetchText ?? ((url) => fetch(url).then((r) => r.text()));
+	const fetchText = adapters.fetchText ?? sameOriginFetchText;
 	const styles = ctx.get?.("styles") ?? void 0;
 	const doc = adapters.document ?? (typeof document !== "undefined" ? document : void 0);
 	const register = () => {
@@ -135,9 +250,26 @@ function apply(ctx, adapters = {}) {
 	if (styles !== void 0 && typeof styles.insert === "function") try {
 		ctx.effect?.(styles.insert(CSS), "zctx-summary-styles");
 	} catch {}
-	if (ctx.slots === void 0 || typeof ctx.slots.inject !== "function") return;
+	const slots = ctx.slots;
+	if (slots === void 0 || typeof slots.inject !== "function") return;
 	try {
-		ctx.slots.inject(SLOT_KEY, register);
+		slots.inject(SLOT_KEY, register);
+	} catch {}
+	const panel = createPanelComponent(React, fetchText);
+	if (panel === void 0) return;
+	try {
+		slots.inject("main", () => slots.register?.({
+			name: "main",
+			key: PANEL_ID
+		}, panel));
+	} catch {}
+	try {
+		slots.inject("sidebar.panellist", () => slots.register?.({
+			name: "sidebar.panellist",
+			id: PANEL_ID,
+			order: PANEL_ORDER,
+			label: () => "zcontext"
+		}, createPanelIcon(React)));
 	} catch {}
 }
 /** The fiber object the loader expects (object form with inject + apply). */
@@ -149,9 +281,12 @@ const fiber = {
 
 exports.apply = apply;
 exports.createFallbackLink = createFallbackLink;
+exports.createPanelComponent = createPanelComponent;
+exports.createPanelIcon = createPanelIcon;
 exports.createSummaryCard = createSummaryCard;
 exports.fiber = fiber;
 exports.inject = inject;
 exports.name = name;
+exports.parsePanelSnapshot = parsePanelSnapshot;
 exports.parseSummary = parseSummary;
 return module.exports; } });

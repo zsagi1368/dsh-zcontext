@@ -3,6 +3,31 @@
 All notable changes to `dsh-zcontext` are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com); versioning follows SemVer.
 
+## [Unreleased]
+
+### Added — realtime UI + native sidebar panel (ZCTX-UI / ZCTX-SIDEBAR)
+
+- **Realtime web panel** (`/zctx-ui`): a webServer-mounted read-only page with
+  查看 (live snapshot, 5s poll), 统计 (folds / foldable ranges / cache
+  measured-vs-estimated), and 设置 (nine fields + face switches, writes the
+  profile overlay). Bridge token is generated at runtime; same-origin +
+  loopback reads need no token. Opens the panel **without opening a session**
+  — no billed tokens for viewing.
+- **Native left-menu entry** (`sidebar.panellist` + `main`, shared
+  `dsh-zcontext.panel` key): the app's left menu shows a `zcontext` entry whose
+  central panel renders the same live data inside the app — clicking it never
+  navigates the DSH window away (the desktop-webview `target=_blank` flow was
+  unreliable). Settings inside the panel are read-only with a link to the full
+  page (the in-panel write path is deferred: the bridge token is only injected
+  into the full page).
+- **Face tri-state probe** with a visible fail-soft sink: distinguishes "no
+  data" from "the desktop face is not active" (never fabricated zeros; fetch
+  failures surface as an honest error row, B3-S7).
+- **desktop acceptance** (pending final sign-off): `/zctx-ui` HTTP 200 with a
+  live snapshot JSON and faceHealth `active` (4 signals) was observed during
+  the ZCTX-UI wave; the sidebar-panel wave reuses that same surface and its
+  own tab/panel visibility is verified per the sidebar acceptance matrix.
+
 ## [0.3.0] - 2026-11-16
 
 The autoFold release: server-initiated folding arrives as an explicit opt-in
