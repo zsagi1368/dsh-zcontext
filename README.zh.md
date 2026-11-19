@@ -198,7 +198,7 @@ v0.2.0 唯一触碰线缆的地方——作为显式声明的例外，不是接�
 - **触碰面**——官方 asar 内恰五个文件（`llm-pi-ai` 携带 P4 wire 桩 + guard 接线；`agent-loop` guard observer；`session` 持久化词汇；`compaction-basic` L3 预算；`compaction-tool-result-pruner` 裁剪声明）。零新增 asar 条目、零官方导出面变更、零请求体改写（红线 R1）。
 - **门**——app 未运行、版本 ∈ 支持集、逐文件原始哈希锚（漂移 = 官方更新 = 拒收）、锚串唯一性、幂等重跑（已打 = no-op 成功）、整集一次原子写入（不存在部分多文件状态）、逐文件后校验、动原件前先备份到安装目录外的 sibling 目录。
 - **重打**——补丁只存活到官方更新器替换安装目录为止；更新后 `status` 报告漂移，对新构建更新锚集后重打。**回滚**——`restore` 从哈希校验过的备份原子还原原始字节并清除 marker；`status` 严格只读，报告逐文件面与 `patchSet` 聚合（patched / unpatched / partial / drifted）。全流程见 `patcher/README.md`。
-- **自愈（v0.3-auto）**——`auto` 是每小时状态机，把"官方更新静默杀死补丁"变成"自动愈合或响亮报警"：读取 Electron fuse wire（VERIFY-P #11 sentinel 扫描——完整性位 ON 或不可读即 fail-closed 拒绝），仅在有 `--yes` 且全 pristine+锚命中时重打（drifted/mixed 一律响亮拒绝绝不盲打），patch 后全量 status 复核，每行日志落到 `%LOCALAPPDATA%\zctx-patch\auto.log`；`install-task`/`uninstall-task` 管理其 Windows 计划任务（幂等、非 Windows 响亮拒绝）。判定表见 `patcher/README.md`。
+- **自愈（v0.3-auto）**——`auto` 是定时状态机（`install-task` 默认每天一次；`--schedule HOURLY` 可改每小时），把"官方更新静默杀死补丁"变成"自动愈合或响亮报警"：读取 Electron fuse wire（VERIFY-P #11 sentinel 扫描——完整性位 ON 或不可读即 fail-closed 拒绝），仅在有 `--yes` 且全 pristine+锚命中时重打（drifted/mixed 一律响亮拒绝绝不盲打），patch 后全量 status 复核，每行日志落到 `%LOCALAPPDATA%\zctx-patch\auto.log`；`install-task`/`uninstall-task` 管理其 Windows 计划任务（幂等、非 Windows 响亮拒绝）。判定表见 `patcher/README.md`。
 
 <a id="settings"></a>
 ## 设置项

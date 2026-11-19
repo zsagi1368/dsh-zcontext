@@ -1,0 +1,107 @@
+{
+  "schema": "scorecard/v1",
+  "task": "ZCTX-PATCH-AUTO",
+  "block": "SCHED-20261119",
+  "round": "final-review（独立 reviewer 对抗评审；全部结论由 reviewer-sched 亲跑/亲算/亲测，不采信文档自述）",
+  "scope": "281abe2..HEAD(073225c) 两提交（cc2d22d 频率可配置默认DAILY 实现 + 073225c checkpoint STEP-0016），7 文件 67+/18-；真机计划任务重建由主线负责，不在本审查范围",
+  "evaluator": "reviewer-sched",
+  "author": "coder",
+  "independence": "评审人 ≠ 作者；R1 哈希从 git 对象独立复算、pnpm test/tsc 亲跑、默认DAILY/显式HOURLY/任意频率三臂+CLI undefined 透传 node 实测、checkpoint 16 条哈希链反向工程复算、全仓 HOURLY 残留扫描、lib churn 诊断与 Z3 还原 均为本评审人独立执行",
+  "evaluatedAt": "2026-11-19T02:10:00Z",
+  "dimensions": [
+    {
+      "name": "正确性",
+      "max": 25,
+      "score": 25,
+      "evidence": [
+        "亲跑 pnpm test exit 0 = 31 文件 675/675 PASS；npx tsc --noEmit exit 0（TSC_EXIT=0）",
+        "node 实测 installScheduledTask：schedule=undefined（CLI 未传态）→/SC DAILY；无 schedule 键→/SC DAILY；schedule='HOURLY'→/SC HOURLY 且 detail 含 '/SC HOURLY'；schedule='WEEKLY'→/SC WEEKLY（可配置非硬编码）",
+        "R1 SUPPORTED 段从 git 对象按 README:355-365 口径独立复算：HEAD 与基线 281abe2 同为 sha 8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9 / bytes 14926 / chars 14889，与钉死值精确一致且 HEAD==BASE",
+        "注入面快筛：runSchtasksDefault 用 spawnSync argv 数组无 shell，schedule 为独立 argv 元素，无命令注入风险"
+      ]
+    },
+    {
+      "name": "完整性",
+      "max": 20,
+      "score": 20,
+      "evidence": [
+        "七项必核（diff 全读+R1、test+tsc、默认DAILY/显式HOURLY 两臂真实断言、CLI 面四处、README/d.mts 一致、工作树 Z3 还原、checkpoint STEP-0016 链）逐项覆盖并有证据",
+        "两提交目标全部达成：频率从写死 HOURLY 改为可配置 schedule 默认 DAILY；CLI install-task --schedule；tests 更新+2 新臂；README/d.mts 同步；checkpoint STEP-0016 落盘",
+        "真机面明确由主线处理、不在范围，非缺口不扣分"
+      ]
+    },
+    {
+      "name": "一致性",
+      "max": 20,
+      "score": 19,
+      "evidence": [
+        "patcher/README.md:63,144-152 与 zctx-patch.mjs:3791,3815-3816 及 d.mts:388-389（schedule?: string）逐字自洽；usage 两处+VALUE_OPTIONS+透传齐全",
+        "工作树跑后仅 lib/index.js autocrlf churn，git hash-object 与 HEAD blob 同为 376fba66…，剥 CRLF 后语义相等，Z3 还原后干净",
+        "checkpoint-history 16 条 hash+prev 链全 VALID；checkpoint.json step16 逐字段与 history 末条一致",
+        "扣 1 分：顶层 README.md:201 / README.zh.md:201 仍称 auto 'hourly/每小时'（[建议] S-1，文档漂移，非本次 diff 文件、非功能缺陷）"
+      ]
+    },
+    {
+      "name": "可验证性",
+      "max": 15,
+      "score": 15,
+      "evidence": [
+        "每条结论附可重放命令与输出：git show | python R1 复算、pnpm test/tsc 输出、node import 四臂实测、checkpoint 哈希链 python 反算+全链复核、git hash-object/autocrlf 诊断、git grep HOURLY 残留",
+        "checkpoint 哈希口径系本评审人反向工程（step1 prev_hash='' 验证成立）后复算全链，未采信文档自述",
+        "无虚构命令输出/测试结果；真机面不审不碰如实标注"
+      ]
+    },
+    {
+      "name": "安全回滚",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "真机零副作用：全程未执行 install-task/uninstall-task 触碰 schtasks；仅静态追值 + 注入 fake runner 单测臂确认频率行为",
+        "测试产生 lib/index.js 纯 autocrlf churn（git hash-object==HEAD blob 376fba66…、字节相等），按 Z3 git checkout -- lib/ 还原；还原后工作树 git status 干净",
+        "全程未触碰 del/、业务代码、配置；schedule 经 argv 传递无 shell 注入；无显性凭证/越权风险"
+      ]
+    },
+    {
+      "name": "可维护性",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "schedule 作为 injectable 选项加入解构默认值，/SC 与 detail 字符串共用同一变量，无重复/无写死；命名与既有 injectable 模式一致",
+        "README 增补独立段落解释默认频率与 --schedule HOURLY 回退；d.mts 注释同步；测试臂命名清晰（default schedule / explicit schedule:HOURLY）",
+        "评分与报告路径可追溯；checkpoint/progress STEP-0016 记录完整"
+      ]
+    }
+  ],
+  "total": 98,
+  "gate": 98,
+  "hardBlockCheck": {
+    "forgeryEvidence": false,
+    "securityViolation": false,
+    "correctnessBelow23": false,
+    "safetyRollbackBelow9": false,
+    "testFailureOrP0P1": false,
+    "openLegacyUnrecorded": false,
+    "delUnauthorizedChange": false
+  },
+  "verdict": "PASS（98/100，≥98 放行，仅中间合入）。七项必核 + 对抗追加核查全通过，无 [阻断]；1 条 [建议] S-1（顶层 README hourly 文档漂移）不阻塞中间合入，阻塞最终验收。",
+  "findings": {
+    "blockers": [],
+    "suggestions": [
+      {
+        "id": "S-1",
+        "severity": "建议",
+        "location": "README.md:201, README.zh.md:201（次级：patcher/zctx-patch.mjs:55,3469,3858,2977 描述性注释）",
+        "issue": "默认频率已由 HOURLY 改为 DAILY，顶层 README 仍称 auto 为 'hourly / 每小时' 状态机，存在文档漂移",
+        "reason": "非功能缺陷（/SC 频率由 patcher/README.md 权威记载且已正确同步），不影响正确性；但属文档一致性，阻塞最终验收",
+        "fix": "两处顶层 README 改为'可配置频率，默认每天一次（DAILY）；--schedule HOURLY 可改回'，代码注释按需要同步；或由用户显式 user_approved_deferred",
+        "disposition": "open"
+      }
+    ],
+    "observations": [
+      "OBS-1: checkpoint-history.jsonl 历史存在 step=4 重复条目（历史既有，本次 diff 仅追加 16 未触及，且 prev 链接正确）；disposition: not_applicable",
+      "OBS-2: 真机计划任务重建由主线负责，明确不在本审查范围；disposition: not_applicable"
+    ]
+  },
+  "report": "tasks/ZCTX-PATCH-AUTO/handoffs/review-SCHED.md",
+  "note": "评分依 §12.1 六维量表；评审人 reviewer-sched ≠ 作者 coder；本块为两个代码+checkpoint 提交，非治理/全局配置/部署变更，单 reviewer 独立评分即可放行。存在 1 条 OPEN [建议]（S-1），按纪律阻塞最终验收但不阻塞中间合入。"
+}
