@@ -80,3 +80,12 @@
 - 快审 PASS 98/100（reviewer-sched）；唯一建议 S-1=顶层 README 仍写 hourly → 当波修复（ad09dff 随评审件一并推送）。
 - 真机：用新代码 install-task 重建 ZCTX-Patch-Auto 为 `/SC DAILY`（每天 18:03 本地，auto.console.log 独立兜底日志）；终验 status=rc.5 patched 5/5 + fuse '0' + anchorSetSource=data；手动 auto 冒烟=up-to-date/already-ok；工作树干净。
 - RSI：coder 报 no-new-lesson；开工查命中 条目32/A68/A72/Z19/Z15/Z3/A14 全执行。
+
+## ZCTX-UI（2026-11-19 · 研究+架构+实施+真机验收 · 推云 main=ce9cc7a tag zctx-ui-20261119a）
+
+- 用户令："搞个 UI（设置/查看/统计），直观、不耗 session token、要实时" + "把发现的问题都修"。研究 RES-UI-FEASIBILITY.md（220 行）+VERIFY-UI.md（7/7）→方案丙（webServer 实时桥+slot 面板）→DESIGN.md 495 行→实施 735 测试绿。
+- 交付：快照 API（薄封装进程内存账本，非日志扫描）/4 条 webServer 路由（运行时 randomBytes token 授权，零凭据字面量）/内联 UI 页（查看 5s 轮询+统计+设置写 overlay，不进 session 不烧 token）/face 三态探针+可见 sink（Z28）/settings.section slot 摘要卡（inject 最小集+能力探测降级）/U1 设置可见性用自带页面绕开。
+- 质量：B5 评审 98→返工 r1（假绿测试改真断言+会话切换+degraded）→100 PASS；B5b verifier V1-V10 全 CONFIRMED 100 PASS；R1 段 8e2d0b7e… 始终不变。
+- 真机 P0（B6-RISK-1）：首装 `/zctx-ui` 404——根因 static inject 漏声明 webServer（Z21 同型，cordis get 未声明服务返回 undefined→路由静默跳过）；ce9cc7a 修复（inject 加 webServer+face 第 4 信号+5 测试）。重装 pin ce9cc7a 后决定性复测：**`/zctx-ui` HTTP 200 完整页面 + `/api/snapshot` 实时 JSON（availableSessions/sessionResolution=latest-watched/window 账本真值）+ faceHealth=active 四信号全 ok（tools.register registered=4）+ config GET 200 writable:true + 页面三块齐全**。BENCH-L2 桌面 face 未验证项在真机被证实为 active。
+- 应用户"每天省一点"偏好：桌面 profile pin 已从 a4ae662→90c9cd6→ce9cc7a 两次轮转（改前备份 I:/Dev/ZCode/workbuddy/del/20261119-zctx-ui-pin-prechange/）；app 已重启加载新 UI。
+- closure 5 项：V8-A3-4（primitive 可见性）、V8-A4-5（session 绑定）、V8-A2-4（非 loopback 只读）、V8-C-3（端到端真机）、BENCH-L2——真机终验后逐项定谳。
