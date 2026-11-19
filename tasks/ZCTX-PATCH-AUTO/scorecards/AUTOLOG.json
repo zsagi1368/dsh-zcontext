@@ -1,0 +1,96 @@
+{
+  "schema": "scorecard/v1",
+  "task": "ZCTX-PATCH-AUTO",
+  "block": "AUTOLOG-20261119",
+  "round": "final-review（独立 reviewer 对抗评审；全部结论由 reviewer-autolog 亲跑/亲算/亲测，不采信文档自述）",
+  "scope": "bf593d3..HEAD(0af0fc7) 两提交（46e12a5 双写 EBUSY 代码根治 + 0af0fc7 autocrlf fixture -text 根治），8 文件 93+/24-；真机 task action 面由主线 XML 导入止血，不在本审查范围",
+  "evaluator": "reviewer-autolog",
+  "author": "coder",
+  "independence": "评审人 ≠ 作者；R1 哈希复算、pnpm test/tsc 亲跑、fixture 前后 sha、buildTaskAction/install 默认路径臂 node 实测、check-attr、checkpoint 哈希链、全仓调用点扫描 均为本评审人独立执行",
+  "evaluatedAt": "2026-11-19T01:50:01Z",
+  "dimensions": [
+    {
+      "name": "正确性",
+      "max": 25,
+      "score": 25,
+      "evidence": [
+        "亲跑 pnpm test exit 0 = 31 文件 673/673 PASS；npx tsc --noEmit exit 0（TSC_EXIT=0）",
+        "R1 SUPPORTED 段从 git 对象按 README:349-365 口径独立复算：HEAD 与基线 bf593d3 同为 sha 8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9 / bytes 14926 / chars 14889，与钉死值精确一致",
+        "node 实测 defaultConsoleLogPath()=…\\auto.console.log ≠ defaultAutoLogPath()=…\\auto.log（同目录异名）；buildTaskAction/installScheduledTask 默认 action 写 auto.console.log 不含 auto.log；显式 logPath/logFile 覆盖仍生效",
+        "对抗追问 CLI 入口：installScheduledTask({logFile: args.log_file}) 未传时 undefined→解构默认 defaultConsoleLogPath()，新用户 install 默认分离成立"
+      ]
+    },
+    {
+      "name": "完整性",
+      "max": 20,
+      "score": 20,
+      "evidence": [
+        "六项必核（diff 全读+R1、test+tsc+fixture、默认路径臂+README、check-attr+单规则、工作树 Z3 还原、checkpoint 链）逐项覆盖并有证据",
+        "46e12a5 与 0af0fc7 两提交目标全部达成：代码根治（shell 兜底日志独立）+ 环境根治（-text 锁 fixture 字节）；测试新增 2 臂（默认路径+install 默认）+ action 断言更新；README 与 d.mts 同步",
+        "真机面明确标注由主线处理、不在范围，非缺口不扣分"
+      ]
+    },
+    {
+      "name": "一致性",
+      "max": 20,
+      "score": 20,
+      "evidence": [
+        "README:150-160 描述（默认 auto.console.log、与内部 auto.log 分离、--log-file 可覆盖）与 zctx-patch.mjs 实现及 d.mts 签名（logPath?: string、defaultConsoleLogPath(): string）逐字自洽",
+        "全仓 4 处生产调用点一致：内部 sink 保持 defaultAutoLogPath，shell action 走 defaultConsoleLogPath，无遗漏写死 auto.log 作为重定向目标",
+        "checkpoint-history 14/15 prev_hash 与 12/14 hash 链接全对；checkpoint.json step/hash/prev_hash 与 step15 一致"
+      ]
+    },
+    {
+      "name": "可验证性",
+      "max": 15,
+      "score": 15,
+      "evidence": [
+        "每条结论附可重放命令与输出：git show | python 复算脚本、sha256sum fixture 前后、node --input-type=module 实测、git check-attr、python 哈希链校验",
+        "fixture 前后字节级 sha（bd30dc2d…）与 CRLF=0 计数双证据，证明 autocrlf 修复真实有效而非文档自述",
+        "对抗核查两条命令因环境差异（/tmp 路径不通、ESM require 未定义、fakeRun 响应序列）首次失败后均如实记录并修正重跑，无虚构成功"
+      ]
+    },
+    {
+      "name": "安全回滚",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "真机零副作用：全程未执行 install-task/uninstall-task 等触碰 schtasks 的动作；仅静态追值 + 注入 fake runner 单测臂确认默认路径",
+        "测试产生 lib/index.js autocrlf churn（与 HEAD blob sha 57961901… 字节一致、语义相等），按 Z3 纪律 git checkout -- lib/ 还原；还原后工作树 git status 干净",
+        "全程未触碰 del/、业务代码、配置；无凭证/注入/越权显性风险"
+      ]
+    },
+    {
+      "name": "可维护性",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "defaultConsoleLogPath() 注释明确区分两 writer 的 EBUSY 根因，defaultAutoLogPath() 复用 dirname，命名与既有模式一致，无重复逻辑",
+        "README 增补独立段落解释双日志面与 --log-file 覆盖；d.mts 文档注释同步；测试臂命名清晰（defaults/install default）",
+        "评分与报告路径可追溯；checkpoint/progress STEP-0014/0015 记录完整"
+      ]
+    }
+  ],
+  "total": 100,
+  "gate": 98,
+  "hardBlockCheck": {
+    "forgeryEvidence": false,
+    "securityViolation": false,
+    "correctnessBelow23": false,
+    "safetyRollbackBelow9": false,
+    "testFailureOrP0P1": false,
+    "openLegacyUnrecorded": false,
+    "delUnauthorizedChange": false
+  },
+  "verdict": "PASS（100/100，≥98 放行）。六项必核 + 对抗追加核查全通过，无 [阻断]、无 [建议]、无残留遗留。",
+  "findings": {
+    "blockers": [],
+    "suggestions": [],
+    "observations": [
+      "OBS-1: checkpoint-history.jsonl 历史存在 step=4 重复条目（历史既有，本次 diff 仅追加 14/15 未触及）；disposition: not_applicable（非本次引入，不影响 PASS）",
+      "OBS-2: 真机 task action 面（XML 导入止血）明确不在本审查范围，未审未碰；disposition: not_applicable"
+    ]
+  },
+  "report": "tasks/ZCTX-PATCH-AUTO/handoffs/review-AUTOLOG.md",
+  "note": "评分依 §12.1 六维量表；评审人 reviewer-autolog ≠ 作者 coder；本块为两个小修复提交的代码+环境根治，非治理/全局配置/部署变更，单 reviewer 独立评分即可放行"
+}
