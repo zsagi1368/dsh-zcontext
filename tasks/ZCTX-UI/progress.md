@@ -1,0 +1,1 @@
+[2026-11-19] STEP-0001 | block=B1 | status=done | artifacts=RES-UI-FEASIBILITY.md(220行 SHA 30e23738…)+VERIFY-UI.md(7/7确认,无承重错误); docs/specs/ZCTX-UI/options.md(3方案,C胜出); reports/plans/ZCTX-UI-plan.md; tasks/ZCTX-UI/task.json(V1-V10) | 4条件采纳:快照API薄封装/inject降级/BENCH-L2探针前置/4未解决转验收 | 过程自纠:plan §4 曾误写占位符→当场清除(凭据约束) | next=architect B2

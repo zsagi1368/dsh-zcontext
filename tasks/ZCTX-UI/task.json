@@ -1,0 +1,35 @@
+{
+  "schema": "task/v1",
+  "id": "ZCTX-UI",
+  "title": "zctx UI（设置/查看/统计实时面板）+ 发现的问题 P0-P2 修复",
+  "type": "DEV",
+  "owner": "main",
+  "depends": [],
+  "priority": "high",
+  "budget": { "max_minutes": 240, "max_agents": 4, "max_rework_rounds": 2 },
+  "base_sha": "b1e5518",
+  "branch": "feat/ZCTX-UI",
+  "worktree": "worktrees/ZCTX-UI",
+  "acceptance": [
+    "V1 快照 API 返回进程内存实时账本（非日志扫描）",
+    "V2 UI 页含设置/查看/统计三块，桌面浏览器可用",
+    "V3 UI 数据不进 session（不烧 token）",
+    "V4 bridge token/loopback 授权，非授权拒绝；token 运行时生成（源码/测试无凭据字面量）",
+    "V5 桌面 face 激活探针可判活/死（BENCH-L2 前置）",
+    "V6 fail-soft 降级可见 sink + UI 显示 face 健康度（Z28）",
+    "V7 settings.section slot 摘要卡 inject 门失败不 PENDING（Z21）",
+    "V8 研究 4 项未解决转验收（primitive 可见性/session 绑定/非 loopback 只读/端到端真机）",
+    "V9 R1 红线不变（SUPPORTED 段 8e2d0b7e… 口径）",
+    "V10 全量测试绿 + tsc 0 + 工作树干净"
+  ],
+  "artifacts": ["docs/specs/ZCTX-UI/options.md", "reports/plans/ZCTX-UI-plan.md", "tasks/ZCTX-UI/*"],
+  "constraints": [
+    "R1 红线：零请求体改写（快照 API/bridge 只读可写 overlay 配置，禁碰 llm 请求体）",
+    "fail-closed 不弱化；新增面全 additive，revert 可卸",
+    "坑册检查项（开工查命中）：Z1 client bundle 工厂契约/Z21 inject 漏写静默 PENDING/Z25 惰性门悬挂/Z28 headless 无 sink/Z19+Z15 先 build+tsc/Z23+条目32 禁 heredoc/.mjs 用 Edit 工具/A68 绝对路径/A72 Edit-Read 循环→Write 全量重写",
+    "U1 页内编辑=宿主 layoutOf 硬阻断不可修，用自带 UI 页面绕开，不强求",
+    "研究 4 项未解决=验收项不得默认为已解决；BENCH-L2 探针为桌面落点前置",
+    "bridge token 运行时生成，源码/示例/测试禁写可用凭据字面量"
+  ],
+  "status": "open"
+}

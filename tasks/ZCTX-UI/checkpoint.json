@@ -1,0 +1,22 @@
+{
+  "schema": "checkpoint/v1",
+  "task": "ZCTX-UI",
+  "step": 1,
+  "block": "B1",
+  "status": "done",
+  "ts": "2026-11-19T02:39:17.322Z",
+  "artifacts": [
+    {
+      "path": "docs/specs/ZCTX-UI/options.md"
+    },
+    {
+      "path": "reports/plans/ZCTX-UI-plan.md"
+    },
+    {
+      "path": "tasks/ZCTX-UI/task.json"
+    }
+  ],
+  "next": "B2 architect",
+  "prev_hash": "",
+  "hash": "303445b876774051a02dd9e7385a685dff6a8ebee48aaba7d502385f94ca47bf"
+}
