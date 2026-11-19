@@ -120,14 +120,14 @@ describe('ZCTX-UI B6 P0: webServer inject declaration', () => {
 })
 
 describe('ZCTX-UI B6 P0: attachUi route registration vs webServer availability', () => {
-  it('webServer present → attachUi registers all four /zctx-ui routes', () => {
+  it('webServer present → attachUi registers all three /zctx-ui paths (config handles GET+POST)', () => {
     const { ctx, routes } = mockCtx({})
     attachUi(ctx, {
       snapshotFor: snapshotStub,
       configValues: () => ({}),
     })
-    expect(routes.size).toBe(4)
-    for (const path of ['/zctx-ui', '/zctx-ui/api/snapshot', '/zctx-ui/api/config', '/zctx-ui/api/config#2']) {
+    expect(routes.size).toBe(3)
+    for (const path of ['/zctx-ui', '/zctx-ui/api/snapshot', '/zctx-ui/api/config']) {
       expect(routes.has(path)).toBe(true)
     }
   })

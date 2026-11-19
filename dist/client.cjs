@@ -227,23 +227,22 @@ function createPanelComponent(React, fetchText) {
 			className: "zctx-save",
 			onClick: () => {
 				const patch = {};
-				const root = doc?.querySelector?.(".zctx-panel-fields");
-				if (root === void 0 || root === null) return;
+				const docLike = typeof document !== "undefined" ? document : void 0;
+				const root = docLike?.querySelector?.(".zctx-panel-fields") ?? null;
+				if (root === null) return;
 				const inputs = root.querySelectorAll("[data-key]");
-				for (const el of Array.from(inputs)) {
+				for (const el of inputs) {
 					const key = el.getAttribute("data-key");
 					if (key === null) continue;
-					const type = el.getAttribute("type");
-					const input = el;
-					patch[key] = type === "checkbox" ? input.checked === true : input.value;
+					patch[key] = el.getAttribute("type") === "checkbox" ? el.checked === true : el.value;
 				}
 				fetch("/zctx-ui/api/config", {
 					method: "POST",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({ fields: patch })
 				}).then((r) => r.json()).then((j) => {
-					const el2 = doc?.querySelector?.(".zctx-save-result");
-					if (el2 === void 0 || el2 === null) return;
+					const el2 = docLike?.querySelector?.(".zctx-save-result") ?? null;
+					if (el2 === null) return;
 					el2.textContent = j.ok === true ? "✓ 已保存" : `✗ ${j.error ?? "保存失败"}`;
 				}).catch(() => {});
 			}

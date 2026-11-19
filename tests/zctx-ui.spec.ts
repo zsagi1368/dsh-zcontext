@@ -439,7 +439,7 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
   it('registers all four native routes', () => {
     const { routes } = setup()
     expect([...routes.keys()].sort()).toEqual(
-      ['/zctx-ui', '/zctx-ui/api/config', '/zctx-ui/api/config#2', '/zctx-ui/api/snapshot'].sort(),
+      ['/zctx-ui', '/zctx-ui/api/config', '/zctx-ui/api/snapshot'].sort(),
     )
   })
 
@@ -485,7 +485,7 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     const { routes } = setup()
     const patch = { enabled: false, maxFoldFraction: 0.5 }
     const res = await call(
-      routes.get('/zctx-ui/api/config#2')!,
+      routes.get('/zctx-ui/api/config')!,
       mockReq({
         method: 'POST',
         headers: { origin: 'http://localhost', host: 'localhost' },
@@ -503,7 +503,7 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
   it('POST rejects unknown keys (400) and never calls edit', async () => {
     const { routes } = setup()
     const res = await call(
-      routes.get('/zctx-ui/api/config#2')!,
+      routes.get('/zctx-ui/api/config')!,
       mockReq({
         method: 'POST',
         headers: { origin: 'http://localhost', host: 'localhost' },
@@ -528,7 +528,7 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
   it('POST remote non-loopback without token → 403 (write tightened)', async () => {
     const { routes } = setup()
     const res = await call(
-      routes.get('/zctx-ui/api/config#2')!,
+      routes.get('/zctx-ui/api/config')!,
       mockReq({ method: 'POST', headers: { host: 'example.com' }, remoteAddress: '8.8.8.8', body: '{}' }),
     )
     expect(res.status).toBe(403)
@@ -565,9 +565,10 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
 
   it('disposer unregisters all routes', () => {
     const { routes, unregistered, disposer } = setup()
-    expect(routes.size).toBe(4)
+    // 3 paths (page / snapshot / config) — config handles GET+POST internally.
+    expect(routes.size).toBe(3)
     disposer()
-    expect(unregistered).toHaveLength(4)
+    expect(unregistered).toHaveLength(3)
   })
 
   it('no webServer (CLI headless) → no-op disposer, no throw', () => {

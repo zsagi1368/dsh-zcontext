@@ -69,6 +69,17 @@ export interface DocumentLike {
     setAttribute(name: string, value: string): void
     textContent: string
   }
+  /** Structural DOM query surface for the panel's save/write form (no lib.dom import). */
+  querySelector?<Sel extends string>(selector: Sel): {
+    querySelectorAll(selectors: string): Array<{
+      getAttribute(name: string): string | null
+      setAttribute(name: string, value: string): void
+      checked?: boolean
+      value?: string
+    }>
+  } & {
+    textContent?: string
+  }
 }
 
 /** The render product of the no-React fallback component — assertable in tests. */
@@ -374,25 +385,25 @@ export function createPanelComponent(
         className: 'zctx-save',
         onClick: () => {
           const patch: Record<string, unknown> = {}
-          const root = doc?.querySelector?.('.zctx-panel-fields')
-          if (root === undefined || root === null) return
+          const docLike = (typeof document !== 'undefined' ? document : undefined) as DocumentLike | undefined
+          const root = docLike?.querySelector?.('.zctx-panel-fields') ?? null
+          if (root === null) return
           const inputs = root.querySelectorAll('[data-key]')
-          for (const el of Array.from(inputs)) {
+          for (const el of inputs) {
             const key = el.getAttribute('data-key')
             if (key === null) continue
             const type = el.getAttribute('type')
-            const input = el as unknown as { checked?: boolean; value: string }
-            patch[key] = type === 'checkbox' ? input.checked === true : input.value
+            patch[key] = type === 'checkbox' ? el.checked === true : el.value
           }
           void fetch('/zctx-ui/api/config', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ fields: patch }),
           })
-            .then((r) => r.json())
-            .then((j: { ok?: boolean; error?: string }) => {
-              const el2 = doc?.querySelector?.('.zctx-save-result')
-              if (el2 === undefined || el2 === null) return
+            .then((r) => r.json() as Promise<{ ok?: boolean; error?: string }>)
+            .then((j) => {
+              const el2 = docLike?.querySelector?.('.zctx-save-result') ?? null
+              if (el2 === null) return
               el2.textContent = j.ok === true ? '✓ 已保存' : `✗ ${j.error ?? '保存失败'}`
             })
             .catch(() => { /* next poll refreshes; never throw from a click */ })

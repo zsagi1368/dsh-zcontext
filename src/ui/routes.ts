@@ -152,55 +152,66 @@ export function registerUiRoutes(deps: UiRouteDeps): () => void {
   }
   unregister.push(webServer.register({ kind: 'exact', path: '/zctx-ui/api/snapshot', handler: snapshotHandler }))
 
-  // GET /zctx-ui/api/config — current fields + face switches + writable.
-  const configGetHandler = (req: unknown, res: unknown): void => {
+  // /zctx-ui/api/config — ONE registration dispatching GET (read) and POST
+  // (overlay write). The host's exact matcher keeps only the FIRST handler per
+  // path, so two same-path registrations silently lose the POST arm (real
+  // device 405 — the method split must live inside the handler, not in
+  // registration).
+  const configHandler = async (req: unknown, res: unknown): Promise<void> => {
     const r = req as WebReqLike
     const s = res as WebResLike
-    if (r.method !== 'GET') {
-      sendJson(s, 405, { ok: false, error: 'method not allowed' })
+    if (r.method === 'GET') {
+      if (!authorizeRequest(r, bridgeToken)) {
+        sendJson(s, 403, { ok: false, error: 'unauthorized' })
+        return
+      }
+      sendJson(s, 200, getConfig())
       return
     }
-    if (!authorizeRequest(r, bridgeToken)) {
-      sendJson(s, 403, { ok: false, error: 'unauthorized' })
+    if (r.method === 'POST') {
+      if (!authorizeWrite(r, bridgeToken)) {
+        sendJson(s, 403, { ok: false, error: 'unauthorized' })
+        return
+      }
+      const body = await readBody(req)
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(body)
+      } catch {
+        sendJson(s, 400, { ok: false, error: 'invalid JSON body' })
+        return
+      }
+      // Normalize the two wire shapes clients actually send: the page and the
+      // sidebar panel post `{ fields: {...}, faceSwitches: {...} }` (mirroring
+      // the GET view), while a flat `{ key: value }` is equally accepted.
+      // Unknown keys are still rejected wholesale (fail-closed unchanged).
+      let patchSource: unknown = parsed
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const obj = parsed as Record<string, unknown>
+        if (typeof obj.fields === 'object' && obj.fields !== null) {
+          const flat: Record<string, unknown> = { ...(obj.fields as Record<string, unknown>) }
+          if (typeof obj.faceSwitches === 'object' && obj.faceSwitches !== null) {
+            Object.assign(flat, obj.faceSwitches as Record<string, unknown>)
+          }
+          patchSource = flat
+        }
+      }
+      const checked = sanitizePatch(patchSource)
+      if (!checked.ok) {
+        sendJson(s, 400, { ok: false, error: 'invalid config patch (unknown or empty keys)' })
+        return
+      }
+      const result = writeConfig(checked.patch)
+      if (!result.ok) {
+        sendJson(s, 503, { ok: false, error: 'config editor unavailable' })
+        return
+      }
+      sendJson(s, 200, { ok: true })
       return
     }
-    sendJson(s, 200, getConfig())
+    sendJson(s, 405, { ok: false, error: 'method not allowed' })
   }
-  unregister.push(webServer.register({ kind: 'exact', path: '/zctx-ui/api/config', handler: configGetHandler }))
-
-  // POST /zctx-ui/api/config — overlay write. STRICTER authorization.
-  const configPostHandler = async (req: unknown, res: unknown): Promise<void> => {
-    const r = req as WebReqLike
-    const s = res as WebResLike
-    if (r.method !== 'POST') {
-      sendJson(s, 405, { ok: false, error: 'method not allowed' })
-      return
-    }
-    if (!authorizeWrite(r, bridgeToken)) {
-      sendJson(s, 403, { ok: false, error: 'unauthorized' })
-      return
-    }
-    const body = await readBody(req)
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(body)
-    } catch {
-      sendJson(s, 400, { ok: false, error: 'invalid JSON body' })
-      return
-    }
-    const checked = sanitizePatch(parsed)
-    if (!checked.ok) {
-      sendJson(s, 400, { ok: false, error: 'invalid config patch (unknown or empty keys)' })
-      return
-    }
-    const result = writeConfig(checked.patch)
-    if (!result.ok) {
-      sendJson(s, 503, { ok: false, error: 'config editor unavailable' })
-      return
-    }
-    sendJson(s, 200, { ok: true })
-  }
-  unregister.push(webServer.register({ kind: 'exact', path: '/zctx-ui/api/config', handler: configPostHandler }))
+  unregister.push(webServer.register({ kind: 'exact', path: '/zctx-ui/api/config', handler: configHandler }))
 
   const disposer = (): void => {
     for (const fn of unregister) {
