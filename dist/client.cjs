@@ -38,6 +38,9 @@ function resolveReact(adapters) {
 }
 const SLOT_KEY = "settings.section";
 const CARD_ID = "dsh-zcontext-summary";
+/** The left-menu panel id — the SAME value binds `sidebar.panellist` and `main`. */
+const PANEL_ID = "dsh-zcontext.panel";
+const PANEL_ORDER = 60;
 const CSS = [
 	".zctx-summary{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--dsw-alias-border-color, #444);border-radius:8px;background:var(--dsw-alias-bg-layer-1, transparent);}",
 	".zctx-summary h3{margin:0;font-size:var(--dsw-alias-font-size-lg, 15px);color:var(--dsw-alias-label-primary, inherit);}",
@@ -112,6 +115,83 @@ function createFallbackLink(doc) {
 		};
 	};
 }
+/** Parse the /zctx-ui/api/snapshot JSON into the panel's view model. */
+function parsePanelSnapshot(text) {
+	try {
+		const raw = JSON.parse(text);
+		const face = raw.faceHealth ?? {};
+		const win = raw.window ?? {};
+		const total = win.totalTokens ?? {};
+		const limit = win.limitTokens ?? win.windowTokens ?? {};
+		const t = typeof total.value === "number" ? total.value : void 0;
+		const l = typeof limit.value === "number" ? limit.value : void 0;
+		const cache = raw.cache ?? {};
+		const folds = Array.isArray(raw.folds) ? raw.folds.length : void 0;
+		const ranges = Array.isArray(raw.ranges) ? raw.ranges.length : void 0;
+		const view = {};
+		if (typeof raw.sessionId === "string") view.sessionId = raw.sessionId;
+		if (typeof raw.sessionResolution === "string") view.sessionResolution = raw.sessionResolution;
+		if (typeof face.state === "string") view.faceState = face.state;
+		if (folds !== void 0) view.foldCount = folds;
+		if (t !== void 0 && l !== void 0 && l > 0) view.pressurePct = t / l * 100;
+		if (typeof cache.samples === "number") view.cacheSamples = cache.samples;
+		if (cache.measured === true) view.cacheMeasured = true;
+		if (ranges !== void 0) view.ranges = ranges;
+		if (raw.degraded === true) view.degraded = true;
+		return view;
+	} catch {
+		return {};
+	}
+}
+/**
+* Build the side-panel component (方案 A1: `sidebar.panellist` + `main`).
+* Renders 查看 / 统计 / 设置 (read-only; writes point at the full `/zctx-ui`
+* page — U-2 token gap, honest degrade). Polls the same-origin snapshot API
+* every 5s. Returns undefined when React is unavailable (caller degrades).
+*/
+function createPanelComponent(React, fetchText) {
+	if (React === void 0) return void 0;
+	const e = React.createElement;
+	return function ZctxPanel() {
+		const [data, setData] = React.useState?.({}) ?? [{}, () => void 0];
+		const value = data;
+		React.useEffect?.(() => {
+			let alive = true;
+			const load = () => {
+				fetchText("/zctx-ui/api/snapshot").then((text) => {
+					if (alive) setData(parsePanelSnapshot(text));
+				}).catch(() => {});
+			};
+			load();
+			const timer = setInterval(load, 5e3);
+			return () => {
+				alive = false;
+				clearInterval(timer);
+			};
+		}, []);
+		const face = value.faceState ?? "unknown";
+		const faceColor = face === "active" ? "#3fb950" : face === "degraded" ? "#d29922" : "#f85149";
+		return e("div", { className: "zctx-panel" }, e("h2", { className: "zctx-panel-title" }, "zcontext 面板 (BETA)"), e("div", { className: "zctx-panel-face" }, e("span", {
+			className: "zctx-dot",
+			style: { color: faceColor }
+		}, "●"), e("span", null, ` face: ${face}`)), e("h3", null, "查看"), e("div", { className: "zctx-panel-row" }, `会话: ${value.sessionId ?? "n/a"} (${value.sessionResolution ?? "n/a"})`), e("div", { className: "zctx-panel-row" }, `窗口占用: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("h3", null, "统计"), e("div", { className: "zctx-panel-row" }, `折叠次数: ${value.foldCount ?? 0}`), e("div", { className: "zctx-panel-row" }, `可折叠区间: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? " (measured)" : " (estimated/none)"}`), e("h3", null, "设置"), e("div", { className: "zctx-panel-note" }, "设置修改请到完整面板（此处只读，避免越权写入）："), e("a", {
+			href: "/zctx-ui",
+			target: "_blank",
+			rel: "noopener noreferrer"
+		}, "打开完整面板 →"));
+	};
+}
+/** A minimal left-menu icon component (panellist renders the icon, label is text). */
+function createPanelIcon(React) {
+	if (React === void 0) return () => null;
+	const e = React.createElement;
+	return function ZctxIcon() {
+		return e("span", {
+			className: "zctx-panel-icon",
+			"aria-hidden": "true"
+		}, "◎");
+	};
+}
 /**
 * Top-level fiber apply. Capability-probes every host surface; `slots` absent
 * → lazy no-op (no PENDING, no throw). Falls back to a plain link component if
@@ -139,6 +219,22 @@ function apply(ctx, adapters = {}) {
 	try {
 		ctx.slots.inject(SLOT_KEY, register);
 	} catch {}
+	const panel = createPanelComponent(React, fetchText);
+	const icon = createPanelIcon(React);
+	if (panel !== void 0) try {
+		ctx.slots.inject("main", () => ctx.slots.register?.({
+			name: "main",
+			key: PANEL_ID
+		}, panel));
+	} catch {}
+	try {
+		ctx.slots.inject("sidebar.panellist", () => ctx.slots.register?.({
+			name: "sidebar.panellist",
+			id: PANEL_ID,
+			order: PANEL_ORDER,
+			label: () => "zcontext"
+		}, icon));
+	} catch {}
 }
 /** The fiber object the loader expects (object form with inject + apply). */
 const fiber = {
@@ -149,9 +245,12 @@ const fiber = {
 
 exports.apply = apply;
 exports.createFallbackLink = createFallbackLink;
+exports.createPanelComponent = createPanelComponent;
+exports.createPanelIcon = createPanelIcon;
 exports.createSummaryCard = createSummaryCard;
 exports.fiber = fiber;
 exports.inject = inject;
 exports.name = name;
+exports.parsePanelSnapshot = parsePanelSnapshot;
 exports.parseSummary = parseSummary;
 return module.exports; } });
