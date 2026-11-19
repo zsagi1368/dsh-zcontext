@@ -3,3 +3,5 @@
 [2026-11-19] STEP-0003 | block=B3-rework-r1 | status=done | 修2阻断+5建议: B3-B1 slots局部化(tsc=0真验证并更正STEP-0002失实证据) / B3-B2 真实契约(pressurePct+degraded string[]+去虚构limitTokens)+真形状夹具 / B3-S1 icon挂靠panel门(无死入口) / B3-S3 injected改回精确toEqual / B3-S7 fetch查r.ok / B3-S6 双语README同步 | 证据 tsc=0/握手5/5/744测试/commit 9daa1ca | RSI自纠:曾写tsc=0未看真输出=失实证据,已认并改 | next=复评
 
 [2026-11-19] STEP-0004 | block=B3-rework-r2 | status=done | S2 两真臂(error-row/interval leak)+S4 面板 CSS 9 规则+S5 设置只读字段渲染(config GET)+S6 CHANGELOG Unreleased 节+S9 progress 拆行 | 证据 tsc=0/握手5/5/746 测试/fd6997c | next=复评 r2
+
+[2026-11-19] STEP-0005 | block=B3-B3-focus-fix | status=done | 主线裁决聚焦修复:2xTS2722 narrowing(component?.())+N3 403臂unmount cleanup+N2 CHANGELOG措辞收敛 | 证据(本次亲眼核): pnpm lint exit 0, 746/746 | 更正记录: STEP-0002/0004 的 tsc=0 均为失实(未看真输出),本行为真实值 | RSI: 同机制第3次复发(Z35家族),教训=任何证据行必须粘贴真命令输出 | next=终审定谳

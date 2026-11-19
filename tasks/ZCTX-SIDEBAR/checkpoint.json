@@ -1,34 +1,32 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-SIDEBAR",
-  "step": 4,
-  "block": "B3-rework-r2",
+  "step": 5,
+  "block": "B3-B3-focus-fix",
   "status": "done",
-  "ts": "2026-11-19T15:23:21.029Z",
+  "ts": "2026-11-19T15:36:27.589Z",
   "artifacts": [
     {
-      "path": "client-half"
-    },
-    {
-      "path": "tests"
+      "path": "test-arms"
     },
     {
       "path": "CHANGELOG"
-    },
-    {
-      "path": "dist"
     }
   ],
   "evidence": {
-    "tsc": "0 errors",
-    "handshake": "5/5 PASS",
+    "lint": "pnpm lint exit 0 (VISIBLY VERIFIED this time)",
     "tests": "746/746",
+    "distSha256": "63eb22ba4f8fffc843f20ae28861724586e553bfe3db037216725f1df1b377cf",
+    "r1": "8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9",
+    "note": "B3-B3 same-mechanism recurrence honestly recorded; two narrowing fixes + N1/N2/N3/N4",
     "commits": [
+      "fd6997c",
       "9daa1ca",
-      "fd6997c"
+      "11e94f7",
+      "84cbf41"
     ]
   },
-  "next": "B3 re-review r2",
-  "prev_hash": "7835e13ad224cd82212d164c29c4958802acd312fbd42745c7348fc77ddde9c7",
-  "hash": "6c9665fdc6de04d54c2a9e50d258a6f6645e95e3240d45a196db71deaf05936c"
+  "next": "B3 final verdict",
+  "prev_hash": "6c9665fdc6de04d54c2a9e50d258a6f6645e95e3240d45a196db71deaf05936c",
+  "hash": "15daaf2d0102eb2df976cf895d1c351aec6693fea4f01c5db6718ae8acac1c29"
 }
