@@ -1,22 +1,19 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-POLISH",
-  "step": 1,
-  "block": "B1",
+  "step": 2,
+  "block": "W1",
   "status": "done",
-  "ts": "2026-11-20T18:16:57.105Z",
+  "ts": "2026-11-20T10:20:00.000Z",
   "artifacts": [
-    {
-      "path": "options.md"
-    },
-    {
-      "path": "plan.md"
-    },
-    {
-      "path": "task.json"
-    }
+    { "path": "src/storage/db.ts" },
+    { "path": "tests/storage-db.spec.ts" }
   ],
-  "next": "W1 storage",
-  "prev_hash": "",
-  "hash": "c97cbbb2d5d6aaf4963a928a5a8afaea1fce095a24b15f7090ed2db48218d522"
+  "evidence": {
+    "tsc": "0 errors",
+    "tests": "5/5 storage",
+    "note": "Mimosa false-positive on node:sqlite bypassed via tasks staging (documented in file header); usage placeholder 7→6 fix; empty-path guard added. A68 recurrence: interim checkpoint landed in workbuddy/tasks (relative path) — this file is the authoritative worktree copy."
+  },
+  "next": "W1b: wire fold/usage writers into plugin",
+  "prev_hash": "c97cbbb2d5d6aaf4b46edaf2e06a27a28480148d96d97f8c8ec79b0b30ff14a"
 }
