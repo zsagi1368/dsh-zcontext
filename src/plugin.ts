@@ -64,6 +64,8 @@
  */
 
 import { createRequire } from 'node:module'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
 import {
   AutoFoldListener,
@@ -93,7 +95,8 @@ import { PreflightListener } from './preflight.ts'
 import { createGuardObserveBridge } from './guard-observe-bridge.ts'
 import type { GuardObserveBridge } from './guard-observe-bridge.ts'
 import { mountPatchBridge, readPatchMarker } from './patch-bridge.ts'
-import { FoldStore } from './store.ts'
+import { FoldStore, type FoldStoreLedgerSink } from './store.ts'
+import { LedgerStore, defaultLedgerPath } from './storage/db.ts'
 import {
   buildZctxTools,
   resolveDefineTool,
@@ -292,6 +295,9 @@ export class ZcontextPlugin extends ServiceBase {
   private readonly lastPressure = new WeakMap<object, number>()
   private readonly liveSessions = new Set<object>()
   private readonly runtime: ZctxToolRuntime
+  /** ZCTX-POLISH W1: durable SQLite ledger sink (fail-soft; may be closed). */
+  private readonly ledgerSink: FoldStoreLedgerSink | undefined
+  private readonly ledgerStore: LedgerStore | undefined
   /** The observe face's listener; undefined when the face is off (config or capability). */
   private observe: ObserveListener | undefined
   /** The S1 preflight face's listener; undefined when preflightMode is 'off'. */
@@ -358,6 +364,21 @@ export class ZcontextPlugin extends ServiceBase {
     super(ctx, SERVICE_NAME)
     this.ctx = ctx
     this.config = Object.freeze<ZcontextConfig>({ ...configDefaults, ...config })
+    // ZCTX-POLISH W1: open the durable SQLite ledger (fail-soft — a broken DB
+    // never affects the fold main chain). Home resolution: DSH_HOME (zDSH
+    // self-contained install) → host-provided session dir → os.homedir()/.dsh.
+    {
+      const home = process.env.DSH_HOME !== undefined && process.env.DSH_HOME !== ''
+        ? process.env.DSH_HOME
+        : join(homedir(), '.dsh')
+      const opened = new LedgerStore(defaultLedgerPath(home))
+      if (opened.available) {
+        this.ledgerStore = opened
+        this.ledgerSink = opened
+      } else {
+        zctxDebug(`ledger open failed — durable stats disabled (${opened.openError})`)
+      }
+    }
     if (zctxDebugEnabled()) {
       // P6-D2 diagnostic: the decisive surface — what the host actually
       // handed over in THIS composition. Dumped through the env-gated
@@ -1170,6 +1191,8 @@ export class ZcontextPlugin extends ServiceBase {
       // rule 2b — through INJECTION, the store stays host-import-free).
       store.setAttributionTimeWindowMs(this.config.attributionTimeWindowMs)
       store.setMeterAnchor(this.meterAnchorFor(session))
+      // ZCTX-POLISH W1: durable-ledger sink (SQLite via node:sqlite, fail-soft).
+      store.setLedgerSink(this.ledgerSink)
       this.stores.set(session as object, store)
     }
     return store

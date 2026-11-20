@@ -555,12 +555,38 @@ function headerChangeResets(
  * delivers events via `onEvent(session, event)`; `resync()` repairs feed gaps.
  * Events of a different session are ignored (the store is single-session).
  */
+/** Optional durable-ledger sink (ZCTX-POLISH W1: SQLite via node:sqlite).
+ *  Fail-soft by contract — the store never throws on sink faults. */
+export interface FoldStoreLedgerSink {
+  recordFold(e: {
+    sessionId: string
+    foldId: string
+    startSeq: number
+    endSeq: number
+    tokensBefore: number
+    tokensAfter: number
+    supply: string
+    createdAt: number
+  }): boolean
+  recordUsageTurn(e: {
+    sessionId: string
+    seq: number
+    measured: boolean
+    cacheReadTokens: number | undefined
+    cacheWriteTokens: number | undefined
+    createdAt: number
+  }): boolean
+}
+
 export class FoldStore {
   private session: SessionLike | undefined
   private readonly eventsBySeq = new Map<number, SessionEventLike>()
   private readonly ledger = new Map<string, FoldLedgerEntry>()
   /** Bounded usage-record ledger (V1 UsageRecord; oldest dropped at cap). */
   private readonly usageLedger: UsageRecord[] = []
+  /** Durable-ledger sink (optional; injected by the plugin's storeFor factory). */
+  private ledgerSink: FoldStoreLedgerSink | undefined
+  private sessionId: string | undefined
   private measuredSamples = 0
   private unmeasuredSamples = 0
   /** Append-only request/header chain (oldest first). */
@@ -620,6 +646,10 @@ export class FoldStore {
    */
   attach(session: SessionLike): void {
     this.session = session
+    // ZCTX-POLISH W1: bind the durable-ledger sink's session id from the real
+    // session object (same duck-typed read as plugin.ts faceHealth).
+    const sessionId = (session as { id?: unknown } | undefined)?.id
+    this.sessionId = typeof sessionId === 'string' ? sessionId : undefined
     this.eventsBySeq.clear()
     this.ledger.clear()
     this.usageLedger.length = 0
@@ -908,6 +938,11 @@ export class FoldStore {
     this.anomaliesLog.push(seq === undefined ? { kind, detail } : { seq, kind, detail })
   }
 
+  /** Inject the durable-ledger sink (ZCTX-POLISH W1; optional, fail-soft). */
+  setLedgerSink(sink: FoldStoreLedgerSink | undefined): void {
+    this.ledgerSink = sink
+  }
+
   /** The anomaly ledger, oldest first. */
   anomalies(): readonly StoreAnomaly[] {
     return [...this.anomaliesLog]
@@ -1095,6 +1130,22 @@ export class FoldStore {
       tokensAfter: checkpoint.tokensAfter ?? 0,
       status: 'active',
     })
+    // ZCTX-POLISH W1: durable fold event (fail-soft sink; sessionId bound at
+    // attach). A sink fault never touches the fold main chain.
+    try {
+      this.ledgerSink?.recordFold({
+        sessionId: this.sessionId ?? '',
+        foldId: checkpoint.foldId,
+        startSeq: op.startSeq,
+        endSeq: op.endSeq,
+        tokensBefore: checkpoint.tokensBefore ?? 0,
+        tokensAfter: checkpoint.tokensAfter ?? 0,
+        supply: checkpoint.kind ?? 'zctx-fold',
+        createdAt: Date.now(),
+      })
+    } catch {
+      /* durable ledger is best-effort */
+    }
   }
 
   /**
@@ -1249,6 +1300,22 @@ export class FoldStore {
     }
     if (this.usageLedger.length >= USAGE_LEDGER_CAP) this.usageLedger.shift()
     this.usageLedger.push(record)
+    // ZCTX-POLISH W1: durable usage turn (fail-soft; measured-only is honest —
+    // unmeasured samples carry no provider numbers worth persisting).
+    try {
+      if (record.measured) {
+        this.ledgerSink?.recordUsageTurn({
+          sessionId: this.sessionId ?? '',
+          seq: record.seq,
+          measured: true,
+          cacheReadTokens: record.cacheReadTokens,
+          cacheWriteTokens: record.cacheWriteTokens,
+          createdAt: Date.now(),
+        })
+      }
+    } catch {
+      /* durable ledger is best-effort */
+    }
     this.assistantMessageSeqs.push(event.seq)
     // -- lifetime three-state counters (§Q7.3; the V1 measured/unmeasured
     //    split keeps its original semantics: semi has no usable usage object
