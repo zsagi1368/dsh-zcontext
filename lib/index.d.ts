@@ -1547,12 +1547,37 @@ interface StoreAnomaly {
  * delivers events via `onEvent(session, event)`; `resync()` repairs feed gaps.
  * Events of a different session are ignored (the store is single-session).
  */
+/** Optional durable-ledger sink (ZCTX-POLISH W1: SQLite via node:sqlite).
+ *  Fail-soft by contract — the store never throws on sink faults. */
+interface FoldStoreLedgerSink {
+  recordFold(e: {
+    sessionId: string;
+    foldId: string;
+    startSeq: number;
+    endSeq: number;
+    tokensBefore: number;
+    tokensAfter: number;
+    supply: string;
+    createdAt: number;
+  }): boolean;
+  recordUsageTurn(e: {
+    sessionId: string;
+    seq: number;
+    measured: boolean;
+    cacheReadTokens: number | undefined;
+    cacheWriteTokens: number | undefined;
+    createdAt: number;
+  }): boolean;
+}
 declare class FoldStore {
   private session;
   private readonly eventsBySeq;
   private readonly ledger;
   /** Bounded usage-record ledger (V1 UsageRecord; oldest dropped at cap). */
   private readonly usageLedger;
+  /** Durable-ledger sink (optional; injected by the plugin's storeFor factory). */
+  private ledgerSink;
+  private sessionId;
   private measuredSamples;
   private unmeasuredSamples;
   /** Append-only request/header chain (oldest first). */
@@ -1700,6 +1725,8 @@ declare class FoldStore {
   compactionActive(): boolean;
   /** Record one anomaly in the bounded ledger (honest, never throws). */
   recordAnomaly(kind: string, detail: string, seq?: number): void;
+  /** Inject the durable-ledger sink (ZCTX-POLISH W1; optional, fail-soft). */
+  setLedgerSink(sink: FoldStoreLedgerSink | undefined): void;
   /** The anomaly ledger, oldest first. */
   anomalies(): readonly StoreAnomaly[];
   /** Replay retained events up to `end` (exclusive) through seq reads. @internal */
@@ -2552,6 +2579,9 @@ declare class ZcontextPlugin extends ServiceBase {
   private readonly lastPressure;
   private readonly liveSessions;
   private readonly runtime;
+  /** ZCTX-POLISH W1: durable SQLite ledger sink (fail-soft; may be closed). */
+  private readonly ledgerSink;
+  private readonly ledgerStore;
   /** The observe face's listener; undefined when the face is off (config or capability). */
   private observe;
   /** The S1 preflight face's listener; undefined when preflightMode is 'off'. */

@@ -1,0 +1,67 @@
+/**
+ * ui/i18n — bilingual dictionary for the zctx UI (ZCTX-POLISH wave 2).
+ *
+ * STRATEGY (user 2026-11-20: "语言跟随 DSH，默认中文，其他语言只显示英语"):
+ * - default = zh (the product's primary audience);
+ * - `en` for everyone else;
+ * - resolution order: the settings override (`uiLanguage`) → a host locale
+ *   capability probe (when present) → zh. The host locale surface is an
+ *   UNRESOLVED research item (RES-UI-FEASIBILITY A2-4 family) — the probe is
+ *   best-effort and must never block boot.
+ *
+ * @module ui/i18n
+ */
+
+/** Supported UI languages. `zh` is the default; everything else shows `en`. */
+export type UiLang = 'zh' | 'en'
+
+/** All UI copy, keyed by stable ids. Both languages are complete. */
+export const UI_DICT = {
+  panelTitle: { zh: 'zcontext 面板 (BETA)', en: 'zcontext Panel (BETA)' },
+  face: { zh: '状态', en: 'face' },
+  view: { zh: '查看', en: 'View' },
+  stats: { zh: '统计', en: 'Stats' },
+  settings: { zh: '设置', en: 'Settings' },
+  session: { zh: '会话', en: 'Session' },
+  windowPressure: { zh: '窗口占用', en: 'Window pressure' },
+  tokens: { zh: 'tokens', en: 'tokens' },
+  foldCount: { zh: '折叠次数', en: 'Fold count' },
+  foldableRanges: { zh: '可折叠区间', en: 'Foldable ranges' },
+  cacheSamples: { zh: '缓存样本', en: 'Cache samples' },
+  measured: { zh: '(measured)', en: '(measured)' },
+  estimatedNone: { zh: '(estimated/none)', en: '(estimated/none)' },
+  degradedRows: { zh: '降级提示', en: 'Degradation notes' },
+  configNotLoaded: { zh: '（配置未加载）', en: '(config not loaded)' },
+  readonlyNote: { zh: '设置修改请到完整面板（此处只读，避免越权写入）：', en: 'Read-only here — edit on the full page: ' },
+  openFullPanel: { zh: '打开完整面板 →', en: 'Open full panel →' },
+  copyAddress: { zh: '复制完整面板地址', en: 'Copy panel address' },
+  copied: { zh: '✓ 地址已复制', en: '✓ Address copied' },
+  save: { zh: '保存设置', en: 'Save settings' },
+  saved: { zh: '✓ 已保存（新会话生效）', en: '✓ Saved (applies to new sessions)' },
+  saveFailed: { zh: '✗ 保存失败', en: '✗ Save failed' },
+  fetchError: { zh: '数据读取失败', en: 'Snapshot read failed' },
+  retryHint: { zh: '（保留上次快照，5s 后重试）', en: '(keeping last snapshot; retrying in 5s)' },
+  language: { zh: '语言', en: 'Language' },
+  langAuto: { zh: '跟随 DSH（默认中文）', en: 'Follow DSH (default Chinese)' },
+  langZh: { zh: '中文', en: 'Chinese' },
+  langEn: { zh: '英语', en: 'English' },
+} as const
+
+export type UiDictKey = keyof typeof UI_DICT
+
+/** Resolve the UI language from the settings value (auto/zh/en) + optional host hint. */
+export function resolveLang(pref: string | undefined, hostHint?: string): UiLang {
+  if (pref === 'zh' || pref === 'en') return pref
+  if (hostHint !== undefined && hostHint !== '') {
+    const h = hostHint.toLowerCase()
+    if (h.startsWith('en')) return 'en'
+    if (h.startsWith('zh')) return 'zh'
+  }
+  return 'zh'
+}
+
+/** Translate one key (unknown key → the key itself, loud enough to notice). */
+export function t(key: UiDictKey, lang: UiLang): string {
+  const row = UI_DICT[key]
+  return row === undefined ? String(key) : row[lang]
+}
