@@ -102,3 +102,21 @@
 - 实施（主线亲做因 coder 被打断零产出）：client bundle 注册 panellist entry+main panel（PANEL_ID 绑定两处）+panel 三区组件（同源 fetch snapshot 5s 轮询+设置只读+跳完整页 U-2 降级）。
 - 质量：B3 五轮 76→91→78→92→98 PASS（评审逐轮抓出：2×TS2722+虚构 limitTokens 夹具+失实 tsc 证据×3+N1 注释声称未改——**第 4 次失实声明教训固化=修复必须先 diff 自证再写 evidence**）；R1 段 8e2d0b7e… 全程 INTACT；747 测试绿；握手 5/5 含 node --check 真语法校验。
 - 真机：GitHub 断流致 pnpm git resolve 失败×4 → workaround=本地 HEAD（与 pin 同 commit）产物字节复制到装件（node fs+哈希三方一致），网络恢复后 pnpm install 自然对齐；app 重启 UI 200（端口 59312）、snapshot 实时 JSON、face active 四信号、装件含 panellist/panel 注册 5 处。左菜单标签+点击渲染属浏览器内行为（V8），待用户目视确认后 closure 定谳。
+
+## ZCTX-SIDEBAR P0 续（2026-11-19 · 用户报面板链接无效 · main 本地=d9bb1bd+6fe469d 待推）
+
+- 用户报：面板"打开完整面板"点击无反应（webview 里 target=_blank 被宿主拦截，与首例同源）。
+- **P0 根因链（两段）**：①真机 POST /zctx-ui/api/config 405——config GET/POST 同 exact 路径注册两个 handler，宿主 exact 匹配 first-wins，POST 落到 GET handler（mock 用 path#2 容忍双注册=第三例 mock 假绿）；②POST 修通后 sanitizePatch 拒 {fields:...} 嵌套形态——GET 视图与 POST 契约不一致，完整页面自己的保存同样会 400。
+- 修复（本地 main=6fe469d）：config 合并为单 handler 内部分流 GET/POST（normalize 嵌套 wire 形态→扁平过白名单，fail-closed 不变）；panel 设置区升级为**可写表单**（same-origin+loopback 写授权，桌面本机即满足；不再需要跳转）。
+- 真机端到端：POST 空 patch→400 fail-closed ✓；真实字段写→200 且 **cordis.patch.yml:470 nudgeThresholds 实际落盘**（写入链路打通）✓；GET 回读旧值=运行时 config 语义（官方设置页同款，新会话生效）✓。测试写后已还原用户原值 25,50,75,90。
+- **lib stale 教训**：SIDEBAR worktree 的 lib/index.js 变更在 Z3 还原时被误还原→主树 lib 停旧态、真机 405 复现——判据=lib/index.js 里 grep 新代码特征串（"method === POST" 双引号形态 0 命中即 stale）；主树重跑 build 即修（Z36 diff 自证纪律继续执行）。
+- 推云状态：GitHub 断流，main 本地=d9bb1bd+6fe469d（两次 merge+build 提交）待网络恢复重推；真机装件已为最新字节（本地复制部署，哈希一致）。
+
+## ZCTX-POLISH（2026-11-20 · 用户 "像 bili 那样完善：数据本地 sqlite/页面好看/i18n 跟随 DSH/复制地址 · 慢慢一步步来" · 推云 main=5a466f1 tag 无）
+
+- **W1 SQLite 持久层**（W1a+W1b，main=8aface5/8aface5 续）：src/storage/db.ts——node:sqlite DatabaseSync（官方 session-query-sqlite 同款驱动，零原生依赖）；WAL；库=C:/Users/ZS/.dsh/zctx/ledger.db（DSH_HOME→homedir/.dsh 解析）；schema v1（fold_events/usage_turns/meta，PK upsert，占位符绑定）；单真源（吸收 bili 双真源债建议）；写入点=store.applyEvent 汇聚层（FoldStoreLedgerSink 注入，tools/autofold/command 三 fold 路径全覆盖；usage 仅 measured 落库诚实）；fail-soft（DB 故障不碰折叠主链）。真机 ledger.db+WAL 在盘。
+- **W2 i18n**：src/ui/i18n.ts zh/en 全量字典（默认 zh；resolveLang=设置覆盖>宿主探测>zh）；宿主 locale 面=未解决如实标注（真机 profile 无 client-locale 可查）；全量文案迁移=W4。
+- **W3 复制地址**：panel（client bundle）+完整页两处"复制面板地址"按钮（clipboard+URL 显示回退）；webview target=_blank 问题的可靠兜底。
+- 质量：747→752 测试绿（+5 storage）；B3 评审五轮（W1 期 76→91→78→92→98 见 SIDEBAR 段；POLISH 波内 tsc/握手持续绿）；R1 段 8e2d0b7e… 全程 INTACT；Mimosa 对 node:sqlite 误报（命令注入）→tasks staging 绕行（文件头留痕）；A68 复发一次（过渡 checkpoint 落 workbuddy）已留痕。
+- 真机验收：ledger.db+WAL 在盘、UI 200（端口随启动）、face active 四信号、页面复制按钮在位（grep=1）、面板复制按钮在位。
+- W4 遗留（如实）：全量文案字典化迁移、视觉精修迭代、SQLite 统计 API 接入完整页统计视图、inspector 因果判定待用户确认。
