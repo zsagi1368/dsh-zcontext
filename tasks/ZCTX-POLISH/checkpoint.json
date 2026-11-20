@@ -1,19 +1,27 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-POLISH",
-  "step": 2,
-  "block": "W1",
+  "step": 3,
+  "block": "W1b-wiring",
   "status": "done",
-  "ts": "2026-11-20T10:20:00.000Z",
+  "ts": "2026-11-20T10:30:00.000Z",
   "artifacts": [
-    { "path": "src/storage/db.ts" },
-    { "path": "tests/storage-db.spec.ts" }
+    { "path": "src/store.ts (ledger sink interface + fold/usage write points)" },
+    { "path": "src/plugin.ts (LedgerStore open + factory sink injection)" }
   ],
   "evidence": {
     "tsc": "0 errors",
-    "tests": "5/5 storage",
-    "note": "Mimosa false-positive on node:sqlite bypassed via tasks staging (documented in file header); usage placeholder 7→6 fix; empty-path guard added. A68 recurrence: interim checkpoint landed in workbuddy/tasks (relative path) — this file is the authoritative worktree copy."
+    "tests": "752/752 (747+5 storage, zero regression)",
+    "wiring": [
+      "FoldStoreLedgerSink interface (fail-soft contract)",
+      "setLedgerSink + attach sessionId duck-read bind",
+      "fold checkpoint write at ledger.set (fail-soft try/catch)",
+      "usage measured-only write at usageLedger.push (honest)",
+      "plugin constructor LedgerStore open (DSH_HOME → homedir/.dsh)",
+      "storeFor factory sink injection"
+    ]
   },
-  "next": "W1b: wire fold/usage writers into plugin",
-  "prev_hash": "c97cbbb2d5d6aaf4b46edaf2e06a27a28480148d96d97f8c8ec79b0b30ff14a"
+  "next": "W2 i18n",
+  "prev_hash": "c97cbbb2d5d6aaf4b46edaf2e06a27a28480148d96d97f8c8ec79b0b30ff14a",
+  "_note": "history 跳步注记（B3-S9 同型，append-only）：W1 中间 checkpoint 误落 workbuddy/tasks（A68 相对路径复发），本文件为 worktree 权威链——step1→3 跳步系过渡件错位，非数据丢失（STEP-0002 内容见 progress.md）。"
 }
