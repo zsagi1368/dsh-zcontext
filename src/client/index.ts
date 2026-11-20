@@ -412,6 +412,24 @@ export function createPanelComponent(
       e('span', { className: 'zctx-save-result' }),
       e('div', { className: 'zctx-panel-note' }, '也可在完整面板修改：'),
       e('a', { href: '/zctx-ui', target: '_blank', rel: 'noopener noreferrer' }, '打开完整面板 →'),
+      e('button', { className: 'zctx-copy', onClick: () => {
+        // Structured browser access (no lib.dom import — the client bundle
+        // runs in the webview where these faces exist at runtime).
+        const browser = globalThis as unknown as {
+          location?: { origin?: string }
+          navigator?: { clipboard?: { writeText(text: string): Promise<void> } }
+          document?: DocumentLike
+        }
+        const url = `${browser.location?.origin ?? ''}/zctx-ui`
+        const show = (text: string): void => {
+          const el = browser.document?.querySelector?.('.zctx-copy-result')
+          if (el !== null && el !== undefined) el.textContent = text
+        }
+        void browser.navigator?.clipboard?.writeText(url)
+          .then(() => show('✓ 已复制: ' + url))
+          .catch(() => show(url))
+      } }, '复制完整面板地址'),
+      e('span', { className: 'zctx-copy-result' }),
     )
   }
 }

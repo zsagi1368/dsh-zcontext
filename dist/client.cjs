@@ -250,7 +250,18 @@ function createPanelComponent(React, fetchText) {
 			href: "/zctx-ui",
 			target: "_blank",
 			rel: "noopener noreferrer"
-		}, "打开完整面板 →"));
+		}, "打开完整面板 →"), e("button", {
+			className: "zctx-copy",
+			onClick: () => {
+				const browser = globalThis;
+				const url = `${browser.location?.origin ?? ""}/zctx-ui`;
+				const show = (text) => {
+					const el = browser.document?.querySelector?.(".zctx-copy-result");
+					if (el !== null && el !== void 0) el.textContent = text;
+				};
+				browser.navigator?.clipboard?.writeText(url).then(() => show("✓ 已复制: " + url)).catch(() => show(url));
+			}
+		}, "复制完整面板地址"), e("span", { className: "zctx-copy-result" }));
 	};
 }
 /** A minimal left-menu icon component (panellist renders the icon, label is text). */
