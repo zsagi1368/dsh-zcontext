@@ -93,6 +93,8 @@ export const UI_PAGE_HTML = `<!DOCTYPE html>
 <header>
   <h1>zcontext 实时面板</h1>
   <span class="beta">BETA</span>
+  <button id="copy-address" title="复制本面板地址（可在任意浏览器打开）" style="margin-left:12px;font-size:12px;padding:3px 10px;cursor:pointer;">复制面板地址</button>
+  <span id="copy-result" style="font-size:12px;color:var(--dsw-alias-label-secondary,#aaa)"></span>
   <label class="session-pick" id="session-pick-wrap" style="display:none">会话
     <select id="session-pick" aria-label="切换会话"></select>
   </label>
