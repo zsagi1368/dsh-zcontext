@@ -1,0 +1,22 @@
+{
+  "schema": "checkpoint/v1",
+  "task": "ZCTX-POLISH",
+  "step": 1,
+  "block": "B1",
+  "status": "done",
+  "ts": "2026-11-20T18:16:57.105Z",
+  "artifacts": [
+    {
+      "path": "options.md"
+    },
+    {
+      "path": "plan.md"
+    },
+    {
+      "path": "task.json"
+    }
+  ],
+  "next": "W1 storage",
+  "prev_hash": "",
+  "hash": "c97cbbb2d5d6aaf4963a928a5a8afaea1fce095a24b15f7090ed2db48218d522"
+}

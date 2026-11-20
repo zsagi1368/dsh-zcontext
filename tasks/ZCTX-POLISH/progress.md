@@ -1,0 +1,1 @@
+[2026-11-20] STEP-0001 | block=B1 | status=done | artifacts=options.md+plan.md+task.json | 关键事实: node:sqlite 官方同款(session-query-sqlite 先例)/零原生依赖; bili 形态 WAL+单写+inactive; locale 面未解决→内建字典+设置覆盖; 用户要求逐步落盘 | next=W1 storage

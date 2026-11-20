@@ -1,0 +1,35 @@
+{
+  "schema": "task/v1",
+  "id": "ZCTX-POLISH",
+  "title": "zctx 完善：SQLite 本地持久化 + i18n(zh默认/en) + UI 美化 + 复制地址（三波）",
+  "type": "DEV",
+  "owner": "main",
+  "depends": [],
+  "priority": "high",
+  "budget": { "max_minutes": 210, "max_agents": 3, "max_rework_rounds": 2 },
+  "base_sha": "d9bb1bd",
+  "branch": "feat/ZCTX-POLISH",
+  "worktree": "worktrees/ZCTX-POLISH",
+  "acceptance": [
+    "V1 ledger.db 在盘且 WAL 开启（node:sqlite）",
+    "V2 折叠事件与用量轮落库可查询",
+    "V3 app 重启后统计累计保留（真机）",
+    "V4 DB 故障 fail-soft 不影响折叠主链",
+    "V5 UI 默认中文",
+    "V6 en 切换完整覆盖",
+    "V7 视觉重构后查看/统计/设置三块齐",
+    "V8 复制完整面板地址按钮成功",
+    "V9 R1 段 8e2d0b7e… 不变 + 全量测试零回归 + lint 0",
+    "V10 真机截图/读数"
+  ],
+  "artifacts": ["docs/specs/ZCTX-POLISH/options.md", "reports/plans/ZCTX-POLISH-plan.md", "src/storage/", "src/ui/i18n.ts", "tasks/ZCTX-POLISH/*"],
+  "constraints": [
+    "node:sqlite 官方同款零原生依赖（禁 better-sqlite3）",
+    "单真源（吸收 bili 双真源痛点建议）：SQLite 是折叠/用量记录的唯一持久化真源",
+    "fail-soft：DB 故障绝不影响折叠主链（写路径 try/catch+可见 sink）",
+    "R1 红线零请求体改写；SUPPORTED 段 8e2d0b7e… 不变",
+    "i18n 不赌宿主 locale 面（未解决项如实标注）：设置项手动覆盖兜底",
+    "禁可用凭据字面量；Z36 纪律=修复声明先 diff 自证"
+  ],
+  "status": "open"
+}
