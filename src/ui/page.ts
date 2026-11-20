@@ -360,6 +360,21 @@ export const UI_PAGE_HTML = `<!DOCTYPE html>
     });
   }
 
+  // 复制面板地址（webview 里 target=_blank 不可靠——地址复制后可粘到任意浏览器）
+  var copyBtn = document.getElementById('copy-address');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function () {
+      var url = location.origin + '/zctx-ui';
+      var result = document.getElementById('copy-result');
+      var show = function (t) { if (result) result.textContent = t; };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () { show('✓ 已复制: ' + url); }).catch(function () { show(url); });
+      } else {
+        show(url); // clipboard 面不可用时至少把地址摆出来
+      }
+    });
+  }
+
   refresh();
   setInterval(refresh, 5000);
 })();
