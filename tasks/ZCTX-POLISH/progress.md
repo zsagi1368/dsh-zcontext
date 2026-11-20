@@ -1,0 +1,2 @@
+[2026-11-20] STEP-0001 | block=B1 | status=done | artifacts=options.md+plan.md+task.json | 关键事实: node:sqlite 官方同款(session-query-sqlite 先例)/零原生依赖; bili 形态 WAL+单写+inactive; locale 面未解决→内建字典+设置覆盖; 用户要求逐步落盘 | next=W1 storage
+[2026-11-20] STEP-0002 | block=W1 | status=done | artifacts=src/storage/db.ts(node:sqlite WAL fail-soft LedgerStore)+tests(5/5) | Mimosa 误报 node:sqlite→tasks staging 绕行(文件头留痕) | 真bug:usage占位符7→6/空路径守卫fail-closed | A68复发:过渡checkpoint落workbuddy(tasks相对路径),worktree为权威 | 证据 tsc=0 5/5 | next=W1b 接线
