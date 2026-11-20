@@ -61,7 +61,7 @@ describe('ZCTX-POLISH W1 — SQLite ledger store', () => {
     const store = new LedgerStore('')
     expect(store.available).toBe(false)
     expect(store.recordFold({ sessionId: 's', foldId: 'f', startSeq: 1, endSeq: 2, tokensBefore: 0, tokensAfter: 0, supply: 'x', createdAt: 0 })).toBe(false)
-    expect(store.recordUsageTurn({ sessionId: 's', seq: 1, measured: false, createdAt: 0 })).toBe(false)
+    expect(store.recordUsageTurn({ sessionId: 's', seq: 1, measured: false, cacheReadTokens: undefined, cacheWriteTokens: undefined, createdAt: 0 })).toBe(false)
     expect(store.stats().totalFolds).toBe(0)
     expect(store.openError).toBeDefined()
   })
