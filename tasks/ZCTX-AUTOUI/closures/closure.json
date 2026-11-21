@@ -1,0 +1,84 @@
+{
+  "items": [
+    {
+      "id": "IMPL",
+      "source": "task plan",
+      "type": "feature",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "5d2f683+b26066d; 803/803; tsc 0; handshake 5/5",
+      "owner": "main"
+    },
+    {
+      "id": "A1-阻断1",
+      "source": "review-A1",
+      "type": "feature",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "selector 4 values + preflightOpt* labels + GET-auto→POST-auto regression arm (panel-i18n)",
+      "owner": "main"
+    },
+    {
+      "id": "A1-阻断2",
+      "source": "review-A1",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "README:152-166 rewritten + config table row + CHANGELOG ZCTX-AUTOUI section (incl. water-level v0.4 pointer)",
+      "owner": "main"
+    },
+    {
+      "id": "A1-建议1",
+      "source": "review-A1",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "JudgedRequest.effective resolved once in judgeRequest (ledger-consistent key); handleStream reuses",
+      "owner": "main"
+    },
+    {
+      "id": "A1-建议2",
+      "source": "review-A1",
+      "type": "process",
+      "disposition": "not_applicable",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "configSchema enum-less is the established pattern; out-of-band values → warn-once observe fallback (plugin.ts:761-768); UI path closed by sanitizePatch domain check (tested)",
+      "owner": "main"
+    },
+    {
+      "id": "A1-建议3",
+      "source": "review-A1",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "water-level v0.4 candidate written into README+CHANGELOG (blocking-2 covered it)",
+      "owner": "main"
+    },
+    {
+      "id": "R1",
+      "source": "hard rule",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "git diff f8dfa6c..HEAD --name-only: no patcher/ fold-engine/ autofold/ budget files",
+      "owner": "main"
+    },
+    {
+      "id": "Z36",
+      "source": "session",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "804-claim in previous commit message amended to the true 803/803 before push; recorded in checkpoint evidence.honesty",
+      "owner": "main"
+    }
+  ]
+}
