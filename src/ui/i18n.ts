@@ -74,6 +74,11 @@ export const UI_DICT = {
   langOptZh: { zh: '中文', en: 'Chinese' },
   langOptEn: { zh: 'English', en: 'English' },
   langAutoNote: { zh: '（自动=桌面端确认语言；探测不到时默认中文）', en: '(auto = desktop-confirmed language; falls back to Chinese)' },
+  // ZCTX-AUTOUI: the run-mode row (patch vs pure-plugin display, user 2026-11-21).
+  runMode: { zh: '运行形态', en: 'Run mode' },
+  runModePatched: { zh: '补丁完全功能模式', en: 'Full patch mode' },
+  runModePlugin: { zh: '纯插件模式', en: 'Pure plugin mode' },
+  runModeUnknown: { zh: '形态未知', en: 'Unknown' },
 } as const
 
 export type UiDictKey = keyof typeof UI_DICT

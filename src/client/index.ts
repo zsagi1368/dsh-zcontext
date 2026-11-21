@@ -303,6 +303,12 @@ export interface PanelSnapshot {
    * "follow the DSH language" — navigator.language only falls back.
    */
   readonly locale?: string | null
+  /**
+   * ZCTX-AUTOUI: the patch/插件运行形态 (present = the app.asar patch set is
+   * live; absent = pure plugin mode). undefined = host did not supply it —
+   * the panel omits the run-mode row.
+   */
+  readonly patchFace?: { readonly state: string; readonly patchSet?: string; readonly version?: string }
 }
 
 /** Parse the /zctx-ui/api/snapshot JSON into the panel's view model. */
@@ -340,6 +346,17 @@ export function parsePanelSnapshot(text: string): PanelSnapshot {
       view.availableSessions = raw.availableSessions.filter((x) => typeof x === 'string')
     }
     if (typeof raw.locale === 'string') view.locale = raw.locale
+    // ZCTX-AUTOUI: the run-mode row source (defensive shape narrow).
+    if (raw.patchFace !== null && typeof raw.patchFace === 'object' && !Array.isArray(raw.patchFace)) {
+      const pf = raw.patchFace as Record<string, unknown>
+      if (pf.state === 'present' || pf.state === 'absent' || pf.state === 'unknown') {
+        view.patchFace = {
+          state: pf.state,
+          ...(typeof pf.patchSet === 'string' ? { patchSet: pf.patchSet } : {}),
+          ...(typeof pf.version === 'string' ? { version: pf.version } : {}),
+        }
+      }
+    }
     return view as PanelSnapshot
   } catch {
     return {}
@@ -472,6 +489,19 @@ export function createPanelComponent(
       e('div', { className: 'zctx-panel-face' },
         e('span', { className: 'zctx-dot', style: { color: faceColor } }, '●'),
         e('span', null, ` ${t('face', lang)}: ${faceZh}`)),
+      // ZCTX-AUTOUI: the run-mode row (user: "不然我想用补丁完全功能模式不知道
+      // 启动没有"). present = the patched app.asar is live; absent = pure
+      // plugin mode; unknown/absent accessor = row hidden honestly.
+      value.patchFace !== undefined
+        ? e('div', { className: 'zctx-panel-row' },
+            `${t('runMode', lang)}: ${
+              value.patchFace.state === 'present'
+                ? `${t('runModePatched', lang)}${value.patchFace.patchSet !== undefined ? ` (${value.patchFace.patchSet})` : ''}`
+                : value.patchFace.state === 'absent'
+                  ? t('runModePlugin', lang)
+                  : t('runModeUnknown', lang)
+            }`)
+        : null,
       fetchError !== undefined
         ? e('div', { className: 'zctx-panel-err' }, `${t('fetchError', lang)}: ${fetchError}${t('retryHint', lang)}`)
         : null,

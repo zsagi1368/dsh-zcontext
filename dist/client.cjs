@@ -151,6 +151,22 @@ const UI_DICT = {
 	langAutoNote: {
 		zh: "（自动=桌面端确认语言；探测不到时默认中文）",
 		en: "(auto = desktop-confirmed language; falls back to Chinese)"
+	},
+	runMode: {
+		zh: "运行形态",
+		en: "Run mode"
+	},
+	runModePatched: {
+		zh: "补丁完全功能模式",
+		en: "Full patch mode"
+	},
+	runModePlugin: {
+		zh: "纯插件模式",
+		en: "Pure plugin mode"
+	},
+	runModeUnknown: {
+		zh: "形态未知",
+		en: "Unknown"
 	}
 };
 /**
@@ -451,6 +467,14 @@ function parsePanelSnapshot(text) {
 		if (degradedRows > 0) view.degradedCount = degradedRows;
 		if (Array.isArray(raw.availableSessions)) view.availableSessions = raw.availableSessions.filter((x) => typeof x === "string");
 		if (typeof raw.locale === "string") view.locale = raw.locale;
+		if (raw.patchFace !== null && typeof raw.patchFace === "object" && !Array.isArray(raw.patchFace)) {
+			const pf = raw.patchFace;
+			if (pf.state === "present" || pf.state === "absent" || pf.state === "unknown") view.patchFace = {
+				state: pf.state,
+				...typeof pf.patchSet === "string" ? { patchSet: pf.patchSet } : {},
+				...typeof pf.version === "string" ? { version: pf.version } : {}
+			};
+		}
 		return view;
 	} catch {
 		return {};
@@ -548,7 +572,7 @@ function createPanelComponent(React, fetchText) {
 		return e("div", { className: "zctx-panel" }, e("h2", { className: "zctx-panel-title" }, t$1("panelTitle", lang)), e("div", { className: "zctx-panel-face" }, e("span", {
 			className: "zctx-dot",
 			style: { color: faceColor }
-		}, "●"), e("span", null, ` ${t$1("face", lang)}: ${faceZh}`)), fetchError !== void 0 ? e("div", { className: "zctx-panel-err" }, `${t$1("fetchError", lang)}: ${fetchError}${t$1("retryHint", lang)}`) : null, e("h3", null, t$1("view", lang)), sessions.length >= 1 ? e("div", { className: "zctx-panel-row" }, e("span", null, `${t$1("session", lang)}: `), sessions.length > 1 ? e("select", {
+		}, "●"), e("span", null, ` ${t$1("face", lang)}: ${faceZh}`)), value.patchFace !== void 0 ? e("div", { className: "zctx-panel-row" }, `${t$1("runMode", lang)}: ${value.patchFace.state === "present" ? `${t$1("runModePatched", lang)}${value.patchFace.patchSet !== void 0 ? ` (${value.patchFace.patchSet})` : ""}` : value.patchFace.state === "absent" ? t$1("runModePlugin", lang) : t$1("runModeUnknown", lang)}`) : null, fetchError !== void 0 ? e("div", { className: "zctx-panel-err" }, `${t$1("fetchError", lang)}: ${fetchError}${t$1("retryHint", lang)}`) : null, e("h3", null, t$1("view", lang)), sessions.length >= 1 ? e("div", { className: "zctx-panel-row" }, e("span", null, `${t$1("session", lang)}: `), sessions.length > 1 ? e("select", {
 			className: "zctx-panel-select",
 			value: picked ?? value.sessionId ?? "",
 			onChange: (ev) => {

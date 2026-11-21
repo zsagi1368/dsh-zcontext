@@ -701,3 +701,47 @@ describe('ZCTX-I18NFIX: panel language follows the desktop shell locale', () => 
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// ZCTX-AUTOUI: the run-mode row (patch vs pure-plugin display, user 2026-11-21
+// "不然我想用补丁完全功能模式不知道启动没有").
+// ---------------------------------------------------------------------------
+
+describe('ZCTX-AUTOUI: panel run-mode row', () => {
+  async function renderWithSnapshot(payload: Record<string, unknown>): Promise<{ serialized: string; mock: ReturnType<typeof statefulReact> }> {
+    return withNavigator('zh-CN', async () => {
+      const mock = statefulReact()
+      const component = buildPanel(mock, async () => JSON.stringify(payload))
+      try {
+        renderPanel(mock, component)
+        await tick()
+        const before = mock.calls.length
+        renderPanel(mock, component)
+        const serialized = JSON.stringify(mock.calls.slice(before))
+        return { serialized, mock }
+      } finally {
+        unmount(mock)
+      }
+    })
+  }
+
+  it('present marker renders 补丁完全功能模式 with the patchSet', async () => {
+    const { serialized } = await renderWithSnapshot({ locale: 'zh-CN', patchFace: { state: 'present', patchSet: 'patcher-auto-20261118a' } })
+    expect(serialized).toContain('运行形态')
+    expect(serialized).toContain('补丁完全功能模式')
+    expect(serialized).toContain('patcher-auto-20261118a')
+    expect(serialized).not.toContain('纯插件模式')
+  })
+
+  it('absent marker renders 纯插件模式 (the user knows the patch is NOT live)', async () => {
+    const { serialized } = await renderWithSnapshot({ locale: 'zh-CN', patchFace: { state: 'absent' } })
+    expect(serialized).toContain('运行形态')
+    expect(serialized).toContain('纯插件模式')
+    expect(serialized).not.toContain('补丁完全功能模式')
+  })
+
+  it('no patchFace in the snapshot (older host) → the row is omitted honestly', async () => {
+    const { serialized } = await renderWithSnapshot({ locale: 'zh-CN' })
+    expect(serialized).not.toContain('运行形态')
+  })
+})

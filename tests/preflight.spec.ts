@@ -31,6 +31,9 @@ import {
   judgeEstimate,
   resolveMarginRatio,
   PER_IMAGE_FALLBACK_TOKENS,
+  PREFLIGHT_AUTO_ERROR_LIMIT_PCT,
+  PREFLIGHT_AUTO_SAMPLE_MIN,
+  PREFLIGHT_AUTO_SAMPLE_WINDOW,
   PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE,
 } from '../src/preflight.ts'
 import type { PreflightCalibrationRecord } from '../src/types.ts'
@@ -50,6 +53,11 @@ class CalibrationSink implements PreflightStoreAccess {
   readonly records: PreflightCalibrationRecord[] = []
   absorbPreflightCalibration(record: PreflightCalibrationRecord): void {
     this.records.push(record)
+  }
+  // ZCTX-AUTOUI: the read port the auto-mode judgment consumes (FoldStore
+  // implements the same shape — the ledger is process-memory only).
+  preflightCalibrations(): readonly PreflightCalibrationRecord[] {
+    return this.records
   }
 }
 
@@ -114,22 +122,27 @@ function bigTextMessage(tokens: number): Record<string, unknown> {
 // Pure estimator.
 // ---------------------------------------------------------------------------
 
-describe('preflight config contract (R2 pin)', () => {
-  it('preflightMode defaults to observe (enforce is unreachable under the default configuration) and margin defaults to 0.9', () => {
-    expect(configDefaults.preflightMode).toBe('observe')
+describe('preflight config contract (R2 pin; ZCTX-AUTOUI default update)', () => {
+  it("preflightMode defaults to 'auto' (user 2026-11-21: 让插件自动判断) and margin defaults to 0.9", () => {
+    expect(configDefaults.preflightMode).toBe('auto')
     expect(configDefaults.preflightMarginRatio).toBe(0.9)
     // The fail-soft validator resolves the defaults too (roundtrip through
     // the same contract the host reads).
     const resolved = configSchema['~standard'].validate({})
     if (resolved && !('then' in resolved) && resolved.value !== undefined) {
       const value = resolved.value as Record<string, unknown>
-      expect(value.preflightMode).toBe('observe')
+      expect(value.preflightMode).toBe('auto')
       expect(value.preflightMarginRatio).toBe(0.9)
     } else {
       expect.unreachable('the fail-soft validator resolves synchronously')
     }
     // The official spelling of the synthesized failure code (error.ts:25).
     expect(PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE).toBe('CONTEXT_WINDOW_EXCEEDED')
+    // ZCTX-AUTOUI: the promotion thresholds are pinned (adjust from the
+    // ledger, never silently).
+    expect(PREFLIGHT_AUTO_SAMPLE_WINDOW).toBe(8)
+    expect(PREFLIGHT_AUTO_SAMPLE_MIN).toBe(4)
+    expect(PREFLIGHT_AUTO_ERROR_LIMIT_PCT).toBe(15)
   })
 })
 
@@ -384,6 +397,159 @@ describe('preflight listener: enforce mode (opt-in; short-circuit on hit only)',
     expect(warns[0]).toContain('preflight estimation failed')
     await runStream(listener, loopOptions(), [FINISH_OK])
     expect(warns).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// ZCTX-AUTOUI: mode='auto' — calibration-driven per-request effective mode.
+// The promotion is EARNED from the same-route ledger (tools.ts:638 error
+// 口径); everything else fails soft to observe. Short-circuited records carry
+// no usage → excluded by construction → no self-feedback loop.
+// ---------------------------------------------------------------------------
+
+/** Seed one settled 'official' calibration record for the default route. */
+function seedCalibration(
+  sink: CalibrationSink,
+  estimate: number,
+  billedInput: number,
+  overrides: Partial<PreflightCalibrationRecord> = {},
+): void {
+  sink.absorbPreflightCalibration({
+    sessionId: 'sess-1',
+    mode: 'observe',
+    provider: 'deepseek',
+    model: 'deepseek-chat',
+    estimate,
+    window: 200000,
+    triggerLine: 184640,
+    marginRatio: 0.9,
+    projector: 'official',
+    imagePricing: 'not-exercised',
+    imageCount: 0,
+    hit: false,
+    outcome: 'completed',
+    usage: { inputTokens: billedInput, outputTokens: 10, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    time: Date.now(),
+    ...overrides,
+  })
+}
+
+describe('ZCTX-AUTOUI: preflightMode auto (calibration-driven effective mode)', () => {
+  it('cold start (no comparable history) → observe behavior: a hit-level estimate streams through, record carries effectiveMode observe', async () => {
+    const sink = new CalibrationSink()
+    const listener = new PreflightListener(makeDeps(sink, {
+      mode: 'auto',
+      resolveModelInfo: async () => WINDOWED_MODEL_INFO,
+    }))
+    const { consumed, innerStarted } = await runStream(
+      listener,
+      loopOptions({ messages: [bigTextMessage(170000)] }), // hit-level
+      [USAGE, FINISH_OK],
+    )
+    expect(consumed).toEqual([USAGE, FINISH_OK]) // NEVER short-circuited on cold start
+    expect(innerStarted).toBe(true)
+    expect(sink.records).toHaveLength(1)
+    expect(sink.records[0]?.mode).toBe('auto')
+    expect(sink.records[0]?.effectiveMode).toBe('observe')
+    expect(sink.records[0]?.hit).toBe(true) // the hit is REAL — only the behavior is withheld
+  })
+
+  it('earned promotion (≥4 comparable records, worst error ≤15%) → a hit short-circuits with effectiveMode enforce', async () => {
+    const sink = new CalibrationSink()
+    // 4 settled rounds at ~4% error (well inside the 15% limit).
+    for (const billed of [100000, 110000, 120000, 130000]) {
+      seedCalibration(sink, Math.round(billed * 1.04), billed)
+    }
+    const listener = new PreflightListener(makeDeps(sink, {
+      mode: 'auto',
+      resolveModelInfo: async () => WINDOWED_MODEL_INFO,
+    }))
+    const { consumed, innerStarted } = await runStream(
+      listener,
+      loopOptions({ messages: [bigTextMessage(170000)] }),
+      [USAGE, FINISH_OK], // would have been the wire stream — must never run
+    )
+    expect(consumed).toHaveLength(1)
+    expect(innerStarted).toBe(false)
+    const finish = consumed[0] as { type: string; reason: { kind: string } }
+    expect(finish.type).toBe('finish')
+    expect(finish.reason.kind).toBe('error')
+    expect(sink.records[sink.records.length - 1]?.outcome).toBe('short-circuited')
+    expect(sink.records[sink.records.length - 1]?.effectiveMode).toBe('enforce')
+    expect(sink.records[sink.records.length - 1]?.mode).toBe('auto')
+  })
+
+  it('sparse-or-inaccurate history (error >15%) withholds promotion → observe behavior even at hit level', async () => {
+    const sink = new CalibrationSink()
+    // 4 comparable rounds but ~30% error — outside the limit.
+    for (const billed of [100000, 110000, 120000, 130000]) {
+      seedCalibration(sink, Math.round(billed * 1.3), billed)
+    }
+    const listener = new PreflightListener(makeDeps(sink, {
+      mode: 'auto',
+      resolveModelInfo: async () => WINDOWED_MODEL_INFO,
+    }))
+    const { consumed, innerStarted } = await runStream(
+      listener,
+      loopOptions({ messages: [bigTextMessage(170000)] }),
+      [USAGE, FINISH_OK],
+    )
+    expect(consumed).toEqual([USAGE, FINISH_OK])
+    expect(innerStarted).toBe(true)
+    expect(sink.records[sink.records.length - 1]?.effectiveMode).toBe('observe')
+  })
+
+  it('short-circuited records are excluded by construction (no self-feedback loop)', async () => {
+    const sink = new CalibrationSink()
+    // 8 short-circuits — comparable-count-wise zero → cold start semantics.
+    for (let i = 0; i < PREFLIGHT_AUTO_SAMPLE_WINDOW; i += 1) {
+      seedCalibration(sink, 170000, 100000, { outcome: 'short-circuited' })
+    }
+    const listener = new PreflightListener(makeDeps(sink, {
+      mode: 'auto',
+      resolveModelInfo: async () => WINDOWED_MODEL_INFO,
+    }))
+    const { consumed } = await runStream(
+      listener,
+      loopOptions({ messages: [bigTextMessage(170000)] }),
+      [USAGE, FINISH_OK],
+    )
+    expect(consumed).toEqual([USAGE, FINISH_OK]) // observe behavior, no loop
+  })
+
+  it('route isolation: a promoted OTHER route never promotes THIS route (per provider+model ledger)', async () => {
+    const sink = new CalibrationSink()
+    for (const billed of [100000, 110000, 120000, 130000]) {
+      seedCalibration(sink, Math.round(billed * 1.02), billed, { provider: 'other-provider', model: 'other-model' })
+    }
+    const listener = new PreflightListener(makeDeps(sink, {
+      mode: 'auto',
+      resolveModelInfo: async () => WINDOWED_MODEL_INFO,
+    }))
+    const { consumed } = await runStream(
+      listener,
+      loopOptions({ messages: [bigTextMessage(170000)] }),
+      [USAGE, FINISH_OK],
+    )
+    expect(consumed).toEqual([USAGE, FINISH_OK])
+    expect(sink.records[sink.records.length - 1]?.effectiveMode).toBe('observe')
+  })
+
+  it('a fixed observe config NEVER records effectiveMode (absent — the fixed mode IS the behavior)', async () => {
+    const sink = new CalibrationSink()
+    const listener = new PreflightListener(makeDeps(sink, {
+      mode: 'observe',
+      resolveModelInfo: async () => WINDOWED_MODEL_INFO,
+    }))
+    await runStream(listener, loopOptions(), [FINISH_OK])
+    expect(sink.records[0]?.mode).toBe('observe')
+    expect(sink.records[0]?.effectiveMode).toBeUndefined()
+  })
+
+  it(`thresholds: sample window ${PREFLIGHT_AUTO_SAMPLE_WINDOW} / min ${PREFLIGHT_AUTO_SAMPLE_MIN} / error limit ${PREFLIGHT_AUTO_ERROR_LIMIT_PCT}% (exported pins)`, () => {
+    expect(PREFLIGHT_AUTO_SAMPLE_WINDOW).toBeGreaterThan(PREFLIGHT_AUTO_SAMPLE_MIN)
+    expect(PREFLIGHT_AUTO_ERROR_LIMIT_PCT).toBeGreaterThan(0)
+    expect(PREFLIGHT_AUTO_ERROR_LIMIT_PCT).toBeLessThan(100)
   })
 })
 

@@ -820,8 +820,15 @@ export interface MeterAnchorLike {
 // session-logged, bounded, dies with the process.
 // ---------------------------------------------------------------------------
 
-/** Preflight mode tri-state (config preflightMode; R2: default 'observe'). */
-export type PreflightMode = 'off' | 'observe' | 'enforce'
+/**
+ * Preflight mode (config preflightMode; ZCTX-AUTOUI: default 'auto').
+ * 'auto' = calibration-driven self-adaptation: each judged request resolves
+ * its EFFECTIVE mode ('observe' | 'enforce') from the recent calibration
+ * ledger of the same provider+model — enough comparable history with tight
+ * error ⇒ enforce, otherwise observe (cold start / faults fail soft to
+ * observe). The resolved choice lands in the record's `effectiveMode`.
+ */
+export type PreflightMode = 'off' | 'observe' | 'enforce' | 'auto'
 
 /**
  * Which image-cost path priced the kept image blocks of one estimate.
@@ -858,8 +865,15 @@ export type PreflightOutcome =
 export interface PreflightCalibrationRecord {
   /** Session id the judged request belonged to. */
   readonly sessionId: string
-  /** The mode the listener ran under ('observe' | 'enforce'; 'off' never records). */
+  /** The mode the listener ran under ('observe' | 'enforce' | 'auto'; 'off' never records). */
   readonly mode: Exclude<PreflightMode, 'off'>
+  /**
+   * ZCTX-AUTOUI: the behavior actually applied for THIS request when
+   * mode='auto' resolved from the calibration ledger ('observe' = pass-through
+   * calibration, 'enforce' = the hit short-circuited). Absent for a fixed
+   * 'observe'/'enforce' config — the fixed mode IS the behavior.
+   */
+  readonly effectiveMode?: 'observe' | 'enforce'
   /** Request route. */
   readonly provider: string
   readonly model: string

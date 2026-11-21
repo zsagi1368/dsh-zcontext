@@ -91,6 +91,14 @@ export function sanitizePatch(patch: unknown): { ok: true; patch: Partial<Record
     if (key === 'uiLanguage' && source[key] !== 'auto' && source[key] !== 'zh' && source[key] !== 'en') {
       return { ok: false }
     }
+    // ZCTX-AUTOUI: preflightMode has a closed value domain (the config schema
+    // enum mirrored here so an invalid mode can never land in the overlay).
+    if (
+      key === 'preflightMode'
+      && source[key] !== 'off' && source[key] !== 'observe' && source[key] !== 'enforce' && source[key] !== 'auto'
+    ) {
+      return { ok: false }
+    }
     out[key] = source[key]
   }
   return { ok: true, patch: out as Partial<Record<UiConfigKey, unknown>> }

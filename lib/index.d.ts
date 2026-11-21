@@ -185,12 +185,16 @@ interface ZcontextConfig {
    *   the official compaction overflow recovery chain takes over
    *   (compaction-basic/src/index.ts:194→233).
    *
-   * DEFAULT IS OBSERVE, NEVER ENFORCE (plan §2 redline R2): a preflight
-   * false positive triggers one unnecessary compaction surface rewrite
-   * (F6.4 误报代价), so enforce stays opt-in until the estimator's error
-   * distribution has been calibrated on real machines (no-go condition 4).
+   * DEFAULT IS 'auto' (ZCTX-AUTOUI, user 2026-11-21: "让插件自动判断"):
+   * each judged request resolves its effective behavior from the calibration
+   * ledger of the same provider+model — enforce only once the recent history
+   * shows tight estimator error (≥4 comparable records of the last 8 with
+   * worst error ≤15%), otherwise observe. A preflight false positive still
+   * triggers one unnecessary compaction surface rewrite (F6.4 误报代价), so
+   * the enforce promotion is EARNED per-route by the ledger, never assumed;
+   * cold start and any ledger fault fail soft to observe.
    */
-  preflightMode: 'off' | 'observe' | 'enforce';
+  preflightMode: 'off' | 'observe' | 'enforce' | 'auto';
   /**
    * Preflight hit margin (v0.2.0 V4): the estimated request context must
    * EXCEED `triggerLine × preflightMarginRatio` to count as a hit, where
@@ -1023,8 +1027,15 @@ interface MeterAnchorLike {
    */
   inputAnchor(seq: number): number | undefined;
 }
-/** Preflight mode tri-state (config preflightMode; R2: default 'observe'). */
-type PreflightMode = 'off' | 'observe' | 'enforce';
+/**
+ * Preflight mode (config preflightMode; ZCTX-AUTOUI: default 'auto').
+ * 'auto' = calibration-driven self-adaptation: each judged request resolves
+ * its EFFECTIVE mode ('observe' | 'enforce') from the recent calibration
+ * ledger of the same provider+model — enough comparable history with tight
+ * error ⇒ enforce, otherwise observe (cold start / faults fail soft to
+ * observe). The resolved choice lands in the record's `effectiveMode`.
+ */
+type PreflightMode = 'off' | 'observe' | 'enforce' | 'auto';
 /**
  * Which image-cost path priced the kept image blocks of one estimate.
  * 'adapter' = the injected official `imageRequestPricing` answered
@@ -1058,8 +1069,15 @@ type PreflightOutcome =
 interface PreflightCalibrationRecord {
   /** Session id the judged request belonged to. */
   readonly sessionId: string;
-  /** The mode the listener ran under ('observe' | 'enforce'; 'off' never records). */
+  /** The mode the listener ran under ('observe' | 'enforce' | 'auto'; 'off' never records). */
   readonly mode: Exclude<PreflightMode, 'off'>;
+  /**
+   * ZCTX-AUTOUI: the behavior actually applied for THIS request when
+   * mode='auto' resolved from the calibration ledger ('observe' = pass-through
+   * calibration, 'enforce' = the hit short-circuited). Absent for a fixed
+   * 'observe'/'enforce' config — the fixed mode IS the behavior.
+   */
+  readonly effectiveMode?: 'observe' | 'enforce';
   /** Request route. */
   readonly provider: string;
   readonly model: string;
@@ -1374,6 +1392,12 @@ interface HostImagePricingLike {
 interface PreflightStoreAccess {
   /** Calibration sink: append one estimate-vs-reality record (bounded, oldest dropped). */
   absorbPreflightCalibration(record: PreflightCalibrationRecord): void;
+  /**
+   * ZCTX-AUTOUI: recent calibration records for the auto-mode judgment
+   * (optional — absent or throwing degrades to 'observe', never breaks a
+   * request). Implemented by FoldStore; the ledger is process-memory only.
+   */
+  preflightCalibrations?(): readonly PreflightCalibrationRecord[];
 }
 /**
  * Dependencies injected from the plugin. Narrow by construction (R3): no llm
@@ -1477,6 +1501,21 @@ declare class PreflightListener {
   readonly onStream: PreflightStreamListener;
   /** @internal */
   private handleStream;
+  /**
+   * ZCTX-AUTOUI: resolve the effective behavior for ONE request under
+   * mode='auto' from the recent calibration ledger of the SAME route.
+   * Rule (fail-soft; error口径 = tools.ts:638 — billed input = input +
+   * cacheRead + cacheWrite): of the LAST 8 comparable records for this
+   * provider+model ('official' projector, settled outcome, positive billed
+   * input), enforce requires ≥4 comparable AND worst
+   * |estimate−billed|/billed ≤ 15%. Anything else (cold start, sparse
+   * history, a throwing reader, local-fallback rows) degrades to 'observe' —
+   * an unpromoted auto behaves EXACTLY like observe (pass-through
+   * calibration). Short-circuited records carry no usage and are excluded by
+   * construction, so auto-enforce cannot feed itself (no self-feedback loop).
+   * @internal
+   */
+  private autoEffectiveMode;
   /**
    * Criteria 1-3 (shared matchesMainChain) + estimate + judgment. Every
    * main-chain request is judged — criterion 4's snapshot exemption window
@@ -2138,8 +2177,9 @@ interface ZctxToolRuntime {
   /**
    * Config preflightMode (V4 status face; optional for backward-compatible
    * test runtimes): the mode line the preflight estimator segment renders.
+   * ZCTX-AUTOUI: 'auto' = calibration-driven per-request effective mode.
    */
-  readonly preflightMode?: 'off' | 'observe' | 'enforce';
+  readonly preflightMode?: 'off' | 'observe' | 'enforce' | 'auto';
   /** Per-session store registry (lazy create + attach, feed-maintained). */
   storeFor(session: SessionLike): FoldStore;
   /** Validator config resolved for this session (window from cache when known). */
@@ -2391,6 +2431,17 @@ interface ZctxSnapshot {
   };
   /** Face health — session independent; full tri-state probe + visible sink lands in B4. */
   readonly faceHealth: FaceHealthView;
+  /**
+   * ZCTX-AUTOUI: the patch/插件运行形态 (user 2026-11-21: "搞个显示，不然我想
+   * 用补丁完全功能模式不知道启动没有"). Session independent; read from the
+   * patcher marker file. undefined = the host did not supply the accessor
+   * (older wiring) — the panel then omits the row.
+   */
+  readonly patchFace?: {
+    readonly state: 'present' | 'absent' | 'unknown';
+    readonly patchSet?: string;
+    readonly version?: string;
+  };
   /** Honest degradation rows (same vocabulary as zctx_status). */
   readonly degraded: readonly string[];
 }
@@ -2408,6 +2459,16 @@ interface SnapshotDeps {
   readonly windowFor: (session: SessionLike) => number | undefined;
   /** Face-health view (session independent); B4 replaces the body with the tri-state probe. */
   readonly faceHealth: () => FaceHealthView;
+  /**
+   * ZCTX-AUTOUI: the patcher marker view (present/absent/unknown + patchSet +
+   * shell version). Optional: absent accessor → snapshot omits patchFace and
+   * the panel omits the run-mode row (older wiring stays compatible).
+   */
+  readonly patchFace?: () => {
+    readonly state: 'present' | 'absent' | 'unknown';
+    readonly patchSet?: string;
+    readonly version?: string;
+  } | undefined;
 }
 /** Config view returned by GET /api/config. */
 interface ConfigView {

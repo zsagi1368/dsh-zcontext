@@ -108,6 +108,22 @@ export const PER_IMAGE_FALLBACK_TOKENS = 2048
  */
 export const PREFLIGHT_CONTEXT_WINDOW_EXCEEDED_CODE = 'CONTEXT_WINDOW_EXCEEDED'
 
+// ---------------------------------------------------------------------------
+// ZCTX-AUTOUI: mode='auto' promotion thresholds (calibration-driven enforce).
+// Deliberately CONSERVATIVE: the estimator is chars/3 (a known underestimate
+// for dense CJK), so the error limit is generous before hard behavior is
+// earned, and the sample floor keeps one lucky round from promoting. All
+// three are exported for the spec pins (adjust from the ledger, never
+// silently — same discipline as PER_IMAGE_FALLBACK_TOKENS).
+// ---------------------------------------------------------------------------
+
+/** How many recent comparable records (same route) the judgment looks at. */
+export const PREFLIGHT_AUTO_SAMPLE_WINDOW = 8
+/** Fewer comparable records than this = cold start → observe. */
+export const PREFLIGHT_AUTO_SAMPLE_MIN = 4
+/** Worst |estimate−billed|/billed (percent) tolerated for an enforce round. */
+export const PREFLIGHT_AUTO_ERROR_LIMIT_PCT = 15
+
 /** Structural twin of the official LlmImageRequestPrice (llm/src/types.ts:200-208). */
 export interface HostImagePriceLike {
   /** Provider visual tokens for the image occurrence. */
@@ -125,6 +141,12 @@ export interface HostImagePricingLike {
 export interface PreflightStoreAccess {
   /** Calibration sink: append one estimate-vs-reality record (bounded, oldest dropped). */
   absorbPreflightCalibration(record: PreflightCalibrationRecord): void
+  /**
+   * ZCTX-AUTOUI: recent calibration records for the auto-mode judgment
+   * (optional — absent or throwing degrades to 'observe', never breaks a
+   * request). Implemented by FoldStore; the ledger is process-memory only.
+   */
+  preflightCalibrations?(): readonly PreflightCalibrationRecord[]
 }
 
 /**
@@ -453,11 +475,17 @@ export class PreflightListener {
       yield* next()
       return
     }
+    // ZCTX-AUTOUI: 'auto' resolves its EFFECTIVE behavior per-request from the
+    // calibration ledger (earned enforce, fail-soft observe); a fixed config
+    // mode IS the behavior. The resolution lands in the record for audit.
+    const effective = this.deps.mode === 'auto'
+      ? this.autoEffectiveMode(judged.calibration.provider, judged.calibration.model, judged.store)
+      : this.deps.mode
     // ENFORCE HIT: short-circuit. next() is never called — the adapter never
     // runs, no wire request, no usage. Exactly one terminal finish chunk
     // (official protocol: nothing after finish; no usage exists to emit).
-    if (this.deps.mode === 'enforce' && judged.calibration.hit === true) {
-      this.sink(judged.store, { ...judged.calibration, outcome: 'short-circuited' })
+    if (effective === 'enforce' && judged.calibration.hit === true) {
+      this.sink(judged.store, { ...judged.calibration, ...(this.deps.mode === 'auto' ? { effectiveMode: 'enforce' } : {}), outcome: 'short-circuited' })
       yield buildPreflightErrorFinish(judged.calibration)
       return
     }
@@ -465,6 +493,44 @@ export class PreflightListener {
     // chunk (officially emitted before the terminal finish) completes the
     // record when the stream settles.
     yield* this.calibrateWrap(judged, next)
+  }
+
+  /**
+   * ZCTX-AUTOUI: resolve the effective behavior for ONE request under
+   * mode='auto' from the recent calibration ledger of the SAME route.
+   * Rule (fail-soft; error口径 = tools.ts:638 — billed input = input +
+   * cacheRead + cacheWrite): of the LAST 8 comparable records for this
+   * provider+model ('official' projector, settled outcome, positive billed
+   * input), enforce requires ≥4 comparable AND worst
+   * |estimate−billed|/billed ≤ 15%. Anything else (cold start, sparse
+   * history, a throwing reader, local-fallback rows) degrades to 'observe' —
+   * an unpromoted auto behaves EXACTLY like observe (pass-through
+   * calibration). Short-circuited records carry no usage and are excluded by
+   * construction, so auto-enforce cannot feed itself (no self-feedback loop).
+   * @internal
+   */
+  private autoEffectiveMode(provider: string, model: string, store: PreflightStoreAccess): 'observe' | 'enforce' {
+    try {
+      const records = store.preflightCalibrations?.() ?? []
+      const errors: number[] = []
+      for (let i = records.length - 1; i >= 0 && errors.length < PREFLIGHT_AUTO_SAMPLE_WINDOW; i -= 1) {
+        const record = records[i]
+        if (record === undefined) continue
+        if (record.provider !== provider || record.model !== model) continue
+        if (record.projector !== 'official') continue
+        if (record.outcome === 'short-circuited') continue
+        const usage = record.usage
+        if (usage?.inputTokens === undefined) continue
+        const billed = usage.inputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
+        if (!Number.isFinite(billed) || billed <= 0) continue
+        errors.push((Math.abs(record.estimate - billed) / billed) * 100)
+      }
+      if (errors.length < PREFLIGHT_AUTO_SAMPLE_MIN) return 'observe'
+      const worst = Math.max(...errors)
+      return worst <= PREFLIGHT_AUTO_ERROR_LIMIT_PCT ? 'enforce' : 'observe'
+    } catch {
+      return 'observe'
+    }
   }
 
   /**
@@ -516,6 +582,7 @@ export class PreflightListener {
       calibration: {
         sessionId: match.sessionId,
         mode: this.deps.mode,
+        ...(this.deps.mode === 'auto' ? { effectiveMode: this.autoEffectiveMode(provider, model, store) } : {}),
         provider: provider === '' ? '(unknown)' : provider,
         model: model === '' ? '(unknown)' : model,
         estimate: estimate.tokens,

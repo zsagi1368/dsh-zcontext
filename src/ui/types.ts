@@ -70,6 +70,17 @@ export interface ZctxSnapshot {
   }
   /** Face health — session independent; full tri-state probe + visible sink lands in B4. */
   readonly faceHealth: FaceHealthView
+  /**
+   * ZCTX-AUTOUI: the patch/插件运行形态 (user 2026-11-21: "搞个显示，不然我想
+   * 用补丁完全功能模式不知道启动没有"). Session independent; read from the
+   * patcher marker file. undefined = the host did not supply the accessor
+   * (older wiring) — the panel then omits the row.
+   */
+  readonly patchFace?: {
+    readonly state: 'present' | 'absent' | 'unknown'
+    readonly patchSet?: string
+    readonly version?: string
+  }
   /** Honest degradation rows (same vocabulary as zctx_status). */
   readonly degraded: readonly string[]
 }
@@ -88,4 +99,14 @@ export interface SnapshotDeps {
   readonly windowFor: (session: SessionLike) => number | undefined
   /** Face-health view (session independent); B4 replaces the body with the tri-state probe. */
   readonly faceHealth: () => FaceHealthView
+  /**
+   * ZCTX-AUTOUI: the patcher marker view (present/absent/unknown + patchSet +
+   * shell version). Optional: absent accessor → snapshot omits patchFace and
+   * the panel omits the run-mode row (older wiring stays compatible).
+   */
+  readonly patchFace?: () => {
+    readonly state: 'present' | 'absent' | 'unknown'
+    readonly patchSet?: string
+    readonly version?: string
+  } | undefined
 }

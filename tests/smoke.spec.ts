@@ -82,9 +82,10 @@ describe('dsh-zcontext skeleton smoke', () => {
       cleanSampleFloor: 0.6,
       'observe.enabled': true,
       'observe.attemptCapture': false,
-      // v0.2.0 V4 (S1 preflight; R2: enforce unreachable under the default
-      // configuration — the pin makes every config-contract change conscious).
-      preflightMode: 'observe',
+      // v0.2.0 V4 (S1 preflight; ZCTX-AUTOUI 2026-11-21: default 'auto' —
+      // calibration-driven per-request effective mode, cold start observe;
+      // the pin makes every config-contract change conscious).
+      preflightMode: 'auto',
       preflightMarginRatio: 0.9,
       // v0.2.2 P6-C (guard-observe event consumption, plan ZCTX-v03-patch-plan):
       // the log-only consumer is ON by default — inert when the app.asar patch
