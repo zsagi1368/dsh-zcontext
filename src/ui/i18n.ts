@@ -128,7 +128,7 @@ export const FIELD_LABELS: Record<string, { zh: string; en: string }> = {
   'observe.enabled': { zh: '观测面开关', en: 'observe face' },
   'patch.guardObserveEvents': { zh: '补丁 guard 观测桥', en: 'patch guard-observe bridge' },
   'autofold.enabled': { zh: '自动折叠开关', en: 'autofold face' },
-  preflightMode: { zh: 'preflight 模式 (off|observe|enforce)', en: 'preflight mode (off|observe|enforce)' },
+  preflightMode: { zh: 'preflight 模式 (off|observe|enforce|auto)', en: 'preflight mode (off|observe|enforce|auto)' },
   uiLanguage: { zh: '界面语言', en: 'UI language' },
 }
 

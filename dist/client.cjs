@@ -268,8 +268,8 @@ const FIELD_LABELS = {
 		en: "autofold face"
 	},
 	preflightMode: {
-		zh: "preflight 模式 (off|observe|enforce)",
-		en: "preflight mode (off|observe|enforce)"
+		zh: "preflight 模式 (off|observe|enforce|auto)",
+		en: "preflight mode (off|observe|enforce|auto)"
 	},
 	uiLanguage: {
 		zh: "界面语言",

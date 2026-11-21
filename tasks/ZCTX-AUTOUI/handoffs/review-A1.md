@@ -113,4 +113,51 @@ ATTACHMENTS: 见各条目证据路径
 - 阻断-1 + 阻断-2 修复后按同门复验（tsc + 全量测试 + 握手 + 新增回归臂）。返工仅涉及 src/client/index.ts、src/ui/i18n.ts、README.md、CHANGELOG.md、tests/panel-i18n.spec.ts（及可选 preflight.ts 建议-1 / config.ts 建议-2）；preflight.ts 核心判定、snapshot/patchFace 链、测试主体数学均已对抗通过，无需重做。
 - 本评审不计 patcher/ 与估算器核心改动（R1 零 diff 已证）。
 
-VERDICT: REWORK（83<98；差距=阻断-1 面板选择器缺 auto+pin 锁死、阻断-2 README/CHANGELOG 未同步；附建议-1/2/3 记账要求）
+R1-VERDICT: REWORK（83<98；差距=阻断-1 面板选择器缺 auto+pin 锁死、阻断-2 README/CHANGELOG 未同步；附建议-1/2/3 记账要求）
+
+## 6. R2 复评（b26066d + b6875c0，评审员独立复核 2026-11-21）
+
+### 6.1 r1 清单逐项核销
+
+| r1 条目 | r2 状态 | 证据（评审员独立验证） |
+|---|---|---|
+| 阻断-1 核心（选择器缺 auto/保存自伤） | **FIXED ✓** | src/client/index.ts:598 四值选项（UI_DICT 驱动，src/ui/i18n.ts:83-87 双语）；回归臂 tests/panel-i18n.spec.ts:341-373 走真实 onClick 保存路径 + DOM stub，断言 POST faceSwitches.preflightMode==='auto'（两条坏路径 ''/off 被钉死）；三值 pin 改四值（:305-336，含 '自动 (auto·默认)' 文本断言）。dist/client.cjs 含 'auto·默认'（grep=1）。 |
+| 阻断-1 批内子项（字段标签 i18n.ts:125→131） | **未修 ✗** | src/ui/i18n.ts:131 仍为 `'preflight 模式 (off|observe|enforce)'`——面板设置表单该字段标签（fieldLabel→FIELD_LABELS，src/client/index.ts:586 渲染）继续向用户谎报值域，紧邻一个含"自动 (auto·默认)"的四值 select。r1 阻断-1 明确列为同批修复项。无测试钉旧文案 → 单行修复零测试影响。 |
+| 阻断-2（README×2 + CHANGELOG） | **FIXED ✓** | README.md:155 四值+default 'auto'；:157-159 auto 机制段（8/4/15 导出 pin 点名+earned-promotion）；:163 配置表行改四值+"auto"；:162 R2 红线机制化说明；:162 末尾水位策略 v0.4 候选书面指针。CHANGELOG.md [Unreleased] 新增 ZCTX-AUTOUI 节（:8-28：auto 语义/运行形态行/水位声明）。内容与实现逐项核对无漂移。 |
+| 建议-1（effectiveMode 双算+键不一致） | **FIXED ✓** | src/preflight.ts:203-210 JudgedRequest.effective；:585-591 judgeRequest 单次计算且用台账一致的替换后键（routeProvider/routeModel）；:486-489 handleStream 复用 judged.effective；:493 短路 sink 不再二次覆盖（calibration 已带正确值）。固定 enforce 路径行为保持（effectiveMode 仍缺省，:588 条件展开）。漂移窗口与重复扫描一并消除。 |
+| 建议-2（configSchema 无 enum） | **not_applicable ✓** | closure.json 记录 disposition=not_applicable + 证据（既有模式/warn-once 兜底/UI 路径 sanitizePatch 封闭）。disposition 合法。 |
+| 建议-3（水位书面留痕） | **FIXED ✓** | README.md:162 + CHANGELOG 水位 note 双落。 |
+| R1（patcher/估算器零 diff） | **保持 ✓** | `git diff f8dfa6c..HEAD --name-only` 无 patcher/、fold-engine/autofold/budget。 |
+
+### 6.2 独立复跑门（评审员执行，非转述）
+
+- `npx tsc --noEmit` exit 0。
+- `npx vitest run`：**38 files / 803 passed (803)** —— 与声称一致（802→803 = +1 回归臂；B-2a 为改写非新增，计数自洽）。
+- `npm run build`：握手 5/5 PASS；构建后 `git status --short`/`git diff` 为空 → 提交产物忠实。
+- lib/index.d.ts r2 零变更**正确**：JudgedRequest 为未导出内部接口（src/preflight.ts:194，grep export=0）。
+- Z36 诚实性：当前 b26066d 提交信息写 803/803 与实测一致；amend 前信息已不可考，progress.md:1 记录了更正事实 —— 接受为已更正并留痕。
+
+### 6.3 过程发现（新）
+
+- **closure.json 对 A1-阻断1 的 verified 声明过度覆盖**：ledger 证据行（"selector 4 values + preflightOpt* labels + GET-auto→POST-auto regression arm"）未包含批内标签子项，而该子项未执行 —— 台账把部分完成记成了整体 fixed/verified。§12 纪律：证据必须支撑声明；抽查即发现。修标签后同步补证据行即可（无需新条目）。
+- 新引入代码未发现其它缺陷：`t(... as UiDictKey)` 安全（4 键齐；t() 对未知键回落 key 字符串，src/ui/i18n.ts）；回归臂的 fieldEl stub 结构与真实 DOM 契约（data-key/data-type/value/checked）一致。
+
+### 6.4 R2 六维评分
+
+| 维度 | 得分 | 证据/扣分依据 |
+|---|---:|---|
+| 正确性 | **24/25** | auto 单次计算无漂移（src/preflight.ts:203-210,585-591,486-493）；回归臂钉死保存路径；tsc 0+803/803+握手（独立复跑）。扣 1：i18n.ts:131 用户可见文案对值域陈述错误（阻断-1 批内残留）。 |
+| 完整性 | **19/20** | r1 全部差距清单执行（README/CHANGELOG/选择器/回归臂/台账）；扣 1：阻断-1 批内标签子项未完成（完整性残留）。 |
+| 一致性 | **19/20** | 枚举放宽在本波 7 处中 6 处一致（types/config/tools/config-write/plugin/client 选项/i18n 选项标签）；扣 1：字段标签是第 7 处仍未放宽。 |
+| 可验证性 | **13/15** | 全门独立复现+重建零 diff+台账 8 条带 disposition；扣 2：closure.json A1-阻断1 verified 声明证据未覆盖批内全部子项（过度声明，§12 抽查发现）。 |
+| 安全回滚 | **10/10** | 同 r1（零删除/零覆盖/可选字段/fail-soft/单提交可回退），r2 未引入新风险面。 |
+| 可维护性 | **10/10** | effectiveMode 单次计算消除双算陷阱；标签走 UI_DICT 单源；台账/进度/checkpoint 增量落盘齐全。 |
+| **总分** | **95/100** | <98 → REWORK。唯一差距 = 阻断-1 批内标签子项（一行字符串）+ 台账证据行补全。 |
+
+### 6.5 R2 返工范围（收窄到单行）
+
+1. src/ui/i18n.ts:131 —— zh/en 标签改为含 auto（建议 `preflight 模式 (off|observe|enforce|auto)` / `preflight mode (off|observe|enforce|auto)`；如愿意可加"默认 auto"字样，非必须）。
+2. tasks/ZCTX-AUTOUI/closures/closure.json —— A1-阻断1 证据行补标签子项，或（若本轮仍未修）把标签拆为独立条目记 OPEN——禁止维持过度声明。
+3. 复验门：tsc + 全量测试 + 握手（无新增测试要求；旧文案无测试钉，零测试影响）。
+
+R2-VERDICT: REWORK（95<98；唯一差距=阻断-1 批内标签子项 src/ui/i18n.ts:131 未修 + closure.json 该条目证据过度声明；其余全部对抗通过）

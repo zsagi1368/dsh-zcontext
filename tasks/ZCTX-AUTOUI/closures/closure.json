@@ -17,7 +17,7 @@
       "disposition": "fixed",
       "status": "verified",
       "phase": "block",
-      "evidence": "selector 4 values + preflightOpt* labels + GET-auto→POST-auto regression arm (panel-i18n)",
+      "evidence": "selector 4 values + preflightOpt* labels + GET-auto→POST-auto regression arm (panel-i18n) + FIELD_LABELS.preflightMode label extended to off|observe|enforce|auto (review-A1-r2 residual, dist bundle carries the four-value string ×2)",
       "owner": "main"
     },
     {
