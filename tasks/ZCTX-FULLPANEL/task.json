@@ -1,0 +1,33 @@
+{
+  "schema": "task/v1",
+  "id": "ZCTX-FULLPANEL",
+  "title": "全功能面板：砍浏览器页面路线，全部功能进侧栏面板（SQLite 统计+设置可写+中文 i18n）",
+  "type": "DEV",
+  "owner": "main",
+  "depends": ["ZCTX-SIDEBAR", "ZCTX-POLISH"],
+  "priority": "high",
+  "budget": { "max_minutes": 180, "max_agents": 2, "max_rework_rounds": 2 },
+  "base_sha": "f72f64f",
+  "branch": "feat/ZCTX-FULLPANEL",
+  "worktree": "worktrees/ZCTX-FULLPANEL",
+  "acceptance": [
+    "V1 routes 砍 /zctx-ui page 路由（API only：snapshot/config/stats），page.ts 废弃删除",
+    "V2 /zctx-ui/api/stats 返回 SQLite 累计（totalFolds/tokensSaved/sessions）",
+    "V3 面板统计区显示 SQLite 累计（fetch stats API）",
+    "V4 面板设置区可写表单保留（same-origin+loopback 已证）",
+    "V5 字段键名→中文标签字典（nudgeThresholds→提示阈值 等全量）",
+    "V6 面板全部文案 i18n：跟随 DSH（locale 服务 inject 探测+better-sidebar 形态）→navigator.language→默认中文",
+    "V7 复制地址按钮删除（dsh-app:// 协议下无意义）",
+    "V8 R1 段 8e2d0b7e… 不变+全量测试绿+lint 0+握手真语法校验",
+    "V9 真机：左菜单标签→面板显示中文、统计有数、设置可改、无浏览器路线残留"
+  ],
+  "artifacts": ["src/ui/routes.ts", "src/ui/page.ts(废弃)", "src/client/index.ts", "src/ui/i18n.ts", "src/storage/db.ts"],
+  "constraints": [
+    "R1 红线零请求体改写；SUPPORTED 段 8e2d0b7e… 不变",
+    "fail-closed 不弱化（API 授权三臂保留）",
+    "locale inject=能力探测降级（服务缺席→navigator.language→zh，绝不 PENDING，Z21/Z25）",
+    "字段标签字典全量（九字段+face 开关）",
+    "坑册：Z1 单参 factory/Z21+Z25/Z34+Z35 真机端点验证/条目32+A68"
+  ],
+  "status": "open"
+}

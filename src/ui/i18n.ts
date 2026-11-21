@@ -60,6 +60,38 @@ export function resolveLang(pref: string | undefined, hostHint?: string): UiLang
   return 'zh'
 }
 
+/
+/** Config key → zh labels (九字段+face 开关全量；en shows the raw key). */
+export const FIELD_LABELS: Record<string, { zh: string; en: string }> = {
+  enabled: { zh: '插件总开关', en: 'enabled' },
+  nudgeThresholds: { zh: '提示阈值（%）', en: 'nudge thresholds (%)' },
+  keepRecentTokens: { zh: '保留最近 tokens', en: 'keep recent tokens' },
+  maxFoldFraction: { zh: '最大折叠占比', en: 'max fold fraction' },
+  minFoldableTokens: { zh: '最小可折叠 tokens', en: 'min foldable tokens' },
+  protectionFloorTokens: { zh: '保护下限 tokens', en: 'protection floor tokens' },
+  summaryFloorChars: { zh: '摘要下限字符', en: 'summary floor chars' },
+  summaryCeilingChars: { zh: '摘要上限字符', en: 'summary ceiling chars' },
+  netShrinkTolerance: { zh: '净缩容容差', en: 'net shrink tolerance' },
+  'observe.enabled': { zh: '观测面开关', en: 'observe face' },
+  'patch.guardObserveEvents': { zh: '补丁 guard 观测桥', en: 'patch guard-observe bridge' },
+  'autofold.enabled': { zh: '自动折叠开关', en: 'autofold face' },
+  preflightMode: { zh: 'preflight 模式 (off|observe|enforce)', en: 'preflight mode (off|observe|enforce)' },
+}
+
+/** Face state → zh. */
+export const FACE_STATE_ZH: Record<string, string> = {
+  active: '正常',
+  degraded: '降级',
+  absent: '未激活',
+}
+
+/** Config-key label in the active language. */
+export function fieldLabel(key: string, lang: UiLang): string {
+  const row = FIELD_LABELS[key]
+  return row === undefined ? key : row[lang]
+}
+
+
 /** Translate one key (unknown key → the key itself, loud enough to notice). */
 export function t(key: UiDictKey, lang: UiLang): string {
   const row = UI_DICT[key]
