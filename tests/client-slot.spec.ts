@@ -4,7 +4,7 @@
  *
  * - inject gate present → one registration with fresh id + order, no priority;
  * - slots absent → lazy no-op (no throw, no PENDING);
- * - React absent → degrade to a plain-link component (no crash, 反-C2);
+ * - React absent → degrade to a plain text card (no crash, no dead link, 反-C2/B-3);
  * - bundle factory contract: single-arg factory(require) + module scaffold,
  *   banner id === package name, require('react') present, no priority property;
  * - summary parsing is fail-soft.
@@ -110,48 +110,35 @@ describe('ZCTX-UI D6: client fiber identity + inject gate (V7)', () => {
     expect(() => apply(ctx, { React: mockReact() })).not.toThrow()
   })
 
-  it('React absent → degrades to a REAL clickable /zctx-ui link (not a blank null card, 反-C2/B5-1)', () => {
+  it('React absent → degrades to a REAL text card, never a dead link (B-3/反-C2/B5-1)', () => {
     const ctx = slotsCtx()
     const doc = {
       createElement(tag: string) {
-        const node = {
-          tag,
-          href: '',
-          target: '',
-          rel: '',
-          textContent: '',
-          setAttribute(name: string, value: string) {
-            if (name === 'href') node.href = value
-            if (name === 'target') node.target = value
-            if (name === 'rel') node.rel = value
-          },
-        }
-        return node
+        return { tag, textContent: '' }
       },
     }
     apply(ctx, { React: undefined, fetchText: async () => '{}', document: doc as never })
-    // React absent: the CARD still degrades to a plain link; the sidebar panel
-    // is React-only and contributes no `main` component (capability gate).
+    // React absent: the CARD still degrades to a plain text card; the sidebar
+    // panel is React-only and contributes no `main` component (capability gate).
     const cards = ctx.registered.filter((r) => r.opts.name === 'settings.section')
     expect(cards).toHaveLength(1)
     expect(ctx.registered.filter((r) => r.opts.name === 'main')).toHaveLength(0)
-    const component = cards[0].component as () => { tag: string; href: string; target: string; text: string; node?: unknown }
+    const component = cards[0].component as () => { tag: string; text: string; node?: unknown }
     expect(typeof component).toBe('function')
     // TRUE render assertion: invoke the component and inspect the product.
     const rendered = component()
     expect(rendered).not.toBeNull()
-    expect(rendered.tag).toBe('a')
-    expect(rendered.href).toBe('/zctx-ui')
-    // New tab: opening the panel must NOT navigate away from the DSH window.
-    expect(rendered.target).toBe('_blank')
+    // B-3: the pointed-at page was removed — a text card, never an anchor.
+    expect(rendered.tag).toBe('span')
     expect(rendered.text.length).toBeGreaterThan(0)
-    // The real DOM anchor was created with href + target + label.
+    const serialized = JSON.stringify(rendered)
+    expect(serialized).not.toContain('/zctx-ui')
+    expect(serialized).not.toContain('href')
+    // The real DOM node was created with the hint text.
     expect(rendered.node).toBeDefined()
-    const anchor = rendered.node as { href: string; target: string; rel: string; textContent: string }
-    expect(anchor.href).toBe('/zctx-ui')
-    expect(anchor.target).toBe('_blank')
-    expect(anchor.rel).toContain('noopener')
-    expect(anchor.textContent.length).toBeGreaterThan(0)
+    const span = rendered.node as { tag: string; textContent: string }
+    expect(span.tag).toBe('span')
+    expect(span.textContent.length).toBeGreaterThan(0)
   })
 })
 
@@ -179,15 +166,19 @@ describe('ZCTX-UI D6: styles + summary (V7)', () => {
     expect(parseSummary('{}')).toEqual({ foldCount: 0, pressurePct: undefined, sessionId: undefined })
   })
 
-  it('card renders a link to /zctx-ui with summary text', () => {
+  it('card renders a pure summary + panel hint; NO dead /zctx-ui link (B-3)', () => {
     const React = mockReact()
     const card = createSummaryCard(React, { foldCount: 3, pressurePct: 12.3, sessionId: 's1' }, async () => '{}')
     expect(typeof card).toBe('function')
     ;(card as () => unknown)()
     const serialized = JSON.stringify(React.calls)
-    expect(serialized).toContain('/zctx-ui')
+    // B-3: the browser page route was removed — the card must not ship a link
+    // to it, and must point at the native left-menu panel entry instead.
+    expect(serialized).not.toContain('/zctx-ui')
+    expect(serialized).not.toContain('href')
     expect(serialized).toContain('折叠 3 次')
     expect(serialized).toContain('12.3%')
+    expect(serialized).toContain('请在左侧菜单 zcontext 打开面板')
   })
 })
 
