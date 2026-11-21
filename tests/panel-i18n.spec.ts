@@ -301,7 +301,7 @@ describe('B-1: a picked session survives the 5s poll', () => {
 })
 
 describe('B-2a: the four face switches render', () => {
-  it('renders 3 boolean checkboxes + the preflightMode select with exactly off|observe|enforce', async () => {
+  it('renders 3 boolean checkboxes + the preflightMode select with exactly off|observe|enforce|auto (review-A1 阻断-1: auto is the default and MUST be an option)', async () => {
     await withNavigator('zh-CN', async () => {
       const mock = statefulReact()
       const component = buildPanel(mock, async () => '{}')
@@ -314,7 +314,7 @@ describe('B-2a: the four face switches render', () => {
           'observe.enabled': true,
           'patch.guardObserveEvents': false,
           'autofold.enabled': true,
-          preflightMode: 'observe',
+          preflightMode: 'auto',
         }
         renderPanel(mock, component)
 
@@ -332,13 +332,76 @@ describe('B-2a: the four face switches render', () => {
         const sel = mock.calls.find((c) => (c[1] as Record<string, unknown>)?.['data-key'] === 'preflightMode')
         expect(sel).toBeDefined()
         const options = (sel as unknown[]).slice(2) as Array<{ props: { value: string } }>
-        expect(options.map((o) => o.props.value)).toEqual(['off', 'observe', 'enforce'])
+        // ZCTX-AUTOUI: FOUR values — the default 'auto' must round-trip
+        // (GET auto → display auto → POST auto), never fall out of the list.
+        expect(options.map((o) => o.props.value)).toEqual(['off', 'observe', 'enforce', 'auto'])
+        expect(serialized).toContain('自动 (auto·默认)')
       } finally {
         unmount(mock)
       }
     })
   })
+
+  it("review-A1 阻断-1 regression: a GET 'auto' default survives the save path as POST auto (never empty, never off)", async () => {
+    await withNavigator('zh-CN', async () => {
+      const mock = statefulReact()
+      const component = buildPanel(mock, async () => '{}')
+      try {
+        renderPanel(mock, component)
+        ;(mock.slots[3] as unknown[])[0] = {
+          'observe.enabled': true,
+          'patch.guardObserveEvents': true,
+          'autofold.enabled': false,
+          preflightMode: 'auto',
+        }
+        renderPanel(mock, component)
+        // Mount the real select structure through the DOM stub: the save path
+        // reads [data-key] elements from .zctx-panel-faces.
+        const resultEl = { textContent: '' }
+        const doc = {
+          querySelector(sel: string) {
+            if (sel === '.zctx-panel-fields') return { querySelectorAll: () => [fieldEl('enabled', 'boolean', '', true)] }
+            if (sel === '.zctx-panel-faces') {
+              return {
+                querySelectorAll: () => [
+                  fieldEl('observe.enabled', 'boolean', '', true),
+                  fieldEl('patch.guardObserveEvents', 'boolean', '', true),
+                  fieldEl('autofold.enabled', 'boolean', '', false),
+                  fieldEl('preflightMode', 'select', 'auto'), // the GET 'auto' value as untouched defaultValue
+                ],
+              }
+            }
+            if (sel === '.zctx-save-result') return resultEl
+            return null
+          },
+        }
+        const posts: Array<{ url: string; body: string }> = []
+        vi.stubGlobal('document', doc)
+        vi.stubGlobal('fetch', async (url: string, init?: { body?: string }) => {
+          posts.push({ url, body: init?.body ?? '' })
+          return { json: async () => ({ ok: true }) }
+        })
+        const onClick = lastProps(mock, (p) => p.className === 'zctx-save' && typeof p.onClick === 'function')?.onClick as () => void
+        onClick()
+        await tick()
+        expect(posts).toHaveLength(1)
+        const body = JSON.parse(posts[0].body) as { faceSwitches: Record<string, unknown> }
+        expect(body.faceSwitches.preflightMode).toBe('auto') // auto → POST auto
+      } finally {
+        vi.unstubAllGlobals()
+        unmount(mock)
+      }
+    })
+  })
 })
+
+function fieldEl(key: string, type: string, value: string, checked = false): { getAttribute(name: string): string | null; value: string; checked: boolean } {
+  return {
+    getAttribute: (n: string) => (n === 'data-key' ? key : n === 'data-type' ? type : null),
+    value,
+    checked,
+  }
+}
 
 describe('B-2b: the save path — number conversion + wire shape', () => {
   interface FakeInput {

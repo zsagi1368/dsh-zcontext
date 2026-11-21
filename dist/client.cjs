@@ -167,6 +167,22 @@ const UI_DICT = {
 	runModeUnknown: {
 		zh: "形态未知",
 		en: "Unknown"
+	},
+	preflightOptOff: {
+		zh: "关闭 (off)",
+		en: "off"
+	},
+	preflightOptObserve: {
+		zh: "观察 (observe)",
+		en: "observe"
+	},
+	preflightOptEnforce: {
+		zh: "拦截 (enforce)",
+		en: "enforce"
+	},
+	preflightOptAuto: {
+		zh: "自动 (auto·默认)",
+		en: "auto (default)"
 	}
 };
 /**
@@ -621,11 +637,12 @@ function createPanelComponent(React, fetchText) {
 			}, ...[
 				"off",
 				"observe",
-				"enforce"
+				"enforce",
+				"auto"
 			].map((m) => e("option", {
 				key: m,
 				value: m
-			}, m))));
+			}, t$1(`preflightOpt${m.charAt(0).toUpperCase()}${m.slice(1)}`, lang)))));
 			return e("label", {
 				className: "zctx-field",
 				key: k

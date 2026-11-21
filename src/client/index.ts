@@ -26,7 +26,7 @@
  * @module client/index
  */
 
-import { t as uiT, resolveLang, FACE_STATE_ZH, fieldLabel, UI_LANG_OPTIONS, type UiLang } from '../ui/i18n.ts'
+import { t as uiT, resolveLang, FACE_STATE_ZH, fieldLabel, UI_LANG_OPTIONS, type UiDictKey, type UiLang } from '../ui/i18n.ts'
 
 /** Must equal the package name — the loader's boot-graph row id (handshake). */
 export const name = 'dsh-zcontext'
@@ -583,6 +583,10 @@ export function createPanelComponent(
         Object.keys(faces).length > 0
           ? Object.entries(faces).map(([k, v]) => {
               if (k === 'preflightMode') {
+                // ZCTX-AUTOUI (review-A1 阻断-1): 'auto' MUST be an option —
+                // it is the NEW DEFAULT, and a select without a matching
+                // option would submit '' (whole-save 400) or silently resolve
+                // to 'off' (preflight face silently disabled).
                 return e('label', { className: 'zctx-field', key: k },
                   e('span', { className: 'zctx-field-key' }, fieldLabel(k, lang)),
                   e('select', {
@@ -591,7 +595,7 @@ export function createPanelComponent(
                     'data-key': k,
                     'data-type': 'select',
                   },
-                  ...['off', 'observe', 'enforce'].map((m) => e('option', { key: m, value: m }, m))))
+                  ...['off', 'observe', 'enforce', 'auto'].map((m) => e('option', { key: m, value: m }, t(`preflightOpt${m.charAt(0).toUpperCase()}${m.slice(1)}` as UiDictKey, lang)))))
               }
               return e('label', { className: 'zctx-field', key: k },
                 e('span', { className: 'zctx-field-key' }, fieldLabel(k, lang)),

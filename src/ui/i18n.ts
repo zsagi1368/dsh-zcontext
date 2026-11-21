@@ -79,6 +79,12 @@ export const UI_DICT = {
   runModePatched: { zh: '补丁完全功能模式', en: 'Full patch mode' },
   runModePlugin: { zh: '纯插件模式', en: 'Pure plugin mode' },
   runModeUnknown: { zh: '形态未知', en: 'Unknown' },
+  // ZCTX-AUTOUI (review-A1 阻断-1): the preflight selector's four option labels
+  // (the default 'auto' MUST render — a missing option would break the save).
+  preflightOptOff: { zh: '关闭 (off)', en: 'off' },
+  preflightOptObserve: { zh: '观察 (observe)', en: 'observe' },
+  preflightOptEnforce: { zh: '拦截 (enforce)', en: 'enforce' },
+  preflightOptAuto: { zh: '自动 (auto·默认)', en: 'auto (default)' },
 } as const
 
 export type UiDictKey = keyof typeof UI_DICT

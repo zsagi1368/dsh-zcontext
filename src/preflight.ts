@@ -200,6 +200,14 @@ interface JudgedRequest {
   store: PreflightStoreAccess
   /** The estimate + judgment (record fields before outcome/usage are known). */
   calibration: Omit<PreflightCalibrationRecord, 'outcome' | 'usage'>
+  /**
+   * ZCTX-AUTOUI (review-A1 建议-1): the auto-mode effective behavior resolved
+   * ONCE here (with the LEDGER-CONSISTENT route key — the replaced
+   * '(unknown)' spelling, matching what records store) and REUSED by the
+   * stream body — no second computation, no drift window between the audit
+   * field and the actual behavior.
+   */
+  readonly effective: 'observe' | 'enforce'
 }
 
 /** The pure estimate result (test surface). */
@@ -475,17 +483,16 @@ export class PreflightListener {
       yield* next()
       return
     }
-    // ZCTX-AUTOUI: 'auto' resolves its EFFECTIVE behavior per-request from the
-    // calibration ledger (earned enforce, fail-soft observe); a fixed config
-    // mode IS the behavior. The resolution lands in the record for audit.
-    const effective = this.deps.mode === 'auto'
-      ? this.autoEffectiveMode(judged.calibration.provider, judged.calibration.model, judged.store)
-      : this.deps.mode
+    // ZCTX-AUTOUI: the effective behavior was resolved ONCE in judgeRequest
+    // (ledger-consistent route key) and rides the JudgedRequest — no second
+    // computation here (review-A1 建议-1: no drift between the audit field
+    // and the behavior).
+    const effective = judged.effective
     // ENFORCE HIT: short-circuit. next() is never called — the adapter never
     // runs, no wire request, no usage. Exactly one terminal finish chunk
     // (official protocol: nothing after finish; no usage exists to emit).
     if (effective === 'enforce' && judged.calibration.hit === true) {
-      this.sink(judged.store, { ...judged.calibration, ...(this.deps.mode === 'auto' ? { effectiveMode: 'enforce' } : {}), outcome: 'short-circuited' })
+      this.sink(judged.store, { ...judged.calibration, outcome: 'short-circuited' })
       yield buildPreflightErrorFinish(judged.calibration)
       return
     }
@@ -575,16 +582,27 @@ export class PreflightListener {
       marginRatio: this.deps.marginRatio,
     })
 
+    // ZCTX-AUTOUI (review-A1 建议-1): resolve the effective behavior ONCE, with
+    // the LEDGER-CONSISTENT route key (the replaced '(unknown)' spelling —
+    // exactly what records store), so the audit field and the actual behavior
+    // can never drift apart.
+    const routeProvider = provider === '' ? '(unknown)' : provider
+    const routeModel = model === '' ? '(unknown)' : model
+    const effective = this.deps.mode === 'auto'
+      ? this.autoEffectiveMode(routeProvider, routeModel, store)
+      : this.deps.mode
+
     return {
       record: options,
       sessionId: match.sessionId,
       store,
+      effective,
       calibration: {
         sessionId: match.sessionId,
         mode: this.deps.mode,
-        ...(this.deps.mode === 'auto' ? { effectiveMode: this.autoEffectiveMode(provider, model, store) } : {}),
-        provider: provider === '' ? '(unknown)' : provider,
-        model: model === '' ? '(unknown)' : model,
+        ...(this.deps.mode === 'auto' ? { effectiveMode: effective } : {}),
+        provider: routeProvider,
+        model: routeModel,
         estimate: estimate.tokens,
         ...(judgment.window !== undefined ? { window: judgment.window } : {}),
         ...(judgment.triggerLine !== undefined ? { triggerLine: judgment.triggerLine } : {}),
