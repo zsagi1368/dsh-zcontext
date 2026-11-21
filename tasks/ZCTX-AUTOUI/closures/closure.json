@@ -79,6 +79,26 @@
       "phase": "block",
       "evidence": "804-claim in previous commit message amended to the true 803/803 before push; recorded in checkpoint evidence.honesty",
       "owner": "main"
+    },
+    {
+      "id": "B4",
+      "source": "task plan acceptance",
+      "type": "acceptance",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "live: patchFace={present,zctx-v0.3-base-1,0.2.2-rc.5} + locale=zh-CN + face active 4/4 + preflightMode=auto on host 63296 after deploy of ca502ef",
+      "owner": "main"
+    },
+    {
+      "id": "PUSH",
+      "source": "B4",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "origin main=ca502ef + tag zctx-autoui-20261121a pushed (ls-remote verified)",
+      "owner": "main"
     }
   ]
 }
