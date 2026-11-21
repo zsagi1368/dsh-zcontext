@@ -29,6 +29,56 @@
       "phase": "block",
       "evidence": "false-positive family documented in checkpoint evidence.notes; probe artifacts relocated to zctx del/20261121-asar-probe-artifacts with REGEN.md",
       "owner": "main"
+    },
+    {
+      "id": "R2-建议1",
+      "source": "review-B1",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "cardLang(localeHint) anchors snapshot.locale; parseSummary locale arm; fallback comment honest; card i18n arm green (panel-i18n:604+)",
+      "owner": "main"
+    },
+    {
+      "id": "R2-建议2",
+      "source": "review-B1",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "CHANGELOG.md language bullet rewritten to real chain (locale-cache anchor + uiLanguage selector)",
+      "owner": "main"
+    },
+    {
+      "id": "R2-建议3",
+      "source": "review-B1",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "UI_LANG_OPTIONS {value,key:UiDictKey}; client renders uiT(o.key, lang) — single source",
+      "owner": "main"
+    },
+    {
+      "id": "R2-建议4",
+      "source": "review-B1",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "readDesktopLocaleFile exported; 5 IO arms on mkdtemp roots (happy/ENOENT/malformed/empty/env-stub) all green",
+      "owner": "main"
+    },
+    {
+      "id": "R2-建议5",
+      "source": "review-B1",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "locale=en-US + navigator=zh-CN → en arm added (panel-i18n); ignoring locale would fail it",
+      "owner": "main"
     }
   ]
 }
