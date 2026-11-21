@@ -17,8 +17,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com); versioning follow
   current session's foldable ranges and cache measured-vs-estimated), and
   设置 (WRITABLE in the panel: nine fields + four face switches, POST
   `{fields, faceSwitches}` through `configEditor.edit` into the profile
-  overlay; number fields are submitted as numbers, a NaN value rejects the
-  whole submit with a message). Clicking the menu entry never navigates the
+  overlay; number fields are submitted as numbers, a NaN or empty value
+  rejects the whole submit with a message). Clicking the menu entry never
+  navigates the
   DSH window away.
 - **UI language follows DSH** (user 2026-11-20): the panel reads the webview's
   `navigator.language` (inherits the DSH language setting) — explicit zh/en
