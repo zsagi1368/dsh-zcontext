@@ -132,3 +132,64 @@
 - 亮点如实记录：Z36 三项声称全部独立复现为真（4 次失实教训未复发）；R1 红线字节级完好；架构决策执行主体（删页、API 化、面板化）方向正确且测试同步重写。
 
 （评审证据命令与输出均已在上文内联；复核人可按 §1-§8 的路径/行号逐条重放。）
+
+---
+
+# 复评 r1（2026-11-21 · 复评人=reviewer-r2 · 独立于 coder 与 r0 评审人）
+
+- 对象：worktrees/ZCTX-FULLPANEL，HEAD=60255f4，返工 7 提交 284db97..60255f4（基线仍 f72f64f）。
+- 方法：与 r0 同轮严格度——全部结论基于独立实测（亲跑 lint/build/test、git 对象哈希亲算、源码亲读、grep 复放、测试臂逐条对照实现）；真机项一律不碰（归 B4）。
+- **结论：中间合入 PASS（0 阻断残留）；最终验收打回（3 条建议待处置：S-5 判 fixed / S-9 / S-10）。总分 92/100。**
+
+## 复评必核 11 项逐项结论
+
+1. **亲跑三件套 —— 全真**：`pnpm lint`（tsc --noEmit）exit 0；`pnpm build` → tsdown 双目标编译成功 + `assert-client-banner-handshake.mjs` 5/5 PASS（含 bundle.node-check-syntax 真解析）exit 0；`vitest run` → **37 files / 765 passed (765)**（= 750 基线 + 15 新臂，与声称精确一致），exit 0。
+2. **R1 红线 —— 字节级不变**：按 patcher/README.md:349-365 口径自 **git 对象**读取切片（`export const SUPPORTED = {` 起 zctx-patch.mjs:716，至其后首个列 0 `// ----------` 行 :976 步、不含该行、含尾换行、不 trim）：HEAD=60255f4 与基线 f72f64f **同值** sha256=`8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9`、chars=14889、bytes=14926 —— 三数字精确复现。`git diff 284db97..60255f4 --stat` 无 patcher/ 文件。
+3. **B-1（session 覆写）—— fixed/verified**：
+   - 实现（亲读）：picked state（src/client/index.ts:355-356）；effect 内 load() 按 picked 组 URL（:364-366）；**deps [picked]**（:382）；onChange 仅 setPicked（:444-452），轮询路径无任何 setPicked 回写、无参 fetch 仅存在于 picked===undefined 分支。
+   - 语义裁决（协调方问点）：**deps-[picked] 重臂语义正确，且优于 r0 建议的 holder 方案**——切换时 effect 清理旧 interval（alive=false + clearInterval :381）→ 立即按新会话取数 → 新 interval 闭包携带当前 picked；覆写路径在结构上不存在。holder 方案同样可行但不会产生"切换即取数"的即时刷新。
+   - 测试真臂：tests/panel-i18n.spec.ts:220-299 用 hook 序号 + deps 相等的 stateful mock 驱动真实 hooks 时序；断言切换前**恰好 1 次**裸默认 fetch（:281）、切换后**每次**快照 fetch（立即 + 模拟 5s tick）均带 `?session=session-picked`（:289-291）、数据停留 picked（:292）。旧缺陷形态（无参轮询）必然令 :281/:291 失败——真臂，非假绿。
+4. **B-2（face 开关 + number 类型）—— fixed/verified**：
+   - 4 键渲染：GET 提供 ui/index.ts:66-71 四键；面板 Object.entries(faces) 渲染（client/index.ts:494-512），preflightMode→select off|observe|enforce（:500-506），布尔→checkbox（:420,:508-511）；测试 B-2a（panel-i18n.spec.ts:301-338）断言 4 个 data-key + 三个 option 值 + zh 标签。
+   - POST shape：保存路径 collect 两 root（:528-553）→ body `JSON.stringify({ fields, faceSwitches })`（:558-561）；服务端 routes.ts:189-203 归一化合并两包 + sanitizePatch 全量拒未知键（config-write.ts:84-97）；测试 B-2b（:362-396）断言 body keys 恰为 [faceSwitches, fields] + number typeof。
+   - number 转换：inputFor 按 GET 值 typeof 打 data-type（:418-427）；9 个核心字段全 primitive（config.ts:237-246 —— nudgeThresholds 为 string，无 object 字段，typeof 分派安全）；`Number()` + NaN→badNumberKeys→**整单拒绝**+消息（:541-557）；NaN 测试臂（:398-427）断言 0 次 POST + 消息含键名。
+   - 非受控：defaultValue（:424）/defaultChecked（:420）/select defaultValue（:502），无 value prop，key 稳定 → 5s poll 的 setData 重渲染不重挂载，用户编辑存活（Z37 修法落实）。
+5. **B-3（死链）—— fixed/verified**：grep `href`/`dsh-app`/`TOKEN_PLACEHOLDER` 于 src+dist/client.cjs+lib/index.js → 零死链（仅 `pathToFileURL(...).href` 无关宿主代码与防御性注释；TOKEN_PLACEHOLDER 全仓 0）；dist/client.cjs 无 anchor 创建；fallback 为**纯文本卡** `FallbackRender{tag:'span', text}`（client/index.ts:237-252，dist :327-329；apply :600 `component ?? createFallbackCard(doc)`）；client-slot.spec.ts:113-142/:169-182 改为文本卡真渲染断言（not.toContain('href')/not.toContain('/zctx-ui')）。
+6. **B-4（i18n）—— fixed/verified（面板范围）**：
+   - resolveLang 实现（i18n.ts:64-71）与**三处注释全部一致**（i18n.ts:4-13 模块头、:59-63 JSDoc、client/index.ts:331-332）：显式 pref > 探测（zh 系→zh，**其他已探测语言→en**）> 探测不到/空→默认 zh；测试 4 臂（panel-i18n.spec.ts:135-160）含 ja-JP/de-DE/fr/ko-KR→en、ZH-tw 大小写不敏感→zh。
+   - 面板渲染面硬编码中文 grep = **0**：原 5 处已入字典 cumulative/totalsSaved/sessionsCovered/current/rowsSuffix（i18n.ts:37,45-48），en 模式 ZERO CJK 臂（:186-201）对序列化渲染做 `[\u4e00-\u9fff]` 负断言（真断言）。
+   - **残留（新发现，[建议] S-9）**：摘要卡 + fallback 仍有 5 处硬编码中文（client/index.ts:220,221,224,226,239 —— 'zcontext 摘要 (BETA)'/'折叠 X 次'/'窗口 X%'/'请在左侧菜单…'×2；dist :318,329 同）。预存在文案 + 本次 B-3 新写的提示文案，在 r0 B-4b 清单（面板 :410-418）与 V6"面板全部文案"字面范围外，故不构成 r0 遗留未修，但与"语言跟随 DSH"产品级决策不一致 → 登记为建议。
+7. **B-5（CHANGELOG）—— fixed/verified**：[Unreleased] 重写后逐句对照实现全真：5s poll（:380）/切换存活（B-1）/九字段+四开关 POST `{fields,faceSwitches}`（ui/index.ts:55-71）/number 提交+NaN 拒整单（:541-557）/语言跟随（resolveLang）/stats 授权三臂（routes.ts:141-157）/ledger 缺席 fail-soft 零（plugin.ts:496）/页面路由删除且卡与 fallback 均无链接。无任何"已删 page 作现状"的描述；"Desktop acceptance pending"口径诚实。
+8. **S 项清单核对**：S-1 TOKEN_PLACEHOLDER grep 全仓 0 + routes.ts:4-13 头重钉（THREE exact paths / four method arms）✅；S-2 八死键 0（唯一命中为测试负断言）+ PanelSnapshot.ledgerStats 死字段已删 ✅；S-3 四处注释重钉亲读为真（client/index.ts:19-24、:313-323；i18n.ts:1-16；routes.ts:4-13）✅；S-4 ledgerOk 门（:465-474）失败→统计暂不可用、不再把当前会话值标"(累计)"，测试双臂（:430-489）✅；S-6 `.zctx-panel-select`/`.zctx-panel-faces`/`.zctx-summary-note` 三条 CSS 规则（:151,:154,:139）✅。
+9. **S-7 checkpoint 链 —— 亲算全中**：`prev_hash` = SHA-256(step-2 checkpoint.json **blob 字节** @284db97) = `02dafeff97af6463ecd1ff7e48d2a22ae0b7fdd2d8890d3765c85be64be9b556` 精确；`hash` = canonical JSON（去 hash 字段）SHA-256 = `067509185ccf5fc9efa7198ec1abb110eac786bc1af5ba4f439c1385e2e6e8d1` 精确；9/9 artifacts 哈希与实际文件 MATCH，且本评审 `pnpm build` 重编译后产物**字节级一致**（git status 净）→ 构建可复现；ts 含毫秒非圆整。链自 step-3 起真实可验，step-2 前历史仍诚实标注 rebuild 点。
+10. **panel-i18n.spec.ts 15 臂防假绿**：清点 = 4(B-4a)+3(字典卫生)+2(语言渲染)+1(B-1)+1(B-2a)+2(B-2b)+2(S-4) = **15**；抽 3 臂（B-1、B-2b wire/NaN、en-ZERO-CJK）逐条对照实现均为真臂。小注：en-ZERO-CJK 臂在空 config 下运行，未驱动 fieldLabel 的 en 半（字典卫生臂已覆盖双语完整性）——覆盖面小瑕疵，非假绿。
+11. **Z37 坑册**：G:\000Github\zDSH\ZDSH-LESSONS.md:225-229 在册，四段齐备（现象/根因/修法/一句话），且把"轮询参数随用户选择→state 进 deps 重臂"与"表单=非受控"钉为防复发项——与本报告第 3 项语义裁决一致。✅
+
+## S-5 处置裁决（协调方问点）
+
+**判 fixed（当波，owner=main），不维持 OPEN 记账。** 理由：(a) `LedgerStatsFromDb` 自注释 "avoids a store import"（ui/index.ts:41）已被 routes.ts:32 直接 `import type { LedgerStats } from '../storage/db.ts'` **事实证伪**——同一形状两处定义、其中一处的存在理由已不成立，属维护性地雷；(b) 修复约 6 行、纯类型层零行为风险（删 ui/index.ts:42-48 + 该处 import + :36 改用 LedgerStats），build+765 测试可即时回归；(c) §11 不允许 OPEN 挂账进入完成态，`user_approved_deferred` 需用户真实批准（目前没有）；(d) r1 卡范围未含 S-5 属 planner 范围决策，coder 不越权是正确纪律——但收口前主线必须处置（micro-fix 提交）。不阻塞中间合入；**阻塞最终验收**。
+
+## 新发现（[建议]，非 r0 遗留）
+
+- **S-9** src/client/index.ts:220,221,224,226,239（dist :318,329）——摘要卡与 fallback 卡 5 处硬编码中文绕过 UI_DICT，en/ja 模式下摘要卡仍渲染中文。预存在 + 本波 B-3 新写提示文案；V6 字面范围（面板）外，故 [建议] 级。修法：入字典（summaryTitle/summaryStats/panelHint 等）并在卡片用 resolveLang。
+- **S-10** client/index.ts:541-547 —— `Number('')` === 0：清空数字字段后保存会**静默提交 0**（NaN 检查不拦空串；对照 protectionFloorTokens 等保护阈值字段，0 语义敏感）。旧行为更差（字符串直传），属可接受边缘；建议 `el.value.trim()===''` 与 NaN 同拒。
+
+## 复评评分（六维 · 评分人=reviewer-r2 · 作者=coder/main · 每维附证据）
+
+| 维度 | 得分 | 证据摘要 |
+|---|---:|---|
+| 正确性 | 24/25 | r0 三缺陷全修复且测试真臂（本报告 3/4/6 项亲证）；扣 1 = S-10 空串→0 静默提交 + picked 会话被移出列表后 select 孤值显示（数据仍正确、可恢复，非数据损坏）。 |
+| 完整性 | 18/20 | 5 阻断 + S-1/S-2/S-3/S-4/S-6/S-7/S-8 当波 fixed/verified；S-5 OPEN（范围外、owner=main、判 fixed）；S-9 摘要卡 i18n 缺口（预存在非回归）。 |
+| 一致性 | 18/20 | CHANGELOG 逐句=实现；resolveLang 三处注释一致；路由头=三路四臂；POST shape 与 GET 视图互镜像；checkpoint 链自洽。残留：S-5 类型双轨（注释被 routes.ts:32 证伪）。 |
+| 可验证性 | 14/15 | 全部声称独立复现为真：lint 0 / 765/765 / 握手 5/5 / R1 三数字 / 链哈希两枚 / 产物哈希 9/9 + 构建字节级可复现 / grep 全零。扣 1 = en-CJK 臂未驱动 fieldLabel en 半（字典卫生臂部分补偿）。 |
+| 安全回滚 | 10/10 | 零凭证字面量；diff 无 auth.ts、无 patcher/（授权面与 R1 零触碰，R1 哈希亲算同值）；worktree 净；产物可复现。 |
+| 可维护性 | 8/10 | 死常量/死键/死字段/过时注释清零、注释真实化、CSS 补齐、Z37 固化且把测试策略（hooks 时序驱动）写入坑册；残留 S-5 双轨 + 摘要卡文案未集中字典。 |
+| **合计** | **92/100** | 零阻断（§12.3 无触发）；≥98 缺口全部来自 3 条建议（S-5/S-9/S-10），修复后可达 ≥98（机械修，无设计工作）。 |
+
+## 复评结论
+
+- **中间合入：PASS**——5 阻断全部 fixed/verified（证据见上），无阻断残留，无失实声明（coder checkpoint 全部声称独立复现为真）。
+- **最终验收：打回**——3 条建议未处置（S-5 判 fixed 待主线 micro-fix；S-9/S-10 新登记）。返工 r2（最后一轮）建议范围：S-5（~6 行类型统一）+ S-9（5 字符串入字典）+ S-10（空串拒提交，与 NaN 同路径）+ 对应测试臂；完成后复评应 ≥98。
+- B4 真机验收照计划执行（面板渲染/语言跟随/统计读数/设置真写）——本评审未触碰真机。
+- 无法验证项：无新增（r0 的宿主 configEditor string→number 行为问题已因 number 前置转换而消解，不再依赖该假设）。
+- 亮点如实记录：checkpoint 哈希链真实恢复且产物哈希 9/9 全中 + 本评审重编译字节级复现；B-1 修复采用了比评审建议更优的 deps 重臂方案且测试真臂驱动 hooks 时序（Z37 的正面落地）；15 新臂无一假绿。
