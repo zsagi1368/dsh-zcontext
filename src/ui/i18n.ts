@@ -1,13 +1,16 @@
 /**
  * ui/i18n — bilingual dictionary for the zctx UI (ZCTX-POLISH wave 2).
  *
- * STRATEGY (user 2026-11-20: "语言跟随 DSH，默认中文，其他语言只显示英语"):
- * - default = zh (the product's primary audience);
- * - `en` for everyone else;
- * - resolution order: the settings override (`uiLanguage`) → a host locale
- *   capability probe (when present) → zh. The host locale surface is an
- *   UNRESOLVED research item (RES-UI-FEASIBILITY A2-4 family) — the probe is
- *   best-effort and must never block boot.
+ * STRATEGY (user 2026-11-20: "语言跟随 DSH，默认中文，其他语言只显示英语";
+ * semantics re-pinned by review-B3 B-4a — explicit preference > host probe >
+ * default, and a DETECTED non-zh locale maps to `en`, never to zh):
+ * - an explicit preference (`'zh'` | `'en'`) always wins;
+ * - otherwise the host locale probe (the panel reads the webview's
+ *   `navigator.language`, which inherits the DSH language setting):
+ *   `zh*` → `zh`; ANY other detected language → `en`;
+ * - probe missing/empty → default `zh` (the product's primary audience).
+ * There is no settings-override surface: the old `uiLanguage` settings key
+ * never shipped; the probe is best-effort and must never block boot.
  *
  * @module ui/i18n
  */
@@ -31,31 +34,38 @@ export const UI_DICT = {
   measured: { zh: '(measured)', en: '(measured)' },
   estimatedNone: { zh: '(estimated/none)', en: '(estimated/none)' },
   degradedRows: { zh: '降级提示', en: 'Degradation notes' },
+  rowsSuffix: { zh: ' 条', en: ' rows' },
   configNotLoaded: { zh: '（配置未加载）', en: '(config not loaded)' },
-  readonlyNote: { zh: '设置修改请到完整面板（此处只读，避免越权写入）：', en: 'Read-only here — edit on the full page: ' },
-  openFullPanel: { zh: '打开完整面板 →', en: 'Open full panel →' },
-  copyAddress: { zh: '复制完整面板地址', en: 'Copy panel address' },
-  copied: { zh: '✓ 地址已复制', en: '✓ Address copied' },
   save: { zh: '保存设置', en: 'Save settings' },
   saved: { zh: '✓ 已保存（新会话生效）', en: '✓ Saved (applies to new sessions)' },
   saveFailed: { zh: '✗ 保存失败', en: '✗ Save failed' },
   fetchError: { zh: '数据读取失败', en: 'Snapshot read failed' },
   retryHint: { zh: '（保留上次快照，5s 后重试）', en: '(keeping last snapshot; retrying in 5s)' },
-  language: { zh: '语言', en: 'Language' },
-  langAuto: { zh: '跟随 DSH（默认中文）', en: 'Follow DSH (default Chinese)' },
-  langZh: { zh: '中文', en: 'Chinese' },
-  langEn: { zh: '英语', en: 'English' },
+  // B-4b: the five former hardcoded zh literals below are dictionary keys now.
+  cumulative: { zh: '(累计)', en: '(cumulative)' },
+  totalsSaved: { zh: '累计节省 tokens: ', en: 'Cumulative tokens saved: ' },
+  sessionsCovered: { zh: '覆盖会话: ', en: 'Sessions covered: ' },
+  current: { zh: '(当前)', en: '(current)' },
+  // S-4: a failed ledger read is shown honestly instead of mislabeling
+  // current-session numbers as cumulative.
+  statsUnavailable: { zh: '统计暂不可用', en: 'stats unavailable' },
+  // B-2a: the face-switch form (four keys, rendered from GET faceSwitches).
+  faceSwitches: { zh: 'face 开关', en: 'Face switches' },
+  invalidNumber: { zh: '数值字段格式错误（未提交）: ', en: 'Invalid number field(s) — nothing was saved: ' },
 } as const
 
 export type UiDictKey = keyof typeof UI_DICT
 
-/** Resolve the UI language from the settings value (auto/zh/en) + optional host hint. */
+/**
+ * Resolve the UI language: explicit preference > host probe > default zh.
+ * A DETECTED non-zh locale maps to `en` (user 2026-11-20 "其他语言只显示英语";
+ * review-B3 B-4a — the previous fallthrough returned zh for e.g. ja-JP).
+ */
 export function resolveLang(pref: string | undefined, hostHint?: string): UiLang {
   if (pref === 'zh' || pref === 'en') return pref
   if (hostHint !== undefined && hostHint !== '') {
-    const h = hostHint.toLowerCase()
-    if (h.startsWith('en')) return 'en'
-    if (h.startsWith('zh')) return 'zh'
+    if (hostHint.toLowerCase().startsWith('zh')) return 'zh'
+    return 'en'
   }
   return 'zh'
 }
