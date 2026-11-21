@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com); versioning follow
 
 ## [Unreleased]
 
+### Added — preflight auto + run-mode display (ZCTX-AUTOUI, 2026-11-21)
+
+- **`preflightMode` gains `'auto'` and becomes the DEFAULT** (user:
+  "让插件自动判断"): each judged request resolves its EFFECTIVE behavior
+  from the calibration ledger of the same provider+model — hits short-circuit
+  like enforce only once the recent history (≥4 of the last 8 comparable
+  records, worst error ≤15%) shows a calibrated estimator; otherwise
+  (cold start, sparse history, faults) the request behaves exactly like
+  observe. The promotion is earned per route, never assumed; the resolved
+  behavior lands in the calibration record's `effectiveMode`. See
+  [Preflight (S1)](#preflight-s1).
+- **Run-mode row in the panel** (user: "不然我想用补丁完全功能模式不知道启动
+  没有"): every snapshot carries `patchFace` read from the patcher marker —
+  the panel shows 运行形态: 补丁完全功能模式 (patch set) / 纯插件模式 /
+  形态未知; older hosts without the field simply omit the row.
+- **Water-level note** (user question 2026-11-21): the folding face is
+  TRIGGER-LINE-driven (folds near the window cap), not a fixed token level
+  like billion-context's "keep ~100k"; a fixed-water-level strategy is a v0.4
+  candidate (budget/preflight/autoFold 三面联动), declared here so the
+  candidate does not evaporate.
+
 ### Added — full-function native sidebar panel (ZCTX-UI / ZCTX-SIDEBAR / ZCTX-FULLPANEL)
 
 - **Full-function native side panel** (`sidebar.panellist` + `main`, shared

@@ -1,0 +1,21 @@
+{
+  "task": "ZCTX-AUTOUI",
+  "created": "2026-11-21",
+  "trigger": "用户：①preflight 三档用户不知道怎么选→加 auto 让插件自动判断；②面板要显示当前是插件模式还是补丁完全功能模式（不然不知道补丁启动没有）；③问水位策略（billion-context 固定 100k vs 我们触发线驱动）",
+  "goal": "①preflightMode 加 'auto' 档并设为默认：按校准台账自适应（同 provider+model 最近 8 条可比记录 ≥4 条且最差误差 ≤15% → effective enforce，否则 observe；冷启动/异常 fail-soft 到 observe）；②snapshot 恒带 patchFace（present/absent/unknown + patchSet/version）→ 面板显示运行形态行；③水位策略如实呈报（触发线驱动 vs 固定水位差异，固定水位列 v0.4 候选不做）",
+  "acceptance": [
+    "config preflightMode 默认 'auto'；sanitizePatch preflightMode 值域 off|observe|enforce|auto",
+    "auto 在无校准数据时按 observe 行为（测试钉）；校准达标后按 enforce 短路（测试钉）",
+    "calibration record 带 effectiveMode 审计字段",
+    "snapshot.patchFace 真机返回 present+patchSet（补丁环境）；absent 环境返回 absent",
+    "面板显示运行形态行（字典化双语）",
+    "全量门：tsc 0 + 全部测试 + 握手 5/5 + patcher/ 零改动"
+  ],
+  "options_considered": [
+    "A(选中) auto=校准驱动的逐轮自适应（tools.ts:638 同口径误差判定）：零新依赖、复用 observe 台账数据、fail-soft；淘汰固定阈值窗口内一刀切 promote（全局状态机，重启语义复杂）",
+    "B(淘汰) auto=promote 后锁存 enforce（写 config）：误报代价不可逆；用户令是自动判断不是自动固化",
+    "C(淘汰) 固定水位策略（billion-context 式 100k）：预算/触发线/autoFold 三面联动大改，v0.4 候选如实呈报"
+  ],
+  "risks": "默认改 auto 影响既有 R2 测试钉（default observe pinned）——同步更新钉与文档；auto enforce 仍受 margin 0.9 保护",
+  "budget": "单波：实施+测试+评审+部署+真机验证"
+}

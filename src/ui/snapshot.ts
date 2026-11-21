@@ -38,6 +38,7 @@ function emptySnapshot(
   faceHealth: ZctxSnapshot['faceHealth'],
   generatedAt: number,
   availableSessions: readonly string[],
+  patchFace: ZctxSnapshot['patchFace'],
   resolution: ZctxSnapshot['sessionResolution'] = 'none',
 ): ZctxSnapshot {
   return {
@@ -53,7 +54,21 @@ function emptySnapshot(
     attribution: undefined,
     cache: { samples: 0, measured: false, basis: 'none' },
     faceHealth,
+    patchFace,
     degraded: [reason],
+  }
+}
+
+/**
+ * ZCTX-AUTOUI: the patch/插件运行形态 from the injected marker accessor.
+ * Fail-soft: a throwing or absent accessor → undefined (panel omits the row).
+ */
+function resolvePatchFace(deps: SnapshotDeps): ZctxSnapshot['patchFace'] {
+  if (deps.patchFace === undefined) return undefined
+  try {
+    return deps.patchFace()
+  } catch {
+    return { state: 'unknown' }
   }
 }
 
@@ -99,13 +114,13 @@ export function createSnapshotSource(deps: SnapshotDeps): {
     if (sessionId !== undefined) {
       session = deps.resolveSession(sessionId)
       if (session === undefined) {
-        return emptySnapshot(`session ${sessionId} not watched`, faceHealth, generatedAt, availableSessions)
+        return emptySnapshot(`session ${sessionId} not watched`, faceHealth, generatedAt, availableSessions, resolvePatchFace(deps))
       }
       sessionResolution = 'explicit'
     } else {
       session = deps.currentSession()
       if (session === undefined) {
-        return emptySnapshot('no active session', faceHealth, generatedAt, availableSessions)
+        return emptySnapshot('no active session', faceHealth, generatedAt, availableSessions, resolvePatchFace(deps))
       }
       sessionResolution = 'latest-watched'
     }
@@ -146,7 +161,7 @@ export function createSnapshotSource(deps: SnapshotDeps): {
     } catch (error: unknown) {
       const reason = `route target read failed: ${error instanceof Error ? error.message : String(error)}`
       degraded.push(reason)
-      return emptySnapshot(reason, faceHealth, generatedAt, availableSessions, 'degraded')
+      return emptySnapshot(reason, faceHealth, generatedAt, availableSessions, resolvePatchFace(deps), 'degraded')
     }
 
     // -- budget: reuse computeBudget, never reimplement ----------------------
@@ -167,7 +182,7 @@ export function createSnapshotSource(deps: SnapshotDeps): {
     } catch (error: unknown) {
       const reason = `store resolution failed: ${error instanceof Error ? error.message : String(error)}`
       degraded.push(reason)
-      return emptySnapshot(reason, faceHealth, generatedAt, availableSessions, 'degraded')
+      return emptySnapshot(reason, faceHealth, generatedAt, availableSessions, resolvePatchFace(deps), 'degraded')
     }
     let ranges: ZctxSnapshot['ranges'] = []
     try {
@@ -243,6 +258,7 @@ export function createSnapshotSource(deps: SnapshotDeps): {
       attribution,
       cache,
       faceHealth,
+      patchFace: resolvePatchFace(deps),
       degraded,
     }
   }

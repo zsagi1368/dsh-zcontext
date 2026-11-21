@@ -1,0 +1,20 @@
+{
+  "schema": "checkpoint/v1",
+  "task": "ZCTX-AUTOUI",
+  "step": 2,
+  "block": "impl 5d2f683 + r2 rework b26066d (review-A1 83→r2: 阻断-1 selector auto / 阻断-2 docs / 建议-1 single effective resolution)",
+  "status": "done",
+  "ts": "2026-11-21T15:09:20.949Z",
+  "evidence": {
+    "gates": "tsc 0; 803/803 (38 files; 802+selector regression arm etc); build; handshake 5/5; patcher/ diff empty (R1); fold-engine/autofold/budget untouched",
+    "r2": [
+      "阻断-1: selector four values + dict labels + GET-auto→POST-auto regression arm (real DOM stub save path)",
+      "阻断-2: README preflight section rewritten (four-value chain + earned promotion + water-level v0.4 pointer), config table row updated, CHANGELOG ZCTX-AUTOUI section added",
+      "建议-1: effectiveMode resolved ONCE in judgeRequest (ledger-consistent \"(unknown)\" key) riding JudgedRequest.effective; handleStream reuses it — no audit/behavior drift"
+    ],
+    "honesty": "previous commit message claimed 804/804, actual 803/803 — amended before push (Z36 discipline)"
+  },
+  "next": "re-review",
+  "prev_hash": "n/a (task-local first checkpoint)",
+  "hash": "7ad664c365914d2b72342de2d2f9601ea945d4fe732fd91cb7f8cb5ad39c3b93"
+}

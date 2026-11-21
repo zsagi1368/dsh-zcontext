@@ -483,8 +483,9 @@ export interface ZctxToolRuntime {
   /**
    * Config preflightMode (V4 status face; optional for backward-compatible
    * test runtimes): the mode line the preflight estimator segment renders.
+   * ZCTX-AUTOUI: 'auto' = calibration-driven per-request effective mode.
    */
-  readonly preflightMode?: 'off' | 'observe' | 'enforce'
+  readonly preflightMode?: 'off' | 'observe' | 'enforce' | 'auto'
   /** Per-session store registry (lazy create + attach, feed-maintained). */
   storeFor(session: SessionLike): FoldStore
   /** Validator config resolved for this session (window from cache when known). */

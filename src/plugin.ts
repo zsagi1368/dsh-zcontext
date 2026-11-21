@@ -466,6 +466,18 @@ export class ZcontextPlugin extends ServiceBase {
         return ids
       },
       faceHealth: () => this.faceHealth(),
+      // ZCTX-AUTOUI: the run-mode display source — the patcher marker mapped to
+      // the snapshot's narrow shape (readPatchMarker fails soft inside).
+      patchFace: () => {
+        const marker = readPatchMarker()
+        return marker.state === 'present'
+          ? {
+              state: marker.state,
+              ...(marker.patchSet !== undefined ? { patchSet: marker.patchSet } : {}),
+              ...(marker.version !== undefined ? { version: marker.version } : {}),
+            }
+          : { state: marker.state }
+      },
     })
 
     if (!this.config.enabled) {
@@ -746,13 +758,13 @@ export class ZcontextPlugin extends ServiceBase {
       ctx.logger?.info?.('dsh-zcontext: preflight face disabled by config (preflightMode=off)')
       return
     }
-    if (mode !== 'observe' && mode !== 'enforce') {
+    if (mode !== 'observe' && mode !== 'enforce' && mode !== 'auto') {
       // P3 HF-11: an illegal mode (e.g. a 'enforcae' typo) used to run
       // silently as observe — warn-once (symmetric with the margin
       // warn-once in preflight.ts), then continue in the observe fallback.
       zctxDebug(`wirePreflightFace: illegal preflightMode "${String(mode)}" — running as observe (warn-once)`)
       ctx.logger?.warn?.(
-        `dsh-zcontext: preflightMode "${String(mode)}" is not one of 'off'|'observe'|'enforce' — running as observe (warn-once)`,
+        `dsh-zcontext: preflightMode "${String(mode)}" is not one of 'off'|'observe'|'enforce'|'auto' — running as observe (warn-once)`,
       )
     }
     if (typeof ctx.on !== 'function') {

@@ -83,12 +83,16 @@ export interface ZcontextConfig {
    *   the official compaction overflow recovery chain takes over
    *   (compaction-basic/src/index.ts:194→233).
    *
-   * DEFAULT IS OBSERVE, NEVER ENFORCE (plan §2 redline R2): a preflight
-   * false positive triggers one unnecessary compaction surface rewrite
-   * (F6.4 误报代价), so enforce stays opt-in until the estimator's error
-   * distribution has been calibrated on real machines (no-go condition 4).
+   * DEFAULT IS 'auto' (ZCTX-AUTOUI, user 2026-11-21: "让插件自动判断"):
+   * each judged request resolves its effective behavior from the calibration
+   * ledger of the same provider+model — enforce only once the recent history
+   * shows tight estimator error (≥4 comparable records of the last 8 with
+   * worst error ≤15%), otherwise observe. A preflight false positive still
+   * triggers one unnecessary compaction surface rewrite (F6.4 误报代价), so
+   * the enforce promotion is EARNED per-route by the ledger, never assumed;
+   * cold start and any ledger fault fail soft to observe.
    */
-  preflightMode: 'off' | 'observe' | 'enforce'
+  preflightMode: 'off' | 'observe' | 'enforce' | 'auto'
   /**
    * Preflight hit margin (v0.2.0 V4): the estimated request context must
    * EXCEED `triggerLine × preflightMarginRatio` to count as a hit, where
@@ -221,7 +225,7 @@ export const configDefaults: Readonly<ZcontextConfig> = deepFreeze<ZcontextConfi
   'autofold.maxRounds': 16,
   'autofold.maxBatch': 4,
   'autofold.maxSummaryOutputTokens': 32768,
-  preflightMode: 'observe',
+  preflightMode: 'auto',
   preflightMarginRatio: 0.9,
   // V5 S2: the structured providers section defaults to an EMPTY declaration
   // list (zero routes = the adapter face stays a keep-alive). Aligned with

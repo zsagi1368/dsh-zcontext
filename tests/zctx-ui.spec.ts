@@ -475,6 +475,55 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     expect(body.sessionResolution).toBe('latest-watched')
   })
 
+  // -- ZCTX-AUTOUI: the run-mode face rides the snapshot body ---------------
+
+  it('ZCTX-AUTOUI: the snapshot carries the patcher marker (present + patchSet) when the accessor answers', () => {
+    const session = routedSession('sess-A') as unknown as SessionLike
+    const store = seedLedger(session as MockSession)
+    const source = createSnapshotSource({
+      runtime: makeRuntime(() => store),
+      resolveSession: (id) => (id === 'sess-A' ? session : undefined),
+      currentSession: () => session,
+      windowFor: () => 200000,
+      faceHealth: () => unknownFaceHealth(),
+      patchFace: () => ({ state: 'present', patchSet: 'patcher-auto-20261118a', version: '0.2.2-rc.5' }),
+    })
+    const snap = source.snapshotFor('sess-A')
+    expect(snap.patchFace).toEqual({ state: 'present', patchSet: 'patcher-auto-20261118a', version: '0.2.2-rc.5' })
+  })
+
+  it('ZCTX-AUTOUI: absent patch set reports absent; no accessor omits the face entirely (older wiring)', () => {
+    const session = routedSession('sess-A') as unknown as SessionLike
+    const store = seedLedger(session as MockSession)
+    const base = {
+      runtime: makeRuntime(() => store),
+      resolveSession: (id: string) => (id === 'sess-A' ? session : undefined),
+      currentSession: () => session,
+      windowFor: () => 200000,
+      faceHealth: () => unknownFaceHealth(),
+    }
+    expect(createSnapshotSource({ ...base, patchFace: () => ({ state: 'absent' }) }).snapshotFor('sess-A').patchFace)
+      .toEqual({ state: 'absent' })
+    // Older wiring: no accessor → the field is absent (panel omits the row).
+    expect(createSnapshotSource(base).snapshotFor('sess-A').patchFace).toBeUndefined()
+  })
+
+  it('ZCTX-AUTOUI: a throwing patch accessor degrades to unknown (never breaks the snapshot)', () => {
+    const session = routedSession('sess-A') as unknown as SessionLike
+    const store = seedLedger(session as MockSession)
+    const source = createSnapshotSource({
+      runtime: makeRuntime(() => store),
+      resolveSession: (id) => (id === 'sess-A' ? session : undefined),
+      currentSession: () => session,
+      windowFor: () => 200000,
+      faceHealth: () => unknownFaceHealth(),
+      patchFace: () => {
+        throw new Error('marker exploded')
+      },
+    })
+    expect(source.snapshotFor('sess-A').patchFace).toEqual({ state: 'unknown' })
+  })
+
   it('GET /zctx-ui/api/stats returns 200 JSON durable-ledger aggregates (V2)', async () => {
     const { routes } = setup()
     const res = await call(
@@ -561,6 +610,36 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     }
     // The bad values never reached the editor.
     expect(editCalls).toHaveLength(3)
+  })
+
+  it('ZCTX-AUTOUI: preflightMode writes as off|observe|enforce|auto and rejects any other value (400)', async () => {
+    const { routes } = setup()
+    for (const value of ['off', 'observe', 'enforce', 'auto']) {
+      const res = await call(
+        routes.get('/zctx-ui/api/config')!,
+        mockReq({
+          method: 'POST',
+          headers: { origin: 'http://localhost', host: 'localhost' },
+          remoteAddress: '127.0.0.1',
+          body: JSON.stringify({ preflightMode: value }),
+        }),
+      )
+      expect(res.status).toBe(200)
+      expect(editCalls[editCalls.length - 1].patch).toEqual({ preflightMode: value })
+    }
+    for (const value of ['ENFORCE', 'automatic', '', 3, null]) {
+      const res = await call(
+        routes.get('/zctx-ui/api/config')!,
+        mockReq({
+          method: 'POST',
+          headers: { origin: 'http://localhost', host: 'localhost' },
+          remoteAddress: '127.0.0.1',
+          body: JSON.stringify({ preflightMode: value }),
+        }),
+      )
+      expect(res.status).toBe(400)
+    }
+    expect(editCalls).toHaveLength(4)
   })
 
   it('no token + remote non-loopback → 403 on snapshot GET', async () => {

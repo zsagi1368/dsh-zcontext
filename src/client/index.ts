@@ -26,7 +26,7 @@
  * @module client/index
  */
 
-import { t as uiT, resolveLang, FACE_STATE_ZH, fieldLabel, UI_LANG_OPTIONS, type UiLang } from '../ui/i18n.ts'
+import { t as uiT, resolveLang, FACE_STATE_ZH, fieldLabel, UI_LANG_OPTIONS, type UiDictKey, type UiLang } from '../ui/i18n.ts'
 
 /** Must equal the package name — the loader's boot-graph row id (handshake). */
 export const name = 'dsh-zcontext'
@@ -303,6 +303,12 @@ export interface PanelSnapshot {
    * "follow the DSH language" — navigator.language only falls back.
    */
   readonly locale?: string | null
+  /**
+   * ZCTX-AUTOUI: the patch/插件运行形态 (present = the app.asar patch set is
+   * live; absent = pure plugin mode). undefined = host did not supply it —
+   * the panel omits the run-mode row.
+   */
+  readonly patchFace?: { readonly state: string; readonly patchSet?: string; readonly version?: string }
 }
 
 /** Parse the /zctx-ui/api/snapshot JSON into the panel's view model. */
@@ -340,6 +346,17 @@ export function parsePanelSnapshot(text: string): PanelSnapshot {
       view.availableSessions = raw.availableSessions.filter((x) => typeof x === 'string')
     }
     if (typeof raw.locale === 'string') view.locale = raw.locale
+    // ZCTX-AUTOUI: the run-mode row source (defensive shape narrow).
+    if (raw.patchFace !== null && typeof raw.patchFace === 'object' && !Array.isArray(raw.patchFace)) {
+      const pf = raw.patchFace as Record<string, unknown>
+      if (pf.state === 'present' || pf.state === 'absent' || pf.state === 'unknown') {
+        view.patchFace = {
+          state: pf.state,
+          ...(typeof pf.patchSet === 'string' ? { patchSet: pf.patchSet } : {}),
+          ...(typeof pf.version === 'string' ? { version: pf.version } : {}),
+        }
+      }
+    }
     return view as PanelSnapshot
   } catch {
     return {}
@@ -472,6 +489,19 @@ export function createPanelComponent(
       e('div', { className: 'zctx-panel-face' },
         e('span', { className: 'zctx-dot', style: { color: faceColor } }, '●'),
         e('span', null, ` ${t('face', lang)}: ${faceZh}`)),
+      // ZCTX-AUTOUI: the run-mode row (user: "不然我想用补丁完全功能模式不知道
+      // 启动没有"). present = the patched app.asar is live; absent = pure
+      // plugin mode; unknown/absent accessor = row hidden honestly.
+      value.patchFace !== undefined
+        ? e('div', { className: 'zctx-panel-row' },
+            `${t('runMode', lang)}: ${
+              value.patchFace.state === 'present'
+                ? `${t('runModePatched', lang)}${value.patchFace.patchSet !== undefined ? ` (${value.patchFace.patchSet})` : ''}`
+                : value.patchFace.state === 'absent'
+                  ? t('runModePlugin', lang)
+                  : t('runModeUnknown', lang)
+            }`)
+        : null,
       fetchError !== undefined
         ? e('div', { className: 'zctx-panel-err' }, `${t('fetchError', lang)}: ${fetchError}${t('retryHint', lang)}`)
         : null,
@@ -553,6 +583,10 @@ export function createPanelComponent(
         Object.keys(faces).length > 0
           ? Object.entries(faces).map(([k, v]) => {
               if (k === 'preflightMode') {
+                // ZCTX-AUTOUI (review-A1 阻断-1): 'auto' MUST be an option —
+                // it is the NEW DEFAULT, and a select without a matching
+                // option would submit '' (whole-save 400) or silently resolve
+                // to 'off' (preflight face silently disabled).
                 return e('label', { className: 'zctx-field', key: k },
                   e('span', { className: 'zctx-field-key' }, fieldLabel(k, lang)),
                   e('select', {
@@ -561,7 +595,7 @@ export function createPanelComponent(
                     'data-key': k,
                     'data-type': 'select',
                   },
-                  ...['off', 'observe', 'enforce'].map((m) => e('option', { key: m, value: m }, m))))
+                  ...['off', 'observe', 'enforce', 'auto'].map((m) => e('option', { key: m, value: m }, t(`preflightOpt${m.charAt(0).toUpperCase()}${m.slice(1)}` as UiDictKey, lang)))))
               }
               return e('label', { className: 'zctx-field', key: k },
                 e('span', { className: 'zctx-field-key' }, fieldLabel(k, lang)),

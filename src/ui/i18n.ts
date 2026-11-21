@@ -74,6 +74,17 @@ export const UI_DICT = {
   langOptZh: { zh: '中文', en: 'Chinese' },
   langOptEn: { zh: 'English', en: 'English' },
   langAutoNote: { zh: '（自动=桌面端确认语言；探测不到时默认中文）', en: '(auto = desktop-confirmed language; falls back to Chinese)' },
+  // ZCTX-AUTOUI: the run-mode row (patch vs pure-plugin display, user 2026-11-21).
+  runMode: { zh: '运行形态', en: 'Run mode' },
+  runModePatched: { zh: '补丁完全功能模式', en: 'Full patch mode' },
+  runModePlugin: { zh: '纯插件模式', en: 'Pure plugin mode' },
+  runModeUnknown: { zh: '形态未知', en: 'Unknown' },
+  // ZCTX-AUTOUI (review-A1 阻断-1): the preflight selector's four option labels
+  // (the default 'auto' MUST render — a missing option would break the save).
+  preflightOptOff: { zh: '关闭 (off)', en: 'off' },
+  preflightOptObserve: { zh: '观察 (observe)', en: 'observe' },
+  preflightOptEnforce: { zh: '拦截 (enforce)', en: 'enforce' },
+  preflightOptAuto: { zh: '自动 (auto·默认)', en: 'auto (default)' },
 } as const
 
 export type UiDictKey = keyof typeof UI_DICT
@@ -117,7 +128,7 @@ export const FIELD_LABELS: Record<string, { zh: string; en: string }> = {
   'observe.enabled': { zh: '观测面开关', en: 'observe face' },
   'patch.guardObserveEvents': { zh: '补丁 guard 观测桥', en: 'patch guard-observe bridge' },
   'autofold.enabled': { zh: '自动折叠开关', en: 'autofold face' },
-  preflightMode: { zh: 'preflight 模式 (off|observe|enforce)', en: 'preflight mode (off|observe|enforce)' },
+  preflightMode: { zh: 'preflight 模式 (off|observe|enforce|auto)', en: 'preflight mode (off|observe|enforce|auto)' },
   uiLanguage: { zh: '界面语言', en: 'UI language' },
 }
 
