@@ -154,6 +154,26 @@
       "owner": "coder",
       "status": "verified",
       "phase": "block"
+    },
+    {
+      "id": "RES-1",
+      "source": "review-B3 终审",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "CHANGELOG NaN 句扩展为「NaN 或空值整单拒绝」（同波 S-10 行为变更同步）",
+      "owner": "main"
+    },
+    {
+      "id": "RES-2",
+      "source": "review-B3 终审",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "checkpoint-history.jsonl append-only 追加 STEP-0004 快照行（§2.2 落盘顺序补齐，链本体完好）",
+      "owner": "main"
     }
   ]
 }

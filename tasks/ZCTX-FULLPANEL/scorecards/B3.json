@@ -6,9 +6,10 @@
   "author": "coder/main",
   "independence": true,
   "date": "2026-11-21",
-  "head": "60255f4",
+  "head": "405a4f7",
   "base": "f72f64f",
-  "rework_range": "284db97..60255f4 (7 commits)",
+  "rework_range": "284db97..60255f4 (7 commits, r1)",
+  "r2_range": "60255f4..405a4f7 (6 commits, r2)",
   "branch": "feat/ZCTX-FULLPANEL",
   "round1": {
     "evaluator": "reviewer-fp",
@@ -57,7 +58,30 @@
     "real_device_items_deferred_to_B4": ["面板渲染", "语言跟随实测", "统计读数", "设置真写"],
     "unverifiable": "无新增（r0 宿主 configEditor string→number 假设问题已因 number 前置转换消解）"
   },
-  "total": 92,
-  "verdict": "中间合入 PASS；最终验收打回（建议 3 条待处置，返工 r2 后应 ≥98）",
-  "report": "tasks/ZCTX-FULLPANEL/handoffs/review-B3.md（复评 r1 段）"
+  "round3_final": {
+    "scope": "r2 终审定谳：S-5/S-9/S-10 三条修复 + closure 15 条收口 + checkpoint STEP-0004 链",
+    "head": "405a4f7",
+    "claims_vs_reality": "主线 4 组声明全部独立复现为真（diff 自证 + 亲跑 + 哈希亲算），无失实声明；本评审第一遍 R1 切片计算曾命中段内缩进注释得到 110 字节，按 README:349-365『列 0 分隔行』口径修正后三数字精确复现（教训：勿用裸子串 indexOf 复现该口径）",
+    "scores": {
+      "correctness": { "score": 25, "max": 25, "evidence": "S-5：LedgerStatsFromDb 接口删除，src/tests/scripts grep 仅剩解释注释（ui/index.ts:40/lib/index.d.ts:2465）；ui/index.ts:20 type-only import 真 LedgerStats；lib/index.js 运行时 diff=0 行（纯类型证实）；lib/index.d.ts 重掷（:2458-2465）。S-9：cardLang()（client/index.ts:203-211）模块私有、委托共享 resolveLang；摘要卡+fallback 全走 uiT(key,lang)（:230-240,:249-251）；en navigator 真臂 ZERO-CJK 4/4 绿（含 zh-CN 包裹臂与 probe-missing zh 默认臂）；dist/client.cjs:351-352,:364 渲染 t(dict,lang) 驱动无硬编码残留；Node v24 环境 navigator.language='en-US' 实测成立、显式包裹正确处理。S-10：trim 后 ''→NaN 同路径（client/index.ts:553-562），空串/空白拒提交真臂绿（posts.length===0 + 两键名+未提交 在消息）。r2 复评 correctness−1 的 select 孤值项判 not_applicable：纯外观、数据恒正确可恢复、非 r2 范围。" },
+      "completeness": { "score": 20, "max": 20, "evidence": "r2 卡范围（S-5/S-9/S-10+测试臂+产物+closure）逐项交付亲证；closure.json 15/15 fixed/verified（S-5 从 OPEN 收口、evidence 含 commit+臂级证据）；progress STEP-0004 行在。" },
+      "consistency": { "score": 19, "max": 20, "evidence": "CHANGELOG:20-21 'number fields are submitted as numbers, a NaN value rejects the whole submit'——句子仍真但不完整：未随 S-10 扩展为『NaN 或空值拒绝』；同波刚改的用户可见行为应同步（B-5 逐句精确标准）。→ RES-1。其余一致面全真：checkpoint 链 recipe 复算 step-3=06750918… MATCH；i18n 5 新键双语成对；cardLang 与 panel 语言语义同源。" },
+      "verifiability": { "score": 14, "max": 15, "evidence": "亲跑：lint exit 0；build+握手 5/5 PASS exit 0；vitest 37 files/769 passed exit 0（精确）；重建后 git status 净→产物字节级可复现；R1 三数字（HEAD=60255f4=f72f64f 同值 8e2d0b7e…059b0f9/chars14889/bytes14926）；STEP-0004 链 prev=5ceaa512… MATCH + hash=ee704d82… MATCH + recipe 复算 step-3 06750918… MATCH；8/8 artifacts 哈希 MATCH。扣 1：checkpoint-history.jsonl 仅 1 行（step-3），STEP-0004 快照未按 §2.2 落盘顺序追加（append-log 轨迹第 4 步断链；checkpoint.json 本体完好、续跑能力不受损）→ RES-2。" },
+      "safety_rollback": { "score": 10, "max": 10, "evidence": "r2 diff 无 auth.ts、无 patcher/（R1 哈希亲算同值，授权面零触碰）；凭证模式 grep 仅命中类型名与治理文本，无泄露；worktree 净；产物可复现。" },
+      "maintainability": { "score": 10, "max": 10, "evidence": "S-5 单一真源恢复（storage/db.ts，routes.ts:32 先例）；S-9 文案集中字典、{n}/{p} 调用方插值保持 t() 纯查找；S-10 空串/NaN 统一拒绝路径；注释真实化（S-5/S-9/S-10 三处新增注释均与实现一致）；Z37 在册（ZDSH-LESSONS.md:225-229 四段齐备）。" }
+    },
+    "total": 98,
+    "verdict": "中间合入 PASS（不变）；最终验收打回——仅 §11 零遗留门：2 条机械残留（RES-1 CHANGELOG 空值拒绝措辞 / RES-2 checkpoint-history STEP-0004 追加），零代码变更，一次治理提交+closure 记账后无需再评即可放行（分数门 §12.4 已达 98）",
+    "hard_block_triggers": [],
+    "residuals": [
+      { "id": "RES-1", "grade": "[建议]", "loc": "CHANGELOG.md:20-21", "issue": "NaN 拒提交句未覆盖 S-10 新增的空值拒绝（真但不完整；同波行为变更应同步）", "fix": "句改写为 NaN or empty value rejects the whole submit", "disposition": "OPEN→待 fixed（终验门）" },
+      { "id": "RES-2", "grade": "[建议]", "loc": "tasks/ZCTX-FULLPANEL/checkpoint-history.jsonl", "issue": "STEP-0004 快照未追加（§2.2 落盘顺序含『追加 checkpoint-history』；r2 只写 checkpoint.json+progress）", "fix": "append-only 追加 405a4f7 checkpoint.json 快照行（状态文件豁免 del 备份 §13）", "disposition": "OPEN→待 fixed（终验门）" }
+    ],
+    "runs": { "lint": "exit 0", "build_handshake": "5/5 PASS exit 0", "tests": "37 files / 769 passed (769) = 765 + 4 新臂（S-9×3 + S-10×1）", "s9_arms": "client-slot.spec.ts -t S-9 → 4 passed（含 zh-CN 包裹臂）", "s10_arm": "panel-i18n.spec.ts -t EMPTY number field → 1 passed（posts 0 + 两键名 + 未提交）", "r1": "HEAD=60255f4=f72f64f sha256=8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9 chars=14889 bytes=14926", "chain": "prev=5ceaa512…(step-3 blob bytes) MATCH / hash=ee704d82… MATCH / recipe 复算 step-3=06750918… MATCH / artifacts 8/8 MATCH", "rebuild_clean": "pnpm build 后 git status --porcelain 空（字节级可复现）" },
+    "r2_diff_scope_check": "13 文件（src×3 tests×2 lib×2 dist×1 tasks×5）；无 patcher/、无 auth.ts、无越权改动",
+    "release_note": "终审第一遍 R1 切片复算因裸子串 indexOf 命中段内缩进注释得 110 字节——正确口径=列 0 分隔行（README:349-365『列 0』+复评段 2 项『列 0 分隔行不含』）；已修正复现。登记为本评审自身流程笔记，不涉仓库代码。"
+  },
+  "total": 98,
+  "verdict": "打回（仅终验门：RES-1/RES-2 两条机械残留，零代码变更；分数门已达 98，§12.3 无触发；中间合入 PASS 不变）",
+  "report": "tasks/ZCTX-FULLPANEL/handoffs/review-B3.md（终审 r2 段）"
 }

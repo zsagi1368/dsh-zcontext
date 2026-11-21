@@ -193,3 +193,55 @@
 - B4 真机验收照计划执行（面板渲染/语言跟随/统计读数/设置真写）——本评审未触碰真机。
 - 无法验证项：无新增（r0 的宿主 configEditor string→number 行为问题已因 number 前置转换而消解，不再依赖该假设）。
 - 亮点如实记录：checkpoint 哈希链真实恢复且产物哈希 9/9 全中 + 本评审重编译字节级复现；B-1 修复采用了比评审建议更优的 deps 重臂方案且测试真臂驱动 hooks 时序（Z37 的正面落地）；15 新臂无一假绿。
+
+---
+
+# 终审 r2（2026-11-21 · 终审=reviewer-r2 终审轮 · 独立实测 · HEAD=405a4f7 · r2 6 提交 60255f4..405a4f7）
+
+- 方法：与 r0/r1 同轮严格度——主线 4 组声明逐条 diff 自证 + 全部证据亲跑/亲算；真机项不碰（归 B4）。
+- **定谳：打回（仅终验门）——总分 98/100；§12.3 零触发、分数门已达标；残留仅 2 条机械治理项（零代码变更），一次治理提交 + closure 记账后无需重评即可放行。中间合入 PASS 不变。**
+
+## 终审必核 8 项逐项结论（全部亲证）
+
+1. **diff 全读（60255f4..405a4f7）**：13 文件 392+/124-。三条修复真在 diff——2515873（S-5 类型统一）、9e25a8f（S-9 卡片 i18n）、05307bb（S-10 空串拒）+ d64ef9d（产物刷新）+ 827af3f/405a4f7（治理落盘）。**无 patcher/、无 auth.ts、无越权改动**（diff --stat 亲读）。
+2. **亲跑三件套——全真且精确**：`pnpm lint` exit 0；`pnpm build` 成功 + `assert-client-banner-handshake.mjs` **5/5 PASS** exit 0；`vitest run` → **37 files / 769 passed (769)** exit 0（=765+4 新臂，与声称精确一致）；重建后 `git status --porcelain` 空 → 产物字节级可复现。
+3. **R1 红线——字节级不变**：按 patcher/README.md:349-365 口径自 git 对象读取切片（`export const SUPPORTED = {` 起、至其后首个**列 0** `// ----------` 行止、不 trim），HEAD=405a4f7 = 60255f4 = 基线 f72f64f 同值：sha256=`8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9`、chars=14889、bytes=14926——三数字精确复现。
+4. **S-9——fixed/verified（真臂）**：`cardLang()`（src/client/index.ts:203-211）模块私有、委托共享 `resolveLang`（与 panel 同语义）；摘要卡与 fallback 渲染全走 `uiT(key, lang)`（:230-240、:249-251）；en navigator mock 真臂 **4/4 绿**（en 卡 ZERO-CJK+EN 文案 / en fallback / probe-missing zh 默认 / zh-CN 显式包裹臂）；dist/client.cjs:351-352、:364 渲染 `t(dict, lang)` 驱动，无硬编码字面量残留；Node v24 `globalThis.navigator.language==='en-US'` 环境发现实测成立，显式包裹处理正确。
+5. **S-10——fixed/verified（真臂）**：number 值 trim 后空串映射 NaN 同拒（client/index.ts:553-562），整单拒绝+键名提示；invalidNumber 措辞双语义（zh「无效或为空」/en「Invalid or empty」）；空串拒提交臂复跑绿（**posts.length===0** + protectionFloorTokens/summaryCeilingChars 在消息 + 「未提交」）。
+6. **S-5——fixed/verified**：grep LedgerStatsFromDb 于 src/tests/scripts 仅剩解释注释 1 处（ui/index.ts:40；lib/index.d.ts:2465 同）；ui/index.ts:20 `import type { LedgerStats } from '../storage/db.ts'`（单一真源，routes.ts:32 先例）；`git diff 60255f4..405a4f7 -- lib/index.js` = **0 行**（纯类型层证实）；lib/index.d.ts:2458-2465 已重掷真类型。
+7. **checkpoint STEP-0004 链——亲算全中**：`prev_hash` = SHA-256(step-3 checkpoint.json blob 字节 @60255f4) = `5ceaa51289713978d579525126b6d1b3581cc27ca20b6136455ae5bab9d7db78` MATCH；`hash` = insertion-order compact JSON（去 hash 字段）= `ee704d82843a761aa5ae4fbf23b76b398c9bbd6d62cfef622e1184333cc5cd8d` MATCH；同 recipe 复算 step-3 = `067509185ccf5fc9efa7198ec1abb110eac786bc1af5ba4f439c1385e2e6e8d1` MATCH（recipe 自证成立）；**8/8 artifacts** 哈希与实际文件 MATCH。
+8. **Z37 坑册**：G:\000Github\zDSH\ZDSH-LESSONS.md:225-229 在册，现象/根因/修法/一句话四段齐备，防复发项与本轮非受控+deps 重臂实现一致。
+
+额外核验：closure.json **15/15 fixed/verified**（S-5 收口 evidence 含 commit+臂级证据）；zh 字面量出字典后 src 仅剩注释引用（client/index.ts:189）；r2 diff 凭证模式 grep 仅命中类型名与治理文本，无泄露。
+
+## 终审残留（2 条，均机械治理项，零代码变更）
+
+- **RES-1 [建议]** CHANGELOG.md:20-21 —— "number fields are submitted as numbers, a NaN value rejects the whole submit with a message" 未随 S-10 扩展为「NaN **或空值**拒绝」。句子仍真但不完整：同一波次刚改的用户可见行为应同步（B-5 逐句精确标准的延续）。修法：单句改写。
+- **RES-2 [建议]** tasks/ZCTX-FULLPANEL/checkpoint-history.jsonl —— 现仅 1 行（step-3 快照），**STEP-0004 快照未追加**（§2.2 落盘顺序含「原子写 checkpoint → 追加 checkpoint-history → 追加 progress」；r2 提交只写前两者；r1 曾正确执行）。checkpoint.json 本体链完好（第 7 项亲算），断点续跑能力不受损，但 append-log 轨迹在第 4 步断链。修法：append-only 追加 405a4f7 的 checkpoint.json 快照行（状态文件豁免 del 备份，§13）。
+
+两条无法以 `fixed` 以外的合法 disposition 关闭（`not_applicable` 不成立——均实际适用；`user_approved_deferred` 无用户批准），故 §11 零遗留门未过 → 最终验收打回；分数门（98≥98）已达标，不触发 §12.4 返工轮计数（无代码缺陷）。
+
+## 终审评分（六维 · 评分人=reviewer-r2 · 作者=coder/main · 每维证据见 scorecards/B3.json round3_final）
+
+| 维度 | 得分 | 证据摘要 |
+|---|---:|---|
+| 正确性 | 25/25 | 三修真臂+产物字典驱动（第 4/5/6 项）；无新缺陷；r2 复评 correctness−1 的 select 孤值项判 not_applicable（纯外观、数据恒正确可恢复、非 r2 范围）。 |
+| 完整性 | 20/20 | r2 卡范围逐项交付亲证；closure 15/15。 |
+| 一致性 | 19/20 | −1 = RES-1（CHANGELOG 措辞未随 S-10 扩展）。其余一致面全真（链 recipe 复算 step-3 MATCH、i18n 5 新键双语成对、cardLang 与 panel 同源）。 |
+| 可验证性 | 14/15 | −1 = RES-2（history 追加缺失）。其余全部精确复现（lint/build/握手/769/R1 三数字/链三哈希/8×8 artifacts/重建净树）。 |
+| 安全回滚 | 10/10 | 无 auth/patcher 触碰、R1 同值、零凭证、worktree 净、产物可复现。 |
+| 可维护性 | 10/10 | 单一真源恢复、文案集中字典、统一拒绝路径、注释真实化、Z37 在册。 |
+| **合计** | **98/100** | §12.3 零触发。 |
+
+## 放行条件（终验门微修单——一次治理提交）
+
+1. CHANGELOG.md:20-21 句改写覆盖空值拒绝（RES-1 → fixed）。
+2. checkpoint-history.jsonl append-only 追加 STEP-0004 快照行（RES-2 → fixed）。
+3. closure.json 增 RES-1/RES-2 两条目（fixed + verified + 证据）。
+4. 复核 = 终审人重读两文件 + closure 两条；若 checkpoint.json 因此推进 step-5，仅需链 recipe 复算，无需重跑全量。
+
+## 诚实记录
+
+- 本评审第一遍 R1 切片复算用裸子串 `indexOf('// ----------')` 命中段内缩进注释得到 110 字节——正确口径为**列 0** 分隔行（README:349-365 实测锚点段 + 复评段第 2 项「列 0 分隔行不含」），修正后三数字精确复现。登记为评审自身流程笔记，不涉仓库代码。
+- 除 RES-1/RES-2 外，主线 r2 全部声明独立复现为真，无失实声明。
+- B4 真机验收照计划执行（面板渲染/语言跟随/统计读数/设置真写）——本评审未触碰真机。
