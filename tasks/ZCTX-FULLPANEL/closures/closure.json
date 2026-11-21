@@ -174,6 +174,26 @@
       "phase": "block",
       "evidence": "checkpoint-history.jsonl append-only 追加 STEP-0004 快照行（§2.2 落盘顺序补齐，链本体完好）",
       "owner": "main"
+    },
+    {
+      "id": "B4",
+      "source": "task plan",
+      "type": "acceptance",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "merge a9953c2+tag pushed; deploy verified by feature-string grep; live probes: snapshot 200 face=active 4 signals, stats 200 real reads, config 200 writable; POST unauthorized=fail-closed correct",
+      "owner": "main"
+    },
+    {
+      "id": "PUSH",
+      "source": "B4",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "origin main=a9953c2 + tag zctx-fullpanel-20261121a pushed (ls-remote verified)",
+      "owner": "main"
     }
   ]
 }

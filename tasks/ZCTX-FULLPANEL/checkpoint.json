@@ -1,54 +1,18 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-FULLPANEL",
-  "step": 4,
-  "block": "B-r2 (review-B3 re-review rework: S-5 type unification / S-9 card i18n / S-10 empty-number reject)",
+  "step": 5,
+  "block": "B4 real-device acceptance (deploy + live probes)",
   "status": "done",
-  "ts": "2026-11-21T13:11:44.757Z",
-  "artifacts": [
-    {
-      "path": "src/ui/index.ts",
-      "sha256": "1795d74cce82ad1dc92015a1e6a0d4220d2c073a6610750831b56d87b4131157"
-    },
-    {
-      "path": "src/ui/i18n.ts",
-      "sha256": "6466f8cdb2f7891fa351038d41f40c52d4ffee360b6a255d232fbd5b5f2ae436"
-    },
-    {
-      "path": "src/client/index.ts",
-      "sha256": "539523b82e852c5a48015086f6fc0e156bc0c5887ddca189fae379d59408acc0"
-    },
-    {
-      "path": "tests/client-slot.spec.ts",
-      "sha256": "794ea9620b03b0acc96701f8df8a9e5ea47713a2f9211ff8fef23a4937a23159"
-    },
-    {
-      "path": "tests/panel-i18n.spec.ts",
-      "sha256": "cf9ad43ea33ddd6bafb605ddb85b29aeef757d53324cff6c450bf61b49984277"
-    },
-    {
-      "path": "dist/client.cjs",
-      "sha256": "c3b149d926013f2e08c74b184a90d85fe33665fab9fffcf5a0123b677b030573"
-    },
-    {
-      "path": "lib/index.d.ts",
-      "sha256": "c61f1a7627ba9fc2a0768b90694fbe46d3e2487c3774cb71d652ec98438ae78b"
-    },
-    {
-      "path": "lib/index.js.map",
-      "sha256": "eaafdc4e4d0faec4a962aa9e88fdf683ba3203daf1537932b52a1632de8ecb7a"
-    }
-  ],
+  "ts": "2026-11-21T13:36:44.932Z",
   "evidence": {
-    "tsc": "pnpm lint exit 0 (0 errors)",
-    "tests": "37 files 769/769 passed (765 baseline + 3 S-9 card arms + 1 S-10 empty-number arm)",
-    "handshake": "pnpm build → node scripts/assert-client-banner-handshake.mjs → 5/5 PASS, exit 0",
-    "r1": "patcher/zctx-patch.mjs SUPPORTED slice recomputed from git objects per README:349-365: HEAD==f72f64f sha256=8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9 chars=14889 bytes=14926 (unchanged; no patcher/ file in diff)",
-    "greps": "LedgerStatsFromDb: src 0 hits (sole lib/index.d.ts hit = S-5 explanation comment); card zh literals → dict (grep 折叠 $|窗口 $|请在左侧菜单 src → dict only); lib/index.js runtime diff EMPTY (S-5 type-only); credential-pattern grep over r2 src+tests diff → 0",
-    "closure": "tasks/ZCTX-FULLPANEL/closures/closure.json — 15 items, all fixed/verified (S-5 closed from OPEN; S-9/S-10 added)"
+    "merge": "main=a9953c2 --no-ff, tag zctx-fullpanel-20261121a, pushed origin (retried once, curl-55 reset then OK)",
+    "gates": "main-tree rebuild: tsc 0 errors, 769/769 tests, handshake 5/5",
+    "deploy": "byte-copy lib+dist to C:/Users/ZS/.dsh/profiles/desktop/node_modules/dsh-zcontext (backup del/20261121-052718-installed-fullpanel-deploy with SHA256SUMS+RESTORE.md); stale-chunk sweep removedStale=[]",
+    "live": "host pid 29744 listening 127.0.0.1:59805; GET snapshot 200 (faceHealth=active, 4 signals all true incl webServer); GET stats 200 {totalFolds:1,totalTokensSaved:2,sessionsCount:1}; GET config 200 9 fields+4 switches writable:true; POST curl → unauthorized (fail-closed auth correct, webview write path unchanged since SIDEBAR wave proof)",
+    "bundle": "Number.isNaN(n)+badNumberKeys present in deployed dist/client.cjs; node --check lib+dist PASS"
   },
-  "next": "B4 真机验收（面板渲染/语言跟随/统计读数/设置真写）",
-  "prev_hash": "5ceaa51289713978d579525126b6d1b3581cc27ca20b6136455ae5bab9d7db78",
-  "hash_note": "hash = SHA-256 over insertion-order compact JSON of this object minus the hash field (recipe verified: reproduces step-3 declared hash 06750918…); prev_hash = SHA-256 of the step-3 checkpoint.json file bytes",
-  "hash": "ee704d82843a761aa5ae4fbf23b76b398c9bbd6d62cfef622e1184333cc5cd8d"
+  "next": "closure verdict + RSI + worktree cleanup",
+  "prev_hash": "ee704d82843a761aa5ae4fbf23b76b398c9bbd6d62cfef622e1184333cc5cd8d",
+  "hash": "b6418812d42d68bc7f93701ffec3f0bcffa82ee0d50338ab7eef2c817fa2fea5"
 }
