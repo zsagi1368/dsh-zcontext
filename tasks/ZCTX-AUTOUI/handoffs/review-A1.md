@@ -161,3 +161,34 @@ R1-VERDICT: REWORK（83<98；差距=阻断-1 面板选择器缺 auto+pin 锁死�
 3. 复验门：tsc + 全量测试 + 握手（无新增测试要求；旧文案无测试钉，零测试影响）。
 
 R2-VERDICT: REWORK（95<98；唯一差距=阻断-1 批内标签子项 src/ui/i18n.ts:131 未修 + closure.json 该条目证据过度声明；其余全部对抗通过）
+
+## 7. R3 快核（4116796，评审员独立复核 2026-11-21）
+
+### 7.1 差距清单核销
+
+| r2 残留 | r3 状态 | 证据（评审员独立验证） |
+|---|---|---|
+| i18n.ts:131 标签未含 auto | **FIXED ✓** | src/ui/i18n.ts:131 → `'preflight 模式 (off|observe|enforce|auto)'` / `'preflight mode (off|observe|enforce|auto)'`（zh+en 双语，单行对位）；dist/client.cjs 含四值串 ×2（grep=2，与双语两处一致）。 |
+| closure.json A1-阻断1 证据过度声明 | **FIXED ✓** | 证据行补 "FIELD_LABELS.preflightMode label extended to off|observe|enforce|auto (review-A1-r2 residual, dist bundle carries the four-value string ×2)"——声明与证据现已对齐。 |
+| R1（patcher/估算器零 diff） | **保持 ✓** | r3 diffstat 仅 i18n.ts/closure.json/review-A1.md/dist/client.cjs，无 patcher/、fold-engine/autofold/budget。 |
+| 报告完整性 | **确认 ✓** | r3 提交对 review-A1.md 为纯追加（r1 VERDICT 行改名为 R1-VERDICT 存档 + r2 段落逐字入册），两条 REWORK 判词原样保留，无篡改。 |
+
+### 7.2 独立复跑门（评审员执行）
+
+- `npx tsc --noEmit` exit 0；`npx vitest run`：38 files / **803 passed (803)**；`npm run build` 握手 **5/5 PASS**；构建后 `git status --short`/`git diff` 为空 → 提交产物忠实。
+
+### 7.3 R3 终局评分
+
+| 维度 | 得分 | 说明 |
+|---|---:|---|
+| 正确性 | **25/25** | r2 的唯一 -1（标签值域谎报）已清零；单行机械改动无新路径。 |
+| 完整性 | **20/20** | r1 阻断×2 + 建议×3 全部 fixed/verified；r2 残留清零。 |
+| 一致性 | **20/20** | 枚举放宽在本波全部 7 处一致（types/config/tools/config-write/plugin/选择器/标签+文案）。 |
+| 可验证性 | **15/15** | 全门三轮独立复现；台账 8 条 disposition 合法（fixed×7 / not_applicable×1）且证据与声明逐条对齐；Z36 诚实更正留痕。 |
+| 安全回滚 | **10/10** | 三轮零删除/零覆盖/零凭证；可选字段+fail-soft；单链提交可回退。 |
+| 可维护性 | **10/10** | 单次 effectiveMode 计算、字典单源、台账完整。 |
+| **总分** | **100/100** | 硬阻断清单逐项过：无伪造（Z36 已 amend+留痕）；正确性 25≥23；安全回滚 10≥9；测试 803/803 全过；无 OPEN 遗留；del 零改动。 |
+
+合并前提醒（非评审差距，主线既有计划已含）：真机验收补 snapshot.patchFace=present+patchSet 捕获与运行形态行渲染（acceptance 第 4/5 条）；合并走 --no-ff+tag+台账；auto 新默认首次真机 enforce 需 ≥4 条同 route 可比记录后才发生，冷启动行为=observe（与旧默认等价）。
+
+R3-VERDICT: RELEASE-OK（100/100；r1 三项差距与 r2 单行残留全部 fixed/verified，无 OPEN；放行合并+真机验收）
