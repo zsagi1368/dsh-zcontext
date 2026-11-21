@@ -68,7 +68,8 @@ export const UI_DICT = {
   // ZCTX-I18NFIX: the language selector (three options) + honest probe note.
   // Option keys are langOpt* — the bare langZh/langEn names were page-era
   // dead keys (S-2 keeps them banned, so the live selector must not collide).
-  uiLanguage: { zh: '界面语言', en: 'UI language' },
+  // The selector's field label lives in FIELD_LABELS.uiLanguage (config-key
+  // labels are its domain) — no UI_DICT duplicate (review-B1 建议-R2-2).
   langOptFollow: { zh: '跟随 DSH', en: 'Follow DSH' },
   langOptZh: { zh: '中文', en: 'Chinese' },
   langOptEn: { zh: 'English', en: 'English' },

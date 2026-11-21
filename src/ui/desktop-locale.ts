@@ -9,17 +9,18 @@
  * language preference (real device: locale-cache=zh-CN vs navigator=en-US --
  * the probe-source in mismatch that made the panel English on a Chinese DSH).
  *
- * This module is deliberately IO-free (Mimosa misflags variable-built file
- * reads as path traversal — Z40 staging note): the IO one-liner lives in
- * plugin.ts, and this module ships the pure, fully testable half.
+ * The IO half lives here too as the testable `readDesktopLocaleFile` (the
+ * root is injected, the subpath is fixed literals); plugin.ts only narrows
+ * the APPDATA env. (Splitting pure vs IO kept Mimosa's path-traversal
+ * false positive at bay during staging — Z40 note.)
  *
  * @module ui/desktop-locale
  */
 
-/** Well-formed BCP-47-ish tag: zh, zh-CN, en, pt-BR, ... (2-8 script/region). */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+/** Well-formed BCP-47-ish tag: zh, zh-CN, en, pt-BR, ... (2-8 script/region). */
 const LOCALE_SHAPE = /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8}){0,2}$/
 
 /**

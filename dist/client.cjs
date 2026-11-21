@@ -136,10 +136,6 @@ const UI_DICT = {
 		zh: "请在左侧菜单 zcontext 打开面板",
 		en: "Open the panel from the zcontext entry in the left menu"
 	},
-	uiLanguage: {
-		zh: "界面语言",
-		en: "UI language"
-	},
 	langOptFollow: {
 		zh: "跟随 DSH",
 		en: "Follow DSH"
@@ -371,8 +367,9 @@ const sameOriginFetchText = (url) => fetch(url).then((r) => {
 * `navigator.language` is only the FALLBACK because it reflects the
 * Electron-level locale (en-US on the real device) rather than the DSH
 * setting (zh-CN). No snapshot yet (bare-Node tests, first render) → the zh
-* default. The summary card holds no React state, so the language resolves
-* per render (the next poll picks up a locale change).
+* default. The summary card holds no React state and fetches once at creation;
+* a DSH language change reloads the webview, which rebuilds the card and thus
+* picks up the new locale.
 */
 function cardLang(localeHint) {
 	if (typeof localeHint === "string" && localeHint !== "") return resolveLang(void 0, localeHint);

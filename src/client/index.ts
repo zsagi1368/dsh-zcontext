@@ -205,8 +205,9 @@ const sameOriginFetchText = (url: string): Promise<string> =>
  * `navigator.language` is only the FALLBACK because it reflects the
  * Electron-level locale (en-US on the real device) rather than the DSH
  * setting (zh-CN). No snapshot yet (bare-Node tests, first render) → the zh
- * default. The summary card holds no React state, so the language resolves
- * per render (the next poll picks up a locale change).
+ * default. The summary card holds no React state and fetches once at creation;
+ * a DSH language change reloads the webview, which rebuilds the card and thus
+ * picks up the new locale.
  */
 function cardLang(localeHint?: string | null): UiLang {
   if (typeof localeHint === 'string' && localeHint !== '') return resolveLang(undefined, localeHint)
