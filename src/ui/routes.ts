@@ -24,6 +24,7 @@ import {
   type WebResLike,
 } from './auth.ts'
 import { sanitizePatch, type ConfigWriteResult, type UiConfigKey } from './config-write.ts'
+import type { LedgerStats } from '../storage/db.ts'
 import type { ZctxSnapshot } from './types.ts'
 
 /** Config view returned by GET /api/config. */
@@ -36,11 +37,11 @@ export interface ConfigView {
 /** Injected dependencies of the UI route bundle. */
 export interface UiRouteDeps {
   readonly ctx: unknown
-  /** The inline page HTML (D3). A token placeholder is replaced at registration. */
-  readonly pageHtml: string
   readonly snapshotFor: (sessionId?: string) => ZctxSnapshot
   readonly getConfig: () => ConfigView
   readonly writeConfig: (patch: Partial<Record<UiConfigKey, unknown>>) => ConfigWriteResult
+  /** Durable-ledger stats (SQLite via node:sqlite; ZCTX-POLISH W1). */
+  readonly ledgerStats: () => LedgerStats
   /** Capability probe seam — defaults to ctx.get('webServer'). Overridable in tests. */
   readonly webServer?: WebServerLike
 }
@@ -85,10 +86,9 @@ function sessionFromUrl(url: string | undefined): string | undefined {
  * is skipped with a no-op disposer — never a throw, never PENDING.
  */
 export function registerUiRoutes(deps: UiRouteDeps): () => void {
-  const { ctx, pageHtml, snapshotFor, getConfig, writeConfig } = deps
+  const { ctx, snapshotFor, getConfig, writeConfig, ledgerStats } = deps
   // Runtime bridge token — randomBytes, zero literal (auth.ts).
   const bridgeToken = `zctx_${Date.now().toString(36)}_${createTokenSource().token()}`
-  const page = pageHtml.split(TOKEN_PLACEHOLDER).join(bridgeToken)
 
   let webServer = deps.webServer
   if (webServer === undefined) {
@@ -115,23 +115,6 @@ export function registerUiRoutes(deps: UiRouteDeps): () => void {
 
   const unregister: (() => void)[] = []
 
-  // GET /zctx-ui — inline page, token injected. Read authorization.
-  const pageHandler = (req: unknown, res: unknown): void => {
-    const r = req as WebReqLike
-    const s = res as WebResLike
-    if (r.method !== 'GET') {
-      sendJson(s, 405, { ok: false, error: 'method not allowed' })
-      return
-    }
-    if (!authorizeRequest(r, bridgeToken)) {
-      sendJson(s, 403, { ok: false, error: 'unauthorized' })
-      return
-    }
-    s.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-    s.end(page)
-  }
-  unregister.push(webServer.register({ kind: 'exact', path: '/zctx-ui', handler: pageHandler }))
-
   // GET /zctx-ui/api/snapshot — JSON snapshot. Read authorization.
   const snapshotHandler = (req: unknown, res: unknown): void => {
     const r = req as WebReqLike
@@ -151,6 +134,26 @@ export function registerUiRoutes(deps: UiRouteDeps): () => void {
     }
   }
   unregister.push(webServer.register({ kind: 'exact', path: '/zctx-ui/api/snapshot', handler: snapshotHandler }))
+
+  // GET /zctx-ui/api/stats — durable-ledger aggregates (SQLite; ZCTX-POLISH W1).
+  const statsHandler = (req: unknown, res: unknown): void => {
+    const r = req as WebReqLike
+    const s = res as WebResLike
+    if (r.method !== 'GET') {
+      sendJson(s, 405, { ok: false, error: 'method not allowed' })
+      return
+    }
+    if (!authorizeRequest(r, bridgeToken)) {
+      sendJson(s, 403, { ok: false, error: 'unauthorized' })
+      return
+    }
+    try {
+      sendJson(s, 200, { ok: true, stats: ledgerStats() })
+    } catch (error) {
+      sendJson(s, 500, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  unregister.push(webServer.register({ kind: 'exact', path: '/zctx-ui/api/stats', handler: statsHandler }))
 
   // /zctx-ui/api/config — ONE registration dispatching GET (read) and POST
   // (overlay write). The host's exact matcher keeps only the FIRST handler per

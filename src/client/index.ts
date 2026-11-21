@@ -23,6 +23,8 @@
  * @module client/index
  */
 
+import { t as uiT, resolveLang, FACE_STATE_ZH, fieldLabel, type UiLang } from '../ui/i18n.ts'
+
 /** Must equal the package name — the loader's boot-graph row id (handshake). */
 export const name = 'dsh-zcontext'
 
@@ -255,6 +257,14 @@ export interface PanelSnapshot {
   readonly ranges?: number
   /** Count of honest-degradation rows (`degraded: string[]` in the API). */
   readonly degradedCount?: number
+  /** ZCTX-FULLPANEL: all live sessions for the panel's session switcher. */
+  readonly availableSessions?: readonly string[]
+  /** Durable-ledger aggregates (SQLite; ZCTX-POLISH W1) — via /api/stats. */
+  readonly ledgerStats?: {
+    readonly totalFolds?: number
+    readonly totalTokensSaved?: number
+    readonly sessionsCount?: number
+  }
 }
 
 /** Parse the /zctx-ui/api/snapshot JSON into the panel's view model. */
@@ -288,6 +298,9 @@ export function parsePanelSnapshot(text: string): PanelSnapshot {
     if (cache.measured === true) view.cacheMeasured = true
     if (ranges !== undefined) view.ranges = ranges
     if (degradedRows > 0) view.degradedCount = degradedRows
+    if (Array.isArray(raw.availableSessions)) {
+      view.availableSessions = raw.availableSessions.filter((x) => typeof x === 'string')
+    }
     return view as PanelSnapshot
   } catch {
     return {}
@@ -307,15 +320,22 @@ export function createPanelComponent(
   if (React === undefined) return undefined
   const e = React.createElement
   return function ZctxPanel(): unknown {
+    // 语言跟随 DSH：webview 的 navigator.language 继承宿主语言设置；
+    // zh 系→中文，其他→英语；探测不到→默认中文（用户令 2026-11-20）。
+    const nav = globalThis.navigator as { language?: string } | undefined
+    const navLang = typeof nav?.language === 'string' ? nav.language : undefined
+    const lang = resolveLang(undefined, navLang)
+    const t = uiT
     const [data, setData] = React.useState?.<PanelSnapshot>({}) ?? [{} as PanelSnapshot, () => undefined]
     const value = data as PanelSnapshot
     // B3-S7: a failed read is SHOWN, never silently rendered as fabricated zeros.
     const [fetchError, setFetchError] = React.useState?.<string | undefined>(undefined)
       ?? [undefined as string | undefined, () => undefined]
-    // B3-S5: settings are READ-ONLY here — the values come from the config API
-    // (GET /zctx-ui/api/config); writes stay on the full /zctx-ui page (U-2).
     const [configFields, setConfigFields] = React.useState?.<Record<string, unknown>>({})
       ?? [{} as Record<string, unknown>, () => undefined]
+    // ZCTX-FULLPANEL: durable-ledger aggregates (SQLite 统计跨会话累计).
+    const [ledger, setLedger] = React.useState?.<{ totalFolds?: number; totalTokensSaved?: number; sessionsCount?: number }>({})
+      ?? [{} as { totalFolds?: number; totalTokensSaved?: number; sessionsCount?: number }, () => undefined]
     const cfg = configFields as Record<string, unknown>
     React.useEffect?.(() => {
       let alive = true
@@ -331,6 +351,13 @@ export function createPanelComponent(
             // keep last good snapshot; surface the failure honestly (B3-S7)
             ;(setFetchError as (v: string | undefined) => void)(err instanceof Error ? err.message : String(err))
           })
+        void fetchText('/zctx-ui/api/stats')
+          .then((text) => {
+            if (!alive) return
+            const raw = JSON.parse(text) as { stats?: { totalFolds?: number; totalTokensSaved?: number; sessionsCount?: number } }
+            if (raw.stats !== undefined) (setLedger as (v: { totalFolds?: number; totalTokensSaved?: number; sessionsCount?: number }) => void)(raw.stats)
+          })
+          .catch(() => { /* stats are additive; the next tick retries */ })
       }
       load()
       void fetchText('/zctx-ui/api/config')
@@ -339,48 +366,70 @@ export function createPanelComponent(
           const raw = JSON.parse(text) as { fields?: Record<string, unknown> }
           if (raw.fields !== undefined && typeof raw.fields === 'object') (setConfigFields as (v: Record<string, unknown>) => void)(raw.fields)
         })
-        .catch(() => { /* settings stay read-only-empty on error; the full page still works */ })
+        .catch(() => { /* settings stay read-only-empty on error */ })
       const timer = setInterval(load, 5000)
       return () => { alive = false; clearInterval(timer) }
     }, [])
     const face = value.faceState ?? 'unknown'
+    const faceZh = FACE_STATE_ZH[face] ?? face
     const faceColor = face === 'active' ? '#3fb950' : face === 'degraded' ? '#d29922' : '#f85149'
+    const sessions = value.availableSessions ?? []
     return e('div', { className: 'zctx-panel' },
-      e('h2', { className: 'zctx-panel-title' }, 'zcontext 面板 (BETA)'),
+      e('h2', { className: 'zctx-panel-title' }, t('panelTitle', lang)),
       e('div', { className: 'zctx-panel-face' },
         e('span', { className: 'zctx-dot', style: { color: faceColor } }, '●'),
-        e('span', null, ` face: ${face}`)),
+        e('span', null, ` ${t('face', lang)}: ${faceZh}`)),
       fetchError !== undefined
-        ? e('div', { className: 'zctx-panel-err' }, `数据读取失败: ${fetchError}（保留上次快照，5s 后重试）`)
+        ? e('div', { className: 'zctx-panel-err' }, `${t('fetchError', lang)}: ${fetchError}${t('retryHint', lang)}`)
         : null,
-      e('h3', null, '查看'),
+      e('h3', null, t('view', lang)),
+      sessions.length >= 1
+        ? e('div', { className: 'zctx-panel-row' },
+            e('span', null, `${t('session', lang)}: `),
+            sessions.length > 1
+              ? e('select', {
+                  className: 'zctx-panel-select',
+                  value: value.sessionId ?? '',
+                  onChange: (ev: unknown) => {
+                    const target = ev as { target?: { value?: string } }
+                    if (typeof target?.target?.value === 'string') {
+                      void fetchText(`/zctx-ui/api/snapshot?session=${encodeURIComponent(target.target.value)}`)
+                        .then((text) => { (setData as (v: PanelSnapshot) => void)(parsePanelSnapshot(text)) })
+                        .catch(() => { /* keep last good snapshot */ })
+                    }
+                  },
+                },
+                sessions.map((s) => e('option', { key: s, value: s }, s)))
+              : e('span', null, value.sessionId ?? 'n/a'))
+        : null,
       e('div', { className: 'zctx-panel-row' },
-        `会话: ${value.sessionId ?? 'n/a'} (${value.sessionResolution ?? 'n/a'})`),
+        `${t('windowPressure', lang)}: ${value.pressurePct !== undefined ? `${value.pressurePct.toFixed(1)}%` : 'n/a'}`),
       e('div', { className: 'zctx-panel-row' },
-        `窗口占用: ${value.pressurePct !== undefined ? `${value.pressurePct.toFixed(1)}%` : 'n/a'}`),
-      e('div', { className: 'zctx-panel-row' },
-        `tokens: ${value.totalTokens ?? 'n/a'} / ${value.contextWindow ?? 'n/a'}`),
+        `${t('tokens', lang)}: ${value.totalTokens ?? 'n/a'} / ${value.contextWindow ?? 'n/a'}`),
       value.degradedCount !== undefined
-        ? e('div', { className: 'zctx-panel-note' }, `降级提示: ${value.degradedCount} 条`)
+        ? e('div', { className: 'zctx-panel-note' }, `${t('degradedRows', lang)}: ${value.degradedCount} 条`)
         : null,
-      e('h3', null, '统计'),
-      e('div', { className: 'zctx-panel-row' }, `折叠次数: ${value.foldCount ?? 0}`),
-      e('div', { className: 'zctx-panel-row' }, `可折叠区间: ${value.ranges ?? 0}`),
+      e('h3', null, t('stats', lang)),
+      e('div', { className: 'zctx-panel-row' }, `${t('foldCount', lang)}(累计): ${ledger.totalFolds ?? value.foldCount ?? 0}`),
+      e('div', { className: 'zctx-panel-row' }, `累计节省 tokens: ${ledger.totalTokensSaved ?? 'n/a'}`),
+      e('div', { className: 'zctx-panel-row' }, `覆盖会话: ${ledger.sessionsCount ?? 'n/a'}`),
+      e('div', { className: 'zctx-panel-row' }, `${t('foldableRanges', lang)}(当前): ${value.ranges ?? 0}`),
       e('div', { className: 'zctx-panel-row' },
-        `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ' (measured)' : ' (estimated/none)'}`),
-      e('h3', null, '设置'),
-      // B3-S5: the promised read-only field display (values from GET config).
+        `${t('cacheSamples', lang)}(当前): ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ` ${t('measured', lang)}` : ` ${t('estimatedNone', lang)}`}`),
+      e('h3', null, t('settings', lang)),
+      // ZCTX-FULLPANEL: settings are WRITABLE in the panel (same-origin +
+      // loopback write authorization verified on the desktop).
       e('div', { className: 'zctx-panel-fields' },
         Object.keys(cfg).length > 0
           ? Object.entries(cfg).map(([k, v]) => e('label', { className: 'zctx-field', key: k },
-              e('span', { className: 'zctx-field-key' }, k),
+              e('span', { className: 'zctx-field-key' }, fieldLabel(k, lang)),
               e('input', {
                 className: 'zctx-field-input',
                 type: typeof v === 'boolean' ? 'checkbox' : 'text',
                 ...(typeof v === 'boolean' ? { checked: v } : { value: String(v) }),
                 'data-key': k,
               })))
-          : '（配置未加载）'),
+          : t('configNotLoaded', lang)),
       e('button', {
         className: 'zctx-save',
         onClick: () => {
@@ -404,32 +453,12 @@ export function createPanelComponent(
             .then((j) => {
               const el2 = docLike?.querySelector?.('.zctx-save-result') ?? null
               if (el2 === null) return
-              el2.textContent = j.ok === true ? '✓ 已保存' : `✗ ${j.error ?? '保存失败'}`
+              el2.textContent = j.ok === true ? t('saved', lang) : `${t('saveFailed', lang)}: ${j.error ?? ''}`
             })
             .catch(() => { /* next poll refreshes; never throw from a click */ })
         },
-      }, '保存设置'),
+      }, t('save', lang)),
       e('span', { className: 'zctx-save-result' }),
-      e('div', { className: 'zctx-panel-note' }, '也可在完整面板修改：'),
-      e('a', { href: '/zctx-ui', target: '_blank', rel: 'noopener noreferrer' }, '打开完整面板 →'),
-      e('button', { className: 'zctx-copy', onClick: () => {
-        // Structured browser access (no lib.dom import — the client bundle
-        // runs in the webview where these faces exist at runtime).
-        const browser = globalThis as unknown as {
-          location?: { origin?: string }
-          navigator?: { clipboard?: { writeText(text: string): Promise<void> } }
-          document?: DocumentLike
-        }
-        const url = `${browser.location?.origin ?? ''}/zctx-ui`
-        const show = (text: string): void => {
-          const el = browser.document?.querySelector?.('.zctx-copy-result')
-          if (el !== null && el !== undefined) el.textContent = text
-        }
-        void browser.navigator?.clipboard?.writeText(url)
-          .then(() => show('✓ 已复制: ' + url))
-          .catch(() => show(url))
-      } }, '复制完整面板地址'),
-      e('span', { className: 'zctx-copy-result' }),
     )
   }
 }

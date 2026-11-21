@@ -493,6 +493,9 @@ export class ZcontextPlugin extends ServiceBase {
       attachUi(ctx as unknown, {
         snapshotFor: (sessionId) => this.snapshotFor(sessionId),
         configValues: () => this.config as unknown as Record<string, unknown>,
+        ledgerStats: () => this.ledgerStore?.stats() ?? {
+          totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 0,
+        },
       })
     } catch (error: unknown) {
       zctxDebug(`attachUi: failed (${error instanceof Error ? error.message : String(error)}) — UI surface skipped`)

@@ -29,7 +29,6 @@ import {
   authorizeRequest,
   authorizeWrite,
   unknownFaceHealth,
-  UI_PAGE_HTML,
   type ConfigView,
   type ConfigWriteResult,
 } from '../src/ui/index.ts'
@@ -423,9 +422,9 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     editCalls = []
     const { webServer, routes, unregistered } = mockWebServer()
     const disposer = registerUiRoutes({
+      ledgerStats: () => ({ totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 1 }),
       ctx,
       webServer,
-      pageHtml: UI_PAGE_HTML,
       snapshotFor: (id) => snapshotSource.snapshotFor(id),
       getConfig: () => configView,
       writeConfig: (patch) => {
@@ -552,9 +551,9 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
       effect: (_fn: unknown, label?: string) => { effectLabels.push(label ?? ''); return undefined },
     }
     registerUiRoutes({
+      ledgerStats: () => ({ totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 1 }),
       ctx: effectCtx,
       webServer,
-      pageHtml: UI_PAGE_HTML,
       snapshotFor: (id) => snapshotSource.snapshotFor(id),
       getConfig: () => configView,
       writeConfig: () => ({ ok: true }),
@@ -573,8 +572,8 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
 
   it('no webServer (CLI headless) → no-op disposer, no throw', () => {
     const disposer = registerUiRoutes({
+      ledgerStats: () => ({ totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 1 }),
       ctx: { get: () => undefined },
-      pageHtml: UI_PAGE_HTML,
       snapshotFor: (id) => snapshotSource.snapshotFor(id),
       getConfig: () => configView,
       writeConfig: () => ({ ok: false, error: 'unavailable' }),
@@ -602,24 +601,4 @@ describe('ZCTX-UI V4: zero credential literals in source', () => {
 // B5 rework r1: multi-session switcher (B5-5) + attribute escaping (B5-6)
 // ---------------------------------------------------------------------------
 
-describe('ZCTX-UI B5-5/B5-6: page session switcher + escaping', () => {
-  it('page has a REAL session <select> wired to availableSessions + change handler', () => {
-    // A real control (not a fake): the select exists, is populated from the
-    // snapshot.availableSessions field, and switching triggers a re-poll.
-    expect(UI_PAGE_HTML).toContain('id="session-pick"')
-    expect(UI_PAGE_HTML).toContain('s.availableSessions')
-    expect(UI_PAGE_HTML).toContain("addEventListener('change'")
-    expect(UI_PAGE_HTML).toContain("?session=' + encodeURIComponent(session)")
-    // The snapshot API actually exposes the field (thin wrapper over liveSessions).
-    expect(UI_PAGE_HTML).not.toContain('__TODO_SESSION_PICKER__')
-  })
 
-  it('esc() escapes both quote kinds (B5-6): no attribute-breaking raw quotes', () => {
-    // The esc helper in the page must cover &<>"' — assert the replacement
-    // chains are present in source (string-level; the JS runs in browser).
-    expect(UI_PAGE_HTML).toContain("replace(/\"/g, '&quot;')")
-    expect(UI_PAGE_HTML).toContain("replace(/'/g, '&#39;')")
-    // Attribute contexts use escAttr (the aliased esc) for the form value.
-    expect(UI_PAGE_HTML).toContain('escAttr(')
-  })
-})

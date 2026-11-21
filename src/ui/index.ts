@@ -1,10 +1,11 @@
 /**
- * UI aggregate surface (ZCTX-UI DESIGN §1.1) — D3.
+ * UI aggregate surface (ZCTX-UI DESIGN §1.1; ZCTX-FULLPANEL revision).
  *
- * The plugin imports the UI face only from here. This module registers the
- * four routes and exposes the config/snapshot views; the snapshot source itself
- * is built by the plugin (so its public `snapshotFor` and the HTTP route share
- * one source).
+ * ZCTX-FULLPANEL: the browser-facing HTML page route is REMOVED — the desktop
+ * webview origin is the custom `dsh-app://` scheme, which no browser can open
+ * (user-verified). The UI now lives entirely in the native sidebar panel
+ * (`sidebar.panellist` + `main`, src/client/index.ts). This module keeps ONLY
+ * the API routes the panel consumes: snapshot / config (GET+POST) / stats.
  *
  * Layer discipline (DESIGN §9): src/ui/** is a leaf — it is never imported by
  * fold-engine / autofold / observe / preflight. It only reads the ledger via
@@ -15,7 +16,6 @@
 
 import { registerUiRoutes, type ConfigView, type UiRouteDeps } from './routes.ts'
 import { writeOverlay, type ConfigWriteResult } from './config-write.ts'
-import { UI_PAGE_HTML } from './page.ts'
 import type { ZctxSnapshot } from './types.ts'
 
 export * from './types.ts'
@@ -24,7 +24,7 @@ export * from './config-write.ts'
 export * from './routes.ts'
 export * from './snapshot.ts'
 export * from './face-probe.ts'
-export { UI_PAGE_HTML, UI_TOKEN_PLACEHOLDER } from './page.ts'
+export * from './i18n.ts'
 
 /** Accessors the plugin injects (all pre-existing methods, DESIGN §2.1). */
 export interface UiAccessors {
@@ -32,11 +32,22 @@ export interface UiAccessors {
   readonly snapshotFor: (sessionId?: string) => ZctxSnapshot
   /** Current config values for the settings form (from plugin.config). */
   readonly configValues: () => Record<string, unknown>
+  /** Durable-ledger aggregates (SQLite via node:sqlite; ZCTX-POLISH W1). */
+  readonly ledgerStats: () => LedgerStatsFromDb
   /** Optional webServer override (tests); production resolves via ctx.get. */
   readonly webServer?: UiRouteDeps['webServer']
 }
 
-/** Attach the four UI routes to a host context. Returns the route disposer. */
+/** Minimal structural type for the storage-ledger stats (avoids a store import). */
+export interface LedgerStatsFromDb {
+  readonly totalFolds: number
+  readonly totalTokensSaved: number
+  readonly sessionsCount: number
+  readonly lastFoldAt: number | undefined
+  readonly schemaVersion: number
+}
+
+/** Attach the three API routes to a host context. Returns the route disposer. */
 export function attachUi(ctx: unknown, accessors: UiAccessors): () => void {
   const getConfig = (): ConfigView => {
     const all = accessors.configValues()
@@ -65,10 +76,10 @@ export function attachUi(ctx: unknown, accessors: UiAccessors): () => void {
 
   return registerUiRoutes({
     ctx,
-    pageHtml: UI_PAGE_HTML,
     snapshotFor: accessors.snapshotFor,
     getConfig,
     writeConfig,
+    ledgerStats: () => accessors.ledgerStats(),
     ...(accessors.webServer !== undefined ? { webServer: accessors.webServer } : {}),
   })
 }

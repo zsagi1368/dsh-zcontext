@@ -1,6 +1,204 @@
 window.__ModuleLoader__.load({ id: "dsh-zcontext", factory: (require) => { var module = { exports: {} }; var exports = module.exports;
 
 Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+// src/ui/i18n.ts
+/** All UI copy, keyed by stable ids. Both languages are complete. */
+const UI_DICT = {
+	panelTitle: {
+		zh: "zcontext 面板 (BETA)",
+		en: "zcontext Panel (BETA)"
+	},
+	face: {
+		zh: "状态",
+		en: "face"
+	},
+	view: {
+		zh: "查看",
+		en: "View"
+	},
+	stats: {
+		zh: "统计",
+		en: "Stats"
+	},
+	settings: {
+		zh: "设置",
+		en: "Settings"
+	},
+	session: {
+		zh: "会话",
+		en: "Session"
+	},
+	windowPressure: {
+		zh: "窗口占用",
+		en: "Window pressure"
+	},
+	tokens: {
+		zh: "tokens",
+		en: "tokens"
+	},
+	foldCount: {
+		zh: "折叠次数",
+		en: "Fold count"
+	},
+	foldableRanges: {
+		zh: "可折叠区间",
+		en: "Foldable ranges"
+	},
+	cacheSamples: {
+		zh: "缓存样本",
+		en: "Cache samples"
+	},
+	measured: {
+		zh: "(measured)",
+		en: "(measured)"
+	},
+	estimatedNone: {
+		zh: "(estimated/none)",
+		en: "(estimated/none)"
+	},
+	degradedRows: {
+		zh: "降级提示",
+		en: "Degradation notes"
+	},
+	configNotLoaded: {
+		zh: "（配置未加载）",
+		en: "(config not loaded)"
+	},
+	readonlyNote: {
+		zh: "设置修改请到完整面板（此处只读，避免越权写入）：",
+		en: "Read-only here — edit on the full page: "
+	},
+	openFullPanel: {
+		zh: "打开完整面板 →",
+		en: "Open full panel →"
+	},
+	copyAddress: {
+		zh: "复制完整面板地址",
+		en: "Copy panel address"
+	},
+	copied: {
+		zh: "✓ 地址已复制",
+		en: "✓ Address copied"
+	},
+	save: {
+		zh: "保存设置",
+		en: "Save settings"
+	},
+	saved: {
+		zh: "✓ 已保存（新会话生效）",
+		en: "✓ Saved (applies to new sessions)"
+	},
+	saveFailed: {
+		zh: "✗ 保存失败",
+		en: "✗ Save failed"
+	},
+	fetchError: {
+		zh: "数据读取失败",
+		en: "Snapshot read failed"
+	},
+	retryHint: {
+		zh: "（保留上次快照，5s 后重试）",
+		en: "(keeping last snapshot; retrying in 5s)"
+	},
+	language: {
+		zh: "语言",
+		en: "Language"
+	},
+	langAuto: {
+		zh: "跟随 DSH（默认中文）",
+		en: "Follow DSH (default Chinese)"
+	},
+	langZh: {
+		zh: "中文",
+		en: "Chinese"
+	},
+	langEn: {
+		zh: "英语",
+		en: "English"
+	}
+};
+/** Resolve the UI language from the settings value (auto/zh/en) + optional host hint. */
+function resolveLang(pref, hostHint) {
+	if (pref === "zh" || pref === "en") return pref;
+	if (hostHint !== void 0 && hostHint !== "") {
+		const h = hostHint.toLowerCase();
+		if (h.startsWith("en")) return "en";
+		if (h.startsWith("zh")) return "zh";
+	}
+	return "zh";
+}
+/** Config key → zh labels (九字段+face 开关全量；en shows the raw key). */
+const FIELD_LABELS = {
+	enabled: {
+		zh: "插件总开关",
+		en: "enabled"
+	},
+	nudgeThresholds: {
+		zh: "提示阈值（%）",
+		en: "nudge thresholds (%)"
+	},
+	keepRecentTokens: {
+		zh: "保留最近 tokens",
+		en: "keep recent tokens"
+	},
+	maxFoldFraction: {
+		zh: "最大折叠占比",
+		en: "max fold fraction"
+	},
+	minFoldableTokens: {
+		zh: "最小可折叠 tokens",
+		en: "min foldable tokens"
+	},
+	protectionFloorTokens: {
+		zh: "保护下限 tokens",
+		en: "protection floor tokens"
+	},
+	summaryFloorChars: {
+		zh: "摘要下限字符",
+		en: "summary floor chars"
+	},
+	summaryCeilingChars: {
+		zh: "摘要上限字符",
+		en: "summary ceiling chars"
+	},
+	netShrinkTolerance: {
+		zh: "净缩容容差",
+		en: "net shrink tolerance"
+	},
+	"observe.enabled": {
+		zh: "观测面开关",
+		en: "observe face"
+	},
+	"patch.guardObserveEvents": {
+		zh: "补丁 guard 观测桥",
+		en: "patch guard-observe bridge"
+	},
+	"autofold.enabled": {
+		zh: "自动折叠开关",
+		en: "autofold face"
+	},
+	preflightMode: {
+		zh: "preflight 模式 (off|observe|enforce)",
+		en: "preflight mode (off|observe|enforce)"
+	}
+};
+/** Face state → zh. */
+const FACE_STATE_ZH = {
+	active: "正常",
+	degraded: "降级",
+	absent: "未激活"
+};
+/** Config-key label in the active language. */
+function fieldLabel(key, lang) {
+	const row = FIELD_LABELS[key];
+	return row === void 0 ? key : row[lang];
+}
+/** Translate one key (unknown key → the key itself, loud enough to notice). */
+function t(key, lang) {
+	const row = UI_DICT[key];
+	return row === void 0 ? String(key) : row[lang];
+}
+
 // src/client/index.ts
 /**
 * Browser client fiber — the settings.section summary card (ZCTX-UI DESIGN §5).
@@ -166,6 +364,7 @@ function parsePanelSnapshot(text) {
 		if (cache.measured === true) view.cacheMeasured = true;
 		if (ranges !== void 0) view.ranges = ranges;
 		if (degradedRows > 0) view.degradedCount = degradedRows;
+		if (Array.isArray(raw.availableSessions)) view.availableSessions = raw.availableSessions.filter((x) => typeof x === "string");
 		return view;
 	} catch {
 		return {};
@@ -181,10 +380,15 @@ function createPanelComponent(React, fetchText) {
 	if (React === void 0) return void 0;
 	const e = React.createElement;
 	return function ZctxPanel() {
+		const nav = globalThis.navigator;
+		const navLang = typeof nav?.language === "string" ? nav.language : void 0;
+		const lang = resolveLang(void 0, navLang);
+		const t$1 = t;
 		const [data, setData] = React.useState?.({}) ?? [{}, () => void 0];
 		const value = data;
 		const [fetchError, setFetchError] = React.useState?.(void 0) ?? [void 0, () => void 0];
 		const [configFields, setConfigFields] = React.useState?.({}) ?? [{}, () => void 0];
+		const [ledger, setLedger] = React.useState?.({}) ?? [{}, () => void 0];
 		const cfg = configFields;
 		React.useEffect?.(() => {
 			let alive = true;
@@ -197,6 +401,11 @@ function createPanelComponent(React, fetchText) {
 					if (!alive) return;
 					setFetchError(err instanceof Error ? err.message : String(err));
 				});
+				fetchText("/zctx-ui/api/stats").then((text) => {
+					if (!alive) return;
+					const raw = JSON.parse(text);
+					if (raw.stats !== void 0) setLedger(raw.stats);
+				}).catch(() => {});
 			};
 			load();
 			fetchText("/zctx-ui/api/config").then((text) => {
@@ -211,19 +420,33 @@ function createPanelComponent(React, fetchText) {
 			};
 		}, []);
 		const face = value.faceState ?? "unknown";
+		const faceZh = FACE_STATE_ZH[face] ?? face;
 		const faceColor = face === "active" ? "#3fb950" : face === "degraded" ? "#d29922" : "#f85149";
-		return e("div", { className: "zctx-panel" }, e("h2", { className: "zctx-panel-title" }, "zcontext 面板 (BETA)"), e("div", { className: "zctx-panel-face" }, e("span", {
+		const sessions = value.availableSessions ?? [];
+		return e("div", { className: "zctx-panel" }, e("h2", { className: "zctx-panel-title" }, t$1("panelTitle", lang)), e("div", { className: "zctx-panel-face" }, e("span", {
 			className: "zctx-dot",
 			style: { color: faceColor }
-		}, "●"), e("span", null, ` face: ${face}`)), fetchError !== void 0 ? e("div", { className: "zctx-panel-err" }, `数据读取失败: ${fetchError}（保留上次快照，5s 后重试）`) : null, e("h3", null, "查看"), e("div", { className: "zctx-panel-row" }, `会话: ${value.sessionId ?? "n/a"} (${value.sessionResolution ?? "n/a"})`), e("div", { className: "zctx-panel-row" }, `窗口占用: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("div", { className: "zctx-panel-row" }, `tokens: ${value.totalTokens ?? "n/a"} / ${value.contextWindow ?? "n/a"}`), value.degradedCount !== void 0 ? e("div", { className: "zctx-panel-note" }, `降级提示: ${value.degradedCount} 条`) : null, e("h3", null, "统计"), e("div", { className: "zctx-panel-row" }, `折叠次数: ${value.foldCount ?? 0}`), e("div", { className: "zctx-panel-row" }, `可折叠区间: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `缓存样本: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? " (measured)" : " (estimated/none)"}`), e("h3", null, "设置"), e("div", { className: "zctx-panel-fields" }, Object.keys(cfg).length > 0 ? Object.entries(cfg).map(([k, v]) => e("label", {
+		}, "●"), e("span", null, ` ${t$1("face", lang)}: ${faceZh}`)), fetchError !== void 0 ? e("div", { className: "zctx-panel-err" }, `${t$1("fetchError", lang)}: ${fetchError}${t$1("retryHint", lang)}`) : null, e("h3", null, t$1("view", lang)), sessions.length >= 1 ? e("div", { className: "zctx-panel-row" }, e("span", null, `${t$1("session", lang)}: `), sessions.length > 1 ? e("select", {
+			className: "zctx-panel-select",
+			value: value.sessionId ?? "",
+			onChange: (ev) => {
+				const target = ev;
+				if (typeof target?.target?.value === "string") fetchText(`/zctx-ui/api/snapshot?session=${encodeURIComponent(target.target.value)}`).then((text) => {
+					setData(parsePanelSnapshot(text));
+				}).catch(() => {});
+			}
+		}, sessions.map((s) => e("option", {
+			key: s,
+			value: s
+		}, s))) : e("span", null, value.sessionId ?? "n/a")) : null, e("div", { className: "zctx-panel-row" }, `${t$1("windowPressure", lang)}: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("div", { className: "zctx-panel-row" }, `${t$1("tokens", lang)}: ${value.totalTokens ?? "n/a"} / ${value.contextWindow ?? "n/a"}`), value.degradedCount !== void 0 ? e("div", { className: "zctx-panel-note" }, `${t$1("degradedRows", lang)}: ${value.degradedCount} 条`) : null, e("h3", null, t$1("stats", lang)), e("div", { className: "zctx-panel-row" }, `${t$1("foldCount", lang)}(累计): ${ledger.totalFolds ?? value.foldCount ?? 0}`), e("div", { className: "zctx-panel-row" }, `累计节省 tokens: ${ledger.totalTokensSaved ?? "n/a"}`), e("div", { className: "zctx-panel-row" }, `覆盖会话: ${ledger.sessionsCount ?? "n/a"}`), e("div", { className: "zctx-panel-row" }, `${t$1("foldableRanges", lang)}(当前): ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `${t$1("cacheSamples", lang)}(当前): ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ` ${t$1("measured", lang)}` : ` ${t$1("estimatedNone", lang)}`}`), e("h3", null, t$1("settings", lang)), e("div", { className: "zctx-panel-fields" }, Object.keys(cfg).length > 0 ? Object.entries(cfg).map(([k, v]) => e("label", {
 			className: "zctx-field",
 			key: k
-		}, e("span", { className: "zctx-field-key" }, k), e("input", {
+		}, e("span", { className: "zctx-field-key" }, fieldLabel(k, lang)), e("input", {
 			className: "zctx-field-input",
 			type: typeof v === "boolean" ? "checkbox" : "text",
 			...typeof v === "boolean" ? { checked: v } : { value: String(v) },
 			"data-key": k
-		}))) : "（配置未加载）"), e("button", {
+		}))) : t$1("configNotLoaded", lang)), e("button", {
 			className: "zctx-save",
 			onClick: () => {
 				const patch = {};
@@ -243,25 +466,10 @@ function createPanelComponent(React, fetchText) {
 				}).then((r) => r.json()).then((j) => {
 					const el2 = docLike?.querySelector?.(".zctx-save-result") ?? null;
 					if (el2 === null) return;
-					el2.textContent = j.ok === true ? "✓ 已保存" : `✗ ${j.error ?? "保存失败"}`;
+					el2.textContent = j.ok === true ? t$1("saved", lang) : `${t$1("saveFailed", lang)}: ${j.error ?? ""}`;
 				}).catch(() => {});
 			}
-		}, "保存设置"), e("span", { className: "zctx-save-result" }), e("div", { className: "zctx-panel-note" }, "也可在完整面板修改："), e("a", {
-			href: "/zctx-ui",
-			target: "_blank",
-			rel: "noopener noreferrer"
-		}, "打开完整面板 →"), e("button", {
-			className: "zctx-copy",
-			onClick: () => {
-				const browser = globalThis;
-				const url = `${browser.location?.origin ?? ""}/zctx-ui`;
-				const show = (text) => {
-					const el = browser.document?.querySelector?.(".zctx-copy-result");
-					if (el !== null && el !== void 0) el.textContent = text;
-				};
-				browser.navigator?.clipboard?.writeText(url).then(() => show("✓ 已复制: " + url)).catch(() => show(url));
-			}
-		}, "复制完整面板地址"), e("span", { className: "zctx-copy-result" }));
+		}, t$1("save", lang)), e("span", { className: "zctx-save-result" }));
 	};
 }
 /** A minimal left-menu icon component (panellist renders the icon, label is text). */

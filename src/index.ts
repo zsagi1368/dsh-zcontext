@@ -187,8 +187,6 @@ export {
   createTransitionSink,
   detectFaceActivation,
   registerUiRoutes,
-  UI_PAGE_HTML,
-  UI_TOKEN_PLACEHOLDER,
   unknownFaceHealth,
 } from './ui/index.ts'
 export type {
