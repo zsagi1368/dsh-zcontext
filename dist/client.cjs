@@ -60,25 +60,13 @@ const UI_DICT = {
 		zh: "降级提示",
 		en: "Degradation notes"
 	},
+	rowsSuffix: {
+		zh: " 条",
+		en: " rows"
+	},
 	configNotLoaded: {
 		zh: "（配置未加载）",
 		en: "(config not loaded)"
-	},
-	readonlyNote: {
-		zh: "设置修改请到完整面板（此处只读，避免越权写入）：",
-		en: "Read-only here — edit on the full page: "
-	},
-	openFullPanel: {
-		zh: "打开完整面板 →",
-		en: "Open full panel →"
-	},
-	copyAddress: {
-		zh: "复制完整面板地址",
-		en: "Copy panel address"
-	},
-	copied: {
-		zh: "✓ 地址已复制",
-		en: "✓ Address copied"
 	},
 	save: {
 		zh: "保存设置",
@@ -100,30 +88,45 @@ const UI_DICT = {
 		zh: "（保留上次快照，5s 后重试）",
 		en: "(keeping last snapshot; retrying in 5s)"
 	},
-	language: {
-		zh: "语言",
-		en: "Language"
+	cumulative: {
+		zh: "(累计)",
+		en: "(cumulative)"
 	},
-	langAuto: {
-		zh: "跟随 DSH（默认中文）",
-		en: "Follow DSH (default Chinese)"
+	totalsSaved: {
+		zh: "累计节省 tokens: ",
+		en: "Cumulative tokens saved: "
 	},
-	langZh: {
-		zh: "中文",
-		en: "Chinese"
+	sessionsCovered: {
+		zh: "覆盖会话: ",
+		en: "Sessions covered: "
 	},
-	langEn: {
-		zh: "英语",
-		en: "English"
+	current: {
+		zh: "(当前)",
+		en: "(current)"
+	},
+	statsUnavailable: {
+		zh: "统计暂不可用",
+		en: "stats unavailable"
+	},
+	faceSwitches: {
+		zh: "face 开关",
+		en: "Face switches"
+	},
+	invalidNumber: {
+		zh: "数值字段格式错误（未提交）: ",
+		en: "Invalid number field(s) — nothing was saved: "
 	}
 };
-/** Resolve the UI language from the settings value (auto/zh/en) + optional host hint. */
+/**
+* Resolve the UI language: explicit preference > host probe > default zh.
+* A DETECTED non-zh locale maps to `en` (user 2026-11-20 "其他语言只显示英语";
+* review-B3 B-4a — the previous fallthrough returned zh for e.g. ja-JP).
+*/
 function resolveLang(pref, hostHint) {
 	if (pref === "zh" || pref === "en") return pref;
 	if (hostHint !== void 0 && hostHint !== "") {
-		const h = hostHint.toLowerCase();
-		if (h.startsWith("en")) return "en";
-		if (h.startsWith("zh")) return "zh";
+		if (hostHint.toLowerCase().startsWith("zh")) return "zh";
+		return "en";
 	}
 	return "zh";
 }
@@ -218,9 +221,12 @@ function t(key, lang) {
 * factory obtains React via `require('react')` (the loader shim, filehub
 * precedent) and styles via `ctx.get('styles')` — both capability-probed.
 *
-* SLOT EXPRESSION LIMIT (反-C2): the card holds only summary text + a link to
-* `/zctx-ui`; complex settings/stats stay on the full page. If React/styles are
-* unavailable, the card DEGRADES TO A PLAIN LINK (still useful, no crash).
+* SLOT EXPRESSION (ZCTX-FULLPANEL): the card holds ONLY a summary — the full
+* function surface (查看 / 统计 / 设置) lives in the native side panel (the
+* left-menu `zcontext` entry), and the browser page route was REMOVED
+* (dsh-app:// origin is browser-unreachable), so no cross-surface links are
+* rendered anywhere. If React is unavailable, the card DEGRADES TO A PLAIN
+* TEXT CARD (still informative, no crash, no dead links).
 *
 * @module client/index
 */
@@ -243,7 +249,7 @@ const CSS = [
 	".zctx-summary{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--dsw-alias-border-color, #444);border-radius:8px;background:var(--dsw-alias-bg-layer-1, transparent);}",
 	".zctx-summary h3{margin:0;font-size:var(--dsw-alias-font-size-lg, 15px);color:var(--dsw-alias-label-primary, inherit);}",
 	".zctx-summary .zctx-stats{display:flex;gap:16px;color:var(--dsw-alias-label-secondary, #aaa);font-size:var(--dsw-alias-font-size-sm, 12px);}",
-	".zctx-summary a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}",
+	".zctx-summary-note{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-secondary, #aaa);}",
 	".zctx-panel{display:flex;flex-direction:column;gap:6px;padding:14px 18px;overflow-y:auto;height:100%;box-sizing:border-box;background:var(--dsw-alias-bg-layer-1, transparent);}",
 	".zctx-panel-title{margin:0 0 4px;font-size:var(--dsw-alias-font-size-lg, 16px);color:var(--dsw-alias-label-primary, inherit);}",
 	".zctx-panel-face{display:flex;align-items:center;gap:6px;font-size:var(--dsw-alias-font-size-sm, 12px);}",
@@ -251,9 +257,10 @@ const CSS = [
 	".zctx-panel-row{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-primary, inherit);}",
 	".zctx-panel-note{font-size:var(--dsw-alias-font-size-sm, 12px);color:var(--dsw-alias-label-secondary, #aaa);}",
 	".zctx-panel-err{font-size:var(--dsw-alias-font-size-sm, 12px);color:#f85149;background:rgba(248,81,73,.08);border-radius:4px;padding:4px 8px;}",
-	".zctx-panel a{color:var(--dsw-alias-link-color, #6aa9ff);text-decoration:none;}",
 	".zctx-panel-icon{display:inline-flex;align-items:center;justify-content:center;line-height:1;}",
 	".zctx-panel-fields{display:flex;flex-direction:column;gap:4px;}",
+	".zctx-panel-faces{display:flex;flex-direction:column;gap:4px;}",
+	".zctx-panel-select{background:var(--dsw-alias-bg-layer-2, #222);color:var(--dsw-alias-label-primary, inherit);border:1px solid var(--dsw-alias-border-color, #444);border-radius:4px;padding:2px 6px;font-size:var(--dsw-alias-font-size-sm, 12px);}",
 	".zctx-field{display:flex;align-items:center;gap:8px;font-size:var(--dsw-alias-font-size-sm, 12px);}",
 	".zctx-field-key{min-width:180px;color:var(--dsw-alias-label-secondary, #aaa);}",
 	".zctx-field-input{flex:1;background:var(--dsw-alias-bg-layer-2, #222);color:var(--dsw-alias-label-primary, inherit);border:1px solid var(--dsw-alias-border-color, #444);border-radius:4px;padding:2px 6px;}",
@@ -293,7 +300,11 @@ const sameOriginFetchText = (url) => fetch(url).then((r) => {
 	if (!r.ok) throw new Error(`zctx panel: GET ${url} → HTTP ${r.status}`);
 	return r.text();
 });
-/** Build the card component. `React` may be absent → caller degrades to a link. */
+/**
+* Build the card component. `React` may be absent → caller degrades to a text
+* card. B-3: NO link — the browser page route was removed; the card is a pure
+* summary plus a pointer to the native left-menu panel entry.
+*/
 function createSummaryCard(React, initial, fetchText) {
 	if (React === void 0) return void 0;
 	const e = React.createElement.bind(React);
@@ -304,35 +315,26 @@ function createSummaryCard(React, initial, fetchText) {
 	return function SummaryCard() {
 		const data = holder.data;
 		const stats = [`折叠 ${data?.foldCount ?? 0} 次`, data?.pressurePct !== void 0 ? `窗口 ${data.pressurePct.toFixed(1)}%` : "窗口 n/a"].join(" · ");
-		return e("div", { className: "zctx-summary" }, e("h3", null, "zcontext 摘要 (BETA)"), e("div", { className: "zctx-stats" }, stats), e("a", {
-			href: "/zctx-ui",
-			target: "_blank",
-			rel: "noopener noreferrer"
-		}, "打开 zcontext 面板 →"));
+		return e("div", { className: "zctx-summary" }, e("h3", null, "zcontext 摘要 (BETA)"), e("div", { className: "zctx-stats" }, stats), e("div", { className: "zctx-summary-note" }, "请在左侧菜单 zcontext 打开面板"));
 	};
 }
 /**
 * Build the no-React fallback component. It returns a REAL, assertable render
-* product: an `<a href="/zctx-ui">` DOM anchor (when a document is available)
-* AND a `LinkRender` descriptor with a non-empty label. Never a blank `null`
-* card (B5-1: the "plain link" promise must be genuinely rendered).
+* product: a text node (when a document is available) AND a `FallbackRender`
+* descriptor with a non-empty label. Never a blank `null` card (B5-1) and
+* never a link (B-3: the pointed-at page no longer exists).
 */
-function createFallbackLink(doc) {
-	return function FallbackLink() {
-		const text = "打开 zcontext 面板 →";
+function createFallbackCard(doc) {
+	return function FallbackCard() {
+		const text = "请在左侧菜单 zcontext 打开面板";
 		let node;
 		if (doc !== void 0 && typeof doc.createElement === "function") try {
-			const anchor = doc.createElement("a");
-			anchor.setAttribute("href", "/zctx-ui");
-			anchor.setAttribute("target", "_blank");
-			anchor.setAttribute("rel", "noopener noreferrer");
-			anchor.textContent = text;
-			node = anchor;
+			const span = doc.createElement("span");
+			span.textContent = text;
+			node = span;
 		} catch {}
 		return {
-			tag: "a",
-			href: "/zctx-ui",
-			target: "_blank",
+			tag: "span",
 			text,
 			...node !== void 0 ? { node } : {}
 		};
@@ -371,10 +373,15 @@ function parsePanelSnapshot(text) {
 	}
 }
 /**
-* Build the side-panel component (方案 A1: `sidebar.panellist` + `main`).
-* Renders 查看 / 统计 / 设置 (read-only; writes point at the full `/zctx-ui`
-* page — U-2 token gap, honest degrade). Polls the same-origin snapshot API
-* every 5s. Returns undefined when React is unavailable (caller degrades).
+* Build the side-panel component (ZCTX-FULLPANEL: the FULL-FUNCTION native
+* panel). Renders 查看 (live snapshot, 5s poll, multi-session switcher whose
+* pick survives the poll — B-1), 统计 (SQLite cumulative ledger + current
+* session numbers; a failed ledger read shows an honest "stats unavailable"
+* row instead of mislabeling current-session values — S-4), and 设置 (WRITABLE:
+* nine fields + four face switches, POST `{fields, faceSwitches}` — B-2;
+* number fields are converted with `Number()`, a NaN value rejects the whole
+* submit). Language follows the DSH host locale (B-4). Returns undefined when
+* React is unavailable (caller degrades).
 */
 function createPanelComponent(React, fetchText) {
 	if (React === void 0) return void 0;
@@ -388,12 +395,16 @@ function createPanelComponent(React, fetchText) {
 		const value = data;
 		const [fetchError, setFetchError] = React.useState?.(void 0) ?? [void 0, () => void 0];
 		const [configFields, setConfigFields] = React.useState?.({}) ?? [{}, () => void 0];
+		const [faceSwitches, setFaceSwitches] = React.useState?.({}) ?? [{}, () => void 0];
 		const [ledger, setLedger] = React.useState?.({}) ?? [{}, () => void 0];
+		const [ledgerOk, setLedgerOk] = React.useState?.(false) ?? [false, () => void 0];
+		const [picked, setPicked] = React.useState?.(void 0) ?? [void 0, () => void 0];
 		const cfg = configFields;
+		const faces = faceSwitches;
 		React.useEffect?.(() => {
 			let alive = true;
 			const load = () => {
-				fetchText("/zctx-ui/api/snapshot").then((text) => {
+				fetchText(picked !== void 0 ? `/zctx-ui/api/snapshot?session=${encodeURIComponent(picked)}` : "/zctx-ui/api/snapshot").then((text) => {
 					if (!alive) return;
 					setData(parsePanelSnapshot(text));
 					setFetchError(void 0);
@@ -401,72 +412,154 @@ function createPanelComponent(React, fetchText) {
 					if (!alive) return;
 					setFetchError(err instanceof Error ? err.message : String(err));
 				});
-				fetchText("/zctx-ui/api/stats").then((text) => {
-					if (!alive) return;
-					const raw = JSON.parse(text);
-					if (raw.stats !== void 0) setLedger(raw.stats);
-				}).catch(() => {});
 			};
 			load();
-			fetchText("/zctx-ui/api/config").then((text) => {
-				if (!alive) return;
-				const raw = JSON.parse(text);
-				if (raw.fields !== void 0 && typeof raw.fields === "object") setConfigFields(raw.fields);
-			}).catch(() => {});
 			const timer = setInterval(load, 5e3);
 			return () => {
 				alive = false;
 				clearInterval(timer);
+			};
+		}, [picked]);
+		React.useEffect?.(() => {
+			let alive = true;
+			fetchText("/zctx-ui/api/config").then((text) => {
+				if (!alive) return;
+				const raw = JSON.parse(text);
+				if (raw.fields !== void 0 && typeof raw.fields === "object") setConfigFields(raw.fields);
+				if (raw.faceSwitches !== void 0 && typeof raw.faceSwitches === "object") setFaceSwitches(raw.faceSwitches);
+			}).catch(() => {});
+			fetchText("/zctx-ui/api/stats").then((text) => {
+				if (!alive) return;
+				const raw = JSON.parse(text);
+				if (raw.stats !== void 0) {
+					setLedger(raw.stats);
+					setLedgerOk(true);
+				}
+			}).catch(() => {
+				if (!alive) return;
+				setLedgerOk(false);
+			});
+			return () => {
+				alive = false;
 			};
 		}, []);
 		const face = value.faceState ?? "unknown";
 		const faceZh = FACE_STATE_ZH[face] ?? face;
 		const faceColor = face === "active" ? "#3fb950" : face === "degraded" ? "#d29922" : "#f85149";
 		const sessions = value.availableSessions ?? [];
+		const inputFor = (k, v) => typeof v === "boolean" ? e("input", {
+			className: "zctx-field-input",
+			type: "checkbox",
+			defaultChecked: v === true,
+			"data-key": k,
+			"data-type": "boolean"
+		}) : e("input", {
+			className: "zctx-field-input",
+			type: "text",
+			defaultValue: String(v),
+			"data-key": k,
+			"data-type": typeof v === "number" ? "number" : "text"
+		});
 		return e("div", { className: "zctx-panel" }, e("h2", { className: "zctx-panel-title" }, t$1("panelTitle", lang)), e("div", { className: "zctx-panel-face" }, e("span", {
 			className: "zctx-dot",
 			style: { color: faceColor }
 		}, "●"), e("span", null, ` ${t$1("face", lang)}: ${faceZh}`)), fetchError !== void 0 ? e("div", { className: "zctx-panel-err" }, `${t$1("fetchError", lang)}: ${fetchError}${t$1("retryHint", lang)}`) : null, e("h3", null, t$1("view", lang)), sessions.length >= 1 ? e("div", { className: "zctx-panel-row" }, e("span", null, `${t$1("session", lang)}: `), sessions.length > 1 ? e("select", {
 			className: "zctx-panel-select",
-			value: value.sessionId ?? "",
+			value: picked ?? value.sessionId ?? "",
 			onChange: (ev) => {
-				const target = ev;
-				if (typeof target?.target?.value === "string") fetchText(`/zctx-ui/api/snapshot?session=${encodeURIComponent(target.target.value)}`).then((text) => {
-					setData(parsePanelSnapshot(text));
-				}).catch(() => {});
+				const v = ev?.target?.value;
+				if (typeof v === "string") setPicked(v);
 			}
 		}, sessions.map((s) => e("option", {
 			key: s,
 			value: s
-		}, s))) : e("span", null, value.sessionId ?? "n/a")) : null, e("div", { className: "zctx-panel-row" }, `${t$1("windowPressure", lang)}: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("div", { className: "zctx-panel-row" }, `${t$1("tokens", lang)}: ${value.totalTokens ?? "n/a"} / ${value.contextWindow ?? "n/a"}`), value.degradedCount !== void 0 ? e("div", { className: "zctx-panel-note" }, `${t$1("degradedRows", lang)}: ${value.degradedCount} 条`) : null, e("h3", null, t$1("stats", lang)), e("div", { className: "zctx-panel-row" }, `${t$1("foldCount", lang)}(累计): ${ledger.totalFolds ?? value.foldCount ?? 0}`), e("div", { className: "zctx-panel-row" }, `累计节省 tokens: ${ledger.totalTokensSaved ?? "n/a"}`), e("div", { className: "zctx-panel-row" }, `覆盖会话: ${ledger.sessionsCount ?? "n/a"}`), e("div", { className: "zctx-panel-row" }, `${t$1("foldableRanges", lang)}(当前): ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `${t$1("cacheSamples", lang)}(当前): ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ` ${t$1("measured", lang)}` : ` ${t$1("estimatedNone", lang)}`}`), e("h3", null, t$1("settings", lang)), e("div", { className: "zctx-panel-fields" }, Object.keys(cfg).length > 0 ? Object.entries(cfg).map(([k, v]) => e("label", {
+		}, s))) : e("span", null, picked ?? value.sessionId ?? "n/a")) : null, e("div", { className: "zctx-panel-row" }, `${t$1("windowPressure", lang)}: ${value.pressurePct !== void 0 ? `${value.pressurePct.toFixed(1)}%` : "n/a"}`), e("div", { className: "zctx-panel-row" }, `${t$1("tokens", lang)}: ${value.totalTokens ?? "n/a"} / ${value.contextWindow ?? "n/a"}`), value.degradedCount !== void 0 ? e("div", { className: "zctx-panel-note" }, `${t$1("degradedRows", lang)}: ${value.degradedCount}${t$1("rowsSuffix", lang)}`) : null, e("h3", null, t$1("stats", lang)), ledgerOk ? [
+			e("div", {
+				className: "zctx-panel-row",
+				key: "cum-folds"
+			}, `${t$1("foldCount", lang)}${t$1("cumulative", lang)}: ${ledger.totalFolds ?? 0}`),
+			e("div", {
+				className: "zctx-panel-row",
+				key: "cum-saved"
+			}, `${t$1("totalsSaved", lang)}${ledger.totalTokensSaved ?? "n/a"}`),
+			e("div", {
+				className: "zctx-panel-row",
+				key: "cum-sessions"
+			}, `${t$1("sessionsCovered", lang)}${ledger.sessionsCount ?? "n/a"}`)
+		] : e("div", { className: "zctx-panel-err" }, t$1("statsUnavailable", lang)), e("div", { className: "zctx-panel-row" }, `${t$1("foldableRanges", lang)}${t$1("current", lang)}: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `${t$1("cacheSamples", lang)}${t$1("current", lang)}: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ` ${t$1("measured", lang)}` : ` ${t$1("estimatedNone", lang)}`}`), e("h3", null, t$1("settings", lang)), e("div", { className: "zctx-panel-fields" }, Object.keys(cfg).length > 0 ? Object.entries(cfg).map(([k, v]) => e("label", {
 			className: "zctx-field",
 			key: k
-		}, e("span", { className: "zctx-field-key" }, fieldLabel(k, lang)), e("input", {
-			className: "zctx-field-input",
-			type: typeof v === "boolean" ? "checkbox" : "text",
-			...typeof v === "boolean" ? { checked: v } : { value: String(v) },
-			"data-key": k
-		}))) : t$1("configNotLoaded", lang)), e("button", {
+		}, e("span", { className: "zctx-field-key" }, fieldLabel(k, lang)), inputFor(k, v))) : t$1("configNotLoaded", lang)), e("h3", null, t$1("faceSwitches", lang)), e("div", { className: "zctx-panel-faces" }, Object.keys(faces).length > 0 ? Object.entries(faces).map(([k, v]) => {
+			if (k === "preflightMode") return e("label", {
+				className: "zctx-field",
+				key: k
+			}, e("span", { className: "zctx-field-key" }, fieldLabel(k, lang)), e("select", {
+				className: "zctx-panel-select",
+				defaultValue: typeof v === "string" ? v : void 0,
+				"data-key": k,
+				"data-type": "select"
+			}, ...[
+				"off",
+				"observe",
+				"enforce"
+			].map((m) => e("option", {
+				key: m,
+				value: m
+			}, m))));
+			return e("label", {
+				className: "zctx-field",
+				key: k
+			}, e("span", { className: "zctx-field-key" }, fieldLabel(k, lang)), inputFor(k, v));
+		}) : t$1("configNotLoaded", lang)), e("button", {
 			className: "zctx-save",
 			onClick: () => {
-				const patch = {};
 				const docLike = typeof document !== "undefined" ? document : void 0;
-				const root = docLike?.querySelector?.(".zctx-panel-fields") ?? null;
-				if (root === null) return;
-				const inputs = root.querySelectorAll("[data-key]");
-				for (const el of inputs) {
-					const key = el.getAttribute("data-key");
-					if (key === null) continue;
-					patch[key] = el.getAttribute("type") === "checkbox" ? el.checked === true : el.value;
+				const resultEl = docLike?.querySelector?.(".zctx-save-result") ?? null;
+				const show = (message) => {
+					if (resultEl !== null) resultEl.textContent = message;
+				};
+				const fieldsRoot = docLike?.querySelector?.(".zctx-panel-fields") ?? null;
+				const facesRoot = docLike?.querySelector?.(".zctx-panel-faces") ?? null;
+				if (fieldsRoot === null || facesRoot === null) return;
+				const fields = {};
+				const faceSwitchesPatch = {};
+				const badNumberKeys = [];
+				const collect = (root, into) => {
+					for (const el of root.querySelectorAll("[data-key]")) {
+						const key = el.getAttribute("data-key");
+						if (key === null) continue;
+						const type = el.getAttribute("data-type");
+						if (type === "boolean") {
+							into[key] = el.checked === true;
+							continue;
+						}
+						if (type === "number") {
+							const n = Number(el.value);
+							if (Number.isNaN(n)) {
+								badNumberKeys.push(key);
+								continue;
+							}
+							into[key] = n;
+							continue;
+						}
+						into[key] = el.value;
+					}
+				};
+				collect(fieldsRoot, fields);
+				collect(facesRoot, faceSwitchesPatch);
+				if (badNumberKeys.length > 0) {
+					show(`${t$1("invalidNumber", lang)}${badNumberKeys.join(", ")}`);
+					return;
 				}
 				fetch("/zctx-ui/api/config", {
 					method: "POST",
 					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ fields: patch })
+					body: JSON.stringify({
+						fields,
+						faceSwitches: faceSwitchesPatch
+					})
 				}).then((r) => r.json()).then((j) => {
-					const el2 = docLike?.querySelector?.(".zctx-save-result") ?? null;
-					if (el2 === null) return;
-					el2.textContent = j.ok === true ? t$1("saved", lang) : `${t$1("saveFailed", lang)}: ${j.error ?? ""}`;
+					show(j.ok === true ? t$1("saved", lang) : `${t$1("saveFailed", lang)}: ${j.error ?? ""}`);
 				}).catch(() => {});
 			}
 		}, t$1("save", lang)), e("span", { className: "zctx-save-result" }));
@@ -485,8 +578,8 @@ function createPanelIcon(React) {
 }
 /**
 * Top-level fiber apply. Capability-probes every host surface; `slots` absent
-* → lazy no-op (no PENDING, no throw). Falls back to a plain link component if
-* React/styles unavailable.
+* → lazy no-op (no PENDING, no throw). Falls back to a plain text card if
+* React is unavailable (B-3: text, never a link — the page route is gone).
 */
 function apply(ctx, adapters = {}) {
 	const React = resolveReact(adapters);
@@ -494,7 +587,7 @@ function apply(ctx, adapters = {}) {
 	const styles = ctx.get?.("styles") ?? void 0;
 	const doc = adapters.document ?? (typeof document !== "undefined" ? document : void 0);
 	const register = () => {
-		const finalComponent = createSummaryCard(React, void 0, fetchText) ?? createFallbackLink(doc);
+		const finalComponent = createSummaryCard(React, void 0, fetchText) ?? createFallbackCard(doc);
 		return ctx.slots?.register?.({
 			name: SLOT_KEY,
 			id: CARD_ID,
@@ -536,7 +629,7 @@ const fiber = {
 };
 
 exports.apply = apply;
-exports.createFallbackLink = createFallbackLink;
+exports.createFallbackCard = createFallbackCard;
 exports.createPanelComponent = createPanelComponent;
 exports.createPanelIcon = createPanelIcon;
 exports.createSummaryCard = createSummaryCard;
