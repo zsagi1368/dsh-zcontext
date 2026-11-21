@@ -17,6 +17,7 @@
 import { registerUiRoutes, type ConfigView, type UiRouteDeps } from './routes.ts'
 import { writeOverlay, type ConfigWriteResult } from './config-write.ts'
 import type { ZctxSnapshot } from './types.ts'
+import type { LedgerStats } from '../storage/db.ts'
 
 export * from './types.ts'
 export * from './auth.ts'
@@ -32,19 +33,15 @@ export interface UiAccessors {
   readonly snapshotFor: (sessionId?: string) => ZctxSnapshot
   /** Current config values for the settings form (from plugin.config). */
   readonly configValues: () => Record<string, unknown>
-  /** Durable-ledger aggregates (SQLite via node:sqlite; ZCTX-POLISH W1). */
-  readonly ledgerStats: () => LedgerStatsFromDb
+  /**
+   * Durable-ledger aggregates (SQLite via node:sqlite; ZCTX-POLISH W1).
+   * S-5: the type is the REAL `LedgerStats` from ../storage/db.ts — the single
+   * source of truth (routes.ts already imports it there; the former local
+   * `LedgerStatsFromDb` mirror duplicated the shape for no reason).
+   */
+  readonly ledgerStats: () => LedgerStats
   /** Optional webServer override (tests); production resolves via ctx.get. */
   readonly webServer?: UiRouteDeps['webServer']
-}
-
-/** Minimal structural type for the storage-ledger stats (avoids a store import). */
-export interface LedgerStatsFromDb {
-  readonly totalFolds: number
-  readonly totalTokensSaved: number
-  readonly sessionsCount: number
-  readonly lastFoldAt: number | undefined
-  readonly schemaVersion: number
 }
 
 /** Attach the three API routes to a host context. Returns the route disposer. */
