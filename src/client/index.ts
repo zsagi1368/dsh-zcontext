@@ -196,9 +196,23 @@ const sameOriginFetchText = (url: string): Promise<string> =>
   })
 
 /**
+ * Card-scope language resolution — the SAME semantics as the panel (S-9):
+ * `navigator.language` inherits the DSH host setting (detected non-zh → en);
+ * probe missing (bare-Node tests, no webview) → the zh default. The summary
+ * and fallback cards hold no React state, so the language resolves per render
+ * (a host locale change is picked up on the next host-driven re-render).
+ */
+function cardLang(): UiLang {
+  const nav = globalThis.navigator as { language?: string } | undefined
+  const navLang = typeof nav?.language === 'string' ? nav.language : undefined
+  return resolveLang(undefined, navLang)
+}
+
+/**
  * Build the card component. `React` may be absent → caller degrades to a text
  * card. B-3: NO link — the browser page route was removed; the card is a pure
- * summary plus a pointer to the native left-menu panel entry.
+ * summary plus a pointer to the native left-menu panel entry. S-9: ALL copy
+ * comes from the i18n dictionary (same language resolution as the panel).
  */
 export function createSummaryCard(
   React: ReactLike | undefined,
@@ -216,14 +230,17 @@ export function createSummaryCard(
   })
   return function SummaryCard(): unknown {
     const data = holder.data
+    const lang = cardLang()
     const stats = [
-      `折叠 ${data?.foldCount ?? 0} 次`,
-      data?.pressurePct !== undefined ? `窗口 ${data.pressurePct.toFixed(1)}%` : '窗口 n/a',
+      uiT('summaryFolds', lang).replace('{n}', String(data?.foldCount ?? 0)),
+      data?.pressurePct !== undefined
+        ? uiT('summaryWindow', lang).replace('{p}', data.pressurePct.toFixed(1))
+        : uiT('summaryWindowNa', lang),
     ].join(' · ')
     return e('div', { className: 'zctx-summary' },
-      e('h3', null, 'zcontext 摘要 (BETA)'),
+      e('h3', null, uiT('summaryTitle', lang)),
       e('div', { className: 'zctx-stats' }, stats),
-      e('div', { className: 'zctx-summary-note' }, '请在左侧菜单 zcontext 打开面板'),
+      e('div', { className: 'zctx-summary-note' }, uiT('panelLinkHint', lang)),
     )
   }
 }
@@ -232,11 +249,12 @@ export function createSummaryCard(
  * Build the no-React fallback component. It returns a REAL, assertable render
  * product: a text node (when a document is available) AND a `FallbackRender`
  * descriptor with a non-empty label. Never a blank `null` card (B5-1) and
- * never a link (B-3: the pointed-at page no longer exists).
+ * never a link (B-3: the pointed-at page no longer exists). S-9: the copy
+ * comes from the i18n dictionary (same language resolution as the panel).
  */
 export function createFallbackCard(doc?: DocumentLike): (() => FallbackRender) {
   return function FallbackCard(): FallbackRender {
-    const text = '请在左侧菜单 zcontext 打开面板'
+    const text = uiT('panelLinkHint', cardLang())
     let node: unknown
     if (doc !== undefined && typeof doc.createElement === 'function') {
       try {

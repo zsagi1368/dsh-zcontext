@@ -23,6 +23,7 @@ import {
   parseSummary,
   parsePanelSnapshot,
   createSummaryCard,
+  createFallbackCard,
   createPanelComponent,
   fiber,
   type ClientCtx,
@@ -40,6 +41,23 @@ function mockReact(): ReactLike & { calls: unknown[][] } {
       calls.push([type, props, ...children])
       return { type, props, children }
     },
+  }
+}
+
+/**
+ * Swap the host navigator for one scope — async-safe. Mirror of the helper in
+ * panel-i18n.spec.ts (self-contained spec). `undefined` simulates a host with
+ * no locale probe (the cards' zh-default path; Node's real navigator carries
+ * navigator.language === 'en-US', so a language-agnostic scope must be forced).
+ */
+async function withNavigator<T>(language: string | undefined, fn: () => T | Promise<T>): Promise<T> {
+  const desc = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  Object.defineProperty(globalThis, 'navigator', { value: { language }, writable: true, configurable: true })
+  try {
+    return await fn()
+  } finally {
+    if (desc !== undefined) Object.defineProperty(globalThis, 'navigator', desc)
+    else delete (globalThis as { navigator?: unknown }).navigator
   }
 }
 
@@ -166,19 +184,65 @@ describe('ZCTX-UI D6: styles + summary (V7)', () => {
     expect(parseSummary('{}')).toEqual({ foldCount: 0, pressurePct: undefined, sessionId: undefined })
   })
 
-  it('card renders a pure summary + panel hint; NO dead /zctx-ui link (B-3)', () => {
-    const React = mockReact()
-    const card = createSummaryCard(React, { foldCount: 3, pressurePct: 12.3, sessionId: 's1' }, async () => '{}')
-    expect(typeof card).toBe('function')
-    ;(card as () => unknown)()
-    const serialized = JSON.stringify(React.calls)
-    // B-3: the browser page route was removed — the card must not ship a link
-    // to it, and must point at the native left-menu panel entry instead.
-    expect(serialized).not.toContain('/zctx-ui')
-    expect(serialized).not.toContain('href')
-    expect(serialized).toContain('折叠 3 次')
-    expect(serialized).toContain('12.3%')
-    expect(serialized).toContain('请在左侧菜单 zcontext 打开面板')
+  it('card renders a pure summary + panel hint; NO dead /zctx-ui link (B-3, S-9 zh copy)', async () => {
+    // S-9: the card copy rides the i18n dictionary — pin the zh halves with an
+    // explicit zh probe (Node's ambient navigator.language would resolve en).
+    await withNavigator('zh-CN', async () => {
+      const React = mockReact()
+      const card = createSummaryCard(React, { foldCount: 3, pressurePct: 12.3, sessionId: 's1' }, async () => '{}')
+      expect(typeof card).toBe('function')
+      ;(card as () => unknown)()
+      const serialized = JSON.stringify(React.calls)
+      // B-3: the browser page route was removed — the card must not ship a link
+      // to it, and must point at the native left-menu panel entry instead.
+      expect(serialized).not.toContain('/zctx-ui')
+      expect(serialized).not.toContain('href')
+      expect(serialized).toContain('折叠 3 次')
+      expect(serialized).toContain('12.3%')
+      expect(serialized).toContain('请在左侧菜单 zcontext 打开面板')
+    })
+  })
+})
+
+describe('S-9: summary card + fallback copy ride the i18n dictionary (en mode renders ZERO CJK)', () => {
+  it('en host → summary card renders the EN dictionary halves, ZERO CJK', async () => {
+    await withNavigator('en-US', async () => {
+      const React = mockReact()
+      const card = createSummaryCard(React, { foldCount: 3, pressurePct: 12.3, sessionId: 's1' }, async () => '{}')
+      expect(typeof card).toBe('function')
+      ;(card as () => unknown)()
+      const serialized = JSON.stringify(React.calls)
+      // The S-9 regression: hardcoded zh literals leaked into en mode.
+      expect(serialized).not.toMatch(/[\u4e00-\u9fff]/)
+      expect(serialized).toContain('zcontext summary (BETA)')
+      expect(serialized).toContain('3 folds')
+      expect(serialized).toContain('Window 12.3%')
+      expect(serialized).toContain('Open the panel from the zcontext entry in the left menu')
+    })
+  })
+
+  it('en host → the no-React fallback card renders the EN hint, ZERO CJK', async () => {
+    await withNavigator('en-US', async () => {
+      const rendered = createFallbackCard()()
+      expect(rendered.tag).toBe('span')
+      expect(rendered.text).not.toMatch(/[\u4e00-\u9fff]/)
+      expect(rendered.text).toBe('Open the panel from the zcontext entry in the left menu')
+    })
+  })
+
+  it('probe missing (language undefined) → the zh default — bilingual completeness both ways', async () => {
+    await withNavigator(undefined, async () => {
+      const React = mockReact()
+      const card = createSummaryCard(React, { foldCount: 3, pressurePct: undefined, sessionId: 's1' }, async () => '{}')
+      ;(card as () => unknown)()
+      const serialized = JSON.stringify(React.calls)
+      expect(serialized).toContain('zcontext 摘要 (BETA)')
+      expect(serialized).toContain('折叠 3 次')
+      expect(serialized).toContain('窗口 n/a')
+      expect(serialized).toContain('请在左侧菜单 zcontext 打开面板')
+      const fallback = createFallbackCard()()
+      expect(fallback.text).toBe('请在左侧菜单 zcontext 打开面板')
+    })
   })
 })
 

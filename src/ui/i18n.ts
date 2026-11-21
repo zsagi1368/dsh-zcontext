@@ -52,6 +52,14 @@ export const UI_DICT = {
   // B-2a: the face-switch form (four keys, rendered from GET faceSwitches).
   faceSwitches: { zh: 'face 开关', en: 'Face switches' },
   invalidNumber: { zh: '数值字段格式错误（未提交）: ', en: 'Invalid number field(s) — nothing was saved: ' },
+  // S-9: the summary card + no-React fallback copy (five former hardcoded zh
+  // literals) rides this dictionary too — en mode renders ZERO CJK there.
+  // `{n}`/`{p}` are caller-interpolated placeholders (t() stays a pure lookup).
+  summaryTitle: { zh: 'zcontext 摘要 (BETA)', en: 'zcontext summary (BETA)' },
+  summaryFolds: { zh: '折叠 {n} 次', en: '{n} folds' },
+  summaryWindow: { zh: '窗口 {p}%', en: 'Window {p}%' },
+  summaryWindowNa: { zh: '窗口 n/a', en: 'Window n/a' },
+  panelLinkHint: { zh: '请在左侧菜单 zcontext 打开面板', en: 'Open the panel from the zcontext entry in the left menu' },
 } as const
 
 export type UiDictKey = keyof typeof UI_DICT
