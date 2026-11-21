@@ -51,7 +51,9 @@ export const UI_DICT = {
   statsUnavailable: { zh: '统计暂不可用', en: 'stats unavailable' },
   // B-2a: the face-switch form (four keys, rendered from GET faceSwitches).
   faceSwitches: { zh: 'face 开关', en: 'Face switches' },
-  invalidNumber: { zh: '数值字段格式错误（未提交）: ', en: 'Invalid number field(s) — nothing was saved: ' },
+  // S-10: the message covers BOTH reject reasons (NaN and the empty string
+  // that Number('') would silently turn into 0).
+  invalidNumber: { zh: '数值字段无效或为空（未提交）: ', en: 'Invalid or empty number field(s) — nothing was saved: ' },
   // S-9: the summary card + no-React fallback copy (five former hardcoded zh
   // literals) rides this dictionary too — en mode renders ZERO CJK there.
   // `{n}`/`{p}` are caller-interpolated placeholders (t() stays a pure lookup).

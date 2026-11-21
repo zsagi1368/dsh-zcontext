@@ -11,6 +11,8 @@
  *     select);
  *   - B-2b: number fields POST as numbers (NaN rejects the WHOLE submit) and
  *     the wire shape is `{ fields, faceSwitches }`;
+ *   - S-10: an EMPTY number field rejects the submit too — Number('') === 0
+ *     would silently save 0 (protection-floor semantics);
  *   - S-2:  the eight dead page-era dictionary keys are gone;
  *   - S-4:  a failed ledger read renders 统计暂不可用, never mislabeled
  *     current-session numbers.
@@ -420,6 +422,46 @@ describe('B-2b: the save path — number conversion + wire shape', () => {
         // The failing key is named in the message (language-independent pin).
         expect(resultEl.textContent).toContain('keepRecentTokens')
         expect(resultEl.textContent.length).toBeGreaterThan(0)
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+  })
+
+  it('an EMPTY number field rejects the WHOLE submit too — Number("")===0 must never silently save 0 (S-10)', async () => {
+    await withNavigator('zh-CN', async () => {
+      const { onClick } = mountPanelWithSave()
+      const resultEl = { textContent: '' }
+      const doc = {
+        querySelector(sel: string) {
+          if (sel === '.zctx-panel-fields') return {
+            querySelectorAll: () => [
+              fieldEl('protectionFloorTokens', 'number', ''),
+              fieldEl('summaryCeilingChars', 'number', '   '),
+              fieldEl('enabled', 'boolean', '', true),
+            ],
+          }
+          if (sel === '.zctx-panel-faces') return { querySelectorAll: () => [fieldEl('observe.enabled', 'boolean', '')] }
+          if (sel === '.zctx-save-result') return resultEl
+          return null
+        },
+      }
+      const posts: Array<{ url: string; body?: string }> = []
+      vi.stubGlobal('document', doc)
+      vi.stubGlobal('fetch', async (url: string, init?: { body?: string }) => {
+        posts.push({ url, body: init?.body })
+        return { json: async () => ({ ok: true }) }
+      })
+      try {
+        onClick()
+        await tick()
+        // Zero POSTs — the empty (and whitespace-only) fields are rejected,
+        // never silently coerced to 0 by Number('') === 0.
+        expect(posts).toHaveLength(0)
+        // Both rejected keys are named in the message.
+        expect(resultEl.textContent).toContain('protectionFloorTokens')
+        expect(resultEl.textContent).toContain('summaryCeilingChars')
+        expect(resultEl.textContent).toContain('未提交')
       } finally {
         vi.unstubAllGlobals()
       }

@@ -553,10 +553,14 @@ export function createPanelComponent(
                 continue
               }
               if (type === 'number') {
-                // B-2b: numbers go over the wire AS NUMBERS (frozen contract:
-                // every config field is primitive). A NaN value rejects the
-                // WHOLE submit — no partial write, message shown instead.
-                const n = Number(el.value)
+                // B-2b + S-10: numbers go over the wire AS NUMBERS (frozen
+                // contract: every config field is primitive). An EMPTY value is
+                // rejected too — Number('') === 0 would silently submit 0
+                // (protection-floor semantics!); a NaN value is rejected as
+                // before. Either way the WHOLE submit is rejected with the key
+                // names shown — no partial write.
+                const raw = typeof el.value === 'string' ? el.value.trim() : ''
+                const n = raw === '' ? Number.NaN : Number(raw)
                 if (Number.isNaN(n)) {
                   badNumberKeys.push(key)
                   continue
