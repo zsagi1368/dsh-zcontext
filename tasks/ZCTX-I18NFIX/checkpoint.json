@@ -1,0 +1,19 @@
+{
+  "schema": "checkpoint/v1",
+  "task": "ZCTX-I18NFIX",
+  "step": 3,
+  "block": "r3 nano zeroing per review-B1-r2 (bf7dbde): poll-clause truth / dead dict row / comment reunion",
+  "status": "done",
+  "ts": "2026-11-21T14:28:13.702Z",
+  "evidence": {
+    "gates": "tsc 0; 788/788; build; handshake 5/5 (rerun after r3)",
+    "r3": [
+      "R2-1: cardLang comment clause now states fetch-once + webview-reload rebuild (mechanism-honest)",
+      "R2-2: UI_DICT.uiLanguage dead row removed; FIELD_LABELS.uiLanguage is the label source (pointer note left)",
+      "流程-1: LOCALE_SHAPE doc reunited with declaration; module header honest about IO half in-module"
+    ]
+  },
+  "next": "re-review quick check → merge+deploy",
+  "prev_hash": "c6186772bc8af7ff34f73f289ad393509c559c6aebef09b53d07f0b1c8077e3c",
+  "hash": "d46de3f3d6d87a53abb429b93bc7b579590774a1d2450d495c2b95d4932ba2fd"
+}

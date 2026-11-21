@@ -3,14 +3,17 @@
  *
  * STRATEGY (user 2026-11-20: "语言跟随 DSH，默认中文，其他语言只显示英语";
  * semantics re-pinned by review-B3 B-4a — explicit preference > host probe >
- * default, and a DETECTED non-zh locale maps to `en`, never to zh):
- * - an explicit preference (`'zh'` | `'en'`) always wins;
- * - otherwise the host locale probe (the panel reads the webview's
- *   `navigator.language`, which inherits the DSH language setting):
- *   `zh*` → `zh`; ANY other detected language → `en`;
- * - probe missing/empty → default `zh` (the product's primary audience).
- * There is no settings-override surface: the old `uiLanguage` settings key
- * never shipped; the probe is best-effort and must never block boot.
+ * default, and a DETECTED non-zh locale maps to `en`, never to zh;
+ * ZCTX-I18NFIX — the host probe anchor is the SNAPSHOT's `locale` field, which
+ * carries the desktop shell's CONFIRMED language from locale-cache; the
+ * webview navigator.language is only the fallback, because it reflects the
+ * Electron-level locale (en-US) rather than the DSH setting (zh-CN)):
+ * - an explicit preference (`'zh'` | `'en'`, panel selector, persisted via the
+ *   `uiLanguage` config key) always wins; `'auto'`/absent = follow probes;
+ * - otherwise the snapshot locale (desktop shell, zh* → zh, other → en);
+ * - otherwise navigator.language (zh* → zh, other → en);
+ * - all probes missing → default `zh` (the product's primary audience).
+ * The probe is best-effort and must never block boot.
  *
  * @module ui/i18n
  */
@@ -62,9 +65,29 @@ export const UI_DICT = {
   summaryWindow: { zh: '窗口 {p}%', en: 'Window {p}%' },
   summaryWindowNa: { zh: '窗口 n/a', en: 'Window n/a' },
   panelLinkHint: { zh: '请在左侧菜单 zcontext 打开面板', en: 'Open the panel from the zcontext entry in the left menu' },
+  // ZCTX-I18NFIX: the language selector (three options) + honest probe note.
+  // Option keys are langOpt* — the bare langZh/langEn names were page-era
+  // dead keys (S-2 keeps them banned, so the live selector must not collide).
+  // The selector's field label lives in FIELD_LABELS.uiLanguage (config-key
+  // labels are its domain) — no UI_DICT duplicate (review-B1 建议-R2-2).
+  langOptFollow: { zh: '跟随 DSH', en: 'Follow DSH' },
+  langOptZh: { zh: '中文', en: 'Chinese' },
+  langOptEn: { zh: 'English', en: 'English' },
+  langAutoNote: { zh: '（自动=桌面端确认语言；探测不到时默认中文）', en: '(auto = desktop-confirmed language; falls back to Chinese)' },
 } as const
 
 export type UiDictKey = keyof typeof UI_DICT
+
+/**
+ * ZCTX-I18NFIX: the three uiLanguage selector options. Labels are SINGLE-SOURCED
+ * from UI_DICT (review-B1 建议-3 — the former literal duplicates drifted from
+ * the dict rows); the value list itself is structural, not copy.
+ */
+export const UI_LANG_OPTIONS: ReadonlyArray<{ readonly value: 'auto' | 'zh' | 'en'; readonly key: UiDictKey }> = [
+  { value: 'auto', key: 'langOptFollow' },
+  { value: 'zh', key: 'langOptZh' },
+  { value: 'en', key: 'langOptEn' },
+]
 
 /**
  * Resolve the UI language: explicit preference > host probe > default zh.
@@ -95,6 +118,7 @@ export const FIELD_LABELS: Record<string, { zh: string; en: string }> = {
   'patch.guardObserveEvents': { zh: '补丁 guard 观测桥', en: 'patch guard-observe bridge' },
   'autofold.enabled': { zh: '自动折叠开关', en: 'autofold face' },
   preflightMode: { zh: 'preflight 模式 (off|observe|enforce)', en: 'preflight mode (off|observe|enforce)' },
+  uiLanguage: { zh: '界面语言', en: 'UI language' },
 }
 
 /** Face state → zh. */

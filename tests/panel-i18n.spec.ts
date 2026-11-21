@@ -26,7 +26,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { resolveLang, UI_DICT, FIELD_LABELS } from '../src/ui/i18n.ts'
-import { createPanelComponent, type ReactLike } from '../src/client/index.ts'
+import { createPanelComponent, createSummaryCard, type ReactLike } from '../src/client/index.ts'
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -523,6 +523,178 @@ describe('S-4: ledger stats honesty', () => {
         expect(serialized).toContain('累计节省 tokens: 3400')
         expect(serialized).toContain('覆盖会话: 5')
         expect(serialized).not.toContain('统计暂不可用')
+      } finally {
+        unmount(mock)
+      }
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// ZCTX-I18NFIX: language anchors on the SNAPSHOT's locale field (the desktop
+// shell's CONFIRMED language from locale-cache), not the Electron-level
+// navigator locale — the real-device mismatch (locale-cache=zh-CN vs
+// navigator=en-US) that rendered the panel English on a Chinese DSH.
+// ---------------------------------------------------------------------------
+
+const LOCALE_SNAPSHOT_ZH = JSON.stringify({ locale: 'zh-CN' })
+
+describe('ZCTX-I18NFIX: panel language follows the desktop shell locale', () => {
+  it('snapshot locale zh-CN beats an en-US navigator (the real-device mismatch)', async () => {
+    await withNavigator('en-US', async () => {
+      const mock = statefulReact()
+      const component = buildPanel(mock, async () => LOCALE_SNAPSHOT_ZH)
+      try {
+        renderPanel(mock, component)
+        await tick()
+        const before = mock.calls.length
+        renderPanel(mock, component)
+        // Assert the LAST render only: the first render runs before the
+        // snapshot lands (navigator fallback → en) — the settled state is zh.
+        const serialized = JSON.stringify(mock.calls.slice(before))
+        expect(serialized).toContain('zcontext 面板 (BETA)')
+        expect(serialized).not.toContain('zcontext Panel (BETA)')
+      } finally {
+        unmount(mock)
+      }
+    })
+  })
+
+  it('snapshot locale en-US + navigator en-US renders en (non-zh → en regression)', async () => {
+    await withNavigator('en-US', async () => {
+      const mock = statefulReact()
+      const component = buildPanel(mock, async () => JSON.stringify({ locale: 'en-US' }))
+      try {
+        renderPanel(mock, component)
+        await tick()
+        const before = mock.calls.length
+        renderPanel(mock, component)
+        const serialized = JSON.stringify(mock.calls.slice(before))
+        expect(serialized).toContain('zcontext Panel (BETA)')
+        expect(serialized).not.toContain('zcontext 面板 (BETA)')
+      } finally {
+        unmount(mock)
+      }
+    })
+  })
+
+  it('review-B1 建议-5: locale en-US beats a zh-CN navigator (locale > navigator, en direction)', async () => {
+    await withNavigator('zh-CN', async () => {
+      const mock = statefulReact()
+      const component = buildPanel(mock, async () => JSON.stringify({ locale: 'en-US' }))
+      try {
+        renderPanel(mock, component)
+        await tick()
+        const before = mock.calls.length
+        renderPanel(mock, component)
+        const serialized = JSON.stringify(mock.calls.slice(before))
+        // If the implementation ignored the locale field this arm would render
+        // zh (the navigator fallback) and FAIL — the direction is pinned.
+        expect(serialized).toContain('zcontext Panel (BETA)')
+        expect(serialized).not.toContain('zcontext 面板 (BETA)')
+      } finally {
+        unmount(mock)
+      }
+    })
+  })
+
+  it('review-B1 建议-1a: the summary card anchors on the snapshot locale (zh-CN beats en-US navigator)', async () => {
+    await withNavigator('en-US', async () => {
+      const mock = statefulReact()
+      const component = createSummaryCard(mock, undefined, async () =>
+        JSON.stringify({ attribution: { foldCount: 3 }, window: { pressurePct: 42 }, locale: 'zh-CN' }))
+      if (component === undefined) throw new Error('React mock present — card must build')
+      const render = component as () => unknown
+      render()
+      await tick() // the initial refreshSummary lands
+      const before = mock.calls.length
+      render()
+      const serialized = JSON.stringify(mock.calls.slice(before))
+      expect(serialized).toContain('zcontext 摘要 (BETA)')
+      expect(serialized).not.toContain('zcontext summary (BETA)')
+      expect(serialized).toContain('折叠 3 次')
+    })
+  })
+
+  it('an explicit uiLanguage=zh preference beats an en-US snapshot locale', async () => {
+    await withNavigator('en-US', async () => {
+      const mock = statefulReact()
+      const component = buildPanel(mock, async (url: string) => {
+        if (url.includes('/api/config')) {
+          return JSON.stringify({ fields: { uiLanguage: 'zh' }, faceSwitches: {} })
+        }
+        return JSON.stringify({ locale: 'en-US' })
+      })
+      try {
+        renderPanel(mock, component)
+        await tick()
+        const before = mock.calls.length
+        renderPanel(mock, component)
+        const serialized = JSON.stringify(mock.calls.slice(before))
+        expect(serialized).toContain('zcontext 面板 (BETA)')
+        expect(serialized).not.toContain('zcontext Panel (BETA)')
+      } finally {
+        unmount(mock)
+      }
+    })
+  })
+
+  it('the language selector always renders with 3 options (auto default when unset)', async () => {
+    await withNavigator('zh-CN', async () => {
+      const mock = statefulReact()
+      const component = buildPanel(mock, async (url: string) => {
+        if (url.includes('/api/config')) return JSON.stringify({ fields: {}, faceSwitches: {} })
+        return LOCALE_SNAPSHOT_ZH
+      })
+      try {
+        renderPanel(mock, component)
+        await tick()
+        const before = mock.calls.length
+        renderPanel(mock, component)
+        const settled = mock.calls.slice(before)
+        const select = lastProps({ calls: settled } as unknown as StatefulReactMock, (p) => p['data-key'] === 'uiLanguage')
+        expect(select).toBeDefined()
+        expect(select?.defaultValue).toBe('auto')
+        const optionValues = settled
+          .filter(([type, props]) => type === 'option' && (props as Record<string, unknown> | undefined)?.value !== undefined)
+          .map(([, props]) => (props as { value: string }).value)
+        expect(optionValues).toEqual(['auto', 'zh', 'en'])
+        const labels = settled
+          .filter(([type]) => type === 'option')
+          .map((call) => call[2])
+        expect(labels).toEqual(['跟随 DSH', '中文', 'English'])
+      } finally {
+        unmount(mock)
+      }
+    })
+  })
+
+  it('the fields loop never renders a duplicate uiLanguage input (single [data-key=uiLanguage])', async () => {
+    await withNavigator('zh-CN', async () => {
+      const mock = statefulReact()
+      const component = buildPanel(mock, async (url: string) => {
+        if (url.includes('/api/config')) {
+          return JSON.stringify({ fields: { enabled: true, uiLanguage: 'en' }, faceSwitches: {} })
+        }
+        return LOCALE_SNAPSHOT_ZH
+      })
+      try {
+        renderPanel(mock, component)
+        await tick()
+        const before = mock.calls.length
+        renderPanel(mock, component)
+        const settled = mock.calls.slice(before)
+        const selects = settled.filter(
+          ([, props]) => (props as Record<string, unknown> | undefined)?.['data-key'] === 'uiLanguage',
+        )
+        expect(selects).toHaveLength(1)
+        // The explicit en value from config is the untouched defaultValue.
+        expect((selects[0][1] as Record<string, unknown>).defaultValue).toBe('en')
+        // And no text input carries the key (the loop skipped it).
+        const textInputs = settled.filter(
+          ([type, props]) => type === 'input' && (props as Record<string, unknown> | undefined)?.['data-key'] === 'uiLanguage',
+        )
+        expect(textInputs).toHaveLength(0)
       } finally {
         unmount(mock)
       }

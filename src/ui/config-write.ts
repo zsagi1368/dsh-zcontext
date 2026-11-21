@@ -12,7 +12,7 @@
  * @module ui/config-write
  */
 
-/** The nine core fold/budget fields + four face switches (DESIGN §3.4). */
+/** The nine core fold/budget fields + four face switches + the UI language (DESIGN §3.4; ZCTX-I18NFIX). */
 export const UI_CONFIG_KEYS = [
   'enabled',
   'nudgeThresholds',
@@ -23,6 +23,7 @@ export const UI_CONFIG_KEYS = [
   'summaryFloorChars',
   'summaryCeilingChars',
   'netShrinkTolerance',
+  'uiLanguage',
   'observe.enabled',
   'patch.guardObserveEvents',
   'autofold.enabled',
@@ -85,6 +86,11 @@ export function sanitizePatch(patch: unknown): { ok: true; patch: Partial<Record
   const out: Record<string, unknown> = {}
   for (const key of keys) {
     if (!KEY_SET.has(key)) return { ok: false } // reject unknown keys wholesale (no partial silent drop)
+    // ZCTX-I18NFIX: uiLanguage has a closed value domain — anything outside
+    // auto|zh|en is rejected wholesale (same no-partial-drop discipline).
+    if (key === 'uiLanguage' && source[key] !== 'auto' && source[key] !== 'zh' && source[key] !== 'en') {
+      return { ok: false }
+    }
     out[key] = source[key]
   }
   return { ok: true, patch: out as Partial<Record<UiConfigKey, unknown>> }
