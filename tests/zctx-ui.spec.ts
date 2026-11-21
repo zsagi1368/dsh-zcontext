@@ -435,26 +435,11 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     return { routes, unregistered, disposer }
   }
 
-  it('registers all four native routes', () => {
+  it('registers all three native routes (page removed — dsh-app:// webview origin)', () => {
     const { routes } = setup()
     expect([...routes.keys()].sort()).toEqual(
-      ['/zctx-ui', '/zctx-ui/api/config', '/zctx-ui/api/snapshot'].sort(),
+      ['/zctx-ui/api/config', '/zctx-ui/api/snapshot', '/zctx-ui/api/stats'].sort(),
     )
-  })
-
-  it('GET /zctx-ui returns 200 HTML with the injected runtime token (not the placeholder)', async () => {
-    const { routes } = setup()
-    const res = await call(routes.get('/zctx-ui')!, mockReq({ method: 'GET', headers: { origin: 'http://localhost', host: 'localhost' } }))
-    expect(res.status).toBe(200)
-    expect(res.headers['content-type']).toContain('text/html')
-    expect(res.body).toContain('<!DOCTYPE html>')
-    expect(res.body).not.toContain('__ZCTX_BRIDGE_TOKEN__')
-    expect(res.body).toMatch(/zctx_[0-9a-z]+_[0-9a-f]{32}/)
-    // UI page contains all three blocks
-    expect(res.body).toContain('查看')
-    expect(res.body).toContain('统计')
-    expect(res.body).toContain('设置')
-    expect(res.body).toContain('BETA')
   })
 
   it('GET /zctx-ui/api/snapshot returns 200 JSON snapshot; ?session= resolves explicit', async () => {
@@ -468,6 +453,19 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     expect(body.version).toBe(1)
     expect(body.sessionResolution).toBe('explicit')
     expect(body.sessionId).toBe('sess-A')
+  })
+
+  it('GET /zctx-ui/api/stats returns 200 JSON durable-ledger aggregates (V2)', async () => {
+    const { routes } = setup()
+    const res = await call(
+      routes.get('/zctx-ui/api/stats')!,
+      mockReq({ method: 'GET', headers: { origin: 'http://localhost', host: 'localhost' } }),
+    )
+    expect(res.status).toBe(200)
+    const body = JSON.parse(res.body)
+    expect(body.ok).toBe(true)
+    expect(body.stats.schemaVersion).toBe(1)
+    expect(typeof body.stats.totalFolds).toBe('number')
   })
 
   it('GET /zctx-ui/api/config returns 200 JSON config view', async () => {
