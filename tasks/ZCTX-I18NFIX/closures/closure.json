@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "id": "IMPL",
+      "source": "task plan",
+      "type": "feature",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "commit 6ce79d9; 781/781; tsc 0; handshake 5/5",
+      "owner": "main"
+    },
+    {
+      "id": "R1",
+      "source": "hard rule",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "git diff --name-only HEAD: no patcher/ files; UI/plugin-only changes",
+      "owner": "main"
+    },
+    {
+      "id": "MIMOSA-Z40",
+      "source": "session",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "false-positive family documented in checkpoint evidence.notes; probe artifacts relocated to zctx del/20261121-asar-probe-artifacts with REGEN.md",
+      "owner": "main"
+    }
+  ]
+}

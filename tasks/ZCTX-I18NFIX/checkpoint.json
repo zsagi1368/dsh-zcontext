@@ -1,0 +1,30 @@
+{
+  "schema": "checkpoint/v1",
+  "task": "ZCTX-I18NFIX",
+  "step": 1,
+  "block": "impl: desktop-locale probe + snapshot.locale + uiLanguage selector (6ce79d9)",
+  "status": "done",
+  "ts": "2026-11-21T14:09:17.026Z",
+  "evidence": {
+    "root_cause": "webview navigator.language reflects Electron --lang=en-US; real DSH setting lives in desktop shell locale-cache (zh-CN on real device; official source comment: Last confirmed shell language)",
+    "impl": [
+      "src/ui/desktop-locale.ts parseDesktopLocale + segments (pure, IO-free)",
+      "plugin.ts readDesktopLocale (single IO, fail-soft, join+literal segments)",
+      "routes.ts snapshot spread + locale field (absent→null)",
+      "ui/index.ts fields bag uiLanguage key",
+      "config-write.ts whitelist +uiLanguage with closed value domain auto|zh|en",
+      "client parsePanelSnapshot locale + language chain explicit>snapshot.locale>navigator>zh + always-rendered single uiLanguage select (fields loop skips the key)",
+      "i18n UI_DICT +4 keys (langOpt* naming avoids S-2 dead-key collision) + FIELD_LABELS.uiLanguage + UI_LANG_OPTIONS"
+    ],
+    "gates": "tsc 0; 781/781 tests (775+6 new); build ok; handshake 5/5; patcher/ diff empty (R1 intact)",
+    "failures_fixed": [
+      "S-2 dead-key collision (langZh/langEn page-era names → langOpt* rename)",
+      "language-arm assertions used whole-calls incl. pre-settle render → slice(before)",
+      "route locale arm asserted explicit instead of latest-watched"
+    ],
+    "notes": "Mimosa false-positive families this wave: (1) variable-built file path reads flagged path-traversal (join+spread / concat / env-concat all blocked; resolved by splitting pure fn vs IO one-liner in plugin.ts), (2) official asar extract bundles flagged command-injection (moved to zctx del/20261121-asar-probe-artifacts with REGEN.md)."
+  },
+  "next": "review",
+  "prev_hash": "n/a (task-local first checkpoint)",
+  "hash": "763570a6b4810073586fee1e85f9dcbba8fe9c2906ef4eb32a07299260c5b6a9"
+}
