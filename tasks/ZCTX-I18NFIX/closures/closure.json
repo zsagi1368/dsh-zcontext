@@ -109,6 +109,26 @@
       "phase": "block",
       "evidence": "LOCALE_SHAPE doc+declaration reunited; module header reflects in-module IO half",
       "owner": "main"
+    },
+    {
+      "id": "B4",
+      "source": "task plan acceptance[1]",
+      "type": "acceptance",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "real-device capture: GET snapshot → {\"locale\":\"zh-CN\",faceHealth:active,signals 4/4 true} on host 127.0.0.1:61301 after byte-copy deploy of merge 473f891; stats live; config writable",
+      "owner": "main"
+    },
+    {
+      "id": "PUSH",
+      "source": "B4",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "origin main=473f891 + tag zctx-i18nfix-20261121a pushed (ls-remote verified)",
+      "owner": "main"
     }
   ]
 }
