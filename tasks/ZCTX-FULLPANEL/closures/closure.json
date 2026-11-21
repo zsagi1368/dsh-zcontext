@@ -1,8 +1,8 @@
 {
   "schema": "closure/v1",
   "task": "ZCTX-FULLPANEL",
-  "wave": "r1 (review-B3 rework, coder)",
-  "updated": "2026-11-21T13:05:00+08:00",
+  "wave": "r2 (review-B3 re-review rework, coder)",
+  "updated": "2026-11-21T13:11:44.754Z",
   "items": [
     {
       "id": "B-1",
@@ -128,10 +128,32 @@
       "id": "S-5",
       "source": "reviewer-fp:review-B3",
       "type": "suggestion",
-      "status": "OPEN",
-      "owner": "main",
+      "status": "verified",
       "phase": "block",
-      "note": "类型双轨（ui/index.ts LedgerStatsFromDb vs routes.ts 直接 import LedgerStats）——r1 任务卡范围清单未列入本条（planner 范围决策），coder 不越权改动；待主线处置：fixed 或按 §11 记账。行为无影响（纯类型层），不阻塞真机 B4。"
+      "note": "re-review r1 judged fixed (owner was main, out of r1 card scope); executed by coder in r2 per the rework card",
+      "disposition": "fixed",
+      "evidence": "ui/index.ts LedgerStatsFromDb interface DELETED; UiAccessors.ledgerStats = () => LedgerStats imported type-only from ../storage/db.ts (single source of truth, routes.ts:32 precedent); plugin.ts attachUi fallback literal verified structurally compatible (tsc 0); lib/index.d.ts re-rolls to LedgerStats — its sole remaining LedgerStatsFromDb grep hit is the S-5 explanation comment itself; commit 2515873",
+      "owner": "coder"
+    },
+    {
+      "id": "S-9",
+      "source": "reviewer-r2:review-B3 re-review",
+      "type": "suggestion",
+      "disposition": "fixed",
+      "evidence": "summary card + no-React fallback copy (5 former hardcoded zh literals: client/index.ts:220,221,224,226,239) moved into UI_DICT keys summaryTitle/summaryFolds/summaryWindow/summaryWindowNa/panelLinkHint ({n}/{p} caller-interpolated); cardLang() resolves language the SAME way as the panel (navigator.language probe, detected non-zh → en, probe missing → zh default); arms: en card ZERO-CJK + en fallback EN hint + probe-missing zh default (client-slot.spec.ts), existing zh pins explicitly zh-CN (Node 24 ambient navigator.language=en-US); 769/769 green; commit 9e25a8f",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "S-10",
+      "source": "reviewer-r2:review-B3 re-review",
+      "type": "suggestion",
+      "disposition": "fixed",
+      "evidence": "save path: value trimmed, EMPTY/whitespace number field → same reject path as NaN (whole submit rejected, key names shown; Number('')===0 can no longer silently save 0); invalidNumber wording covers both reasons (zh 数值字段无效或为空 / en Invalid or empty); new arm asserts zero POSTs + protectionFloorTokens+summaryCeilingChars named for '' and '   '; 769/769 green; commit 05307bb",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
     }
   ]
 }
