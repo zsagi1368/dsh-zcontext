@@ -26,7 +26,7 @@
  * @module client/index
  */
 
-import { t as uiT, resolveLang, FACE_STATE_ZH, fieldLabel, type UiLang } from '../ui/i18n.ts'
+import { t as uiT, resolveLang, FACE_STATE_ZH, fieldLabel, UI_LANG_OPTIONS, type UiLang } from '../ui/i18n.ts'
 
 /** Must equal the package name — the loader's boot-graph row id (handshake). */
 export const name = 'dsh-zcontext'
@@ -286,6 +286,12 @@ export interface PanelSnapshot {
   readonly degradedCount?: number
   /** ZCTX-FULLPANEL: all live sessions for the panel's session switcher. */
   readonly availableSessions?: readonly string[]
+  /**
+   * ZCTX-I18NFIX: the desktop shell's confirmed DSH language (BCP-47 tag the
+   * host reads from locale-cache; null when unavailable). The REAL anchor of
+   * "follow the DSH language" — navigator.language only falls back.
+   */
+  readonly locale?: string | null
 }
 
 /** Parse the /zctx-ui/api/snapshot JSON into the panel's view model. */
@@ -322,6 +328,7 @@ export function parsePanelSnapshot(text: string): PanelSnapshot {
     if (Array.isArray(raw.availableSessions)) {
       view.availableSessions = raw.availableSessions.filter((x) => typeof x === 'string')
     }
+    if (typeof raw.locale === 'string') view.locale = raw.locale
     return view as PanelSnapshot
   } catch {
     return {}
@@ -346,11 +353,8 @@ export function createPanelComponent(
   if (React === undefined) return undefined
   const e = React.createElement
   return function ZctxPanel(): unknown {
-    // 语言跟随 DSH：webview 的 navigator.language 继承宿主语言设置；
-    // 显式偏好 > 宿主探测（zh 系→中文，其他已知语言→英语）> 默认中文。
     const nav = globalThis.navigator as { language?: string } | undefined
     const navLang = typeof nav?.language === 'string' ? nav.language : undefined
-    const lang = resolveLang(undefined, navLang)
     const t = uiT
     const [data, setData] = React.useState?.<PanelSnapshot>({}) ?? [{} as PanelSnapshot, () => undefined]
     const value = data as PanelSnapshot
@@ -374,6 +378,15 @@ export function createPanelComponent(
       ?? [undefined as string | undefined, () => undefined]
     const cfg = configFields as Record<string, unknown>
     const faces = faceSwitches as Record<string, unknown>
+    // ZCTX-I18NFIX language chain: explicit uiLanguage ('zh'/'en' — 'auto' or
+    // absent means follow the probes) > the snapshot's locale field (the
+    // desktop shell's CONFIRMED language from locale-cache — the REAL DSH
+    // setting) > navigator.language (Electron-level, often en-US even on a
+    // zh DSH) > default zh. Recomputed every render: both inputs arrive
+    // asynchronously (config fetch + 5s poll).
+    const prefRaw = typeof cfg.uiLanguage === 'string' ? cfg.uiLanguage : undefined
+    const pref = prefRaw === 'zh' || prefRaw === 'en' ? prefRaw : undefined
+    const lang = resolveLang(pref, typeof value.locale === 'string' ? value.locale : navLang)
     React.useEffect?.(() => {
       let alive = true
       const load = (): void => {
@@ -499,11 +512,28 @@ export function createPanelComponent(
       // loopback write authorization verified on the desktop). Uncontrolled
       // inputs (defaultValue/defaultChecked) — user edits survive the 5s
       // re-render, and the DOM is the save-path source of truth.
+      // ZCTX-I18NFIX: the language selector is ALWAYS rendered (the GET view
+      // omits uiLanguage when unset) with 'auto' as the untouched default; the
+      // fields loop skips the key so it is never collected twice.
       e('div', { className: 'zctx-panel-fields' },
+        e('label', { className: 'zctx-field', key: 'uiLanguage' },
+          e('span', { className: 'zctx-field-key' }, fieldLabel('uiLanguage', lang)),
+          e('select', {
+            className: 'zctx-panel-select',
+            defaultValue: typeof cfg.uiLanguage === 'string' ? cfg.uiLanguage : 'auto',
+            'data-key': 'uiLanguage',
+            'data-type': 'uiLanguage',
+          },
+          ...(lang === 'zh'
+            ? UI_LANG_OPTIONS.map((o) => e('option', { key: o.value, value: o.value }, o.zh))
+            : UI_LANG_OPTIONS.map((o) => e('option', { key: o.value, value: o.value }, o.en)))),
+          e('span', { className: 'zctx-field-note' }, t('langAutoNote', lang))),
         Object.keys(cfg).length > 0
-          ? Object.entries(cfg).map(([k, v]) => e('label', { className: 'zctx-field', key: k },
-              e('span', { className: 'zctx-field-key' }, fieldLabel(k, lang)),
-              inputFor(k, v)))
+          ? Object.entries(cfg)
+              .filter(([k]) => k !== 'uiLanguage')
+              .map(([k, v]) => e('label', { className: 'zctx-field', key: k },
+                e('span', { className: 'zctx-field-key' }, fieldLabel(k, lang)),
+                inputFor(k, v)))
           : t('configNotLoaded', lang)),
       e('h3', null, t('faceSwitches', lang)),
       // B-2a: the four face switches (observe.enabled / patch.guardObserveEvents

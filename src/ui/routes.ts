@@ -47,6 +47,14 @@ export interface UiRouteDeps {
   readonly writeConfig: (patch: Partial<Record<UiConfigKey, unknown>>) => ConfigWriteResult
   /** Durable-ledger stats (SQLite via node:sqlite; ZCTX-POLISH W1). */
   readonly ledgerStats: () => LedgerStats
+  /**
+   * ZCTX-I18NFIX: the desktop shell's confirmed DSH language (BCP-47 tag from
+   * locale-cache), or undefined when unavailable. Surfaced on every snapshot
+   * as `locale` (null when absent) so the panel follows the REAL DSH language
+   * instead of the webview's Electron-level navigator locale (en-US on a
+   * zh-CN DSH — the real-device mismatch that rendered the panel English).
+   */
+  readonly desktopLocale?: () => string | undefined
   /** Capability probe seam — defaults to ctx.get('webServer'). Overridable in tests. */
   readonly webServer?: WebServerLike
 }
@@ -89,6 +97,7 @@ function sessionFromUrl(url: string | undefined): string | undefined {
  */
 export function registerUiRoutes(deps: UiRouteDeps): () => void {
   const { ctx, snapshotFor, getConfig, writeConfig, ledgerStats } = deps
+  const desktopLocale = deps.desktopLocale ?? (() => undefined)
   // Runtime bridge token — randomBytes, zero literal (auth.ts).
   const bridgeToken = `zctx_${Date.now().toString(36)}_${createTokenSource().token()}`
 
@@ -130,7 +139,10 @@ export function registerUiRoutes(deps: UiRouteDeps): () => void {
       return
     }
     try {
-      sendJson(s, 200, snapshotFor(sessionFromUrl(r.url)))
+      // ZCTX-I18NFIX: surface the desktop shell language on every snapshot so
+      // the panel's language chain anchors on the REAL DSH setting. Absent →
+      // null (the client then falls back to navigator → default zh).
+      sendJson(s, 200, { ...snapshotFor(sessionFromUrl(r.url)), locale: desktopLocale() ?? null })
     } catch (error: unknown) {
       sendJson(s, 500, { ok: false, error: error instanceof Error ? error.message : String(error) })
     }

@@ -1,0 +1,21 @@
+{
+  "task": "ZCTX-I18NFIX",
+  "created": "2026-11-21",
+  "trigger": "用户报面板全英文——DSH 语言是中文（locale-cache=zh-CN）但 webview navigator.language=en-US（Electron 层 locale），探测源错位",
+  "goal": "面板/卡片语言真正跟随 DSH 语言设置：宿主侧读桌面 locale-cache（官方 'Last confirmed shell language' 落盘文件）经 snapshot 下发；client 探测链升级为 显式偏好 > 宿主 locale > navigator.language > 默认 zh；另加面板语言选择器（auto/中文/English，持久化 cordis config uiLanguage 键）",
+  "acceptance": [
+    "真机 snapshot JSON 含 locale 字段且值=zh-CN（desktop 运行时）",
+    "client 渲染语言在 locale=zh-CN 时为中文（bundle 特征+测试臂）",
+    "语言选择器三态可写（POST config uiLanguage 过白名单，值域校验 auto|zh|en）",
+    "CLI/无桌面环境 fail-soft：locale 缺失→null→探测链降级 navigator→默认 zh",
+    "全量门绿：tsc 0 + 全部测试 + 握手 5/5 + R1 不变"
+  ],
+  "options_considered": [
+    "A(选中) 宿主读 locale-cache + snapshot.locale + 显式选择器：官方落盘源码注释确证（asar readDesktopLocaleCache(userData)），无认证复杂度，CLI fail-soft；耦合=桌面 userData 路径固定模式（登记已知耦合）",
+    "B(淘汰) client 同源 RPC settings/describe：官方信封可抄但外部无法预验证认证链，webview 内新增 POST RPC 面，复杂度高",
+    "C(淘汰) 仅加手动语言选择器：用户要求自动跟随而非手动",
+    "D(淘汰) 修 navigator.language 语义：Electron --lang=en-US 是 app 层注入，插件不可改"
+  ],
+  "risks": "locale-cache 在官方改版（路径/格式）时失效→fail-soft 降级不致错；写 uiLanguage 走已验证 config POST 链",
+  "budget": "单波：实施+测试+评审+部署+真机验证"
+}

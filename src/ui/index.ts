@@ -40,6 +40,8 @@ export interface UiAccessors {
    * `LedgerStatsFromDb` mirror duplicated the shape for no reason).
    */
   readonly ledgerStats: () => LedgerStats
+  /** ZCTX-I18NFIX: desktop shell language probe (undefined when unavailable). */
+  readonly desktopLocale?: () => string | undefined
   /** Optional webServer override (tests); production resolves via ctx.get. */
   readonly webServer?: UiRouteDeps['webServer']
 }
@@ -59,6 +61,9 @@ export function attachUi(ctx: unknown, accessors: UiAccessors): () => void {
       summaryFloorChars: all.summaryFloorChars,
       summaryCeilingChars: all.summaryCeilingChars,
       netShrinkTolerance: all.netShrinkTolerance,
+      // ZCTX-I18NFIX: absent in an untouched config — the panel treats missing
+      // as 'auto' (follow the desktop shell language).
+      uiLanguage: all.uiLanguage,
     }
     const faceSwitches: Record<string, unknown> = {
       'observe.enabled': all['observe.enabled'],
@@ -77,6 +82,7 @@ export function attachUi(ctx: unknown, accessors: UiAccessors): () => void {
     getConfig,
     writeConfig,
     ledgerStats: () => accessors.ledgerStats(),
+    desktopLocale: accessors.desktopLocale ?? (() => undefined),
     ...(accessors.webServer !== undefined ? { webServer: accessors.webServer } : {}),
   })
 }

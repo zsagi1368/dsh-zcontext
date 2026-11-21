@@ -135,8 +135,46 @@ const UI_DICT = {
 	panelLinkHint: {
 		zh: "请在左侧菜单 zcontext 打开面板",
 		en: "Open the panel from the zcontext entry in the left menu"
+	},
+	uiLanguage: {
+		zh: "界面语言",
+		en: "UI language"
+	},
+	langOptFollow: {
+		zh: "跟随 DSH",
+		en: "Follow DSH"
+	},
+	langOptZh: {
+		zh: "中文",
+		en: "Chinese"
+	},
+	langOptEn: {
+		zh: "English",
+		en: "English"
+	},
+	langAutoNote: {
+		zh: "（自动=桌面端确认语言；探测不到时默认中文）",
+		en: "(auto = desktop-confirmed language; falls back to Chinese)"
 	}
 };
+/** ZCTX-I18NFIX: the three uiLanguage selector options, labeled per language. */
+const UI_LANG_OPTIONS = [
+	{
+		value: "auto",
+		zh: "跟随 DSH",
+		en: "Follow DSH"
+	},
+	{
+		value: "zh",
+		zh: "中文",
+		en: "Chinese"
+	},
+	{
+		value: "en",
+		zh: "English",
+		en: "English"
+	}
+];
 /**
 * Resolve the UI language: explicit preference > host probe > default zh.
 * A DETECTED non-zh locale maps to `en` (user 2026-11-20 "其他语言只显示英语";
@@ -203,6 +241,10 @@ const FIELD_LABELS = {
 	preflightMode: {
 		zh: "preflight 模式 (off|observe|enforce)",
 		en: "preflight mode (off|observe|enforce)"
+	},
+	uiLanguage: {
+		zh: "界面语言",
+		en: "UI language"
 	}
 };
 /** Face state → zh. */
@@ -402,6 +444,7 @@ function parsePanelSnapshot(text) {
 		if (ranges !== void 0) view.ranges = ranges;
 		if (degradedRows > 0) view.degradedCount = degradedRows;
 		if (Array.isArray(raw.availableSessions)) view.availableSessions = raw.availableSessions.filter((x) => typeof x === "string");
+		if (typeof raw.locale === "string") view.locale = raw.locale;
 		return view;
 	} catch {
 		return {};
@@ -424,7 +467,6 @@ function createPanelComponent(React, fetchText) {
 	return function ZctxPanel() {
 		const nav = globalThis.navigator;
 		const navLang = typeof nav?.language === "string" ? nav.language : void 0;
-		const lang = resolveLang(void 0, navLang);
 		const t$1 = t;
 		const [data, setData] = React.useState?.({}) ?? [{}, () => void 0];
 		const value = data;
@@ -436,6 +478,8 @@ function createPanelComponent(React, fetchText) {
 		const [picked, setPicked] = React.useState?.(void 0) ?? [void 0, () => void 0];
 		const cfg = configFields;
 		const faces = faceSwitches;
+		const prefRaw = typeof cfg.uiLanguage === "string" ? cfg.uiLanguage : void 0;
+		const lang = resolveLang(prefRaw === "zh" || prefRaw === "en" ? prefRaw : void 0, typeof value.locale === "string" ? value.locale : navLang);
 		React.useEffect?.(() => {
 			let alive = true;
 			const load = () => {
@@ -521,7 +565,21 @@ function createPanelComponent(React, fetchText) {
 				className: "zctx-panel-row",
 				key: "cum-sessions"
 			}, `${t$1("sessionsCovered", lang)}${ledger.sessionsCount ?? "n/a"}`)
-		] : e("div", { className: "zctx-panel-err" }, t$1("statsUnavailable", lang)), e("div", { className: "zctx-panel-row" }, `${t$1("foldableRanges", lang)}${t$1("current", lang)}: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `${t$1("cacheSamples", lang)}${t$1("current", lang)}: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ` ${t$1("measured", lang)}` : ` ${t$1("estimatedNone", lang)}`}`), e("h3", null, t$1("settings", lang)), e("div", { className: "zctx-panel-fields" }, Object.keys(cfg).length > 0 ? Object.entries(cfg).map(([k, v]) => e("label", {
+		] : e("div", { className: "zctx-panel-err" }, t$1("statsUnavailable", lang)), e("div", { className: "zctx-panel-row" }, `${t$1("foldableRanges", lang)}${t$1("current", lang)}: ${value.ranges ?? 0}`), e("div", { className: "zctx-panel-row" }, `${t$1("cacheSamples", lang)}${t$1("current", lang)}: ${value.cacheSamples ?? 0}${value.cacheMeasured === true ? ` ${t$1("measured", lang)}` : ` ${t$1("estimatedNone", lang)}`}`), e("h3", null, t$1("settings", lang)), e("div", { className: "zctx-panel-fields" }, e("label", {
+			className: "zctx-field",
+			key: "uiLanguage"
+		}, e("span", { className: "zctx-field-key" }, fieldLabel("uiLanguage", lang)), e("select", {
+			className: "zctx-panel-select",
+			defaultValue: typeof cfg.uiLanguage === "string" ? cfg.uiLanguage : "auto",
+			"data-key": "uiLanguage",
+			"data-type": "uiLanguage"
+		}, ...lang === "zh" ? UI_LANG_OPTIONS.map((o) => e("option", {
+			key: o.value,
+			value: o.value
+		}, o.zh)) : UI_LANG_OPTIONS.map((o) => e("option", {
+			key: o.value,
+			value: o.value
+		}, o.en))), e("span", { className: "zctx-field-note" }, t$1("langAutoNote", lang))), Object.keys(cfg).length > 0 ? Object.entries(cfg).filter(([k]) => k !== "uiLanguage").map(([k, v]) => e("label", {
 			className: "zctx-field",
 			key: k
 		}, e("span", { className: "zctx-field-key" }, fieldLabel(k, lang)), inputFor(k, v))) : t$1("configNotLoaded", lang)), e("h3", null, t$1("faceSwitches", lang)), e("div", { className: "zctx-panel-faces" }, Object.keys(faces).length > 0 ? Object.entries(faces).map(([k, v]) => {

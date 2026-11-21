@@ -2236,8 +2236,8 @@ declare function buildZctxTools(defineTool: DefineToolFn, runtime: ZctxToolRunti
  *
  * @module ui/config-write
  */
-/** The nine core fold/budget fields + four face switches (DESIGN §3.4). */
-declare const UI_CONFIG_KEYS: readonly ["enabled", "nudgeThresholds", "keepRecentTokens", "maxFoldFraction", "minFoldableTokens", "protectionFloorTokens", "summaryFloorChars", "summaryCeilingChars", "netShrinkTolerance", "observe.enabled", "patch.guardObserveEvents", "autofold.enabled", "preflightMode"];
+/** The nine core fold/budget fields + four face switches + the UI language (DESIGN §3.4; ZCTX-I18NFIX). */
+declare const UI_CONFIG_KEYS: readonly ["enabled", "nudgeThresholds", "keepRecentTokens", "maxFoldFraction", "minFoldableTokens", "protectionFloorTokens", "summaryFloorChars", "summaryCeilingChars", "netShrinkTolerance", "uiLanguage", "observe.enabled", "patch.guardObserveEvents", "autofold.enabled", "preflightMode"];
 type UiConfigKey = (typeof UI_CONFIG_KEYS)[number];
 interface ConfigWriteResult {
   readonly ok: boolean;
@@ -2423,6 +2423,14 @@ interface UiRouteDeps {
   readonly writeConfig: (patch: Partial<Record<UiConfigKey, unknown>>) => ConfigWriteResult;
   /** Durable-ledger stats (SQLite via node:sqlite; ZCTX-POLISH W1). */
   readonly ledgerStats: () => LedgerStats;
+  /**
+   * ZCTX-I18NFIX: the desktop shell's confirmed DSH language (BCP-47 tag from
+   * locale-cache), or undefined when unavailable. Surfaced on every snapshot
+   * as `locale` (null when absent) so the panel follows the REAL DSH language
+   * instead of the webview's Electron-level navigator locale (en-US on a
+   * zh-CN DSH — the real-device mismatch that rendered the panel English).
+   */
+  readonly desktopLocale?: () => string | undefined;
   /** Capability probe seam — defaults to ctx.get('webServer'). Overridable in tests. */
   readonly webServer?: WebServerLike;
 }
@@ -2465,6 +2473,8 @@ interface UiAccessors {
    * `LedgerStatsFromDb` mirror duplicated the shape for no reason).
    */
   readonly ledgerStats: () => LedgerStats;
+  /** ZCTX-I18NFIX: desktop shell language probe (undefined when unavailable). */
+  readonly desktopLocale?: () => string | undefined;
   /** Optional webServer override (tests); production resolves via ctx.get. */
   readonly webServer?: UiRouteDeps['webServer'];
 }
@@ -2628,6 +2638,14 @@ declare class ZcontextPlugin extends ServiceBase {
   /** The UI snapshot source (thin delegate behind public `snapshotFor`). */
   private readonly snapshotSource;
   constructor(ctx: HostContextLike, config?: Partial<ZcontextConfig>);
+  /**
+   * ZCTX-I18NFIX: the desktop shell's confirmed DSH language (the REAL source
+   * of "follow the DSH language" — locale-cache=zh-CN while navigator=en-US on
+   * the real device). Fail-soft: any absence/error → undefined → the UI
+   * language chain falls back to navigator → default zh. The only IO in this
+   * file's locale path; parsing/validation lives in ui/desktop-locale.ts.
+   */
+  private readDesktopLocale;
   /** Read-only process-memory snapshot (thin delegate). Never touches the wire. */
   snapshotFor(sessionId?: string): ZctxSnapshot;
   /**

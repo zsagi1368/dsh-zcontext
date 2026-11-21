@@ -64,6 +64,7 @@
  */
 
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -117,6 +118,7 @@ import type {
 } from './types.ts'
 import { attachUi, createSnapshotSource, createTransitionSink, detectFaceActivation } from './ui/index.ts'
 import type { FaceHealthView, ZctxSnapshot } from './ui/index.ts'
+import { DESKTOP_LOCALE_SEGMENTS, parseDesktopLocale } from './ui/desktop-locale.ts'
 
 /** Service name the plugin registers under. */
 const SERVICE_NAME = 'dsh-zcontext'
@@ -496,9 +498,27 @@ export class ZcontextPlugin extends ServiceBase {
         ledgerStats: () => this.ledgerStore?.stats() ?? {
           totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 0,
         },
+        desktopLocale: () => this.readDesktopLocale(),
       })
     } catch (error: unknown) {
       zctxDebug(`attachUi: failed (${error instanceof Error ? error.message : String(error)}) — UI surface skipped`)
+    }
+  }
+
+  /**
+   * ZCTX-I18NFIX: the desktop shell's confirmed DSH language (the REAL source
+   * of "follow the DSH language" — locale-cache=zh-CN while navigator=en-US on
+   * the real device). Fail-soft: any absence/error → undefined → the UI
+   * language chain falls back to navigator → default zh. The only IO in this
+   * file's locale path; parsing/validation lives in ui/desktop-locale.ts.
+   */
+  private readDesktopLocale(): string | undefined {
+    const root = process.env.APPDATA
+    if (root === undefined || root === '') return undefined
+    try {
+      return parseDesktopLocale(readFileSync(join(root, ...DESKTOP_LOCALE_SEGMENTS), 'utf8'))
+    } catch {
+      return undefined
     }
   }
 

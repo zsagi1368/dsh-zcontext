@@ -418,7 +418,7 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
   }
   const ctx = { get: (k: string) => (k === 'configEditor' ? editor : undefined), logger: { info: () => undefined } }
 
-  function setup() {
+  function setup(desktopLocale?: () => string | undefined) {
     editCalls = []
     const { webServer, routes, unregistered } = mockWebServer()
     const disposer = registerUiRoutes({
@@ -427,6 +427,9 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
       webServer,
       snapshotFor: (id) => snapshotSource.snapshotFor(id),
       getConfig: () => configView,
+      // ZCTX-I18NFIX: the desktop shell locale probe (undefined in tests unless
+      // the case injects one — the route then reports locale:null).
+      ...(desktopLocale === undefined ? {} : { desktopLocale }),
       writeConfig: (patch) => {
         const result = editor.edit(editor.entries()[0], () => ({ ...patch }))
         return result === undefined ? { ok: true } as ConfigWriteResult : result
@@ -443,7 +446,7 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
   })
 
   it('GET /zctx-ui/api/snapshot returns 200 JSON snapshot; ?session= resolves explicit', async () => {
-    const { routes } = setup()
+    const { routes } = setup(() => undefined)
     const res = await call(
       routes.get('/zctx-ui/api/snapshot')!,
       mockReq({ method: 'GET', url: '/zctx-ui/api/snapshot?session=sess-A', headers: { origin: 'http://localhost', host: 'localhost' } }),
@@ -453,6 +456,23 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     expect(body.version).toBe(1)
     expect(body.sessionResolution).toBe('explicit')
     expect(body.sessionId).toBe('sess-A')
+    // ZCTX-I18NFIX: an absent desktop locale reports null (the client then
+    // falls back to navigator → default zh) — the field is always present.
+    expect(body.locale).toBe(null)
+  })
+
+  it('ZCTX-I18NFIX: the snapshot carries the desktop shell locale (real-device zh-CN)', async () => {
+    const { routes } = setup(() => 'zh-CN')
+    const res = await call(
+      routes.get('/zctx-ui/api/snapshot')!,
+      mockReq({ method: 'GET', url: '/zctx-ui/api/snapshot', headers: { origin: 'http://localhost', host: 'localhost' } }),
+    )
+    expect(res.status).toBe(200)
+    const body = JSON.parse(res.body)
+    expect(body.locale).toBe('zh-CN')
+    // The rest of the snapshot is untouched (spread, not replace).
+    expect(body.version).toBe(1)
+    expect(body.sessionResolution).toBe('latest-watched')
   })
 
   it('GET /zctx-ui/api/stats returns 200 JSON durable-ledger aggregates (V2)', async () => {
@@ -510,6 +530,37 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     )
     expect(res.status).toBe(400)
     expect(editCalls).toHaveLength(0)
+  })
+
+  it('ZCTX-I18NFIX: uiLanguage writes as auto|zh|en and rejects any other value (400)', async () => {
+    const { routes } = setup()
+    for (const value of ['auto', 'zh', 'en']) {
+      const res = await call(
+        routes.get('/zctx-ui/api/config')!,
+        mockReq({
+          method: 'POST',
+          headers: { origin: 'http://localhost', host: 'localhost' },
+          remoteAddress: '127.0.0.1',
+          body: JSON.stringify({ uiLanguage: value }),
+        }),
+      )
+      expect(res.status).toBe(200)
+      expect(editCalls[editCalls.length - 1].patch).toEqual({ uiLanguage: value })
+    }
+    for (const value of ['ZH', 'english', 'jp', '', 1, null]) {
+      const res = await call(
+        routes.get('/zctx-ui/api/config')!,
+        mockReq({
+          method: 'POST',
+          headers: { origin: 'http://localhost', host: 'localhost' },
+          remoteAddress: '127.0.0.1',
+          body: JSON.stringify({ uiLanguage: value }),
+        }),
+      )
+      expect(res.status).toBe(400)
+    }
+    // The bad values never reached the editor.
+    expect(editCalls).toHaveLength(3)
   })
 
   it('no token + remote non-loopback → 403 on snapshot GET', async () => {
