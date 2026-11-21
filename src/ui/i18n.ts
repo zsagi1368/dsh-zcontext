@@ -60,7 +60,6 @@ export function resolveLang(pref: string | undefined, hostHint?: string): UiLang
   return 'zh'
 }
 
-/
 /** Config key → zh labels (九字段+face 开关全量；en shows the raw key). */
 export const FIELD_LABELS: Record<string, { zh: string; en: string }> = {
   enabled: { zh: '插件总开关', en: 'enabled' },
