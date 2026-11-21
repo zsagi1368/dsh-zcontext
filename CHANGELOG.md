@@ -21,10 +21,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com); versioning follow
   rejects the whole submit with a message). Clicking the menu entry never
   navigates the
   DSH window away.
-- **UI language follows DSH** (user 2026-11-20): the panel reads the webview's
-  `navigator.language` (inherits the DSH language setting) — explicit zh/en
-  copy for every string via the dictionary; zh locales render 中文, ANY other
-  detected locale renders English, and a missing probe defaults to 中文.
+- **UI language follows DSH** (user 2026-11-20; ZCTX-I18NFIX 2026-11-21): the
+  REAL anchor is the desktop shell's CONFIRMED language (`<userData>/desktop/
+  locale-cache`, e.g. zh-CN), read by the host and surfaced on every snapshot
+  as `locale` — the webview's `navigator.language` reflects the Electron-level
+  locale (`--lang=en-US` even on a Chinese DSH) and is only the fallback.
+  Language chain: explicit panel selector (`uiLanguage`: 跟随 DSH / 中文 /
+  English, persisted via the config overlay) > snapshot locale > navigator >
+  default 中文; the summary card anchors on the same snapshot locale.
 - **`GET /zctx-ui/api/stats`** — the panel's durable-ledger data channel,
   same authorization arms as the snapshot route (GET-only 405 / unauthorized
   403 / fault 500), fail-soft zeros when the ledger store is absent.

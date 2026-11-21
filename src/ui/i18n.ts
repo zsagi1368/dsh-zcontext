@@ -77,11 +77,15 @@ export const UI_DICT = {
 
 export type UiDictKey = keyof typeof UI_DICT
 
-/** ZCTX-I18NFIX: the three uiLanguage selector options, labeled per language. */
-export const UI_LANG_OPTIONS: ReadonlyArray<{ readonly value: 'auto' | 'zh' | 'en'; readonly zh: string; readonly en: string }> = [
-  { value: 'auto', zh: '跟随 DSH', en: 'Follow DSH' },
-  { value: 'zh', zh: '中文', en: 'Chinese' },
-  { value: 'en', zh: 'English', en: 'English' },
+/**
+ * ZCTX-I18NFIX: the three uiLanguage selector options. Labels are SINGLE-SOURCED
+ * from UI_DICT (review-B1 建议-3 — the former literal duplicates drifted from
+ * the dict rows); the value list itself is structural, not copy.
+ */
+export const UI_LANG_OPTIONS: ReadonlyArray<{ readonly value: 'auto' | 'zh' | 'en'; readonly key: UiDictKey }> = [
+  { value: 'auto', key: 'langOptFollow' },
+  { value: 'zh', key: 'langOptZh' },
+  { value: 'en', key: 'langOptEn' },
 ]
 
 /**

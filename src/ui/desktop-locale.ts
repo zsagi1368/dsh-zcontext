@@ -17,6 +17,9 @@
  */
 
 /** Well-formed BCP-47-ish tag: zh, zh-CN, en, pt-BR, ... (2-8 script/region). */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 const LOCALE_SHAPE = /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8}){0,2}$/
 
 /**
@@ -36,3 +39,18 @@ export function parseDesktopLocale(raw: string): string | undefined {
  * is a literal, none contain separators, no user input reaches the path.
  */
 export const DESKTOP_LOCALE_SEGMENTS = ['@deepseek-ai', 'dsh-desktop', 'desktop', 'locale-cache'] as const
+
+/**
+ * ZCTX-I18NFIX r2 (review-B1 建议-4): the IO half as a testable export —
+ * the ONLY file read in the locale path. Fail-soft: any absence/error →
+ * undefined. The root is injected (tests stub a temp dir); the subpath is
+ * the fixed DESKTOP_LOCALE_SEGMENTS literals, so no segment can escape.
+ */
+export function readDesktopLocaleFile(appData: string): string | undefined {
+  if (appData === undefined || appData === '') return undefined
+  try {
+    return parseDesktopLocale(readFileSync(join(appData, ...DESKTOP_LOCALE_SEGMENTS), 'utf8'))
+  } catch {
+    return undefined
+  }
+}

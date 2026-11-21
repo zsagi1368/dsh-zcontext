@@ -179,9 +179,12 @@ describe('ZCTX-UI D6: styles + summary (V7)', () => {
       window: { pressurePct: 42.5 },
       sessionId: 's1',
     })
-    expect(parseSummary(good)).toEqual({ foldCount: 7, pressurePct: 42.5, sessionId: 's1' })
+    expect(parseSummary(good)).toEqual({ foldCount: 7, pressurePct: 42.5, sessionId: 's1', locale: null })
     expect(parseSummary('not json')).toBeUndefined()
-    expect(parseSummary('{}')).toEqual({ foldCount: 0, pressurePct: undefined, sessionId: undefined })
+    expect(parseSummary('{}')).toEqual({ foldCount: 0, pressurePct: undefined, sessionId: undefined, locale: null })
+    // ZCTX-I18NFIX (review-B1 建议-1a): a string locale rides through for the card.
+    expect(parseSummary(JSON.stringify({ attribution: { foldCount: 1 }, locale: 'zh-CN' })))
+      .toEqual({ foldCount: 1, pressurePct: undefined, sessionId: undefined, locale: 'zh-CN' })
   })
 
   it('card renders a pure summary + panel hint; NO dead /zctx-ui link (B-3, S-9 zh copy)', async () => {

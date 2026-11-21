@@ -125,6 +125,8 @@ export interface SummaryData {
   readonly foldCount: number
   readonly pressurePct: number | undefined
   readonly sessionId: string | undefined
+  /** ZCTX-I18NFIX (review-B1 建议-1a): the desktop shell locale from the snapshot. */
+  readonly locale?: string | null
 }
 
 const SLOT_KEY = 'settings.section'
@@ -168,7 +170,8 @@ export function parseSummary(text: string): SummaryData | undefined {
     const foldCount = typeof attribution?.foldCount === 'number' ? attribution.foldCount : 0
     const pressurePct = typeof window?.pressurePct === 'number' ? window.pressurePct : undefined
     const sessionId = typeof parsed.sessionId === 'string' ? parsed.sessionId : undefined
-    return { foldCount, pressurePct, sessionId }
+    const locale = typeof parsed.locale === 'string' ? parsed.locale : null
+    return { foldCount, pressurePct, sessionId, locale }
   } catch {
     return undefined
   }
@@ -196,13 +199,17 @@ const sameOriginFetchText = (url: string): Promise<string> =>
   })
 
 /**
- * Card-scope language resolution — the SAME semantics as the panel (S-9):
- * `navigator.language` inherits the DSH host setting (detected non-zh → en);
- * probe missing (bare-Node tests, no webview) → the zh default. The summary
- * and fallback cards hold no React state, so the language resolves per render
- * (a host locale change is picked up on the next host-driven re-render).
+ * Card-scope language resolution — the SAME chain as the panel (S-9 +
+ * ZCTX-I18NFIX): the snapshot's `locale` field (the desktop shell's CONFIRMED
+ * language from locale-cache — the REAL DSH setting) anchors the card;
+ * `navigator.language` is only the FALLBACK because it reflects the
+ * Electron-level locale (en-US on the real device) rather than the DSH
+ * setting (zh-CN). No snapshot yet (bare-Node tests, first render) → the zh
+ * default. The summary card holds no React state, so the language resolves
+ * per render (the next poll picks up a locale change).
  */
-function cardLang(): UiLang {
+function cardLang(localeHint?: string | null): UiLang {
+  if (typeof localeHint === 'string' && localeHint !== '') return resolveLang(undefined, localeHint)
   const nav = globalThis.navigator as { language?: string } | undefined
   const navLang = typeof nav?.language === 'string' ? nav.language : undefined
   return resolveLang(undefined, navLang)
@@ -230,7 +237,7 @@ export function createSummaryCard(
   })
   return function SummaryCard(): unknown {
     const data = holder.data
-    const lang = cardLang()
+    const lang = cardLang(data?.locale)
     const stats = [
       uiT('summaryFolds', lang).replace('{n}', String(data?.foldCount ?? 0)),
       data?.pressurePct !== undefined
@@ -250,11 +257,14 @@ export function createSummaryCard(
  * product: a text node (when a document is available) AND a `FallbackRender`
  * descriptor with a non-empty label. Never a blank `null` card (B5-1) and
  * never a link (B-3: the pointed-at page no longer exists). S-9: the copy
- * comes from the i18n dictionary (same language resolution as the panel).
+ * comes from the i18n dictionary. ZCTX-I18NFIX (review-B1 建议-1a): this
+ * degrade face has NO data channel (it renders only when React is absent —
+ * never on the real webview), so it cannot read the snapshot locale; it
+ * falls back to navigator → default zh and says so honestly.
  */
 export function createFallbackCard(doc?: DocumentLike): (() => FallbackRender) {
   return function FallbackCard(): FallbackRender {
-    const text = uiT('panelLinkHint', cardLang())
+    const text = uiT('panelLinkHint', cardLang(null))
     let node: unknown
     if (doc !== undefined && typeof doc.createElement === 'function') {
       try {
@@ -524,9 +534,8 @@ export function createPanelComponent(
             'data-key': 'uiLanguage',
             'data-type': 'uiLanguage',
           },
-          ...(lang === 'zh'
-            ? UI_LANG_OPTIONS.map((o) => e('option', { key: o.value, value: o.value }, o.zh))
-            : UI_LANG_OPTIONS.map((o) => e('option', { key: o.value, value: o.value }, o.en)))),
+          // Review-B1 建议-3: labels single-sourced from UI_DICT via the key.
+          ...UI_LANG_OPTIONS.map((o) => e('option', { key: o.value, value: o.value }, t(o.key, lang)))),
           e('span', { className: 'zctx-field-note' }, t('langAutoNote', lang))),
         Object.keys(cfg).length > 0
           ? Object.entries(cfg)

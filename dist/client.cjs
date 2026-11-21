@@ -157,22 +157,23 @@ const UI_DICT = {
 		en: "(auto = desktop-confirmed language; falls back to Chinese)"
 	}
 };
-/** ZCTX-I18NFIX: the three uiLanguage selector options, labeled per language. */
+/**
+* ZCTX-I18NFIX: the three uiLanguage selector options. Labels are SINGLE-SOURCED
+* from UI_DICT (review-B1 建议-3 — the former literal duplicates drifted from
+* the dict rows); the value list itself is structural, not copy.
+*/
 const UI_LANG_OPTIONS = [
 	{
 		value: "auto",
-		zh: "跟随 DSH",
-		en: "Follow DSH"
+		key: "langOptFollow"
 	},
 	{
 		value: "zh",
-		zh: "中文",
-		en: "Chinese"
+		key: "langOptZh"
 	},
 	{
 		value: "en",
-		zh: "English",
-		en: "English"
+		key: "langOptEn"
 	}
 ];
 /**
@@ -338,7 +339,8 @@ function parseSummary(text) {
 		return {
 			foldCount: typeof attribution?.foldCount === "number" ? attribution.foldCount : 0,
 			pressurePct: typeof window?.pressurePct === "number" ? window.pressurePct : void 0,
-			sessionId: typeof parsed.sessionId === "string" ? parsed.sessionId : void 0
+			sessionId: typeof parsed.sessionId === "string" ? parsed.sessionId : void 0,
+			locale: typeof parsed.locale === "string" ? parsed.locale : null
 		};
 	} catch {
 		return;
@@ -363,13 +365,17 @@ const sameOriginFetchText = (url) => fetch(url).then((r) => {
 	return r.text();
 });
 /**
-* Card-scope language resolution — the SAME semantics as the panel (S-9):
-* `navigator.language` inherits the DSH host setting (detected non-zh → en);
-* probe missing (bare-Node tests, no webview) → the zh default. The summary
-* and fallback cards hold no React state, so the language resolves per render
-* (a host locale change is picked up on the next host-driven re-render).
+* Card-scope language resolution — the SAME chain as the panel (S-9 +
+* ZCTX-I18NFIX): the snapshot's `locale` field (the desktop shell's CONFIRMED
+* language from locale-cache — the REAL DSH setting) anchors the card;
+* `navigator.language` is only the FALLBACK because it reflects the
+* Electron-level locale (en-US on the real device) rather than the DSH
+* setting (zh-CN). No snapshot yet (bare-Node tests, first render) → the zh
+* default. The summary card holds no React state, so the language resolves
+* per render (the next poll picks up a locale change).
 */
-function cardLang() {
+function cardLang(localeHint) {
+	if (typeof localeHint === "string" && localeHint !== "") return resolveLang(void 0, localeHint);
 	const nav = globalThis.navigator;
 	const navLang = typeof nav?.language === "string" ? nav.language : void 0;
 	return resolveLang(void 0, navLang);
@@ -389,7 +395,7 @@ function createSummaryCard(React, initial, fetchText) {
 	});
 	return function SummaryCard() {
 		const data = holder.data;
-		const lang = cardLang();
+		const lang = cardLang(data?.locale);
 		const stats = [t("summaryFolds", lang).replace("{n}", String(data?.foldCount ?? 0)), data?.pressurePct !== void 0 ? t("summaryWindow", lang).replace("{p}", data.pressurePct.toFixed(1)) : t("summaryWindowNa", lang)].join(" · ");
 		return e("div", { className: "zctx-summary" }, e("h3", null, t("summaryTitle", lang)), e("div", { className: "zctx-stats" }, stats), e("div", { className: "zctx-summary-note" }, t("panelLinkHint", lang)));
 	};
@@ -399,11 +405,14 @@ function createSummaryCard(React, initial, fetchText) {
 * product: a text node (when a document is available) AND a `FallbackRender`
 * descriptor with a non-empty label. Never a blank `null` card (B5-1) and
 * never a link (B-3: the pointed-at page no longer exists). S-9: the copy
-* comes from the i18n dictionary (same language resolution as the panel).
+* comes from the i18n dictionary. ZCTX-I18NFIX (review-B1 建议-1a): this
+* degrade face has NO data channel (it renders only when React is absent —
+* never on the real webview), so it cannot read the snapshot locale; it
+* falls back to navigator → default zh and says so honestly.
 */
 function createFallbackCard(doc) {
 	return function FallbackCard() {
-		const text = t("panelLinkHint", cardLang());
+		const text = t("panelLinkHint", cardLang(null));
 		let node;
 		if (doc !== void 0 && typeof doc.createElement === "function") try {
 			const span = doc.createElement("span");
@@ -573,13 +582,10 @@ function createPanelComponent(React, fetchText) {
 			defaultValue: typeof cfg.uiLanguage === "string" ? cfg.uiLanguage : "auto",
 			"data-key": "uiLanguage",
 			"data-type": "uiLanguage"
-		}, ...lang === "zh" ? UI_LANG_OPTIONS.map((o) => e("option", {
+		}, ...UI_LANG_OPTIONS.map((o) => e("option", {
 			key: o.value,
 			value: o.value
-		}, o.zh)) : UI_LANG_OPTIONS.map((o) => e("option", {
-			key: o.value,
-			value: o.value
-		}, o.en))), e("span", { className: "zctx-field-note" }, t$1("langAutoNote", lang))), Object.keys(cfg).length > 0 ? Object.entries(cfg).filter(([k]) => k !== "uiLanguage").map(([k, v]) => e("label", {
+		}, t$1(o.key, lang)))), e("span", { className: "zctx-field-note" }, t$1("langAutoNote", lang))), Object.keys(cfg).length > 0 ? Object.entries(cfg).filter(([k]) => k !== "uiLanguage").map(([k, v]) => e("label", {
 			className: "zctx-field",
 			key: k
 		}, e("span", { className: "zctx-field-key" }, fieldLabel(k, lang)), inputFor(k, v))) : t$1("configNotLoaded", lang)), e("h3", null, t$1("faceSwitches", lang)), e("div", { className: "zctx-panel-faces" }, Object.keys(faces).length > 0 ? Object.entries(faces).map(([k, v]) => {

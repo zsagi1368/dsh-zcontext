@@ -64,7 +64,6 @@
  */
 
 import { createRequire } from 'node:module'
-import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -118,7 +117,7 @@ import type {
 } from './types.ts'
 import { attachUi, createSnapshotSource, createTransitionSink, detectFaceActivation } from './ui/index.ts'
 import type { FaceHealthView, ZctxSnapshot } from './ui/index.ts'
-import { DESKTOP_LOCALE_SEGMENTS, parseDesktopLocale } from './ui/desktop-locale.ts'
+import { readDesktopLocaleFile } from './ui/desktop-locale.ts'
 
 /** Service name the plugin registers under. */
 const SERVICE_NAME = 'dsh-zcontext'
@@ -513,13 +512,11 @@ export class ZcontextPlugin extends ServiceBase {
    * file's locale path; parsing/validation lives in ui/desktop-locale.ts.
    */
   private readDesktopLocale(): string | undefined {
+    // Env narrowing only — the IO (and its fail-soft contract, unit-tested
+    // against a temp root in desktop-locale.spec) lives in ui/desktop-locale.ts.
     const root = process.env.APPDATA
     if (root === undefined || root === '') return undefined
-    try {
-      return parseDesktopLocale(readFileSync(join(root, ...DESKTOP_LOCALE_SEGMENTS), 'utf8'))
-    } catch {
-      return undefined
-    }
+    return readDesktopLocaleFile(root)
   }
 
   // -- ZCTX-UI public snapshot + face-health surface (DESIGN §1.2/#2/#4) ------

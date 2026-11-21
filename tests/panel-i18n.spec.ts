@@ -26,7 +26,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { resolveLang, UI_DICT, FIELD_LABELS } from '../src/ui/i18n.ts'
-import { createPanelComponent, type ReactLike } from '../src/client/index.ts'
+import { createPanelComponent, createSummaryCard, type ReactLike } from '../src/client/index.ts'
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -575,6 +575,44 @@ describe('ZCTX-I18NFIX: panel language follows the desktop shell locale', () => 
       } finally {
         unmount(mock)
       }
+    })
+  })
+
+  it('review-B1 建议-5: locale en-US beats a zh-CN navigator (locale > navigator, en direction)', async () => {
+    await withNavigator('zh-CN', async () => {
+      const mock = statefulReact()
+      const component = buildPanel(mock, async () => JSON.stringify({ locale: 'en-US' }))
+      try {
+        renderPanel(mock, component)
+        await tick()
+        const before = mock.calls.length
+        renderPanel(mock, component)
+        const serialized = JSON.stringify(mock.calls.slice(before))
+        // If the implementation ignored the locale field this arm would render
+        // zh (the navigator fallback) and FAIL — the direction is pinned.
+        expect(serialized).toContain('zcontext Panel (BETA)')
+        expect(serialized).not.toContain('zcontext 面板 (BETA)')
+      } finally {
+        unmount(mock)
+      }
+    })
+  })
+
+  it('review-B1 建议-1a: the summary card anchors on the snapshot locale (zh-CN beats en-US navigator)', async () => {
+    await withNavigator('en-US', async () => {
+      const mock = statefulReact()
+      const component = createSummaryCard(mock, undefined, async () =>
+        JSON.stringify({ attribution: { foldCount: 3 }, window: { pressurePct: 42 }, locale: 'zh-CN' }))
+      if (component === undefined) throw new Error('React mock present — card must build')
+      const render = component as () => unknown
+      render()
+      await tick() // the initial refreshSummary lands
+      const before = mock.calls.length
+      render()
+      const serialized = JSON.stringify(mock.calls.slice(before))
+      expect(serialized).toContain('zcontext 摘要 (BETA)')
+      expect(serialized).not.toContain('zcontext summary (BETA)')
+      expect(serialized).toContain('折叠 3 次')
     })
   })
 

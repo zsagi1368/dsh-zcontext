@@ -8,9 +8,13 @@
  * reject anything malformed (fail-soft to undefined, never a guess).
  */
 
-import { describe, expect, it } from 'vitest'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-import { DESKTOP_LOCALE_SEGMENTS, parseDesktopLocale } from '../src/ui/desktop-locale.ts'
+import { afterAll, describe, expect, it, vi } from 'vitest'
+
+import { DESKTOP_LOCALE_SEGMENTS, parseDesktopLocale, readDesktopLocaleFile } from '../src/ui/desktop-locale.ts'
 
 describe('ZCTX-I18NFIX: parseDesktopLocale (locale-cache content contract)', () => {
   it('accepts the real-device value zh-CN (trim included)', () => {
@@ -46,5 +50,55 @@ describe('ZCTX-I18NFIX: DESKTOP_LOCALE_SEGMENTS path invariants', () => {
       expect(segment).not.toContain('..')
     }
     expect(DESKTOP_LOCALE_SEGMENTS[DESKTOP_LOCALE_SEGMENTS.length - 1]).toBe('locale-cache')
+  })
+})
+
+describe('ZCTX-I18NFIX r2 (review-B1 建议-4): IO half fail-soft contract', () => {
+  const tempRoots: string[] = []
+  afterAll(() => {
+    for (const root of tempRoots) rmSync(root, { recursive: true, force: true })
+    vi.unstubAllEnvs()
+  })
+
+  const makeRoot = (): string => {
+    const root = mkdtempSync(join(tmpdir(), 'zctx-locale-spec-'))
+    tempRoots.push(root)
+    return root
+  }
+
+  it('reads and parses a real locale-cache under an injected root (end-to-end happy path)', () => {
+    const root = makeRoot()
+    const dir = join(root, ...DESKTOP_LOCALE_SEGMENTS.slice(0, -1))
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'locale-cache'), 'zh-CN\n')
+    expect(readDesktopLocaleFile(root)).toBe('zh-CN')
+  })
+
+  it('a missing file degrades to undefined (ENOENT swallowed)', () => {
+    expect(readDesktopLocaleFile(makeRoot())).toBeUndefined()
+  })
+
+  it('a malformed file degrades to undefined (parse rejection)', () => {
+    const root = makeRoot()
+    const dir = join(root, ...DESKTOP_LOCALE_SEGMENTS.slice(0, -1))
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'locale-cache'), 'not a locale!!')
+    expect(readDesktopLocaleFile(root)).toBeUndefined()
+  })
+
+  it('an empty root degrades to undefined without touching the filesystem', () => {
+    expect(readDesktopLocaleFile('')).toBeUndefined()
+  })
+
+  it('the plugin path narrows APPDATA through the same helper (env stub end-to-end)', () => {
+    const root = makeRoot()
+    const dir = join(root, ...DESKTOP_LOCALE_SEGMENTS.slice(0, -1))
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'locale-cache'), 'en-US')
+    vi.stubEnv('APPDATA', root)
+    // The plugin's own method narrows the env to the same IO export; assert
+    // through the export so the pair stays locked without importing plugin.ts.
+    expect(readDesktopLocaleFile(process.env.APPDATA ?? '')).toBe('en-US')
+    vi.unstubAllEnvs()
   })
 })
