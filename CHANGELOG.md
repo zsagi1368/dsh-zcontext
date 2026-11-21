@@ -5,28 +5,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com); versioning follow
 
 ## [Unreleased]
 
-### Added — realtime UI + native sidebar panel (ZCTX-UI / ZCTX-SIDEBAR)
+### Added — full-function native sidebar panel (ZCTX-UI / ZCTX-SIDEBAR / ZCTX-FULLPANEL)
 
-- **Realtime web panel** (`/zctx-ui`): a webServer-mounted read-only page with
-  查看 (live snapshot, 5s poll), 统计 (folds / foldable ranges / cache
-  measured-vs-estimated), and 设置 (nine fields + face switches, writes the
-  profile overlay). Bridge token is generated at runtime; same-origin +
-  loopback reads need no token. Opens the panel **without opening a session**
-  — no billed tokens for viewing.
-- **Native left-menu entry** (`sidebar.panellist` + `main`, shared
-  `dsh-zcontext.panel` key): the app's left menu shows a `zcontext` entry whose
-  central panel renders the same live data inside the app — clicking it never
-  navigates the DSH window away (the desktop-webview `target=_blank` flow was
-  unreliable). Settings inside the panel are read-only with a link to the full
-  page (the in-panel write path is deferred: the bridge token is only injected
-  into the full page).
+- **Full-function native side panel** (`sidebar.panellist` + `main`, shared
+  `dsh-zcontext.panel` key): the app's left menu shows a `zcontext` entry
+  whose central panel carries the complete surface inside the app —
+  查看 (live snapshot, 5s poll, multi-session switcher whose pick survives
+  the poll), 统计 (SQLite cumulative ledger: total folds / cumulative tokens
+  saved / sessions covered — a failed ledger read renders an honest "stats
+  unavailable" row instead of mislabeling current-session numbers — plus the
+  current session's foldable ranges and cache measured-vs-estimated), and
+  设置 (WRITABLE in the panel: nine fields + four face switches, POST
+  `{fields, faceSwitches}` through `configEditor.edit` into the profile
+  overlay; number fields are submitted as numbers, a NaN or empty value
+  rejects the whole submit with a message). Clicking the menu entry never
+  navigates the
+  DSH window away.
+- **UI language follows DSH** (user 2026-11-20): the panel reads the webview's
+  `navigator.language` (inherits the DSH language setting) — explicit zh/en
+  copy for every string via the dictionary; zh locales render 中文, ANY other
+  detected locale renders English, and a missing probe defaults to 中文.
+- **`GET /zctx-ui/api/stats`** — the panel's durable-ledger data channel,
+  same authorization arms as the snapshot route (GET-only 405 / unauthorized
+  403 / fault 500), fail-soft zeros when the ledger store is absent.
 - **Face tri-state probe** with a visible fail-soft sink: distinguishes "no
   data" from "the desktop face is not active" (never fabricated zeros; fetch
   failures surface as an honest error row, B3-S7).
-- **desktop acceptance** (pending final sign-off): `/zctx-ui` HTTP 200 with a
-  live snapshot JSON and faceHealth `active` (4 signals) was observed during
-  the ZCTX-UI wave; the sidebar-panel wave reuses that same surface and its
-  own tab/panel visibility is verified per the sidebar acceptance matrix.
+- **Desktop acceptance** (pending final sign-off): panel visibility/render,
+  language following, stats readout, and a true in-panel settings write are
+  verified on the real machine per the sidebar acceptance matrix (B4); the
+  same-origin read path was already observed live in the dsh-app webview.
+
+### Removed — browser page route (user decision 2026-11-21)
+
+- The webServer-mounted HTML page (`GET /zctx-ui`, `src/ui/page.ts`) is gone:
+  the desktop webview origin is the custom `dsh-app://` scheme, which no
+  browser can open, so a browser-facing page was structurally unreachable and
+  the copy-address flow was meaningless. The webServer now serves API routes
+  ONLY (snapshot / config GET+POST / stats); the page's token injection and
+  the `UI_TOKEN_PLACEHOLDER` surface are deleted, and neither the summary
+  card nor the no-React fallback renders any link to the removed page.
 
 ## [0.3.0] - 2026-11-16
 

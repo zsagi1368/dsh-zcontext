@@ -29,7 +29,6 @@ import {
   authorizeRequest,
   authorizeWrite,
   unknownFaceHealth,
-  UI_PAGE_HTML,
   type ConfigView,
   type ConfigWriteResult,
 } from '../src/ui/index.ts'
@@ -423,9 +422,9 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     editCalls = []
     const { webServer, routes, unregistered } = mockWebServer()
     const disposer = registerUiRoutes({
+      ledgerStats: () => ({ totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 1 }),
       ctx,
       webServer,
-      pageHtml: UI_PAGE_HTML,
       snapshotFor: (id) => snapshotSource.snapshotFor(id),
       getConfig: () => configView,
       writeConfig: (patch) => {
@@ -436,26 +435,11 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     return { routes, unregistered, disposer }
   }
 
-  it('registers all four native routes', () => {
+  it('registers all three native routes (page removed — dsh-app:// webview origin)', () => {
     const { routes } = setup()
     expect([...routes.keys()].sort()).toEqual(
-      ['/zctx-ui', '/zctx-ui/api/config', '/zctx-ui/api/snapshot'].sort(),
+      ['/zctx-ui/api/config', '/zctx-ui/api/snapshot', '/zctx-ui/api/stats'].sort(),
     )
-  })
-
-  it('GET /zctx-ui returns 200 HTML with the injected runtime token (not the placeholder)', async () => {
-    const { routes } = setup()
-    const res = await call(routes.get('/zctx-ui')!, mockReq({ method: 'GET', headers: { origin: 'http://localhost', host: 'localhost' } }))
-    expect(res.status).toBe(200)
-    expect(res.headers['content-type']).toContain('text/html')
-    expect(res.body).toContain('<!DOCTYPE html>')
-    expect(res.body).not.toContain('__ZCTX_BRIDGE_TOKEN__')
-    expect(res.body).toMatch(/zctx_[0-9a-z]+_[0-9a-f]{32}/)
-    // UI page contains all three blocks
-    expect(res.body).toContain('查看')
-    expect(res.body).toContain('统计')
-    expect(res.body).toContain('设置')
-    expect(res.body).toContain('BETA')
   })
 
   it('GET /zctx-ui/api/snapshot returns 200 JSON snapshot; ?session= resolves explicit', async () => {
@@ -469,6 +453,19 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
     expect(body.version).toBe(1)
     expect(body.sessionResolution).toBe('explicit')
     expect(body.sessionId).toBe('sess-A')
+  })
+
+  it('GET /zctx-ui/api/stats returns 200 JSON durable-ledger aggregates (V2)', async () => {
+    const { routes } = setup()
+    const res = await call(
+      routes.get('/zctx-ui/api/stats')!,
+      mockReq({ method: 'GET', headers: { origin: 'http://localhost', host: 'localhost' } }),
+    )
+    expect(res.status).toBe(200)
+    const body = JSON.parse(res.body)
+    expect(body.ok).toBe(true)
+    expect(body.stats.schemaVersion).toBe(1)
+    expect(typeof body.stats.totalFolds).toBe('number')
   })
 
   it('GET /zctx-ui/api/config returns 200 JSON config view', async () => {
@@ -552,9 +549,9 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
       effect: (_fn: unknown, label?: string) => { effectLabels.push(label ?? ''); return undefined },
     }
     registerUiRoutes({
+      ledgerStats: () => ({ totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 1 }),
       ctx: effectCtx,
       webServer,
-      pageHtml: UI_PAGE_HTML,
       snapshotFor: (id) => snapshotSource.snapshotFor(id),
       getConfig: () => configView,
       writeConfig: () => ({ ok: true }),
@@ -573,8 +570,8 @@ describe('ZCTX-UI D2: native WebRoutes (V2/V3)', () => {
 
   it('no webServer (CLI headless) → no-op disposer, no throw', () => {
     const disposer = registerUiRoutes({
+      ledgerStats: () => ({ totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 1 }),
       ctx: { get: () => undefined },
-      pageHtml: UI_PAGE_HTML,
       snapshotFor: (id) => snapshotSource.snapshotFor(id),
       getConfig: () => configView,
       writeConfig: () => ({ ok: false, error: 'unavailable' }),
@@ -602,24 +599,4 @@ describe('ZCTX-UI V4: zero credential literals in source', () => {
 // B5 rework r1: multi-session switcher (B5-5) + attribute escaping (B5-6)
 // ---------------------------------------------------------------------------
 
-describe('ZCTX-UI B5-5/B5-6: page session switcher + escaping', () => {
-  it('page has a REAL session <select> wired to availableSessions + change handler', () => {
-    // A real control (not a fake): the select exists, is populated from the
-    // snapshot.availableSessions field, and switching triggers a re-poll.
-    expect(UI_PAGE_HTML).toContain('id="session-pick"')
-    expect(UI_PAGE_HTML).toContain('s.availableSessions')
-    expect(UI_PAGE_HTML).toContain("addEventListener('change'")
-    expect(UI_PAGE_HTML).toContain("?session=' + encodeURIComponent(session)")
-    // The snapshot API actually exposes the field (thin wrapper over liveSessions).
-    expect(UI_PAGE_HTML).not.toContain('__TODO_SESSION_PICKER__')
-  })
 
-  it('esc() escapes both quote kinds (B5-6): no attribute-breaking raw quotes', () => {
-    // The esc helper in the page must cover &<>"' — assert the replacement
-    // chains are present in source (string-level; the JS runs in browser).
-    expect(UI_PAGE_HTML).toContain("replace(/\"/g, '&quot;')")
-    expect(UI_PAGE_HTML).toContain("replace(/'/g, '&#39;')")
-    // Attribute contexts use escAttr (the aliased esc) for the form value.
-    expect(UI_PAGE_HTML).toContain('escAttr(')
-  })
-})

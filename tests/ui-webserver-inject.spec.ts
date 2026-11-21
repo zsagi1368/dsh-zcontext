@@ -18,7 +18,6 @@ import { ZcontextPlugin } from '../src/plugin.ts'
 import {
   attachUi,
   detectFaceActivation,
-  UI_PAGE_HTML,
   type ConfigView,
   type FaceHealthView,
 } from '../src/ui/index.ts'
@@ -125,9 +124,10 @@ describe('ZCTX-UI B6 P0: attachUi route registration vs webServer availability',
     attachUi(ctx, {
       snapshotFor: snapshotStub,
       configValues: () => ({}),
+      ledgerStats: () => ({ totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 1 }),
     })
     expect(routes.size).toBe(3)
-    for (const path of ['/zctx-ui', '/zctx-ui/api/snapshot', '/zctx-ui/api/config']) {
+    for (const path of ['/zctx-ui/api/snapshot', '/zctx-ui/api/config', '/zctx-ui/api/stats']) {
       expect(routes.has(path)).toBe(true)
     }
   })
@@ -137,6 +137,7 @@ describe('ZCTX-UI B6 P0: attachUi route registration vs webServer availability',
     expect(() => attachUi(ctx, {
       snapshotFor: snapshotStub,
       configValues: () => ({}),
+      ledgerStats: () => ({ totalFolds: 0, totalTokensSaved: 0, sessionsCount: 0, lastFoldAt: undefined, schemaVersion: 1 }),
     })).not.toThrow()
     expect(routes.size).toBe(0)
     expect(infoLines.some((line) => line.includes('webServer unavailable'))).toBe(true)
