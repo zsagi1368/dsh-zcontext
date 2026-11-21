@@ -1,9 +1,14 @@
 # ZCTX-UI B5 对抗评审报告
 
-> 角色：reviewer-B5（独立实测，≠作者）　作者：coder（B3 四提交 + B4 三提交）
-> 工作树：`G:\000Github\zDSH\zDSH-plugins\dsh-zcontext\worktrees\ZCTX-UI`（分支 `feat/ZCTX-UI`，HEAD `9082b52`，基线 `03ec933`，之上 7 提交）
-> diff：`git diff 03ec933..HEAD` = 28 文件 / +4873 / -37（已按 D1~D7 分块提交，非巨型单块，符合拆小要求）
+> 角色：reviewer-B5（独立实测，≠作者）　作者：coder（B3 四提交 + B4 三提交；r1 返工 d88a315）
+> 工作树：`G:\000Github\zDSH\zDSH-plugins\dsh-zcontext\worktrees\ZCTX-UI`（分支 `feat/ZCTX-UI`，基线 `03ec933`）
+> - r0 评审：HEAD `9082b52`，diff 28 文件 / +4873 / -37
+> - r1 复评：HEAD `d88a315`（返工 B5-1/2/3/5/6）+ `a9f2f0d`（B5-4 主线修正）
 > 日期：2026-11-18　模式：对抗评审 + 独立复现（真机不碰）
+
+---
+
+# 第一部分：r0 初评（HEAD 9082b52，98/100）
 
 ## 一、结论（门禁口径）
 
@@ -97,62 +102,115 @@
 ## 四、[建议] 清单（阻塞 B6 最终验收，不阻塞 B5 中间合入）
 
 - **B5-1（降级行为与文档/测试不一致，建议优先修）**
-  - 位置：`G:\000Github\zDSH\zDSH-plugins\dsh-zcontext\worktrees\ZCTX-UI\src\client\index.ts:162`；`tests\client-slot.spec.ts:104-109`；`README.md:265` / `README.zh.md`（原生入口段）。
-  - 问题：`finalComponent = component ?? ((..._args) => null)` —— React 缺席时降级组件渲染为 `null`（空白卡），并非文档与测试注释声称的"降级为纯链接"。独立实测 `apply()` 无 React → `component()` 返回 `null`、`JSON.stringify` 不含 `/zctx-ui`。测试用名为"degrades to non-null link component"，但断言仅 `typeof === 'function'`，未验证渲染出链接 → 假绿成分。
-  - 理由：DESIGN §5.3 / 反-C2 / 双语 README 均明确承诺"React 不可用降级为链接"；空白卡使用户在 settings.section 看不到任何入口。虽生产 loader 通常提供 React seed（该场景罕见）、且阶段一 UI 页不受影响（DESIGN §6.2 阶段独立），但属明确承诺未兑现 + 测试断言不足。
-  - 建议修复：无 React 时返回一个用纯 DOM/`React.createElement` 之外方式渲染的 `<a href="/zctx-ui">` 链接组件（或直接 `ctx.slots.register` 一个静态 link 描述），并把测试断言改为渲染输出包含 `/zctx-ui`。
-  - disposition：`open`（待 coder `fixed/verified`，B6 前）。
+  - 位置：`src\client\index.ts:162`；`tests\client-slot.spec.ts:104-109`；`README.md:265` / `README.zh.md`。
+  - 问题：`finalComponent = component ?? ((..._args) => null)` —— React 缺席时降级组件渲染为 `null`（空白卡），非文档声称的"纯链接"；测试仅断言 `typeof === 'function'` → 假绿成分。
+  - disposition（r0）：`open`。
 
-- **B5-2（disposer 重复注册）**
-  - 位置：`src\ui\routes.ts:216-221` 与 `src\plugin.ts:450-455`。
-  - 问题：两处均对同一 `disposeUi` 用 `ctx.effect(() => () => disposer(), 'zctx-ui-routes')` 注册；`attachUi` 内部（经 registerUiRoutes）已注册一次，plugin 又注册一次。
-  - 理由：disposer 幂等（`unregister.length=0`）不会出错，但双重注册冗余、易误导维护者，且 label 相同。
-  - 建议：只保留一处（推荐 routes.ts 内部，plugin 直接用返回值即可）。
-  - disposition：`open`（可选修复，B6 前评估）。
+- **B5-2（disposer 重复注册）**：`src\ui\routes.ts:216-221` 与 `src\plugin.ts:450-455` 双重 `ctx.effect('zctx-ui-routes')`。disposition（r0）：`open`。
+- **B5-3（快照个别取数未包 try/catch）**：`src\ui\snapshot.ts:129/142` 的 `routedRequestTarget`/`storeFor` 未包 try/catch。disposition（r0）：`open`。
+- **B5-4（closure phase 与合并门张力）**：V8-A4-5/A2-4 `phase=block` 且 open。disposition（r0）：`open`（交主线）。
+- **B5-5（UI 无多会话切换控件）**：`src\ui\page.ts:116/311-312` 锁定首个 session 无切换。disposition（r0）：`open`。
+- **B5-6（HTML 属性转义不覆盖引号）**：`src\ui\page.ts:130-132` `esc` 仅转义 `&<>`。disposition（r0）：`open`。
 
-- **B5-3（快照个别取数未包 try/catch）**
-  - 位置：`src\ui\snapshot.ts:129`（`routedRequestTarget(session)`）、`:142`（`runtime.storeFor(session)`）。
-  - 问题：这两个调用未包 try/catch，异常会使 `snapshotFor` 抛出；虽有 routes.ts:147-151 的 500 兜底不崩溃，但 degraded 行不会记录该故障，与"诚实降级"口径略偏。
-  - 理由：其余取数（window/tokenMeter/budget/ranges/folds/cache/attribution）均有 try/catch + degraded，此二者不一致。
-  - 建议：统一包 try/catch 并 push degraded 行，或在注释说明为何可安全直调。
-  - disposition：`open`（可选修复）。
+## 五、r0 评分
 
-- **B5-4（closure phase 与合并门的张力，交主线）**
-  - 位置：`tasks\ZCTX-UI\closures\closure.json`（V8-A4-5 / V8-A2-4 条目 `phase=block` 且 `status=open`）。
-  - 问题：全局协议 §11 的 `closure-check -Phase block` 遇 OPEN 会卡合并门；这两条的单测臂已过、真机臂属 B6。
-  - 理由：任务卡/评审指令明确"真机属 B6、不作 B5 阻断"，但 phase 标记与 §11 block 门语义冲突。
-  - 建议：B6 合并门跑 `closure-check -Phase block` 前，由主线对这两条定谳（`fixed/verified` 单测臂）或经 §11 调整 phase；reviewer 不单方面改 closure。
-  - disposition：`open`（主线 B6 处理）。
+| 维度 | 分值 | r0 得分 |
+|---|---:|---:|
+| 正确性 | 25 | 25 |
+| 完整性 | 20 | 19 |
+| 一致性 | 20 | 19 |
+| 可验证性 | 15 | 15 |
+| 安全回滚 | 10 | 10 |
+| 可维护性 | 10 | 10 |
+| **总分** | **100** | **98** |
 
-- **B5-5（UI 无多会话切换控件）**
-  - 位置：`src\ui\page.ts:116/311-312`（`session` 锁定首个后仅带 `?session=` 轮询）。
-  - 问题：DESIGN §2.3 声明"多会话切换由 UI 提供选择"，页面锁定首个 sessionId 后无下拉/切换控件。
-  - 理由：多会话场景下用户无法在 UI 内切换查看，需刷新或手改 URL。
-  - 建议：增加会话选择控件（数据源为快照 sessionId / 服务器暴露 watched 列表；若宿主无列表 API 则在 README 注明限制）。
-  - disposition：`open`（B6 真机评估是否必须）。
+---
 
-- **B5-6（HTML 属性转义不覆盖引号）**
-  - 位置：`src\ui\page.ts:130-132`（`esc` 仅转义 `&<>`）；用于 `value="' + esc(val) + '"`（:255）等属性上下文。
-  - 问题：`val` 含 `"` 时可破坏属性结构（触发 HTML 注入的微观面）。
-  - 理由：数据源多为本地可信 overlay/账本，且是自有同源页面，风险低；但 `esc` 用于属性时应含 `"`/`'`。
-  - 建议：`escAttr` 增加引号转义，属性上下文改用它；或说明可信来源边界。
-  - disposition：`open`（安全快筛低优先，可 user_approved_deferred）。
+# 第二部分：r1 复评终评（HEAD d88a315，100/100）
 
-## 五、评分（详见 `tasks/ZCTX-UI/scorecards/B5.json`）
+> 复评对象：`a9f2f0d`（B5-4 主线修正）+ `d88a315`（B5-1/2/3/5/6 返工）。任务：逐项独立复核 5 条 coder 返工 + 1 条主线修正，亲跑构建/测试，更新评分与报告。真机不碰。
 
-| 维度 | 分值 | 得分 | 证据要点 |
+## 七、复评结论
+
+**PASS（100/100，无 `[阻断]`）。** r0 的 6 条 `[建议]` 全部 `fixed/verified`，无一遗留 `open`。B5 质量门以满分关闭。真机开放项（V4/V5/V8/BENCH-L2/端到端浏览器、closure 5 项 open）属 B6，不作 B5 阻断。
+
+硬阻断（§12.3）复评：无伪造证据/测试；无安全底线违规；正确性 25≥23；安全回滚 10≥9；730 测试全绿；closure 5 项 open 且全 `phase=post-merge`（B5-4 已消除 block 门 OPEN），不作 B5 阻断。**无硬阻断命中。**
+
+## 八、逐项独立复核（三值结论）
+
+### B5-1 真降级链接 —— 【确认 fixed】
+- 源码（`src\client\index.ts`）：新增 `DocumentLike`/`LinkRender` 类型 + `createFallbackLink(doc)`（:166-190），无 React 时 `finalComponent = component ?? createFallbackLink(doc)`（:205），返回 `{tag:'a', href:'/zctx-ui', text, node?}`，doc 存在时创建真实 `<a>` DOM anchor。
+- 测试（`tests\client-slot.spec.ts:104-131`）：由 `typeof` 断言升级为**真渲染断言**——调用 `component()` 检查 `tag/href/text/length` 与真实 DOM `anchor.href/textContent`。
+- **reviewer 独立复现**（`node --experimental-strip-types` 加载真实 `src/client/index.ts`，注入假 document，无 React 调 apply）：
+  ```
+  [B5-1] rendered: {"tag":"a","href":"/zctx-ui","text":"打开 zcontext 面板 →"}
+  [B5-1] real DOM anchor: {"href":"/zctx-ui","text":"打开 zcontext 面板 →"}
+  [B5-1] bare-node fallback: {"tag":"a","href":"/zctx-ui","text":"打开 zcontext 面板 →","hasNode":false}
+  ```
+  非 null 假绿已消除；README/README.zh/DESIGN §5.3「降级为链接」承诺与实现一致。
+
+### B5-2 disposer 唯一注册 —— 【确认 fixed】
+- 源码：`src\plugin.ts:456-469` 删除二次 `ctx.effect(...'zctx-ui-routes')`，仅保留注释；`src\ui\routes.ts:218` 为唯一实际调用。
+- 测试（`tests\zctx-ui.spec.ts:547-565`）：用 effect label 记录器断言 `zctx-ui-routes` 恰好 1 次。
+- **reviewer 独立复现**（加载真实 `registerUiRoutes` 计数 effect label）：`zctx-ui-routes effect registrations: 1`。
+- grep：`src` 全仓仅 `routes.ts:218` 一处 `.effect('zctx-ui-routes')`（plugin.ts 仅注释命中）。
+
+### B5-3 storeFor/route try-catch→degraded 真抛点 —— 【确认 fixed】
+- 源码（`src\ui\snapshot.ts:138-177`）：`routedRequestTarget(session)` 与 `runtime.storeFor(session)` 均包 try/catch，异常 push degraded 并 `return emptySnapshot(reason, faceHealth, generatedAt, availableSessions, 'degraded')`；`ZctxSnapshot.sessionResolution` 增 `'degraded'` 值（types.ts）。
+- 源码审：`routedRequestTarget`（tools.ts:561-577）内部 try/catch 仅包 `session.requestHeader?.()` 调用，其后 `.config` 读取在 try 外——测试用 Proxy 使 `.config` getter 抛错，确实落到 snapshot.ts 外层 guard（真抛点臂，非假绿）。
+- **reviewer 独立复现**：
+  ```
+  [B5-3] storeFor throw -> degraded ["store resolution failed: store boom"]
+  [B5-3] route throw -> degraded ["route target read failed: header.config boom"]
+  ```
+  两者均不向调用方抛出，degraded 行如实记录。
+
+### B5-5 availableSessions + 真实 select 切换 —— 【确认 fixed】
+- 源码：`src\ui\types.ts` 增 `availableSessions: readonly string[]` + `SnapshotDeps.listSessions?`；`src\plugin.ts:429-437` `listSessions` 薄封装遍历 `liveSessions` 取 id（非新造）；`src\ui\snapshot.ts:71-77/233` 产出字段（try/catch 保护）；`src\ui\page.ts` 增 `<select id="session-pick">`（:96-98）、`renderSessionPicker(ids,current)`（:319-333）从 `s.availableSessions` 填充、change handler 锁 session 并 refresh（:353-359）。
+- 测试：`tests\zctx-ui.spec.ts` B5-5 臂断言 `availableSessions` 字段 + 页面控件/绑定/change 存在；`tests\client-slot.spec.ts` 未受影响。
+- 判定：真实控件 + 真实字段绑定；真机交互仍属 B6，但控件实现与数据流完整。
+
+### B5-6 esc 补引号 + escAttr —— 【确认 fixed】
+- 源码（`src\ui\page.ts:136-142`）：`esc()` 增 `.replace(/"/g,'&quot;').replace(/'/g,'&#39;')`；`escAttr()` 别名；表单 `value`/`data-key`/`data-type` 属性上下文与 session option 改用 escAttr（:265/:325）。
+- 测试（`tests\zctx-ui.spec.ts:619-628`）：断言两条 replace 链字符串与 `escAttr(` 存在。
+- 判定：属性上下文的引号转义到位（字符串级断言 + 源码实读一致；JS 在浏览器执行，属静态断言合理范围）。
+
+### B5-4 主线 closure phase 修正 —— 【确认 fixed】
+- `git diff 9082b52..a9f2f0d -- tasks/ZCTX-UI/closures/closure.json`：V8-A4-5、V8-A2-4 `phase: block→post-merge` 并各附 `_main_note` 更正说明。
+- 当前 5 项 closure 全 `status=open / phase=post-merge` → §11 `closure-check -Phase block` 无 OPEN，张力消除；reviewer 未单方面改 closure（主线执行，合规）。
+
+## 九、复评构建/测试/R1/工作树（亲跑）
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 构建握手 | `pnpm build` | EXIT=0，**握手 4/4 PASS** |
+| 类型检查 | `npx tsc --noEmit` | EXIT=0 |
+| 全量测试 | `pnpm test` | **34 files / 730 tests PASS**（r0 724 → +6），Duration 2.85s |
+| R1 红线 | `git show HEAD:patcher/zctx-patch.mjs \| node <切片+sha256>` | chars=14889 bytes=14926 **sha256=8e2d0b7e…059b0f9**（未变） |
+| 零凭据字面量 | `grep zctx_[0-9a-z]+_[0-9a-f]{16,} src/tests/scripts` | 零命中 PASS |
+| 零请求体改写面 | `grep llm.stream/req.body/internal/config src/ui src/client` | 零命中 PASS |
+| 工作树 | `git status --short`（build 后按 Z3 `checkout --` 还原 4 lib chunk） | 业务文件干净，仅剩评审产物 `?? handoffs/ ?? scorecards/`（预期） |
+
+## 十、复评 [阻断] / [建议]
+
+- **[阻断]：无。**
+- **[建议]：无（r0 六条全部 fixed/verified）。**
+
+## 十一、复评评分（终评）
+
+| 维度 | 分值 | 终评得分 | 证据要点 |
 |---|---:|---:|---|
-| 正确性 | 25 | 25 | R1 三值复算、fail-closed 复现、session 三臂、薄封装逐字段真断言、34/724 绿、tsc 0 |
-| 完整性 | 20 | 19 | V1-V7 全覆盖、V8 转验收诚实；B5-1 降级"纯链接"未真正实现扣 1 |
-| 一致性 | 20 | 19 | manifest/导出/双语/契约一致；B5-1 文档与实现不一致扣 1 |
-| 可验证性 | 15 | 15 | 每条结论有命令+输出，哈希可核，测试可复现 |
-| 安全回滚 | 10 | 10 | fail-closed、零凭据字面量、13 键白名单、403、additive revert、closure 正确 open |
-| 可维护性 | 10 | 10 | leaf 边界、命名清晰、结构一致；B5-2/B5-3 已在建议中记录，不再重复扣分 |
-| **总分** | **100** | **98** | evaluator=reviewer-B5，author=coder，评审人≠作者 |
+| 正确性 | 25 | 25 | B5-1/3 独立复现真渲染/真抛点；R1 三值未变；730 绿；tsc 0 |
+| 完整性 | 20 | 20 | r0 六建议全闭；B5-1 链接兑现、B5-5 切换控件落地 |
+| 一致性 | 20 | 20 | B5-1 实现/文档/测试一致；B5-2 单一注册；manifest/patch 未变 |
+| 可验证性 | 15 | 15 | 每项附命令+输出；B5-3 真抛点臂源码审+Proxy 验证 |
+| 安全回滚 | 10 | 10 | 零凭据/零改写面；closure 全 post-merge/open，block 门无 OPEN |
+| 可维护性 | 10 | 10 | B5-2/3/5/6 均正向改进；叶子边界保持 |
+| **总分** | **100** | **100** | evaluator=reviewer-B5，author=coder，评审人≠作者 |
 
-## 六、诚实声明与开放项（属 B6，非 B5 阻断）
+## 十二、诚实声明
 
-- 真机未碰：端到端浏览器 `/zctx-ui` 三块渲染 + 5s 轮询 + face 灯、face 三重证据、非 loopback 真机只读语义、设置页 26 primitive 可见性、React 不可用真机降级——均未真机实测，属 B6 verifier。
-- closure 5 项保持 open 待主线 B6 定谳；BENCH-L2 原始 `user_approved_deferred` 不因探针自动关闭。
-- 无法验证项：无（本轮所有必核项均取得证据；真机项明确标注"属 B6/未验"而非"确认"）。
-- 评分 98 为压线放行：6 条 `[建议]` 必须在 B6 最终验收前逐条 closed，否则阻塞最终交付（与 `[建议]` 阻塞最终验收、不阻塞中间合入的纪律一致）。
+- 真机未碰：端到端浏览器三块渲染/5s 轮询/face 灯、三重证据、非 loopback 真机只读、设置页 primitive 可见性、真机会话切换、真机 React 降级——均属 B6，未验证。
+- closure 5 项保持 open 待 B6 定谳；BENCH-L2 原始 `user_approved_deferred` 不因探针自动关闭。
+- 无法验证项：无（复评所有项均取得证据；真机项明确标注属 B6）。
+- 终评 100/100：r0 六条 `[建议]` 全部 `fixed/verified`，无 `[阻断]`、无 OPEN 建议项；真机开放项属 B6 不作阻断。

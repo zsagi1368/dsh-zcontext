@@ -1,0 +1,153 @@
+{
+  "schema": "scorecard/v1",
+  "task": "ZCTX-UI",
+  "block": "B5b",
+  "block_label": "B5b 终验（独立 verifier 复核 V1-V10 验收矩阵）",
+  "evaluator": "verifier-b5b",
+  "author": "coder+main",
+  "independent": true,
+  "note_independence": "evaluator=verifier-b5b ≠ 作者 coder（实现）与 main（closure phase 修正/B5-4）；≠ 上游 reviewer-B5。本轮不生产新信息，仅独立换渠道复检。",
+  "date": "2026-11-18",
+  "worktree": "G:\\000Github\\zDSH\\zDSH-plugins\\dsh-zcontext\\worktrees\\ZCTX-UI",
+  "head": "69f0443546835e27377b4145d827eecce51ca4ea",
+  "base": "03ec933",
+  "upstream": {
+    "b5_scorecard": "tasks/ZCTX-UI/scorecards/B5.json",
+    "b5_total": 100,
+    "b5_evaluator": "reviewer-B5",
+    "b5_author": "coder",
+    "b5_review": "tasks/ZCTX-UI/handoffs/review-B5.md"
+  },
+  "dimensions": [
+    {
+      "name": "correctness",
+      "max": 25,
+      "score": 25,
+      "evidence": [
+        "V1: npx vitest run tests/zctx-ui.spec.ts → 29/29 PASS；实读 src/ui/snapshot.ts 确认薄封装 computeBudget(:156)/foldableRanges(:174)/observabilitySnapshot(:216)/usageSnapshot(:189)/ledgerEntries(:181)/routedRequestTarget(:145)/tokenMeter.measure(:129)，无算法重造、无日志扫描",
+        "V4 fail-closed 独立复现（真实 auth.ts，node --experimental-strip-types）：wrong-token+loopback READ/WRITE 均 false、valid-token true、loopback-only READ true/WRITE false、remote 无 token false —— 7 臂全 PASS，错误 token 不回退",
+        "V6: src/ui/face-probe.ts 默认 sink=process.stderr(:63-69)、createTransitionSink 去重(:194-201)、无 ctx.logger.warn（grep 唯一命中为注释）",
+        "V9: R1 SUPPORTED 段在 HEAD/69f0443/03ec933/b1e5518 四 ref 复算一致 chars=14889 bytes=14926 sha256=8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9",
+        "V10: pnpm test 34 files/730 tests PASS；npx tsc --noEmit EXIT=0；pnpm build EXIT=0 握手 4/4 PASS"
+      ]
+    },
+    {
+      "name": "completeness",
+      "max": 20,
+      "score": 20,
+      "evidence": [
+        "V1-V10 十项验收矩阵逐项独立复核完毕，无跳项；每项三值结论 + 可重放命令证据见 handoffs/verify-B5b.md",
+        "V2 三块 DOM 实读确认（page.ts:103 查看 / :107 统计 / :111 设置；setInterval 5s :362；face 灯 :167/:176/:211；会话 select :96-97）",
+        "V5 13/13、V7 13/13、V1/V4 所在 spec 29/29 全绿；附加-1（评审独立性/总分在册）、附加-2（checkpoint 链 VALID）均核完",
+        "真机臂（V2 浏览器渲染/V5 face 真机/V8 端到端/附加-3 webServer 注入）按 plan §6 属 B6，明确标注无法验证，不冒充已解决、不遗漏"
+      ]
+    },
+    {
+      "name": "consistency",
+      "max": 20,
+      "score": 20,
+      "evidence": [
+        "V8 closure.json 5 项全 disposition=open/status=open/phase=post-merge，A4-5/A2-4 附 _main_note（B5-4 phase block→post-merge），无单方面关闭、无 status=closed；与 review-B5 r1 结论一致",
+        "V3 与 V9 互相印证：src/ui + src/client 零 llm.stream/req.body/internal/config（grep NO MATCH），R1 SUPPORTED 段未变，additive 口径成立",
+        "上游 B5.json / review-B5.md 的 100/100、evaluator=reviewer-B5≠author=coder 在册，与在盘文件一致",
+        "checkpoint.json 与 checkpoint-history.jsonl step10 完整同构；progress.md STEP-0001..0010 与之一致"
+      ]
+    },
+    {
+      "name": "verifiability",
+      "max": 15,
+      "score": 15,
+      "evidence": [
+        "每条结论附可重放命令：vitest 三 spec 亲跑（29/29、13/13、13/13）、pnpm build/tsc/test、grep 零凭据/零改写面、auth.ts 独立加载 7 臂复现、R1 四 ref sha 复算、checkpoint 10 条自哈希+prev 链复算、sourcemap JSON key 级差异定位",
+        "真机项如实标注无法验证并说明尝试渠道（仅读 profile package.json，未启动/未写 app）：附加-3 给出三条具体发现（pin a4ae662 / bundles 含 dsh-web-app / 无 AutoPilot），非敷衍成'基本可信'"
+      ]
+    },
+    {
+      "name": "security_rollback",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "V4: 源码/测试/脚本零可用凭据字面量（grep NO MATCH）；token randomBytes(16) 运行时生成、仅闭包内存；fail-closed 错误 token 不回退 loopback 独立复现",
+        "V9 R1 红线四 ref 未变；V3 零请求体改写面；additive revert 不变（新文件+新路由+manifest 字段，既有折叠/face 顺序/config schema/cordis.patch.yml 未动）",
+        "V8 closure 5 项保持 open 未被单方面关闭；block 门无 OPEN（全 post-merge）",
+        "真机只读纪律遵守：仅读 profile 文件，未执行任何 app 启动/写入/部署操作；build churn 按 Z3 还原（git checkout -- lib/），未越权改动业务文件"
+      ]
+    },
+    {
+      "name": "maintainability",
+      "max": 10,
+      "score": 10,
+      "evidence": [
+        "V1 snapshot 依赖注入 seam（SnapshotDeps）+ 叶子边界；V6 createTransitionSink 去重封装清晰；V7 inject 最小集+能力探测降级结构良好",
+        "证伪项为零；真机风险（profile pin 落后 a4ae662 + webServer 注入无先例）已明确登记为 B6 待办与 handoff 风险，未隐藏、未改名 backlog"
+      ]
+    }
+  ],
+  "total": 100,
+  "threshold": 98,
+  "verdict": "PASS",
+  "real_device_deduction": "none",
+  "real_device_note": "真机臂（V2 浏览器渲染/V5 face 真机/V8 端到端/附加-3 webServer 注入）按 plan §6 定义属 B6，无法验证按规则不扣分。",
+  "hard_blocks": {
+    "forged_evidence": false,
+    "security_bottom_line": false,
+    "correctness_below_23": false,
+    "security_rollback_below_9": false,
+    "test_failure_or_p0p1_open": false,
+    "open_closure_blocking_b5": false,
+    "note": "无硬阻断命中。closure 5 项 open 属真机 B6 且全 post-merge phase，不作 B5b 阻断。"
+  },
+  "verification_matrix": [
+    { "id": "V1", "claim": "快照 API 进程内存实时（非日志扫描）", "result": "CONFIRMED", "method": "vitest zctx-ui.spec.ts D1 29/29 + 读 snapshot.ts 薄封装调用链" },
+    { "id": "V2", "claim": "UI 页三块渲染", "result": "CONFIRMED", "method": "读 page.ts DOM 三 section/h2；浏览器渲染属 V8/B6" },
+    { "id": "V3", "claim": "不耗 session token（不进对话）", "result": "CONFIRMED", "method": "grep llm.stream/req.body/internal/config 零命中；依赖图叶子" },
+    { "id": "V4", "claim": "授权+零凭据字面量+错误 token 不回退", "result": "CONFIRMED", "method": "vitest D2 + grep 零字面量 + 真实 auth.ts 7 臂 fail-closed 复现" },
+    { "id": "V5", "claim": "face 探针三态可判", "result": "CONFIRMED", "method": "vitest ui-face-probe.spec.ts 13/13；真机 face 属 B6" },
+    { "id": "V6", "claim": "fail-soft 可见 sink + UI face 健康", "result": "CONFIRMED", "method": "读 face-probe.ts stderr sink+去重+无 logger.warn；plugin 接线；sink 测试臂" },
+    { "id": "V7", "claim": "slot 摘要卡 inject 门失败不 PENDING", "result": "CONFIRMED", "method": "vitest client-slot.spec.ts 13/13 + pnpm build 握手 4/4" },
+    { "id": "V8", "claim": "研究 4 未解决转验收", "result": "CONFIRMED", "method": "读 closure.json 5 项 open/post-merge + _main_note；真机臂属 B6" },
+    { "id": "V9", "claim": "R1 红线 SUPPORTED 段不变", "result": "CONFIRMED", "method": "git show 四 ref + node 切片 sha256 = 8e2d0b7e… chars14889/bytes14926" },
+    { "id": "V10", "claim": "全量测试绿+tsc 0+树净", "result": "CONFIRMED", "method": "pnpm test 34/730 PASS + tsc EXIT=0 + build churn Z3 还原；唯一脏文件为 review-B5.md 任务文档" },
+    { "id": "附加-1", "claim": "B5 评审件 evaluator≠author、total=100", "result": "CONFIRMED", "method": "读 B5.json evaluator=reviewer-B5/author=coder/total=100" },
+    { "id": "附加-2", "claim": "checkpoint STEP-0001..0010 链 VALID", "result": "CONFIRMED", "method": "Node 复算 10 条自哈希 + 10 节 prev 链 + checkpoint==history.last" },
+    { "id": "附加-3", "claim": "桌面 webServer 面对第三方插件注入", "result": "UNVERIFIABLE", "method": "只读 profile package.json：pin=a4ae662（落后 HEAD 69f0443）/bundles 含 dsh-web-app/无 AutoPilot 先例；属 B6，未启动未写 app" }
+  ],
+  "refuted_items": [],
+  "findings": [
+    {
+      "id": "B6-RISK-1",
+      "severity": "risk",
+      "disposition": "open",
+      "title": "桌面 profile pin 落后 + webServer 第三方注入无先例",
+      "detail": "profile 将 dsh-zcontext 钉在 commit a4ae66297ccd…（被验 HEAD 为 69f0443）；bundle 列表含 @deepseek-ai/dsh-web-app（webServer 提供方）但无文件证明桌面 composition 向第三方插件注入 webServer 路由；profile 内无 AutoPilot 消费者先例。",
+      "owner": "main (B6)",
+      "recommendation": "B6 真机前先更新 profile pin 至合并后 commit，并真机确认 /zctx-ui 路由可达；否则 UI 落桌面不成立。属无法验证项，不扣 B5b 分。"
+    }
+  ],
+  "evidence_commands": [
+    "cd <WT> && npx vitest run tests/zctx-ui.spec.ts --reporter=verbose  → 29 passed",
+    "cd <WT> && npx vitest run tests/ui-face-probe.spec.ts --reporter=verbose  → 13 passed",
+    "cd <WT> && npx vitest run tests/client-slot.spec.ts --reporter=verbose  → 13 passed",
+    "cd <WT> && pnpm build  → EXIT 0, handshake 4/4 PASS（banner-single-arg-factory / banner-id-matches-package-name / footer-returns-exports / no-three-arg-factory）",
+    "cd <WT> && npx tsc --noEmit  → EXIT 0",
+    "cd <WT> && pnpm test  → 34 files / 730 tests PASS",
+    "grep -rnE 'llm.stream|llm/stream|req.body|internal/config|requestBody' <WT>/src/ui <WT>/src/client  → NO MATCH",
+    "grep -rnE \"['\\\"\\`]zctx_[0-9a-z]+_[0-9a-f]{16,}['\\\"\\`]\" <WT>/src <WT>/tests <WT>/scripts  → NO MATCH",
+    "node --experimental-strip-types --input-type=module -e 'import {authorizeRequest,authorizeWrite} from \"./src/ui/auth.ts\"; ...'  → fail-closed 7 臂 ALL PASS",
+    "git -C <WT> show <ref>:patcher/zctx-patch.mjs | node -e '<SUPPORTED 段切片+sha256>'  → 8e2d0b7e…059b0f9 / chars14889 / bytes14926（HEAD/69f0443/03ec933/b1e5518 一致）",
+    "node -e '<checkpoint-history.jsonl 自哈希+prev 链复算>'  → 10/10 自哈希 VALID, 10/10 链节 VALID, checkpoint==history.last",
+    "cat C:/Users/ZS/.dsh/profiles/desktop/package.json  → dsh-zcontext pin a4ae662 / bundles 含 dsh-web-app / 无 AutoPilot"
+  ],
+  "honesty": {
+    "real_device_touched": false,
+    "unverifiable_items": [
+      "桌面 webServer 面对第三方插件注入（附加-3，属 B6）",
+      "端到端浏览器三块渲染/5s 轮询/face 灯（V8-C-3，属 B6）",
+      "face 三重证据真机（BENCH-L2，属 B6）",
+      "非 loopback 真机只读语义（V8-A2-4 真机臂，属 B6）",
+      "设置页 primitive 字段真机可见性（V8-A3-4，属 B6）",
+      "真机会话切换（V8-A4-5 真机臂，属 B6）"
+    ],
+    "note": "真机纪律：仅只读 profile package.json，未启动/未写 app。所有真机臂标无法验证/属 B6，按 plan §6 不扣分。无编造命令输出或来源。"
+  }
+}
