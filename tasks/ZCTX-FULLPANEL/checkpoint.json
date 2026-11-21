@@ -1,0 +1,24 @@
+{
+  "schema": "checkpoint/v1",
+  "task": "ZCTX-FULLPANEL",
+  "step": 2,
+  "block": "A2+A3+C",
+  "status": "done",
+  "ts": "2026-11-21T12:15:00.000Z",
+  "artifacts": [
+    { "path": "src/ui/routes.ts (page route removed, /api/stats added, LedgerStats import)" },
+    { "path": "src/ui/index.ts (page.ts import/exports removed, ledgerStats accessor)" },
+    { "path": "src/ui/page.ts (DELETED — browser route removed per user 2026-11-21)" },
+    { "path": "src/client/index.ts (panel full-function zh: i18n + field labels + session switcher + writable settings)" },
+    { "path": "tests/zctx-ui.spec.ts (route arms rewritten)" },
+    { "path": "tests/ui-webserver-inject.spec.ts (3 routes + ledgerStats)" }
+  ],
+  "evidence": {
+    "tsc": "0 errors",
+    "tests": "750/750 (route arms rewritten for 3-path API surface)",
+    "handshake": "5/5 PASS",
+    "note": "dsh-app:// webview origin discovery (user 2026-11-21): browser route was structurally unreachable — removed per user decision. API routes are the panel's data channel (same-origin fetch verified working in the dsh-app webview by user-reported panel content)."
+  },
+  "next": "B3 review + real machine",
+  "prev_hash": "REBUILD-FROM-HISTORY (skip annotated: ZCTX-FULLPANEL chain restarted after A68-style misplacement)"
+}
