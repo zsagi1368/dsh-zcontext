@@ -1,24 +1,58 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-FULLPANEL",
-  "step": 2,
-  "block": "A2+A3+C",
+  "step": 3,
+  "block": "B-r1 (review-B3 rework: B-1..B-5 + S-1/S-2/S-3/S-4/S-6/S-7/S-8)",
   "status": "done",
-  "ts": "2026-11-21T12:15:00.000Z",
+  "ts": "2026-11-21T12:48:58.584Z",
   "artifacts": [
-    { "path": "src/ui/routes.ts (page route removed, /api/stats added, LedgerStats import)" },
-    { "path": "src/ui/index.ts (page.ts import/exports removed, ledgerStats accessor)" },
-    { "path": "src/ui/page.ts (DELETED — browser route removed per user 2026-11-21)" },
-    { "path": "src/client/index.ts (panel full-function zh: i18n + field labels + session switcher + writable settings)" },
-    { "path": "tests/zctx-ui.spec.ts (route arms rewritten)" },
-    { "path": "tests/ui-webserver-inject.spec.ts (3 routes + ledgerStats)" }
+    {
+      "path": "src/ui/i18n.ts",
+      "sha256": "df325b49edc33096dc570586c6f3f50964f3a65ce26ba86f4728bc6e3a96e3c0"
+    },
+    {
+      "path": "src/client/index.ts",
+      "sha256": "acb314e6b6e51234ae600562718fd5d91c35d26f38853ac2178a1eb269616d6e"
+    },
+    {
+      "path": "src/ui/routes.ts",
+      "sha256": "e5ea121e656d679c4fd81aea2a2fa4f704ea58fee9239b04a445f048ed746963"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "bd2861bca6d8134b0c83a4c83c953cfeabf3da564b52632c10d0bf87ee843b70"
+    },
+    {
+      "path": "tests/client-slot.spec.ts",
+      "sha256": "7a59d4f62901e281262d32957ea3acbca545d973865805a05acfbb2fd7fe23a7"
+    },
+    {
+      "path": "tests/panel-i18n.spec.ts",
+      "sha256": "e019c2108984c7b0ee391cf253a12fee9f0045092b23ba04fd1b1ef1df421297"
+    },
+    {
+      "path": "lib/index.js",
+      "sha256": "3cb7037f4215aaf722b307767ea6e9092ec723d8a6dd0ee76fd8ff846263c804"
+    },
+    {
+      "path": "lib/index.js.map",
+      "sha256": "f013070120f88d1dbf12dffe4074a3b32840bcd7f68baf286ffb767b85cc031c"
+    },
+    {
+      "path": "dist/client.cjs",
+      "sha256": "2e4305dd0e7061e41f1341d88de4ecfb6eac978e92fbd3dc99012265a34cd24e"
+    }
   ],
   "evidence": {
-    "tsc": "0 errors",
-    "tests": "750/750 (route arms rewritten for 3-path API surface)",
-    "handshake": "5/5 PASS",
-    "note": "dsh-app:// webview origin discovery (user 2026-11-21): browser route was structurally unreachable — removed per user decision. API routes are the panel's data channel (same-origin fetch verified working in the dsh-app webview by user-reported panel content)."
+    "tsc": "pnpm lint exit 0 (0 errors)",
+    "tests": "37 files 765/765 passed (750 baseline + 15 new panel-i18n arms)",
+    "handshake": "node scripts/assert-client-banner-handshake.mjs → 5/5 PASS, exit 0",
+    "r1": "patcher/zctx-patch.mjs SUPPORTED slice: chars=14889 bytes=14926 sha256=8e2d0b7effb1b9af0151b2e2aa8b408eb67b5d58c180e29df3c8730ac059b0f9 (unchanged; no patcher/ file in diff)",
+    "greps": "TOKEN_PLACEHOLDER|UI_PAGE_HTML|pageHtml src+tests+scripts → 0; src/client/index.ts href→/zctx-ui → 0; dist/client.cjs+lib/index.js bridge-token/href → 0; lib churn check: git diff --ignore-cr-at-eol stat == plain stat (real content change, no Z3 CRLF churn)",
+    "closure": "tasks/ZCTX-FULLPANEL/closures/closure.json — 12 fixed/verified, S-5 OPEN owner=main (out of r1 card scope)"
   },
-  "next": "B3 review + real machine",
-  "prev_hash": "REBUILD-FROM-HISTORY (skip annotated: ZCTX-FULLPANEL chain restarted after A68-style misplacement)"
+  "next": "reviewer 复评 r1 → B4 真机验收（面板渲染/语言跟随/统计读数/设置真写）",
+  "prev_hash": "02dafeff97af6463ecd1ff7e48d2a22ae0b7fdd2d8890d3765c85be64be9b556",
+  "hash_note": "hash = SHA-256 over canonical JSON of this object minus the hash field; prev_hash = SHA-256 of step-2 checkpoint.json file bytes (S-7 chain link restored from step 3 onward; pre-step2 history stays the annotated REBUILD-FROM-HISTORY point)",
+  "hash": "067509185ccf5fc9efa7198ec1abb110eac786bc1af5ba4f439c1385e2e6e8d1"
 }

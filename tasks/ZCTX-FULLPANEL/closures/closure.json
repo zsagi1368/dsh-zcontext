@@ -1,0 +1,137 @@
+{
+  "schema": "closure/v1",
+  "task": "ZCTX-FULLPANEL",
+  "wave": "r1 (review-B3 rework, coder)",
+  "updated": "2026-11-21T13:05:00+08:00",
+  "items": [
+    {
+      "id": "B-1",
+      "source": "reviewer-fp:review-B3",
+      "type": "blocker",
+      "disposition": "fixed",
+      "evidence": "picked session state + snapshot effect deps [picked] (src/client/index.ts createPanelComponent); tests/panel-i18n.spec.ts B-1 arm: after switch, EVERY snapshot fetch (immediate + simulated 5s poll tick) carries ?session=session-picked, zero bare default fetches; 765/765 vitest green",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "B-2",
+      "source": "reviewer-fp:review-B3",
+      "type": "blocker",
+      "disposition": "fixed",
+      "evidence": "①faceSwitches form renders (3 checkbox + preflightMode select off|observe|enforce) and posts {fields, faceSwitches} — panel-i18n.spec.ts B-2a/B-2b arms assert render + wire shape; ②number fields converted with Number() via data-type from GET typeof; NaN rejects the WHOLE submit with a message naming the key (B-2b NaN arm: zero POSTs); 765/765 green",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "B-3",
+      "source": "reviewer-fp:review-B3",
+      "type": "blocker",
+      "disposition": "fixed",
+      "evidence": "card link + no-React fallback anchor removed (FallbackRender tag=span, hint text 请在左侧菜单 zcontext 打开面板); client-slot.spec.ts link pins rewritten to text-card pins asserting NO href//zctx-ui; grep src/client/index.ts href.*zctx-ui → 0 hits; dist/client.cjs grep __ZCTX_BRIDGE_TOKEN__|href zctx-ui → 0",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "B-4",
+      "source": "reviewer-fp:review-B3",
+      "type": "blocker",
+      "disposition": "fixed",
+      "evidence": "①resolveLang: explicit pref > probe (zh→zh, ANY other detected→en) > default zh — panel-i18n.spec.ts 4 arms incl. ja-JP/de-DE/ko-KR→en; ②five hardcoded zh literals → dict keys cumulative/totalsSaved/sessionsCovered/current/rowsSuffix — en-mode arm asserts serialized render has ZERO CJK; header comments re-pinned (i18n.ts + client/index.ts); 765/765 green",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "B-5",
+      "source": "reviewer-fp:review-B3",
+      "type": "blocker",
+      "disposition": "fixed",
+      "evidence": "CHANGELOG.md [Unreleased] rewritten: Added = full-function native panel (view/stats SQLite cumulative/writable settings {fields,faceSwitches}/i18n follow DSH) + /api/stats + honest ledger degrade; Removed = browser page route (dsh-app:// structurally unreachable, user 2026-11-21); obsolete read-only-page narrative deleted",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "S-1",
+      "source": "reviewer-fp:review-B3",
+      "type": "suggestion",
+      "disposition": "fixed",
+      "evidence": "routes.ts TOKEN_PLACEHOLDER const + 'replaced at register time' comment deleted; header re-pinned to THREE exact paths/four method arms; grep TOKEN_PLACEHOLDER|UI_PAGE_HTML|pageHtml src+tests+scripts → 0 hits",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "S-2",
+      "source": "reviewer-fp:review-B3",
+      "type": "suggestion",
+      "disposition": "fixed",
+      "evidence": "8 dead dict keys deleted (copyAddress/copied/readonlyNote/openFullPanel/language/langAuto/langZh/langEn — panel-i18n.spec.ts hygiene arm asserts absence) + dead PanelSnapshot.ledgerStats field deleted (grep src → 0 refs)",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "S-3",
+      "source": "reviewer-fp:review-B3",
+      "type": "suggestion",
+      "disposition": "fixed",
+      "evidence": "outdated comments rewritten: client/index.ts module header (link-to-page narrative → panel-is-full-surface), createPanelComponent JSDoc (read-only/U-2 → full-function writable), i18n.ts header (settings-override strategy → probe strategy), routes.ts header (FOUR routes incl. page → three paths)",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "S-4",
+      "source": "reviewer-fp:review-B3",
+      "type": "suggestion",
+      "disposition": "fixed",
+      "evidence": "ledgerOk state gates the cumulative block: failed stats read renders 统计暂不可用 error row instead of mislabeling current-session foldCount as (累计) — panel-i18n.spec.ts S-4 arms (fail: not.toContain '(累计): 3'; success: 折叠次数(累计): 12)",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "S-6",
+      "source": "reviewer-fp:review-B3",
+      "type": "suggestion",
+      "disposition": "fixed",
+      "evidence": ".zctx-panel-select CSS rule added (theme variables bg-layer-2/border/label-primary) + .zctx-panel-faces mirror rule; .zctx-summary-note rule for the new hint text",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "S-7",
+      "source": "reviewer-fp:review-B3",
+      "type": "suggestion",
+      "disposition": "fixed",
+      "evidence": "checkpoint STEP-0003 restores a REAL chain link: prev_hash = SHA-256 of the step-2 checkpoint.json file bytes (verifiable via sha256sum tasks/ZCTX-FULLPANEL/checkpoint.json@284db97); step-3 checkpoint also carries its own content hash (canonical JSON minus hash field); progress.md documents the chain resume; pre-step2 history remains the annotated rebuild point (unchanged, honestly noted)",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "S-8",
+      "source": "reviewer-fp:review-B3",
+      "type": "suggestion",
+      "disposition": "fixed",
+      "evidence": "tests/panel-i18n.spec.ts (15 arms) covers resolveLang/UI_DICT/FIELD_LABELS/panel render/session switch/POST shape/NaN reject/ledger honesty; client-slot.spec.ts link arms rewritten; suite 37 files 765/765 green (750 baseline + 15 new)",
+      "owner": "coder",
+      "status": "verified",
+      "phase": "block"
+    },
+    {
+      "id": "S-5",
+      "source": "reviewer-fp:review-B3",
+      "type": "suggestion",
+      "status": "OPEN",
+      "owner": "main",
+      "phase": "block",
+      "note": "类型双轨（ui/index.ts LedgerStatsFromDb vs routes.ts 直接 import LedgerStats）——r1 任务卡范围清单未列入本条（planner 范围决策），coder 不越权改动；待主线处置：fixed 或按 §11 记账。行为无影响（纯类型层），不阻塞真机 B4。"
+    }
+  ]
+}

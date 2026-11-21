@@ -1,2 +1,3 @@
 
 [2026-11-21] STEP-0002 | block=A2+A3+C | status=done | routes 砍 page+加 /api/stats; page.ts 删除(用户令:浏览器路线取消 dsh-app:// 协议不可达); panel 全功能 zh: i18n 跟随 DSH(navigator.language 探测+zh 默认)+字段中文标签字典(13键)+session 切换+SQLite 累计统计+可写设置; 复制地址按钮删除 | 证据 tsc=0 750/750 握手5/5 | 3 失败测试已重写(page route arms→3 route+stats) | next=B3 评审
+[2026-11-21] STEP-0003 | block=B-r1 (review-B3 rework) | status=done | B-1 picked-session 不被轮询覆写(deps [picked]); B-2 faceSwitches 表单渲染+POST {fields,faceSwitches}+Number 转换+NaN 整单拒绝; B-3 死链清除(card/fallback→纯文本卡); B-4 resolveLang 显式>探测(zh→zh,其他→en)>默认zh + 5 处硬编码中文入字典; B-5 CHANGELOG 重写; S-1/S-2/S-3/S-4/S-6/S-7(链恢复)/S-8(15 新测试臂) | 证据 tsc=0 765/765 握手5/5 R1=8e2d0b7e…不变 | S-5 OPEN→main(卡片范围外) | next=reviewer 复评+B4 真机
