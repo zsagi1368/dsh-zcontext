@@ -113,8 +113,28 @@ const UI_DICT = {
 		en: "Face switches"
 	},
 	invalidNumber: {
-		zh: "数值字段格式错误（未提交）: ",
-		en: "Invalid number field(s) — nothing was saved: "
+		zh: "数值字段无效或为空（未提交）: ",
+		en: "Invalid or empty number field(s) — nothing was saved: "
+	},
+	summaryTitle: {
+		zh: "zcontext 摘要 (BETA)",
+		en: "zcontext summary (BETA)"
+	},
+	summaryFolds: {
+		zh: "折叠 {n} 次",
+		en: "{n} folds"
+	},
+	summaryWindow: {
+		zh: "窗口 {p}%",
+		en: "Window {p}%"
+	},
+	summaryWindowNa: {
+		zh: "窗口 n/a",
+		en: "Window n/a"
+	},
+	panelLinkHint: {
+		zh: "请在左侧菜单 zcontext 打开面板",
+		en: "Open the panel from the zcontext entry in the left menu"
 	}
 };
 /**
@@ -301,9 +321,22 @@ const sameOriginFetchText = (url) => fetch(url).then((r) => {
 	return r.text();
 });
 /**
+* Card-scope language resolution — the SAME semantics as the panel (S-9):
+* `navigator.language` inherits the DSH host setting (detected non-zh → en);
+* probe missing (bare-Node tests, no webview) → the zh default. The summary
+* and fallback cards hold no React state, so the language resolves per render
+* (a host locale change is picked up on the next host-driven re-render).
+*/
+function cardLang() {
+	const nav = globalThis.navigator;
+	const navLang = typeof nav?.language === "string" ? nav.language : void 0;
+	return resolveLang(void 0, navLang);
+}
+/**
 * Build the card component. `React` may be absent → caller degrades to a text
 * card. B-3: NO link — the browser page route was removed; the card is a pure
-* summary plus a pointer to the native left-menu panel entry.
+* summary plus a pointer to the native left-menu panel entry. S-9: ALL copy
+* comes from the i18n dictionary (same language resolution as the panel).
 */
 function createSummaryCard(React, initial, fetchText) {
 	if (React === void 0) return void 0;
@@ -314,19 +347,21 @@ function createSummaryCard(React, initial, fetchText) {
 	});
 	return function SummaryCard() {
 		const data = holder.data;
-		const stats = [`折叠 ${data?.foldCount ?? 0} 次`, data?.pressurePct !== void 0 ? `窗口 ${data.pressurePct.toFixed(1)}%` : "窗口 n/a"].join(" · ");
-		return e("div", { className: "zctx-summary" }, e("h3", null, "zcontext 摘要 (BETA)"), e("div", { className: "zctx-stats" }, stats), e("div", { className: "zctx-summary-note" }, "请在左侧菜单 zcontext 打开面板"));
+		const lang = cardLang();
+		const stats = [t("summaryFolds", lang).replace("{n}", String(data?.foldCount ?? 0)), data?.pressurePct !== void 0 ? t("summaryWindow", lang).replace("{p}", data.pressurePct.toFixed(1)) : t("summaryWindowNa", lang)].join(" · ");
+		return e("div", { className: "zctx-summary" }, e("h3", null, t("summaryTitle", lang)), e("div", { className: "zctx-stats" }, stats), e("div", { className: "zctx-summary-note" }, t("panelLinkHint", lang)));
 	};
 }
 /**
 * Build the no-React fallback component. It returns a REAL, assertable render
 * product: a text node (when a document is available) AND a `FallbackRender`
 * descriptor with a non-empty label. Never a blank `null` card (B5-1) and
-* never a link (B-3: the pointed-at page no longer exists).
+* never a link (B-3: the pointed-at page no longer exists). S-9: the copy
+* comes from the i18n dictionary (same language resolution as the panel).
 */
 function createFallbackCard(doc) {
 	return function FallbackCard() {
-		const text = "请在左侧菜单 zcontext 打开面板";
+		const text = t("panelLinkHint", cardLang());
 		let node;
 		if (doc !== void 0 && typeof doc.createElement === "function") try {
 			const span = doc.createElement("span");
@@ -534,7 +569,8 @@ function createPanelComponent(React, fetchText) {
 							continue;
 						}
 						if (type === "number") {
-							const n = Number(el.value);
+							const raw = typeof el.value === "string" ? el.value.trim() : "";
+							const n = raw === "" ? NaN : Number(raw);
 							if (Number.isNaN(n)) {
 								badNumberKeys.push(key);
 								continue;
