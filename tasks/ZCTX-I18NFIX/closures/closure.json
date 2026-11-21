@@ -79,6 +79,36 @@
       "phase": "block",
       "evidence": "locale=en-US + navigator=zh-CN → en arm added (panel-i18n); ignoring locale would fail it",
       "owner": "main"
+    },
+    {
+      "id": "R3-R2-1",
+      "source": "review-B1-r2",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "cardLang comment clause replaced (webview-reload mechanism, no poll claim); bf7dbde",
+      "owner": "main"
+    },
+    {
+      "id": "R3-R2-2",
+      "source": "review-B1-r2",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "UI_DICT.uiLanguage row deleted; FIELD_LABELS.uiLanguage sole label source; grep t('uiLanguage') = 0",
+      "owner": "main"
+    },
+    {
+      "id": "R3-流程1",
+      "source": "review-B1-r2",
+      "type": "process",
+      "disposition": "fixed",
+      "status": "verified",
+      "phase": "block",
+      "evidence": "LOCALE_SHAPE doc+declaration reunited; module header reflects in-module IO half",
+      "owner": "main"
     }
   ]
 }

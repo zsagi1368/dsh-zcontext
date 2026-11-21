@@ -1,21 +1,19 @@
 {
   "schema": "checkpoint/v1",
   "task": "ZCTX-I18NFIX",
-  "step": 2,
-  "block": "r2 rework per review-B1 (90 → re-review pending): 建议-1a card anchor / -2 CHANGELOG / -3 single-source / -4 IO arms / -5 en-direction arm (a6f8900)",
+  "step": 3,
+  "block": "r3 nano zeroing per review-B1-r2 (bf7dbde): poll-clause truth / dead dict row / comment reunion",
   "status": "done",
-  "ts": "2026-11-21T14:20:07.130Z",
+  "ts": "2026-11-21T14:28:13.702Z",
   "evidence": {
-    "gates": "tsc 0; 788/788 (38 files, +7 arms); build ok; handshake 5/5; lib readDesktopLocaleFile×2; client langOptFollow present",
-    "rework": [
-      "建议-1a (implemented, not deferred): SummaryData.locale + parseSummary extraction + cardLang(localeHint) anchored on snapshot.locale + SummaryCard passes data?.locale; fallback-card comment honest (no data channel)",
-      "建议-2: CHANGELOG \"UI language follows DSH\" rewritten to the real chain (locale-cache anchor + selector + chain order)",
-      "建议-3: UI_LANG_OPTIONS → {value, key: UiDictKey}; labels via uiT(o.key, lang) from UI_DICT (single source)",
-      "建议-4: IO half exported readDesktopLocaleFile(appData); plugin narrows env only; 5 arms (temp-root happy/ENOENT/malformed/empty-root/env-stub)",
-      "建议-5: locale=en-US + navigator=zh-CN → en arm (ignoring locale would fail it)"
+    "gates": "tsc 0; 788/788; build; handshake 5/5 (rerun after r3)",
+    "r3": [
+      "R2-1: cardLang comment clause now states fetch-once + webview-reload rebuild (mechanism-honest)",
+      "R2-2: UI_DICT.uiLanguage dead row removed; FIELD_LABELS.uiLanguage is the label source (pointer note left)",
+      "流程-1: LOCALE_SHAPE doc reunited with declaration; module header honest about IO half in-module"
     ]
   },
-  "next": "re-review",
-  "prev_hash": "763570a6b4810073586fee1e85f9dcbba8fe9c2906ef4eb32a07299260c5b6a9",
-  "hash": "c6186772bc8af7ff34f73f289ad393509c559c6aebef09b53d07f0b1c8077e3c"
+  "next": "re-review quick check → merge+deploy",
+  "prev_hash": "c6186772bc8af7ff34f73f289ad393509c559c6aebef09b53d07f0b1c8077e3c",
+  "hash": "d46de3f3d6d87a53abb429b93bc7b579590774a1d2450d495c2b95d4932ba2fd"
 }
