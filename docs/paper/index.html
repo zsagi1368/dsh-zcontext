@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>面向 Agent 长会话的分层上下文管理：zcontext 的设计与实测评估</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#555; --accent:#0f4c81; --rule:#d8d8d8; }
+  body { font-family: "Source Han Serif SC","Noto Serif CJK SC","Songti SC",Georgia,serif; color:var(--ink);
+         max-width: 46rem; margin: 3rem auto; padding: 0 1.2rem; line-height: 1.85; font-size: 1.02rem; }
+  header { text-align:center; margin-bottom: 2.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 700; margin: 0 0 .6rem; }
+  .subtitle { color:var(--muted); font-size: 1.02rem; margin-bottom: 1.2rem; }
+  .authors { color:var(--muted); font-size: .95rem; }
+  .meta { color:var(--muted); font-size:.85rem; margin-top:.4rem; }
+  h2 { font-size: 1.28rem; border-bottom: 1px solid var(--rule); padding-bottom: .3rem; margin-top: 2.6rem; }
+  h3 { font-size: 1.08rem; margin-top: 1.8rem; }
+  p { margin: .8rem 0; text-align: justify; }
+  .abstract { background:#f7f7f5; padding: 1.1rem 1.3rem; border-left: 3px solid var(--accent); margin: 2rem 0; font-size:.97rem; }
+  .abstract p { margin: .5rem 0; }
+  .kw { color:var(--muted); }
+  code, .mono { font-family: "JetBrains Mono",Consolas,monospace; font-size:.88em; background:#f2f2ef; padding:.1em .35em; border-radius:3px; }
+  pre { font-family:"JetBrains Mono",Consolas,monospace; font-size:.85rem; background:#f7f7f5; padding:1rem 1.2rem;
+        overflow-x:auto; border:1px solid var(--rule); border-radius:6px; line-height:1.6; }
+  table { border-collapse: collapse; width:100%; margin: 1.2rem 0; font-size:.92rem; }
+  th, td { border:1px solid var(--rule); padding:.45rem .6rem; text-align:left; vertical-align:top; }
+  th { background:#f2f2ef; font-weight:600; }
+  caption { caption-side:top; text-align:left; color:var(--muted); font-size:.9rem; padding-bottom:.4rem; }
+  .formula { text-align:center; font-size:1.05rem; margin:1.1rem 0; }
+  .note { color:var(--muted); font-size:.9rem; }
+  ol.refs { font-size:.92rem; color:#333; }
+  ol.refs li { margin:.45rem 0; }
+  .tag { display:inline-block; background:#eef3f8; color:var(--accent); border-radius:4px; padding:.05em .5em; font-size:.82em; margin-right:.3em; }
+  footer { margin-top:3.5rem; border-top:1px solid var(--rule); padding-top:1rem; color:var(--muted); font-size:.85rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  @media print { body { max-width:none; margin:1.5rem; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>面向 Agent 长会话的分层上下文管理：zcontext 的设计与实测评估</h1>
+  <div class="subtitle">——综合 DSH 原生压缩机制、pi 上下文经济学与 billion-context 预算式策略的系统研究</div>
+  <div class="authors">zDSH 插件研究线 · dsh-zcontext v0.3.0</div>
+  <div class="meta">2026 年 11 月 21 日 · 数据来源：170 轮隔离基准（Phase 2）与 40 轮自发折叠对照（Phase 3）· 全部数字可溯源</div>
+</header>
+
+<div class="abstract">
+  <p><strong>摘要（中文）</strong>：编码 Agent 的上下文在长会话中持续膨胀，而 API 无状态要求每轮全量重发上下文，导致计费输入随轮次近指数增长。本文在 50 轮隔离基准中实测裸官方路径的计费输入增长 <strong>11.8×</strong>（前 10 轮均值 109,181 → 后 10 轮均值 1,288,955 token/轮，单轮峰值 3,322,963），定位问题严重性。我们综合三条技术路线——DSH 官方的 surface-replace 折叠通道（compaction-basic 硬底座）、pi 研究线产出的上下文 token 经济学（成本方程 ΣC<sub>i</sub>×(1−r+r·κ) 与杠杆顺序 C→r→N）、以及 billion-context 的固定水位预算式策略——设计并实现了 zcontext：一个<strong>零请求体改写</strong>、完全骑乘官方折叠通道的分层上下文管理插件。系统包含观测账本（三态记账）、折叠引擎与 unfold 单节点再物化语义、引导面与压力提醒面、<strong>autoFold 服务端自发折叠引擎</strong>（三供给、退化链、防反馈环）、发送前预检（估算器+校准台账+按路线挣得的 auto 档）与 SQLite 持久账本。实测回答了三个关键问题：①模型驱动折叠不可依赖——修复接线后模型在 nudge 在场的 20 轮压力臂中自发折叠仍为 0/20；②服务端自发折叠有效——两臂各一次折叠净省 4,576/5,101 token（−88.1%/−88.9%），折叠后次轮计费输入 −44%；③诚实度量是可评估性的前提——三态记账与缓存实测/估计分离使「省了多少」可审计。本文同时给出三条路线的机制对比与水位策略的开放问题。</p>
+  <p><strong>Abstract (EN)</strong>: Agent contexts balloon over long sessions while stateless APIs re-send the entire context every turn: in a 50-turn isolated benchmark the vanilla path grows billing input by <strong>11.8×</strong> (109,181 → 1,288,955 tokens/turn, peak 3,322,963). Synthesizing three lines of work — the DSH native surface-replace folding channel (compaction-basic as the hard floor), the context-token economics from the pi research line (cost equation ΣC<sub>i</sub>×(1−r+r·κ), leverage order C→r→N), and billion-context's fixed-water-level budget strategy — we present <em>zcontext</em>, a layered context-management plugin that rewrites <em>zero</em> request bodies and rides the official folding channel exclusively. It comprises an observation ledger (three-state accounting), a fold engine with single-node unfold re-materialization, a guidance/nudge face, a <strong>server-initiated autoFold engine</strong> (three summary supplies, degradation chain, feedback-loop guard), a preflight window judge with a calibration ledger and per-route <em>earned</em> enforce mode, and a SQLite durable ledger. Measurements answer three questions: (1) model-driven folding is unreliable (0/20 spontaneous folds with nudge present after wiring was fixed); (2) server-initiated folding works (two arms: −88.1% / −88.9% net tokens saved; −44% billed input on the turn after a fold); (3) honest provenance is the prerequisite of evaluability.</p>
+  <p class="kw"><strong>关键词</strong>：上下文管理；token 经济学；会话折叠；缓存前缀；服务端自发折叠；校准驱动的自适应；Agent 记账</p>
+</div>
+
+<h2 id="s1">1 引言</h2>
+
+<h3>1.1 问题：增长的上下文在无状态 API 上的计费放大</h3>
+<p>主流 Agent 框架（Claude Code、Codex、DSH 等）的会话历史均非滑动窗口——API 无状态，每轮必须全量重发上下文<sup><a href="#r2">[2]</a></sup>。随之而来的计费结构性放大：会话越长，每轮重发的输入越多。我们在隔离环境中对 DSH 官方路径做了 50 轮的量化（§8.1）：前 10 轮均值 109,181 token/轮，后 10 轮均值 1,288,955 token/轮，<strong>增长 11.8 倍</strong>；单轮峰值 3,322,963 token。由于缓存命中（98.2%）只降低单价、不减计数，「读便宜」并不改变体量增长的事实。</p>
+
+<h3>1.2 三条既有路线与本文位置</h3>
+<p>解决该问题存在三条代表性路线。<strong>（a）DSH 原生压缩</strong>：compaction-basic 作为硬底座在窗口溢出后由官方压缩链恢复，maxOverflowRetries 限次重试——它是事后恢复，不是事前节流。<strong>（b）pi 研究线</strong>：从 token 经济学出发，主张「不让垃圾进上下文」的注入纪律，给出成本方程与杠杆顺序（§2.2）——它是离线设计准则，未在 DSH 形态落地。<strong>（c）billion-context</strong>：以侧车进程维持固定水位（常驻 ~100k）的预算式折叠——它证明了服务端自发折叠的可行性，但其水位策略与窗口大小解耦，且对模型自发采用率的报告（27B 级小模型自发采用为零）与我们的实测一致（§5.1）。</p>
+<p>zcontext 的位置：以 pi 的经济学结论为<strong>设计准则</strong>，以 DSH 官方折叠通道为<strong>唯一执行面</strong>（零请求体改写），吸收 billion-context「不等模型自觉」的服务端思想并加以机制化（校准驱动、防反馈环、诚实退化）。三者综合的落点是一个插件形态的分层系统，同时兼容「纯插件」与「补丁完全功能」两种部署形态（§7）。</p>
+
+<h3>1.3 贡献</h3>
+<p>本文的贡献有四：①给出长会话计费放大的<strong>第一手量化证据</strong>（11.8×，§8.1）与模型驱动折叠不可依赖的<strong>对照证据</strong>（0/20，§5.1）；②提出并实现<strong>骑乘官方通道的零改写折叠栈</strong>（R1 红线，§3），含单节点 unfold 再物化语义（§4.2）；③设计<strong>校准驱动的 auto 预检档</strong>——enforce 行为按路线从校准台账「挣得」而非假定（§6）；④两臂实测证明服务端自发折叠的净节省（−88.1%/−88.9%，折叠次轮计费 −44%，§8.2）。</p>
+
+<h2 id="s2">2 背景与相关工作</h2>
+
+<h3>2.1 DSH 原生上下文管理</h3>
+<p>DSH（DeepSeek Harness）的上下文由三层机制构成：<strong>（i）surface 折叠通道</strong>——会话表面（surface）是有序节点序列，官方提供 replace 型原语将 N 个节点替换为 1 个节点，这是官方唯一认可的「收起历史」方式；<strong>（ii）compaction-basic</strong>——窗口溢出后的恢复链，将上下文交给压缩摘要并在失败时按 maxOverflowRetries 有限重试；<strong>（iii）pruner</strong>——系统层剪枝。关键约束：任何第三方折叠若想获得官方恢复链的配合（溢出重试、摘要供给），必须经（i）的通道表达；绕过通道改写请求体会破坏缓存前缀与官方不变量（§3）。</p>
+
+<h3>2.2 pi 上下文经济学</h3>
+<p>pi 研究线（2026-08，源码级研究+三轮对抗验证）产出了本设计的经济学基础<sup><a href="#r3">[3]</a></sup>：</p>
+<div class="formula">总费用 ≈ Σ<sub>i</sub> C<sub>i</sub> × (1 − r + r·κ)，其中 κ ≈ 10</div>
+<p>其中 C<sub>i</sub> 为第 i 轮平均上下文体量，r 为缓存命中率，κ 为前缀失效放大系数——<strong>缓存前缀一字节变化，整条缓存作废，等效成本 ×10</strong>。由此导出<strong>杠杆顺序 C→r→N 不可反</strong>：先压注入纪律与限幅（降 C），再冻结前缀+守护（保 r），最后才考虑摘要（降 N）。该顺序直接塑造了 zcontext 的实施序：观测账本先行（L0 度量），守护与冻结优先于任何折叠动作。</p>
+<p>同样来自该研究线的事实：pi 自身哲学是「不让垃圾进上下文」（系统提示 1–2KB、单一扁平历史、工具输出 2000 行/50KB 限幅、晚压缩+迭代式结构化摘要）；Claude Code 与 Codex 均非滑窗——「摘要+保留近期+剪枝工具输出」是行业收敛解。zcontext 的 guidance 面与工具输出限幅思路同源，但把执行面从「改请求」换成「骑官方通道」。</p>
+
+<h3>2.3 billion-context</h3>
+<p>billion-context 是 DSH 生态中的第三方上下文插件（侧车进程形态，独立端口服务）。其策略是<strong>固定水位</strong>：无论窗口大小，把上下文维持在 ~100k 常驻水位，长期运行、永不遗忘。其公开自述承认在 27B 级小模型上模型自发采用率为零——与我们在 §5.1 的对照数据（0/20）相互印证：<strong>模型驱动折叠在当前量级模型上不可依赖，服务端自发折叠是必要路线</strong>。zcontext 与其的差异在 §10 对比表：执行通道（官方 surface replace vs 侧车自管）、水位策略（触发线驱动 vs 固定水位）、以及校准驱动的自适应预检。</p>
+
+<h2 id="s3">3 设计原则</h2>
+<p>四条原则贯穿全部实现，每条都对应一次真实的失败教训或官方约束：</p>
+<p><span class="tag">R1</span><strong>零请求体改写。</strong>对发往模型的 wire 请求不做任何修改——无 fetch 代理、无 prompt 截断兜底、无请求重写。动机有二：缓存前缀的单调性（A″ 设计：折叠进日志而非改请求，保 prompt-cache 前缀只增不减）；以及官方不变量（request.messages ≡ deriveMessages()）不被第三方破坏。折叠的全部效果通过 surface replace 表达。</p>
+<p><span class="tag">R2</span><strong>官方通道唯一性。</strong>折叠/展开只经官方 surface replace 原语执行；官方 compaction-basic 永远是硬底座——插件面失效时官方压缩兜底，双保险不互斥。</p>
+<p><span class="tag">R3</span><strong>诚实度量。</strong>每个数字携带来源标签（measured/estimated/unknown/none），三态记账区分实测、半实测与估计；缓存会计区分 measured 与 estimated；「统计不可用」如实渲染而非伪装成零。可评估性（§8）依赖此原则。</p>
+<p><span class="tag">R4</span><strong>fail-soft 全线退化。</strong>任何子面故障（账本、估算器、投影器、台账）都退化为「跳过该动作」，绝不阻断请求；每个可选依赖的能力探测 + 显式降级路径（如投影器的 official/local-fallback 双标签）。</p>
+
+<h2 id="s4">4 系统架构</h2>
+
+<h3>4.1 分层视图</h3>
+<table>
+<caption>表 1：zcontext 分层架构与各层职责</caption>
+<tr><th>层</th><th>构件</th><th>职责</th></tr>
+<tr><td>观测层</td><td>usage 账本、cache 会计（三态）、attempt 捕获</td><td>每轮计费输入的三值之和口径、缓存实测/估计分离、失败尝试记录</td></tr>
+<tr><td>决策层</td><td>预算计算（CCM）、可折叠区间推导、校准台账</td><td>触发线 W−R<sub>pess</sub>、区间工具对闭合、互斥与代数快照</td></tr>
+<tr><td>执行层</td><td>折叠引擎（fold/unfold）、autoFold 监听器、preflight 监听器</td><td>经官方 surface replace 提交折叠；服务端自发触发；发送前判定</td></tr>
+<tr><td>持久层</td><td>SQLite 账本（node:sqlite，WAL）</td><td>折叠事件与用量的跨会话累计（~/.dsh/zctx/ledger.db）</td></tr>
+<tr><td>呈现层</td><td>zctx_status / 实时面板 / 运行形态行</td><td>人读报告与零 token 实时视图；补丁/插件形态可见性</td></tr>
+</table>
+
+<h3>4.2 折叠语义与 unfold 的单节点再物化</h3>
+<p>一次 fold 把连续的表面节点折叠为一个<strong>checkpoint 节点</strong>（保留摘要与可引用的原始区间索引）；官方 replace 语义要求 N→1。unfold 则将该 checkpoint 再物化为<strong>恰好一个多块用户消息</strong>，原始内容按日志序内联引用（工具结果带来源注记）——原始轮次不会回到表面的独立消息形态。会话日志永久保留全部原始事件，<code>zctx_recall</code> 可跨折叠检索。这一「线型改变」是骑乘官方通道的诚实代价，在测试中断言而非隐藏。</p>
+
+<h3>4.3 工具面、引导面与压力提醒面</h3>
+<p>模型侧提供 <code>zctx_status</code>（唯一可信账本视图，含缓存会计与校准统计）、<code>zctx_recall</code> 等工具；系统提示注入引导段（fold 判据与规范）；压力提醒（nudge）以 <code>required: true</code> 注册——官方组装器在部分配置下会过滤非必需贡献，required 是其在高压场景存活的机制前提。nudge 仅在阈值跨越后贡献文本，平时零注入（pi 零注入哲学的保守变体）。</p>
+
+<h2 id="s5">5 autoFold：服务端自发折叠引擎</h2>
+
+<h3>5.1 动机：模型驱动折叠的第一手不可靠性</h3>
+<p>v0.2 线的设计依赖模型在 nudge 提醒下自发调用 <code>zctx_fold</code>。我们修复接线后做了 20 轮压力臂 + 10 轮正常臂的对照（§8.1 的 B/C 组即其背景）：nudge 文本实测在场（wire prompt 验证），<strong>自发折叠仍为 0/20</strong>。这与 billion-context 的自述（27B 级小模型自发采用为零）一致。结论：<strong>把折叠挂在模型自觉上是不可依赖的</strong>——必须把触发权移到服务端。</p>
+
+<h3>5.2 触发、选区与供给</h3>
+<p>autoFold 监听器在服务端每轮评估：估算上下文越过触发线（含 margin）即启动折叠判定。<strong>选区</strong>由折叠引擎推导（工具对闭合、互斥约束、代数快照校验），不合格即诚实退出（no-qualified-span，零摘要调用）；<strong>供给</strong>三选一：compaction 官方摘要、external 端点、digest 机械摘要；任一供给失效沿<strong>退化链</strong>降级而非硬折。<strong>防反馈环</strong>：折叠事件自身的用量不计入触发估算的往返（避免「折叠→记账→再触发」自激）。</p>
+
+<h2 id="s6">6 Preflight：发送前判定与校准驱动的 auto 档</h2>
+<p>preflight 是 llm/stream 瀑布的<strong>最外层</strong>监听器（cordis 语义下最先执行，短路可抑制全部下游成本）：在请求发出前，用官方投影（或标注的本地回退孪生）重投影消息，按 chars/3（对密集 CJK 已知低估）估算体量，判定 estimate &gt; triggerLine × margin（margin 默认 0.9）。</p>
+<p>三档语义中，<strong>auto 是默认档</strong>：enforce 行为（命中即短路——不发请求、零消耗、合成官方协议形态的单终结 chunk）必须从校准台账「挣得」：同 provider+model 最近 8 条可比记录（官方投影、已结算、正计费）中至少 4 条且最差误差 ≤15% 方可升级；冷启动、历史稀疏、估算不准或台账故障一律退化为 observe（只记录不干预）。每次判定写入审计字段 effectiveMode。<strong>误报代价被显式声明</strong>：一次命中错误消耗一次官方压缩链的 maxOverflowRetries 预算——这就是阈值保守化与「挣得式」设计的动机。one-shot 请求（压缩摘要、会话标题）永不判定，避免压缩链自调自拦。</p>
+
+<h2 id="s7">7 部署形态：纯插件与补丁完全功能</h2>
+<p>zcontext 支持两种部署形态，运行形态在面板中以补丁标记（patcher marker）实时可见：<strong>（a）纯插件模式</strong>——仅经官方插件 API 表达（工具/系统提示/命令/llm/tokenMeter/webServer），兼容性最强；<strong>（b）补丁完全功能模式</strong>——由底座补丁集（多目标单 asar splice、逐文件三态门、marker files 清单）在官方二进制上启用深层面（guard-observe 事件桥等），补丁含自愈计划任务与预适配管线，官方升级落地后自动重打。两形态共用同一插件主体；补丁不可用时自动退回纯插件，面板运行形态行如实显示当前形态（present/absent/unknown）。</p>
+
+<h2 id="s8">8 实测评估</h2>
+
+<h3>8.1 计费放大矩阵（50 轮 × 3 组隔离基准）</h3>
+<table>
+<caption>表 2：Phase 2 主表（50 轮/组；billedInput 口径 = input + cacheRead + cacheWrite；来源 BENCH-report §5.1）</caption>
+<tr><th>组</th><th>累计 billedInput</th><th>前 10 轮均值</th><th>后 10 轮均值</th><th>增长</th><th>折叠调用</th></tr>
+<tr><td>A 裸官方</td><td>36,645,904</td><td>109,181</td><td>1,288,955</td><td><strong>11.8×</strong></td><td>0</td></tr>
+<tr><td>B 装但关</td><td>15,509,064</td><td>51,927</td><td>644,860</td><td>12.4×</td><td>0</td></tr>
+<tr><td>C 全默认</td><td>20,769,088</td><td>42,760</td><td>786,044</td><td>18.4×</td><td>0</td></tr>
+</table>
+<p class="note">读法纪律（原报告 §5.2）：三组 fold 全零，组间差异由模型每轮步数方差主导（总步数 A=371、B=240、C=235），<strong>任何「A 比 C 省 X%」的表述都是把行为方差读成处理效应</strong>——本基准不做此类声称。A 组的价值在于给出官方裸路径的放大倍数量级（11.8×–18.4×，单轮峰值 3,322,963）。</p>
+
+<h3>8.2 模型驱动折叠的不可依赖性（Phase 2/3 对照）</h3>
+<p>修复接线后（工具面/guidance 面/nudge 面全部实测到达 wire prompt），20 轮压力臂 + 10 轮正常臂中模型自发 fold 为 <strong>0</strong>；nudge 在场但模型不接。同时 32 次 autoFold 判定 HIT 中 33 次链运行产出 32 次 no-qualified-span（诚实不硬折）——触发器工作正常，选区纪律不妥协。</p>
+
+<h3>8.3 服务端自发折叠的净节省（Phase 3 两臂）</h3>
+<table>
+<caption>表 3：autoFold 实测折叠（来源 BENCH-report §13，证据文件可溯源）</caption>
+<tr><th>折叠</th><th>位置</th><th>区间</th><th>净省 token</th><th>折叠次轮计费</th></tr>
+<tr><td>f290</td><td>RUN1 / turn 14</td><td>[9..111]，27 seqs</td><td>5,195 → 619（<strong>−88.1%</strong>）</td><td>72,578 → 54,885（−24%）</td></tr>
+<tr><td>f340</td><td>RUN2 / turn 18</td><td>[9..128]，34 seqs</td><td>5,739 → 638（<strong>−88.9%</strong>）</td><td>102,328 → 57,169（<strong>−44%</strong>）</td></tr>
+</table>
+<p>两次折叠均由 compaction 供给生成模型摘要；评审独立重放判定 MATCH。这是「服务端自发折叠」路线有效性的直接证据：触发—选区—摘要—提交—记账全链在无模型配合下完成，且折叠后的计费下降立即可见。</p>
+
+<h3>8.4 可评估性：诚实度量的回报</h3>
+<p>三态记账（measured/semi/estimated）与缓存实测/估计分离使上述每一个数字都可审计：折叠净省 = 逐 entry 代数（before−after），次轮计费 = 会话日志逐轮取数，估算误差 = 校准台账逐记录对拍。§8.2 的「0/20」之所以能成为结论而非印象，正因观测层先行（pi 杠杆顺序 C→r→N 中度量先行的实践）。</p>
+
+<h2 id="s9">9 局限与边界</h2>
+<p><strong>（1）单纪元覆盖边界。</strong>同一单调纪元内（无 compaction/checkpoint 位移），一次提交折叠即把可达 span 压到 minFoldableTokens 地板以下——每纪元一次折叠是实测的诚实上限；跨 checkpoint 吸收仅在窗口恰为 [checkpoint, checkpoint] 时成立。</p>
+<p><strong>（2）估算器未标定。</strong>chars/3 对密集 CJK 系统性低估；auto 档在台账收敛前行为等价于 observe，故默认路径不会被未标定的估算器硬短路——但绝对精度仍待真机标定（校准台账即为此准备的数据面）。</p>
+<p><strong>（3）水位策略未决。</strong>当前触发线驱动（快满才折）；billion-context 式固定水位（常驻 ~100k）是 v0.4 候选，涉及预算/预检/autoFold 三面联动，尚未实现。</p>
+<p><strong>（4）采用面残余。</strong>模型自发采用（文本面/模型面）不在 v0.3 判据内，作为研究候选保留（nudge 措辞强度对照、更强模型对照）。</p>
+
+<h2 id="s10">10 三路线机制对比</h2>
+<table>
+<caption>表 4：三条路线的关键机制对比</caption>
+<tr><th>维度</th><th>DSH 原生压缩</th><th>pi 经济学准则</th><th>billion-context</th><th>zcontext（本文）</th></tr>
+<tr><td>执行通道</td><td>官方压缩链（事后恢复）</td><td>——（设计准则，无执行面）</td><td>侧车自管</td><td>官方 surface replace（唯一执行面）</td></tr>
+<tr><td>触发时机</td><td>溢出后</td><td>晚压缩（window−16k）</td><td>固定水位（~100k 常驻）</td><td>触发线+margin；服务端自发</td></tr>
+<tr><td>对模型自觉的依赖</td><td>无</td><td>无</td><td>无（自述 27B 采用为零）</td><td>无（autoFold 服务端）</td></tr>
+<tr><td>请求改写</td><td>无（通道内）</td><td>注入纪律（构造期）</td><td>侧车管理</td><td><strong>零改写</strong>（R1 红线）</td></tr>
+<tr><td>可评估性</td><td>——</td><td>预算表脚本化</td><td>——</td><td>三态记账+校准台账+持久账本</td></tr>
+<tr><td>自适应</td><td>重试限次</td><td>——</td><td>固定</td><td>auto 档按路线挣得 enforce</td></tr>
+</table>
+
+<h2 id="s11">11 结论与未来工作</h2>
+<p>zcontext 证明了：在官方框架提供 surface replace 通道的前提下，<strong>零请求体改写的分层上下文管理是可行的</strong>，且其经济学基础（杠杆顺序）与执行纪律（诚实度量、fail-soft）可以工程化为 803 项测试守护的实现。实测补齐了该领域少有的第一手数据：官方裸路径 11.8× 放大、模型自发采用 0/20、服务端自发折叠 −88% 级净省与 −44% 次轮计费。未来工作按优先级：①固定水位策略（预算/预检/autoFold 三面联动，v0.4 候选）；②估算器真机标定与阈值修订；③跨 checkpoint 吸收窗口；④模型自发采用的文本面/模型面对照实验。</p>
+
+<h2>参考文献与数据来源</h2>
+<ol class="refs">
+  <li id="r1">DSH 官方源码锚点（zDSH-main 0.2.2-rc.5）：compaction-basic/src/index.ts（maxOverflowRetries 恢复链）、session/src/types.ts（SurfaceFoldState 与 surface replace 语义）、llm/src/error.ts:25（CONTEXT_WINDOW_EXCEEDED 官方码）、vendor/cordis/src/events.ts:221-236（listener 组合顺序）。</li>
+  <li id="r2">pi 上下文管理研究（2026-08，源码级+三轮对抗验证）：R&D/pi-context-research/——REPORT.md、CONTEXT-CACHE-MANAGEMENT.md v2.3、tools/budget_table.py。核心结论：成本方程与 κ≈10、杠杆顺序 C→r→N、pi 零注入哲学、行业非滑窗收敛解。</li>
+  <li id="r3">zcontext 基准报告：dsh-zcontext 仓库 reports/bench/BENCH-report.md（Phase 2 主表 §5、采用率复测 §11.3、autoFold 两臂 §13；raw/*.jsonl 逐轮数据与折叠证据文件 f290/f340 可溯源）。</li>
+  <li id="r4">dsh-zcontext 源码与文档：src/preflight.ts（auto 档机制与阈值常量导出）、src/fold-engine.ts、src/store.ts（三态账本）、README.md（部署形态与面板面）；tag zctx-autoui-20261121a。</li>
+  <li id="r5">billion-context：DSH 生态第三方插件（侧车进程实测：--host 127.0.0.1 --port 18787）；其公开自述（27B 级模型自发采用率为零）与本文 §8.2 的 0/20 对照相互印证。</li>
+</ol>
+
+<h2>附录 A：术语表</h2>
+<table>
+<tr><th>术语</th><th>释义</th></tr>
+<tr><td>surface / 节点</td><td>会话表面 = 有序节点序列；折叠/展开的全部操作对象</td></tr>
+<tr><td>checkpoint</td><td>一次 fold 产出的单节点替身（摘要+原始区间索引）</td></tr>
+<tr><td>triggerLine</td><td>触发线 = 窗口 W − 保留预算 R<sub>pess</sub>（预算计算 CCM §1.2）</td></tr>
+<tr><td>billedInput</td><td>计费输入三值之和 = input + cacheRead + cacheWrite（本文全部计费口径）</td></tr>
+<tr><td>三态记账</td><td>measured（实测）/ semi（半实测）/ estimated（估计）的用量归因分级</td></tr>
+<tr><td>effectiveMode</td><td>auto 档下单请求实际生效的行为（observe/enforce），写入校准记录供审计</td></tr>
+<tr><td>no-qualified-span</td><td>触发命中但选区纪律判不合格，诚实退出（零摘要调用）</td></tr>
+</table>
+
+<footer>
+  本文为 dsh-zcontext 项目技术报告。所有基准数据、源码锚点与原始证据文件均可在公开仓库（github.com/zsagi1368/dsh-zcontext）按引用溯源。
+  BETA 声明：面板与预检为 BETA 面；autoFold 实测为单纪元覆盖边界下的结果。
+</footer>
+
+</body>
+</html>
