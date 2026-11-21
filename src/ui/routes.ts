@@ -1,11 +1,16 @@
 /**
  * Native webServer UI routes (ZCTX-UI DESIGN §3) — D2.
  *
- * FOUR routes via the host `webServer.register`:
- *   GET  /zctx-ui                  → text/html (inline page, token injected)
+ * THREE exact paths (four method arms) via the host `webServer.register`.
+ * The browser-facing HTML page route (`GET /zctx-ui`, inline page + token
+ * injection) was REMOVED 2026-11-21: the desktop webview origin is the custom
+ * `dsh-app://` scheme, which no browser can open — the native side panel
+ * (src/client/index.ts) is the only UI face, and these API routes are its
+ * data channel:
  *   GET  /zctx-ui/api/snapshot     → JSON ZctxSnapshot (?session= optional)
  *   GET  /zctx-ui/api/config       → JSON { fields, faceSwitches, writable }
  *   POST /zctx-ui/api/config       → overlay write via configEditor.edit
+ *   GET  /zctx-ui/api/stats        → JSON durable-ledger aggregates
  *
  * HARD RULES: native req/res only (writeHead/end, async-iterable body, lowercase
  * headers — no Express helpers); disposer via ctx.effect; bridge token runtime
@@ -49,9 +54,6 @@ export interface UiRouteDeps {
 interface WebServerLike {
   register(route: { kind: 'exact' | 'prefix'; path: string; handler: (req: unknown, res: unknown) => void | Promise<void> }): () => void
 }
-
-/** The token placeholder in the page HTML (not a credential — replaced at register time). */
-const TOKEN_PLACEHOLDER = '__ZCTX_BRIDGE_TOKEN__'
 
 /** Read the full body off the native async-iterable request stream. */
 async function readBody(req: unknown): Promise<string> {
@@ -184,9 +186,9 @@ export function registerUiRoutes(deps: UiRouteDeps): () => void {
         sendJson(s, 400, { ok: false, error: 'invalid JSON body' })
         return
       }
-      // Normalize the two wire shapes clients actually send: the page and the
-      // sidebar panel post `{ fields: {...}, faceSwitches: {...} }` (mirroring
-      // the GET view), while a flat `{ key: value }` is equally accepted.
+      // Normalize the two wire shapes clients actually send: the native side
+      // panel posts `{ fields: {...}, faceSwitches: {...} }` (mirroring the
+      // GET view), while a flat `{ key: value }` is equally accepted.
       // Unknown keys are still rejected wholesale (fail-closed unchanged).
       let patchSource: unknown = parsed
       if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
